@@ -64,14 +64,22 @@ it("sums the last 7 days of listening with one bar per day", async () => {
   wrapper.unmount();
 });
 
-it("keeps missing and unreadable books in the grid, greyed, with the reason", async () => {
+it("keeps missing books greyed in the grid and lists books that failed to import apart", async () => {
   const wrapper = await library();
+  expect(titles(wrapper)).not.toContain("The Torn Ledger");
   expect(wrapper.findAll(".book-card")).toHaveLength(4);
-  const gone = wrapper.findAll(".book-card--unavailable");
-  expect(gone).toHaveLength(2);
+  expect(wrapper.findAll(".book-card--unavailable")).toHaveLength(1);
   expect(wrapper.text()).toContain("File missing");
-  expect(wrapper.text()).toContain("Can't open this EPUB");
+  expect(wrapper.get('[aria-label="All"] .library__count').text()).toBe("4");
   expect(wrapper.get('[aria-label="Open The Absent Orchard"]').attributes("disabled")).toBeDefined();
+
+  const failed = wrapper.get('[aria-label="Books that could not be imported"]');
+  expect(failed.text()).toContain("1 book could not be imported");
+  expect(failed.text()).toContain("The Torn Ledger");
+  expect(failed.text()).toContain("This EPUB could not be parsed.");
+  await failed.get('[aria-label="Remove The Torn Ledger"]').trigger("click");
+  await flushPromises();
+  expect(wrapper.find('[aria-label="Books that could not be imported"]').exists()).toBe(false);
   wrapper.unmount();
 });
 

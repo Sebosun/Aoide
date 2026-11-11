@@ -97,7 +97,7 @@ it("reaches Find books and rescan from the Add EPUB menu, which closes on Escape
   await pickMenuItem("Find books on this computer");
   expect(wrapper.find(".find").exists()).toBe(true);
   await wrapper.get('[aria-label="Back to library"]').trigger("click");
-  expect(useLibraryStore().books.length).toBe(4);
+  expect(useLibraryStore().books.length).toBe(5);
   expect(wrapper.find(".find").exists()).toBe(false);
   wrapper.unmount();
 });

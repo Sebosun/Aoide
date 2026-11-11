@@ -18,9 +18,9 @@ export function slowed<T extends AoideApi>(api: T, ms: number): T {
 /** Original, synthetic preview books. No personal books or network requests. */
 export function createMockApi() {
   const engine: EngineStatusView = { profileName: "Local Chatterbox", state: "ready", detail: "Browser preview · simulated audio" };
-  const books: BookSummary[] = ["The Lantern Keeper", "A Map of Quiet Places", "The Absent Orchard", "An Unfinished Atlas"].map((title, i) => ({
+  const books: BookSummary[] = ["The Lantern Keeper", "A Map of Quiet Places", "The Absent Orchard", "An Unfinished Atlas", "The Torn Ledger"].map((title, i) => ({
     id: `book-${i}`, title, authors: [i === 0 ? "Mira Vale" : "Ellis Reed"], language: "en", coverUrl: null,
-    status: i === 2 ? { kind: "missing" } : i === 3 ? { kind: "error", message: "This EPUB could not be parsed." } : { kind: "present" },
+    status: i === 2 ? { kind: "missing" } : i === 4 ? { kind: "error", message: "This EPUB could not be parsed." } : { kind: "present" },
     progress: i === 0 ? { chapter: 0, segmentId: "0:1:0", fraction: 0.12 } : null,
     audioBytes: i === 0 ? 2457600 : 0, prepare: null, addedAt: 100 + i, lastOpenedAt: i === 0 ? 500 : null, collections: [],
   }));

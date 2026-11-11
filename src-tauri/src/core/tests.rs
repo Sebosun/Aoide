@@ -50,14 +50,20 @@ pub(super) fn epub() -> Vec<u8> {
             r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>{title}</h1><p>{body}</p></body></html>"#
         )
     };
-    let one = chapter(
-        "The Quay",
-        "Gulls argued over the nets. The tide came in slowly.",
-    );
-    let two = chapter(
-        "The Lamp",
-        "Someone lit the lamp at dusk. It burned until morning.",
-    );
+    epub_with(
+        chapter(
+            "The Quay",
+            "Gulls argued over the nets. The tide came in slowly.",
+        ),
+        chapter(
+            "The Lamp",
+            "Someone lit the lamp at dusk. It burned until morning.",
+        ),
+    )
+}
+
+/// The test book's package with these two chapter documents.
+fn epub_with(one: String, two: String) -> Vec<u8> {
     let files = [
         ("mimetype", "application/epub+zip".to_string()),
         ("META-INF/container.xml", r#"<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#.into()),
@@ -322,4 +328,37 @@ async fn a_queue_resumed_at_startup_does_not_send_a_voice_the_engine_lacks() {
     .await;
     let voices: Vec<String> = engine.requests().into_iter().map(|r| r.voice_id).collect();
     assert!(voices.iter().all(|v| v == "Hazel.wav"), "{voices:?}");
+}
+
+#[tokio::test]
+async fn a_book_without_readable_text_fails_to_import_and_says_why() {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let only_pictures =
+        r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><img src="a.png"/></body></html>"#;
+    let source = dir.path().join("Pictures.epub");
+    std::fs::write(
+        &source,
+        epub_with(only_pictures.into(), only_pictures.into()),
+    )
+    .unwrap();
+
+    let results = core.import_files(vec![source.to_string_lossy().into_owned()]);
+
+    assert_eq!(results[0].book_id, None);
+    let error = results[0].error.as_deref().expect("an import error");
+    assert!(error.contains("no readable text"), "{error}");
+    let failed: Vec<_> = core
+        .list_books()
+        .unwrap()
+        .into_iter()
+        .filter(|b| matches!(b.status, aoide_library::BookStatus::Error(_)))
+        .collect();
+    assert_eq!(failed.len(), 1, "listed as failed, with its reason");
 }

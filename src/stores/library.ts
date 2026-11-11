@@ -20,7 +20,10 @@ export const useLibraryStore = defineStore("library", () => {
   const imports = ref<ImportResult[]>([]);
   const query = ref(""), sort = ref<LibrarySort>("recent"), filter = ref<LibraryFilter>("all");
   const collections = ref<Collection[]>([]);
-  const counts = computed(() => Object.fromEntries(Object.entries(filters).map(([key, test]) => [key, books.value.filter(test).length])) as Record<BuiltInFilter, number>);
+  /** Books whose file could not be read: listed apart, never among the books to open. */
+  const failed = computed(() => books.value.filter(b => b.status.kind === "error"));
+  const usable = computed(() => books.value.filter(b => b.status.kind !== "error"));
+  const counts = computed(() => Object.fromEntries(Object.entries(filters).map(([key, test]) => [key, usable.value.filter(test).length])) as Record<BuiltInFilter, number>);
   /** The collection the library is filtered by, if any. */
   const collection = computed(() => filter.value.startsWith("collection:") ? collections.value.find(c => `collection:${c.id}` === filter.value) ?? null : null);
   const matchesFilter = (book: BookSummary) => {
@@ -29,7 +32,7 @@ export const useLibraryStore = defineStore("library", () => {
   };
   const visible = computed(() => {
     const q = query.value.trim().toLowerCase();
-    const shown = books.value.filter(matchesFilter);
+    const shown = usable.value.filter(matchesFilter);
     const matches = q ? shown.filter(b => b.title.toLowerCase().includes(q) || b.authors.some(a => a.toLowerCase().includes(q))) : shown;
     const text = (a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true });
     const byTitle = (a: BookSummary, b: BookSummary) => text(a.title.replace(/^(the|a|an)\s+/i, ""), b.title.replace(/^(the|a|an)\s+/i, ""));
@@ -64,5 +67,5 @@ export const useLibraryStore = defineStore("library", () => {
   function start() { return startup ??= (async () => { try { unlisten = await api.onLibraryChanged(() => { void refresh(); }); folder.value = (await api.appInfo()).libraryFolder; sort.value = (await api.appSettings()).librarySort ?? "recent"; await refresh(); } catch (e) { error.value = String(e); } finally { ready.value = true; } })(); }
   async function importFiles(paths: string[]) { await perform(async () => { imports.value = await api.importFiles(paths); }); }
   function dispose() { unlisten?.(); startup = undefined; }
-  return { books, ready, visible, query, sort, setSort, filter, counts, collections, collection, createCollection, renameCollection, deleteCollection, setBookCollections, loading, folder, error, imports, start, refresh, importFiles, rescan: () => perform(() => api.rescanLibrary()), remove: (id: string) => perform(() => api.removeBook(id)), dispose };
+  return { books, failed, ready, visible, query, sort, setSort, filter, counts, collections, collection, createCollection, renameCollection, deleteCollection, setBookCollections, loading, folder, error, imports, start, refresh, importFiles, rescan: () => perform(() => api.rescanLibrary()), remove: (id: string) => perform(() => api.removeBook(id)), dispose };
 });

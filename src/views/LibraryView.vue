@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { BookOpen, Library, Pencil, Plus, Search, Trash2 } from "@lucide/vue";
+import { BookOpen, Library, Pencil, Plus, Search, Trash2, TriangleAlert } from "@lucide/vue";
 import { useCollections } from "../composables/useCollections";
 import UiSelect from "../components/ui/UiSelect.vue";
 import UiSkeleton from "../components/ui/UiSkeleton.vue";
@@ -44,6 +44,16 @@ const SORTS: { value: LibrarySort; label: string }[] = [{ value: "recent", label
     </div>
     <p v-if="library.error || reader.error" class="library__alert" role="alert">{{ library.error || reader.error }}</p>
     <ul v-if="importErrors.length" class="library__alert" role="alert"><li v-for="result in importErrors" :key="result.path">{{ result.path }}: {{ result.error }}</li></ul>
+    <section v-if="library.failed.length" class="library__failed" aria-label="Books that could not be imported">
+      <p class="library__failed-title"><TriangleAlert :size="15" /> {{ plural(library.failed.length) }} could not be imported</p>
+      <ul class="library__failed-list">
+        <li v-for="book in library.failed" :key="book.id" class="library__failed-item">
+          <b class="library__failed-name">{{ book.title }}</b>
+          <span class="library__failed-reason">{{ book.status.kind === "error" ? book.status.message : "" }}</span>
+          <button type="button" class="library__failed-remove" :aria-label="`Remove ${book.title}`" title="Remove from the library (the file is left as it is)" @click="library.remove(book.id)"><Trash2 :size="14" /></button>
+        </li>
+      </ul>
+    </section>
 
     <div class="library__head">
       <h2 class="library__title">Your books</h2>
@@ -87,6 +97,14 @@ const SORTS: { value: LibrarySort; label: string }[] = [{ value: "recent", label
 .library__welcome b { font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
 .library__welcome span { color: var(--dim); }
 .library__alert { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--page); color: var(--accent); font-weight: 600; list-style: none; overflow-wrap: anywhere; }
+.library__failed { display: grid; gap: 6px; padding: 12px 14px; border-radius: 14px; background: var(--glass); font-size: 13px; }
+.library__failed-title { display: flex; align-items: center; gap: 7px; margin: 0; font-weight: 700; color: var(--warn); }
+.library__failed-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.library__failed-item { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.library__failed-name { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.library__failed-reason { flex: 1; min-width: 0; color: var(--dim); overflow-wrap: anywhere; }
+.library__failed-remove { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px; color: var(--dim); }
+.library__failed-remove:hover { background: var(--wash); color: var(--ink); }
 .library__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .library__title { margin-right: 10px; font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
 /* Filters (and the collections after them) get their own row under the title and tools. */

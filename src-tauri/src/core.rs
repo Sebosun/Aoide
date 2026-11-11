@@ -689,6 +689,14 @@ impl Core {
             .and_then(|bytes| {
                 aoide_epub::parse_epub(&bytes, &aoide_epub::ParseOptions::default())
                     .map_err(|e| e.to_string())
+            })
+            .and_then(|book: aoide_epub::ParsedBook| {
+                // Parsing can succeed with nothing to read (every section empty or left out).
+                if book.chapters.iter().any(|c| !c.text.trim().is_empty()) {
+                    Ok(book)
+                } else {
+                    Err("no readable text was found in this EPUB".into())
+                }
             });
         match parsed {
             Ok(book) => {
@@ -751,7 +759,7 @@ impl Core {
 
     pub fn import_files(&self, paths: Vec<String>) -> Vec<ImportResult> {
         let mut ignored = self.ignored();
-        let results = paths
+        let results: Vec<ImportResult> = paths
             .into_iter()
             .map(|path| {
                 let source = PathBuf::from(&path);
@@ -801,7 +809,27 @@ impl Core {
         if let Err(error) = self.rescan() {
             eprintln!("aoide: rescan after import failed: {error}");
         }
+        // A copied file the parser could not read is a failed import, not a book.
+        let library = lock(&self.library);
         results
+            .into_iter()
+            .map(|result| {
+                let failed = result.book_id.as_ref().and_then(|id| {
+                    match library.book(&BookId(id.clone())).ok().flatten()?.status {
+                        BookStatus::Error(message) => Some(message),
+                        _ => None,
+                    }
+                });
+                match failed {
+                    Some(message) => ImportResult {
+                        path: result.path,
+                        book_id: None,
+                        error: Some(format!("could not import: {message}")),
+                    },
+                    None => result,
+                }
+            })
+            .collect()
     }
 
     pub fn remove_book(&self, id: &str) -> Result<(), String> {
