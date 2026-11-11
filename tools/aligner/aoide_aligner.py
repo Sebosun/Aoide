@@ -45,7 +45,18 @@ def load(device_name):
         device_name = "cuda" if torch.cuda.is_available() else "cpu"
     _device = torch.device(device_name)
     _model = MMS_FA.get_model(with_star=False).to(_device).eval()
+    if _device.type == "cuda":
+        # Half precision halves the weights' video memory; alignment needs no more accuracy.
+        _model = _model.half()
     _dictionary = MMS_FA.get_dict(star=None)
+    release_cached_memory()
+
+
+def release_cached_memory():
+    """Hand memory PyTorch kept from the last sentence back to the GPU between requests."""
+    if _device is not None and _device.type == "cuda":
+        import torch
+        torch.cuda.empty_cache()
 
 
 def normalise(word):
@@ -75,7 +86,9 @@ def align(words, sample_rate, pcm_bytes):
         return result
     tokens = [_dictionary[c] for i in known for c in spelled[i]]
     with torch.inference_mode():
-        emission, _ = _model(waveform.to(_device))
+        weights = next(_model.parameters())
+        emission, _ = _model(waveform.to(_device, weights.dtype))
+        emission = emission.float()
         targets = torch.tensor([tokens], dtype=torch.int32, device=_device)
         alignment, scores = F.forced_align(emission, targets, blank=0)
     spans = F.merge_tokens(alignment[0], scores[0].exp())
@@ -123,7 +136,10 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError("words must be a list of strings")
             pcm = base64.b64decode(request["audio"], validate=True)
             with _lock:
-                result = align(words, int(request["sampleRate"]), pcm)
+                try:
+                    result = align(words, int(request["sampleRate"]), pcm)
+                finally:
+                    release_cached_memory()
         except (KeyError, ValueError, TypeError) as error:
             return self.reply(400, {"detail": str(error)})
         except RuntimeError as error:  # e.g. audio too short for the transcript
