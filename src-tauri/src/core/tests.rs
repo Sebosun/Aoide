@@ -440,3 +440,21 @@ async fn preparing_one_chapter_makes_only_its_audio_and_reports_it_per_chapter()
         "one chapter does not make the book ready"
     );
 }
+
+#[tokio::test]
+async fn volume_is_reported_saved_and_restored_with_the_speed() {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "[player]\nspeed = 1.5\n");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    assert_eq!(core.player_state().volume, 1.0, "full volume by default");
+
+    core.set_volume(0.4);
+    assert_eq!(core.player_state().volume, 0.4);
+    assert_eq!(core.player_state().speed, 1.5, "speed kept");
+    drop(core);
+
+    let (core, _events) = start(dir.path(), &engine);
+    assert_eq!(core.player_state().volume, 0.4);
+    assert_eq!(core.player_state().speed, 1.5);
+}

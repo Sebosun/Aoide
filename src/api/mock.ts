@@ -1,6 +1,6 @@
 import type { PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
 
-export const initialPlayer = (): PlayerState => ({ bookId: null, status: "stopped", chapter: 0, segmentId: null, wordIndex: null, speed: 1, chapterFraction: 0, error: null, sleep: null });
+export const initialPlayer = (): PlayerState => ({ bookId: null, status: "stopped", chapter: 0, segmentId: null, wordIndex: null, speed: 1, volume: 1, chapterFraction: 0, error: null, sleep: null });
 export const initialGeneration = (): GenerationState => ({ bookId: null, generatingSegmentId: null, bufferedAheadMs: 0, pending: 0, error: null, preparing: null });
 
 /** The same API with every request (not the event subscriptions) taking `ms` longer. */
@@ -179,6 +179,7 @@ export function createMockApi() {
     async resume() { if (state.bookId) { emitPlayer({ ...state, status: "playing" }); run(); } },
     async stop() { halt(); emitPlayer({ ...state, status: "stopped", wordIndex: null }); },
     async setSpeed(speed) { emitPlayer({ ...state, speed }); if (state.status === "playing") run(); },
+    async setVolume(volume) { emitPlayer({ ...state, volume: Math.min(1, Math.max(0, volume)) }); },
     async engineStatus() { return { ...engine }; },
     async engineOptions() { return { descriptors: structuredClone(descriptors), profile: structuredClone(profile) }; },
     async previewVoice() {

@@ -225,3 +225,22 @@ fn releasing_old_audio_keeps_upcoming_entries() {
     assert!(!player.has_audio(0));
     assert!(player.has_audio(1));
 }
+
+#[test]
+fn volume_scales_the_output_and_is_clamped() {
+    let mut player = PlayerCore::new(RATE);
+    player.load(vec![entry("a", 0)], 0);
+    player.provide(0, &constant(0.8, 100));
+    player.play();
+
+    player.set_volume(0.25);
+    assert_eq!(render(&mut player, 10), vec![0.2; 10]);
+
+    player.set_volume(4.0);
+    assert_eq!(player.volume(), 1.0);
+    player.set_volume(f32::NAN);
+    assert_eq!(player.volume(), 1.0);
+    player.set_volume(-1.0);
+    assert_eq!(player.volume(), 0.0);
+    assert_eq!(render(&mut player, 10), vec![0.0; 10]);
+}

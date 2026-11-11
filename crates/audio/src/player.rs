@@ -46,6 +46,8 @@ pub struct PlayerCore {
     offset: usize,
     playing: bool,
     speed: f32,
+    /// Output gain, 0.0..=1.0.
+    volume: f32,
     stretch: Option<Stretch>,
     /// Fractional input samples carried between renders at non-unit speed.
     carry: f64,
@@ -60,6 +62,7 @@ impl PlayerCore {
             offset: 0,
             playing: false,
             speed: 1.0,
+            volume: 1.0,
             stretch: None,
             carry: 0.0,
         }
@@ -129,6 +132,19 @@ impl PlayerCore {
         self.speed
     }
 
+    /// Output gain, clamped to 0.0..=1.0.
+    pub fn set_volume(&mut self, volume: f32) {
+        self.volume = if volume.is_finite() {
+            volume.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+    }
+
+    pub fn volume(&self) -> f32 {
+        self.volume
+    }
+
     pub fn position(&self) -> Position {
         let offset_ms = self.slots.get(self.index).map_or(0, |slot| {
             let audio = slot.audio.as_ref().map_or(0, Vec::len);
@@ -154,6 +170,13 @@ impl PlayerCore {
 
     /// Fills `out` with the next mono samples (silence when not playing or while buffering).
     pub fn render(&mut self, out: &mut [f32]) {
+        self.render_unscaled(out);
+        if self.volume < 1.0 {
+            out.iter_mut().for_each(|sample| *sample *= self.volume);
+        }
+    }
+
+    fn render_unscaled(&mut self, out: &mut [f32]) {
         out.fill(0.0);
         if !self.playing || self.slots.is_empty() || self.index >= self.slots.len() {
             return;

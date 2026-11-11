@@ -5,6 +5,7 @@ import CoverArt from "../CoverArt.vue";
 import PlayerScrubber from "./PlayerScrubber.vue";
 import SpeedPill from "./SpeedPill.vue";
 import SleepPill from "./SleepPill.vue";
+import VolumeControl from "./VolumeControl.vue";
 import { usePlayerControls } from "../../composables/usePlayerControls";
 
 /** One-row transport docked under the page (Sheet reader). */
@@ -29,6 +30,7 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
     <div class="dock__end">
       <SpeedPill />
       <SleepPill />
+      <VolumeControl />
       <button type="button" class="dock__round" aria-label="Add bookmark" title="Bookmark this sentence" :disabled="!canPlay" @click="bookmark"><Bookmark :size="16" /></button>
       <button type="button" class="dock__round" aria-label="Book tools" aria-haspopup="dialog" title="Bookmarks, search, voice and details" @click="emit('tools')"><SlidersHorizontal :size="16" /></button>
       <button type="button" class="dock__round" aria-label="Stop" title="Stop" :disabled="!player.state.bookId" @click="player.stop"><Square :size="15" /></button>
@@ -47,9 +49,10 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
 .dock__status span { overflow: hidden; text-overflow: ellipsis; }
 .dock__error { color: var(--accent); flex-shrink: 0; max-width: 60%; }
 .dock__end { display: flex; align-items: center; gap: 8px; }
+.dock__end > * { flex: none; }
 .dock__round { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--glass); }
 @media (max-width: 999px) { .dock__thumb { display: flex; } }
-@media (max-width: 860px) {
+@media (max-width: 1040px) {
   .dock { grid-template-columns: auto minmax(0, 1fr); gap: 10px 18px; padding: 12px 16px; }
   .dock__middle { grid-column: 1 / -1; grid-row: 1; }
   .dock__end { justify-content: flex-end; flex-wrap: wrap; }

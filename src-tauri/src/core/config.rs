@@ -29,6 +29,13 @@ const OLD_APP_KEY: &str = "app.settings";
 #[serde(rename_all = "camelCase")]
 pub(super) struct PlayerSettings {
     pub speed: f32,
+    /// Output gain, 0.0..=1.0; files written before volume existed play at full volume.
+    #[serde(default = "full_volume")]
+    pub volume: f32,
+}
+
+fn full_volume() -> f32 {
+    1.0
 }
 
 /// What the UI needs to apply appearance settings and show config problems.
@@ -103,7 +110,7 @@ impl Config {
             .unwrap_or_default();
         let result = self.update(|file| {
             file.set_section(APPEARANCE, &Appearance::default())?;
-            file.set_section(PLAYER, &PlayerSettings { speed })?;
+            file.set_section(PLAYER, &PlayerSettings { speed, volume: 1.0 })?;
             file.set_section(APP, &app)?;
             file.set_section(ENGINE, &profile)
         });
@@ -241,7 +248,9 @@ impl Core {
             )
         };
         if let Some(player) = player {
-            lock(&self.player).set_speed(player.speed);
+            let mut core = lock(&self.player);
+            core.set_speed(player.speed);
+            core.set_volume(player.volume);
         }
         let Some(profile) = profile else { return };
         if profile == lock(&self.engine).profile {
@@ -300,7 +309,10 @@ mod tests {
         assert_eq!(profile.name, "Old profile");
         assert_eq!(
             on_disk.section::<PlayerSettings>(PLAYER).unwrap(),
-            Some(PlayerSettings { speed: 1.5 })
+            Some(PlayerSettings {
+                speed: 1.5,
+                volume: 1.0
+            })
         );
         let app = on_disk.section::<AppSettings>(APP).unwrap().unwrap();
         assert_eq!(app.cache_limit_bytes, Some(1 << 30));
@@ -323,7 +335,10 @@ mod tests {
         let config = Config::open(dir.path(), &library_with_old_settings());
         assert_eq!(
             config.get::<PlayerSettings>(PLAYER),
-            Some(PlayerSettings { speed: 2.0 })
+            Some(PlayerSettings {
+                speed: 2.0,
+                volume: 1.0
+            })
         );
         assert_eq!(config.preferences().appearance.mode, Mode::Dark);
         assert_eq!(config.get::<EngineProfile>(ENGINE), None);
@@ -338,8 +353,15 @@ mod tests {
 
         assert_eq!(config.problems().len(), 1);
         assert!(config.problems()[0].contains("settings.toml"));
-        let refused =
-            config.update(|file| file.set_section(PLAYER, &PlayerSettings { speed: 1.0 }));
+        let refused = config.update(|file| {
+            file.set_section(
+                PLAYER,
+                &PlayerSettings {
+                    speed: 1.0,
+                    volume: 1.0,
+                },
+            )
+        });
         assert!(refused.is_err());
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "[player\nspeed = ");
 
@@ -348,7 +370,10 @@ mod tests {
         assert!(config.problems().is_empty());
         assert_eq!(
             config.get::<PlayerSettings>(PLAYER),
-            Some(PlayerSettings { speed: 1.25 })
+            Some(PlayerSettings {
+                speed: 1.25,
+                volume: 1.0
+            })
         );
         assert!(!config.reload(), "unchanged text is not reloaded again");
     }
@@ -358,7 +383,15 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut config = Config::open(dir.path(), &Library::open_in_memory().unwrap());
         config
-            .update(|file| file.set_section(PLAYER, &PlayerSettings { speed: 0.75 }))
+            .update(|file| {
+                file.set_section(
+                    PLAYER,
+                    &PlayerSettings {
+                        speed: 0.75,
+                        volume: 1.0,
+                    },
+                )
+            })
             .unwrap();
         assert!(!config.reload());
     }

@@ -91,7 +91,11 @@ export type SleepView = {
  */
 remainingMs: number | null, endOfChapter: boolean, };
 
-export type PlayerState = { bookId: string | null, status: PlaybackStatus, chapter: number, segmentId: string | null, wordIndex: number | null, speed: number, chapterFraction: number, error: string | null, sleep: SleepView | null, };
+export type PlayerState = { bookId: string | null, status: PlaybackStatus, chapter: number, segmentId: string | null, wordIndex: number | null, speed: number, 
+/**
+ * Output gain, 0.0..=1.0.
+ */
+volume: number, chapterFraction: number, error: string | null, sleep: SleepView | null, };
 
 export type EngineState = "offline" | "loading" | "ready" | "busy" | "error";
 

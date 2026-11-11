@@ -107,6 +107,11 @@ fn set_speed(core: CoreState<'_>, speed: f32) {
 }
 
 #[tauri::command]
+fn set_volume(core: CoreState<'_>, volume: f32) {
+    core.set_volume(volume);
+}
+
+#[tauri::command]
 fn engine_status(core: CoreState<'_>) -> EngineStatusView {
     core.engine_status()
 }
@@ -657,6 +662,7 @@ pub fn run() {
             resume,
             stop,
             set_speed,
+            set_volume,
             engine_status,
             book_settings,
             save_book_settings,

@@ -205,3 +205,21 @@ it("changes the text size and the reader mode, and remembers both", async () => 
   expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ readerMode: "lines" }));
   wrapper.unmount();
 });
+
+it("sets the volume from the dock, and mutes and unmutes to the same level", async () => {
+  const wrapper = await openReader();
+  const dock = () => wrapper.get('[aria-label="Player"]');
+  const volume = () => dock().get<HTMLInputElement>('input[aria-label="Volume"]');
+  expect(volume().element.value).toBe("100");
+  await volume().setValue("40");
+  await flushPromises();
+  expect(usePlayerStore().state.volume).toBe(0.4);
+  await dock().get('[aria-label="Mute"]').trigger("click");
+  await flushPromises();
+  expect(usePlayerStore().state.volume).toBe(0);
+  expect(volume().element.value).toBe("0");
+  await dock().get('[aria-label="Unmute"]').trigger("click");
+  await flushPromises();
+  expect(usePlayerStore().state.volume).toBe(0.4);
+  wrapper.unmount();
+});

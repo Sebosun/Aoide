@@ -161,6 +161,8 @@ export interface AoideApi {
   resume(): Promise<void>;
   stop(): Promise<void>;
   setSpeed(speed: number): Promise<void>;
+  /** Output gain, 0–1; saved with the speed. */
+  setVolume(volume: number): Promise<void>;
   engineStatus(): Promise<EngineStatusView>;
   /** Registered adapters and the active global profile. */
   engineOptions(): Promise<{ descriptors: EngineDescriptor[]; profile: EngineProfile }>;

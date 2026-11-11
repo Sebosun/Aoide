@@ -169,6 +169,8 @@ pub struct PlayerStateView {
     pub segment_id: Option<String>,
     pub word_index: Option<usize>,
     pub speed: f32,
+    /// Output gain, 0.0..=1.0.
+    pub volume: f32,
     pub chapter_fraction: f64,
     pub error: Option<String>,
     pub sleep: Option<SleepView>,
@@ -538,9 +540,7 @@ impl Core {
         let profile = config
             .get::<EngineProfile>(config::ENGINE)
             .unwrap_or_else(default_profile);
-        let speed = config
-            .get::<config::PlayerSettings>(config::PLAYER)
-            .map_or(1.0, |p| p.speed);
+        let settings = config.get::<config::PlayerSettings>(config::PLAYER);
         let engine = registry.create(&profile).map_err(|e| e.to_string())?;
         let library = Arc::new(Mutex::new(library));
         let (events_tx, events_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -556,7 +556,10 @@ impl Core {
         );
         let preparation = Preparation::load(&lock(&library));
         let mut player = PlayerCore::new(OUTPUT_RATE);
-        player.set_speed(speed);
+        if let Some(settings) = settings {
+            player.set_speed(settings.speed);
+            player.set_volume(settings.volume);
+        }
         let core = Arc::new(Self {
             events,
             audio,
@@ -1782,12 +1785,24 @@ impl Core {
     }
 
     pub fn set_speed(&self, speed: f32) {
-        let mut player = lock(&self.player);
-        player.set_speed(speed);
-        let speed = player.speed();
-        drop(player);
-        let saved = lock(&self.config)
-            .update(|file| file.set_section(config::PLAYER, &config::PlayerSettings { speed }));
+        lock(&self.player).set_speed(speed);
+        self.save_player_settings();
+    }
+
+    pub fn set_volume(&self, volume: f32) {
+        lock(&self.player).set_volume(volume);
+        self.save_player_settings();
+    }
+
+    fn save_player_settings(&self) {
+        let settings = {
+            let player = lock(&self.player);
+            config::PlayerSettings {
+                speed: player.speed(),
+                volume: player.volume(),
+            }
+        };
+        let saved = lock(&self.config).update(|file| file.set_section(config::PLAYER, &settings));
         if let Err(error) = saved {
             eprintln!("aoide: {error}");
         }
@@ -1995,9 +2010,9 @@ impl Core {
     }
 
     pub(crate) fn player_state(&self) -> PlayerStateView {
-        let (position, speed) = {
+        let (position, speed, volume) = {
             let player = lock(&self.player);
-            (player.position(), player.speed())
+            (player.position(), player.speed(), player.volume())
         };
         let session = lock(&self.session);
         let status = match position.status {
@@ -2014,6 +2029,7 @@ impl Core {
                 segment_id: None,
                 word_index: None,
                 speed,
+                volume,
                 chapter_fraction: 0.0,
                 error: lock(&self.player_error).clone(),
                 sleep: None,
@@ -2034,6 +2050,7 @@ impl Core {
             segment_id: segment.map(|s| s.id.clone()),
             word_index: word,
             speed,
+            volume,
             chapter_fraction: book.chapter_fraction(index),
             error: lock(&self.player_error).clone(),
             sleep: self.sleep_view(),

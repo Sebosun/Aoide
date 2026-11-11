@@ -26,7 +26,7 @@ export const tauriApi: AoideApi = {
   chapter: (bookId, chapter) => invoke("chapter", { bookId, chapter }),
   play: (bookId, chapter, segmentId) => invoke("play", { bookId, chapter, segmentId }),
   pause: () => invoke("pause"), resume: () => invoke("resume"), stop: () => invoke("stop"),
-  setSpeed: speed => invoke("set_speed", { speed }), engineStatus: () => invoke("engine_status"),
+  setSpeed: speed => invoke("set_speed", { speed }), setVolume: volume => invoke("set_volume", { volume }), engineStatus: () => invoke("engine_status"),
   engineOptions: () => invoke("engine_options"),
   engineVoices: () => invoke("engine_voices"),
   previewVoice: (profile, voiceId, params, language) => invoke("preview_voice", { profile, voiceId, params, language }),
