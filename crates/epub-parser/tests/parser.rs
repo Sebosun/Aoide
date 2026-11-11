@@ -576,3 +576,18 @@ fn follows_spine_order_instead_of_filenames_or_zip_order() {
         ["First", "Second"]
     );
 }
+
+#[test]
+fn reads_xhtml_with_self_closing_title_and_anchors_as_xml_intends() {
+    // An HTML parser would read everything after `<title/>` as the title, leaving no body.
+    let bytes = support::single(
+        r#"<html xmlns="http://www.w3.org/1999/xhtml"><head><title/><link href="s.css" rel="stylesheet"/></head><body><h1><a id="p1"/> The Harbour</h1><p>Boats rocked at <span/>anchor.</p><p>Night fell.</p></body></html>"#,
+    );
+    let book = parse_epub(&bytes, &ParseOptions::default()).unwrap();
+    assert_eq!(book.chapters.len(), 1, "{:?}", book.warnings);
+    assert_eq!(book.chapters[0].title, "The Harbour");
+    assert_eq!(
+        book.chapters[0].text,
+        "The Harbour\n\nBoats rocked at anchor.\n\nNight fell."
+    );
+}

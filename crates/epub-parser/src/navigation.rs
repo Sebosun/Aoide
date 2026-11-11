@@ -80,7 +80,7 @@ pub(crate) fn read(
 }
 
 fn read_html(source: &str, path: &str) -> Result<Vec<Entry>, ParseError> {
-    let html = Html::parse_document(source);
+    let html = Html::parse_document(&crate::xhtml::expand_self_closing(source));
     let nav_selector = Selector::parse("nav").unwrap();
     let links = Selector::parse("a[href]").unwrap();
     let mut entries = Vec::new();

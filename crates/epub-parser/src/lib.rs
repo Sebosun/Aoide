@@ -8,6 +8,7 @@ mod location;
 mod model;
 mod navigation;
 mod package;
+mod xhtml;
 
 pub use model::*;
 

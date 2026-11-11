@@ -117,7 +117,7 @@ pub(crate) fn join_blocks(blocks: &[Block]) -> String {
 }
 
 pub(crate) fn read(source: &str) -> Content {
-    let html = Html::parse_document(source);
+    let html = Html::parse_document(&crate::xhtml::expand_self_closing(source));
     let mut content = Content {
         title: "Untitled chapter".into(),
         tokens: Vec::new(),
