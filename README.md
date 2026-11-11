@@ -120,10 +120,44 @@ Aoide doesn't contain a voice of its own; it talks to a speech server running on
 | | Sounds | Needs | Default address |
 | --- | --- | --- | --- |
 | **[Chatterbox TTS Server](https://github.com/devnen/Chatterbox-TTS-Server)** | Very natural, expressive, can clone a voice from a short sample | An NVIDIA GPU is strongly recommended | `http://127.0.0.1:8004` |
+| **[Breeze TTS 2](https://github.com/breezeblue-ai/breeze-tts)**, through [`tools/breeze-tts`](tools/breeze-tts/aoide_breeze_tts.py) | Very natural; designs narrator voices from a description and keeps each one steady for a whole book. Weights are for non-commercial use only | An NVIDIA GPU with 12 GB, or 16 GB to keep up with fast listening (see below) | `http://127.0.0.1:8883` |
 | **[Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI)** | Clear and pleasant, many stock voices | Runs fine on a CPU | `http://127.0.0.1:8880` |
 | Anything else with an OpenAI-style `/v1/audio/speech` endpoint | – | – | your choice |
 
 Follow the server's own install guide. Aoide is set up for Chatterbox out of the box; for anything else open **Settings → Speech engine**, choose *OpenAI-compatible speech server* and enter its address.
+
+<details>
+<summary>Setting up Breeze TTS 2</summary>
+
+Breeze has no server of its own that Aoide can use, so this repository includes a small one. Install Breeze and download the weights (7.2 GB) next to it:
+
+```sh
+git clone https://github.com/breezeblue-ai/breeze-tts.git && cd breeze-tts
+uv venv --python 3.12 --python-preference only-managed venv
+VIRTUAL_ENV=venv uv pip install -r requirements.txt
+venv/bin/hf download BreezeBlue/Breeze-TTS-2 --local-dir ../breeze-tts-2
+```
+
+Start it once in normal mode. On the first start it designs three narrator voices, Hazel, Arthur and Nell, and keeps them in `~/.local/share/aoide/breeze-voices`:
+
+```sh
+venv/bin/python path/to/aoide/tools/breeze-tts/aoide_breeze_tts.py --breeze . --model ../breeze-tts-2
+```
+
+Breeze runs in one of two modes. Measured on a 16 GB graphics card:
+
+| | Normal | Fast (`--fast`) |
+| --- | --- | --- |
+| Video memory | about 9 GB | about 11 GB |
+| Speed | about 0.9× real time: too slow to listen live, so prepare books ahead | about 2.3× real time: keeps up even at 2× playback |
+| Start-up | a few seconds | about 15 seconds |
+| Designing voices | yes | no; design them in normal mode, then restart with `--fast` |
+
+Fast mode is what you want if your card has room for it. Use normal mode on a 12 GB card, or when something else, such as a game, needs the GPU.
+
+To add a voice, describe it: `--design "Mara" "A warm woman in her forties, low and unhurried."` (normal mode, it saves the voice and exits). Or drop a clean 5–15 second recording you have the rights to into the voices folder as `Mara.wav`, with its exact transcript as `Mara.txt`.
+
+</details>
 
 The pill in the top right corner tells you whether Aoide can reach the server. When it says **ready**, you're set.
 
