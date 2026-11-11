@@ -22,6 +22,14 @@ export function useFollow(container: Ref<HTMLElement | undefined>, active: () =>
   /** Called when the spoken sentence changes. */
   function follow() { if (following.value) scrollToCurrent(false); }
   function backToPlayhead() { following.value = true; scrollToCurrent(true); }
+  /** A new chapter: show it from its top and follow again. */
+  function restart() {
+    following.value = true;
+    automatic = true;
+    clearTimeout(timer);
+    timer = setTimeout(() => { automatic = false; }, 1200);
+    container.value?.scrollTo?.({ top: 0 });
+  }
   function manual() { if (active()) { following.value = false; automatic = false; } }
   const listeners = {
     onScroll: () => { if (!automatic) manual(); },
@@ -34,5 +42,5 @@ export function useFollow(container: Ref<HTMLElement | undefined>, active: () =>
     },
   };
   onUnmounted(() => clearTimeout(timer));
-  return { following, follow, backToPlayhead, listeners };
+  return { following, follow, backToPlayhead, restart, listeners };
 }

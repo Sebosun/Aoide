@@ -80,6 +80,30 @@ it("follows the playhead, stops when the reader scrolls away, and comes back on 
   wrapper.unmount();
 });
 
+it("starts the next or previous chapter at its top, following again", async () => {
+  const scroll = vi.fn();
+  HTMLElement.prototype.scrollTo = scroll as unknown as HTMLElement["scrollTo"];
+  const wrapper = await openReader({ attach: true });
+  mock.emitPlayer(playing());
+  await flushPromises();
+  await wrapper.get('[aria-label="Chapter text"]').trigger("wheel", { deltaY: 100 });
+  await flushPromises();
+  expect(wrapper.find('[aria-label="Back to playhead"]').exists()).toBe(true);
+  scroll.mockClear();
+
+  await wrapper.get('[aria-label="Player"] [aria-label="Next chapter"]').trigger("click");
+  await flushPromises();
+  expect(wrapper.get('[aria-label="Chapter text"] h2').text()).toBe("Across the water");
+  expect(scroll).toHaveBeenCalledWith({ top: 0 });
+  expect(wrapper.find('[aria-label="Back to playhead"]').exists()).toBe(false);
+
+  scroll.mockClear();
+  await wrapper.get('[aria-label="Player"] [aria-label="Previous chapter"]').trigger("click");
+  await flushPromises();
+  expect(scroll).toHaveBeenCalledWith({ top: 0 });
+  wrapper.unmount();
+});
+
 it("shows the playhead chapter and jumps to a chapter from the margin", async () => {
   const wrapper = await openReader();
   const play = vi.spyOn(mock, "play");

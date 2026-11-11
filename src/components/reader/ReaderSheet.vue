@@ -24,7 +24,11 @@ const scroller = ref<HTMLElement>();
 
 const playingHere = computed(() => Boolean(reader.book) && player.state.bookId === reader.book?.id);
 const onPage = computed(() => playingHere.value && player.state.chapter === reader.currentChapter);
-const { following, follow, backToPlayhead, listeners } = useFollow(scroller, () => playingHere.value && Boolean(player.state.segmentId));
+const { following, follow, backToPlayhead, restart, listeners } = useFollow(scroller, () => playingHere.value && Boolean(player.state.segmentId));
+// Another chapter of the same book (next, previous, or picked): start at its top.
+watch(() => [reader.book?.id, reader.currentChapter] as const, ([id, chapter], [oldId, oldChapter]) => {
+  if (id && id === oldId && chapter !== oldChapter) restart();
+}, { flush: "post" });
 watch(() => [player.state.segmentId, player.state.status, reader.chapter], async () => {
   if (onPage.value && player.state.status === "playing") { await nextTick(); follow(); }
 }, { immediate: true, flush: "post" });
