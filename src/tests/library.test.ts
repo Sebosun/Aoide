@@ -329,3 +329,27 @@ it("shows a book's file in the file manager from its card menu", async () => {
   expect(show).toHaveBeenCalledWith("book-1");
   wrapper.unmount();
 });
+
+it("switches playback to another started book clicked while one is playing", async () => {
+  mock.setProgressForTest("book-1", 0.3);
+  const wrapper = await library();
+  await usePlayerStore().play("book-0", null, null);
+  await flushPromises();
+  const play = vi.spyOn(mock, "play");
+  await wrapper.get('[aria-label="Open A Map of Quiet Places"]').trigger("click");
+  await flushPromises();
+  expect(useReaderStore().book?.id).toBe("book-1");
+  expect(play).toHaveBeenCalledWith("book-1", null, null);
+  wrapper.unmount();
+});
+
+it("only opens a started book when nothing is playing", async () => {
+  mock.setProgressForTest("book-1", 0.3);
+  const wrapper = await library();
+  const play = vi.spyOn(mock, "play");
+  await wrapper.get('[aria-label="Open A Map of Quiet Places"]').trigger("click");
+  await flushPromises();
+  expect(useReaderStore().book?.id).toBe("book-1");
+  expect(play).not.toHaveBeenCalled();
+  wrapper.unmount();
+});

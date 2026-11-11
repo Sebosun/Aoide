@@ -12,7 +12,7 @@ import { useLibraryStore, type LibraryFilter } from "../stores/library";
 import { usePlayerStore } from "../stores/player";
 import { useReaderStore } from "../stores/reader";
 import { useNavigationStore } from "../stores/navigation";
-import type { LibrarySort } from "../api/types";
+import type { BookSummary, LibrarySort } from "../api/types";
 
 const library = useLibraryStore(), reader = useReaderStore(), player = usePlayerStore(), navigation = useNavigationStore();
 const filters: { value: LibraryFilter; label: string }[] = [
@@ -28,6 +28,15 @@ const continued = computed(() => {
 const shelves = useCollections();
 const plural = (n: number) => `${n} ${n === 1 ? "book" : "books"}`;
 const importErrors = computed(() => library.imports.filter(r => r.error));
+/** An unstarted book opens on its page. A started one opens in the reader, and if another book
+ *  is playing, playback moves to this one where it was left. */
+async function openCard(book: BookSummary) {
+  if (!book.progress) { navigation.openBook(book.id); return; }
+  const status = player.state.status;
+  const switching = (status === "playing" || status === "buffering") && player.state.bookId !== book.id;
+  await reader.open(book.id);
+  if (switching && reader.book?.id === book.id) await player.play(book.id, null, null);
+}
 const SORTS: { value: LibrarySort; label: string }[] = [{ value: "recent", label: "Recent" }, { value: "title", label: "Title" }, { value: "author", label: "Author" }, { value: "progress", label: "Progress" }];
 </script>
 
@@ -85,7 +94,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [{ value: "recent", label
     <p v-else-if="library.query.trim() && !library.visible.length" class="library__note">No books match “{{ library.query }}”.</p>
     <p v-else-if="library.books.length && !library.visible.length" class="library__note">No books here yet.</p>
     <ul class="library__grid">
-      <BookCard v-for="book in library.visible" :key="book.id" :book="book" :busy="reader.loading" @open="book.progress ? reader.open(book.id) : navigation.openBook(book.id)" @details="navigation.openBook(book.id)" @remove="library.remove(book.id)" />
+      <BookCard v-for="book in library.visible" :key="book.id" :book="book" :busy="reader.loading" @open="openCard(book)" @details="navigation.openBook(book.id)" @remove="library.remove(book.id)" />
     </ul>
   </section>
 </template>
