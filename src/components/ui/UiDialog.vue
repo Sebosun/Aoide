@@ -38,11 +38,14 @@ onUnmounted(() => { if (opener?.isConnected) opener.focus(); });
 </template>
 
 <style scoped>
-.ui-dialog { position: fixed; inset: 0; z-index: 30; display: grid; justify-items: center; }
+.ui-dialog { position: fixed; inset: 0; z-index: 30; display: grid; grid-template-rows: minmax(0, 1fr); justify-items: center; }
 .ui-dialog--sheet { align-items: end; }
 .ui-dialog--center { align-items: center; padding: 24px 16px; }
 .ui-dialog__backdrop { position: absolute; inset: 0; background: color-mix(in srgb, var(--ground) 50%, transparent); backdrop-filter: blur(2px); animation: ui-dialog-fade var(--dur-2) var(--ease); }
-.ui-dialog__panel { position: relative; display: flex; flex-direction: column; max-width: 100%; max-height: 100%; background: var(--page); color: var(--ink); }
+/* The one row is exactly the window, so max-height is a real limit in every engine (WebKitGTK
+   let a tall sheet grow past it under page zoom), and nothing draws outside the panel: long
+   content scrolls inside it instead. */
+.ui-dialog__panel { position: relative; display: flex; flex-direction: column; max-width: 100%; max-height: 100%; overflow: hidden; background: var(--page); color: var(--ink); }
 .ui-dialog__panel:focus-visible { outline: none; }
 .ui-dialog__panel > :deep(*) { flex: 1 1 auto; min-height: 0; }
 .ui-dialog--sheet .ui-dialog__panel { border-radius: 22px 22px 0 0; box-shadow: 0 -18px 50px -20px var(--shadow); animation: ui-dialog-rise var(--dur-2) var(--ease); }
