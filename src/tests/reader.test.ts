@@ -129,7 +129,8 @@ it("docks the transport: progress, time left, buffer status and errors", async (
   expect(dock.text()).toContain("40%");
   expect(dock.text()).toMatch(/min left/);
   expect(dock.text()).toContain("Buffering…");
-  expect(dock.text()).toContain("12.5 s buffered · 3 pending");
+  expect(dock.text(), "buffer numbers stay off the bar").not.toContain("buffered");
+  expect(dock.get('[role="slider"]').attributes("title")).toBe("12.5 s buffered · 3 pending");
   expect(dock.get('[role="alert"]').text()).toContain("Generation paused");
   wrapper.unmount();
 });
@@ -166,6 +167,7 @@ it("sets a sleep timer and bookmarks the playhead from the dock", async () => {
   await mock.play("book-0", 0, "0:1:0");
   await flushPromises();
   const dock = wrapper.get('[aria-label="Player"]');
+  expect(dock.get('[aria-label="Sleep timer"]').text(), "just the moon while off").toBe("");
   await choose(dock, "Sleep timer", "15 min");
   await flushPromises();
   expect(sleep).toHaveBeenLastCalledWith(15, false);
@@ -209,17 +211,18 @@ it("changes the text size and the reader mode, and remembers both", async () => 
 it("sets the volume from the dock, and mutes and unmutes to the same level", async () => {
   const wrapper = await openReader();
   const dock = () => wrapper.get('[aria-label="Player"]');
-  const volume = () => dock().get<HTMLInputElement>('input[aria-label="Volume"]');
-  expect(volume().element.value).toBe("100");
-  await volume().setValue("40");
+  const volume = () => document.body.querySelector<HTMLInputElement>('input[aria-label="Volume"]')!;
+  const press = async (label: string) => { document.body.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click(); await flushPromises(); };
+  expect(volume(), "the slider opens from the speaker button").toBeNull();
+  await dock().get('button[aria-label="Volume"]').trigger("click");
+  expect(volume().value).toBe("100");
+  volume().value = "40"; volume().dispatchEvent(new Event("input"));
   await flushPromises();
   expect(usePlayerStore().state.volume).toBe(0.4);
-  await dock().get('[aria-label="Mute"]').trigger("click");
-  await flushPromises();
+  await press("Mute");
   expect(usePlayerStore().state.volume).toBe(0);
-  expect(volume().element.value).toBe("0");
-  await dock().get('[aria-label="Unmute"]').trigger("click");
-  await flushPromises();
+  expect(volume().value).toBe("0");
+  await press("Unmute");
   expect(usePlayerStore().state.volume).toBe(0.4);
   wrapper.unmount();
 });

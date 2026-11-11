@@ -7,18 +7,19 @@ import SleepPill from "./SleepPill.vue";
 import VolumeControl from "./VolumeControl.vue";
 import { usePlayerControls } from "../../composables/usePlayerControls";
 
-/** The full transport of Lines mode: scrubber, status, then speed, sleep and volume;
- *  previous, a 66px play button and next; bookmark, book tools and stop. */
+/** The full transport of Lines mode: the scrubber (buffer numbers in its tooltip, buffering and
+ *  errors under it), then one row: speed, sleep and volume; previous, a 66px play button and
+ *  next; bookmark, book tools and stop. */
 const emit = defineEmits<{ tools: [] }>();
 const controls = usePlayerControls();
-const { player, active, timeLeft, ahead, percent, toggle, seek, step, bookmark, status, error } = controls;
+const { player, active, timeLeft, ahead, percent, toggle, seek, step, bookmark, status, detail, error } = controls;
 const canPlay = computed(() => Boolean(controls.bookId.value));
 </script>
 
 <template>
   <section class="transport" aria-label="Player">
-    <PlayerScrubber :played="player.state.chapterFraction" :ahead="ahead" :start="`${percent}%`" :end="timeLeft" :disabled="!player.state.bookId" @seek="seek" @step="step" />
-    <p class="transport__status" aria-live="polite"><span v-if="error" class="transport__error" role="alert">{{ error }}</span><span>{{ status }}</span></p>
+    <PlayerScrubber :played="player.state.chapterFraction" :ahead="ahead" :start="`${percent}%`" :end="timeLeft" :detail="detail" :disabled="!player.state.bookId" @seek="seek" @step="step" />
+    <p class="transport__status" aria-live="polite"><span v-if="error" class="transport__error" role="alert">{{ error }}</span><span v-if="status">{{ status }}</span></p>
     <div class="transport__row">
       <div class="transport__side">
         <SpeedPill />
@@ -40,20 +41,28 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
 </template>
 
 <style scoped>
-.transport { display: grid; gap: 10px; align-content: center; min-height: 156px; padding: 14px 0; border-top: 1px solid var(--line); }
+.transport { display: grid; gap: 12px; align-content: center; min-height: 140px; padding: 14px 0; border-top: 1px solid var(--line); }
 .transport__row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; }
 .transport__side { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .transport__side > * { flex: none; }
 .transport__side--end { justify-content: flex-end; }
-.transport__status { min-width: 0; min-height: 1.2em; margin-top: -4px; text-align: center; font-size: 12px; font-weight: 600; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.transport__status { min-width: 0; margin-top: -6px; text-align: center; font-size: 12px; font-weight: 600; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.transport__status:empty { display: none; }
 .transport__error { margin-right: 8px; color: var(--accent); }
-.transport__main { display: flex; align-items: center; gap: 22px; }
+.transport__main { display: flex; align-items: center; gap: 18px; }
 .transport__icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; }
 .transport__play { display: grid; place-items: center; width: 66px; height: 66px; border-radius: 50%; background: var(--accent); color: var(--on-accent); box-shadow: 0 12px 30px -10px var(--accent); }
-.transport__round { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--glass); }
-@media (max-width: 940px) {
-  .transport__row { grid-template-columns: 1fr; justify-items: center; }
-  .transport__side, .transport__side--end { justify-content: center; flex-wrap: wrap; }
-  .transport__main { order: -1; }
+.transport__round { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--glass); }
+@media (max-width: 620px) {
+  .transport__row { gap: 10px; }
+  .transport__side { gap: 6px; }
+  .transport__main { gap: 8px; }
+  .transport__play { width: 56px; height: 56px; }
+}
+@media (max-width: 480px) {
+  .transport__row { grid-template-columns: 1fr 1fr; grid-template-areas: "main main" "start end"; row-gap: 12px; }
+  .transport__main { grid-area: main; justify-self: center; }
+  .transport__side { grid-area: start; }
+  .transport__side--end { grid-area: end; }
 }
 </style>

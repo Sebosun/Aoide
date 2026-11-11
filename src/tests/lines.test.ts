@@ -71,7 +71,7 @@ it("has the full transport, and switches back to the page", async () => {
   for (const label of ["Previous chapter", "Play", "Next chapter", "Add bookmark", "Book tools", "Stop"]) expect(transport.find(`[aria-label="${label}"]`).exists(), label).toBe(true);
   expect(transport.find('[aria-label="Playback speed"][aria-haspopup="listbox"]').exists()).toBe(true);
   expect(transport.find('[aria-label="Sleep timer"][aria-haspopup="listbox"]').exists()).toBe(true);
-  expect(transport.find('input[aria-label="Volume"]').exists()).toBe(true);
+  expect(transport.find('button[aria-label="Volume"]').exists()).toBe(true);
   expect(transport.find('[role="slider"]').exists()).toBe(true);
   await transport.get('[aria-label="Book tools"]').trigger("click");
   await flushPromises();

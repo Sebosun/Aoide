@@ -63,10 +63,11 @@ export function usePlayerControls() {
     const ui = useUiStore();
     try { await api.addBookmark(id, ""); ui.toast("Bookmarked"); } catch (e) { ui.toast(String(e), "error"); }
   }
-  /** One-line status under the scrubber. */
-  const status = computed(() => {
+  /** Shown under the scrubber only while it matters. */
+  const status = computed(() => (player.state.status === "buffering" ? "Buffering…" : ""));
+  /** The buffer and preparation numbers, for the scrubber's tooltip. */
+  const detail = computed(() => {
     const parts: string[] = [];
-    if (player.state.status === "buffering") parts.push("Buffering…");
     if (player.generation.bookId) parts.push(`${(player.generation.bufferedAheadMs / 1000).toFixed(1)} s buffered · ${player.generation.pending} pending`);
     const preparing = player.generation.preparing;
     if (preparing) parts.push(`Preparing ${library.books.find(b => b.id === preparing.bookId)?.title ?? "a book"} · ${preparing.done.toLocaleString()} / ${preparing.total.toLocaleString()}`);
@@ -92,5 +93,5 @@ export function usePlayerControls() {
     const next = list[Math.min(list.length - 1, Math.max(0, at + delta))];
     if (next) void player.play(id, player.state.chapter, next.id);
   }
-  return { player, active, bookId, book, chapterTitle, playingChapter, timeLeftMs, timeLeft, ahead, percent, toggle, seek, step, sleepChoice, setSleep, sleepLabel, bookmark, status, error };
+  return { player, active, bookId, book, chapterTitle, playingChapter, timeLeftMs, timeLeft, ahead, percent, toggle, seek, step, sleepChoice, setSleep, sleepLabel, bookmark, status, detail, error };
 }

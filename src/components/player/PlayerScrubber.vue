@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /** Chapter progress: played part in coral, generated-but-unplayed audio as a lighter band.
  *  Clicking or arrow keys move the playhead by sentence (the parent decides where). */
-const props = withDefaults(defineProps<{ played: number; ahead?: number; start?: string; end?: string; disabled?: boolean }>(), { ahead: 0, start: "", end: "", disabled: false });
+const props = withDefaults(defineProps<{ played: number; ahead?: number; start?: string; end?: string; disabled?: boolean; detail?: string }>(), { ahead: 0, start: "", end: "", disabled: false, detail: "" });
 const emit = defineEmits<{ seek: [fraction: number]; step: [delta: number] }>();
 function click(event: MouseEvent) {
   if (props.disabled) return;
@@ -23,7 +23,7 @@ function key(event: KeyboardEvent) {
 <template>
   <div class="scrubber">
     <span class="scrubber__label">{{ start }}</span>
-    <span class="scrubber__track" role="slider" :tabindex="disabled ? -1 : 0" aria-label="Chapter position" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(played * 100)" :aria-valuetext="`${Math.round(played * 100)}%${end ? `, ${end}` : ''}`" :aria-disabled="disabled || undefined" @click="click" @keydown="key">
+    <span class="scrubber__track" role="slider" :tabindex="disabled ? -1 : 0" aria-label="Chapter position" :title="detail || undefined" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(played * 100)" :aria-valuetext="`${Math.round(played * 100)}%${end ? `, ${end}` : ''}`" :aria-disabled="disabled || undefined" @click="click" @keydown="key">
       <i class="scrubber__played" :style="{ width: `${played * 100}%` }" />
       <i class="scrubber__ahead" :style="{ left: `${played * 100}%`, width: `${ahead * 100}%` }" />
     </span>
