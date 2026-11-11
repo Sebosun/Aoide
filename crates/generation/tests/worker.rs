@@ -2,7 +2,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use aoide_generation::{Job, Reason, SegmentStore, WorkItem, Worker, WorkerEvent, WorkerOptions};
+use aoide_generation::{
+    Backoff, BackoffEvent, Job, Reason, SegmentStore, WorkItem, Worker, WorkerEvent, WorkerOptions,
+};
 use aoide_tts::{
     BoxFuture, EngineDescriptor, EngineError, EngineStatus, Params, SpeechEngine, Synthesis,
     SynthesisRequest, Voice,
@@ -114,6 +116,7 @@ fn options() -> WorkerOptions {
     WorkerOptions {
         debounce: Duration::from_millis(400),
         failure_backoff: Duration::from_secs(10),
+        max_failure_backoff: Duration::from_secs(60),
     }
 }
 
@@ -191,33 +194,77 @@ async fn an_in_flight_request_finishes_and_is_stored_when_the_plan_changes() {
 }
 
 #[tokio::test(start_paused = true)]
-async fn failures_are_reported_and_backed_off_without_hot_looping() {
+async fn a_failure_pauses_all_work_and_the_failed_segment_waits_longest() {
     let engine = FakeEngine::new(10);
     engine.fail.lock().unwrap().push("bad".into());
     let store = Arc::new(Store::default());
     let (tx, mut events) = mpsc::unbounded_channel();
     let worker = Worker::spawn(engine.clone(), store.clone(), options(), tx);
-    worker.set_plan(work(&["bad", "good"]));
+    let started = tokio::time::Instant::now();
+    worker.set_plan(work(&["bad", "good", "next"]));
     let mut seen = vec![];
-    while seen.len() < 2 {
+    while seen.len() < 3 {
         match next(&mut events).await {
             WorkerEvent::Failed { job, error } => {
                 assert!(error.contains("down"));
                 seen.push(format!("failed:{}", job.key));
             }
-            WorkerEvent::Finished { job, .. } => seen.push(format!("ok:{}", job.key)),
+            WorkerEvent::Finished { job, .. } => {
+                seen.push(format!("ok:{}@{}s", job.key, started.elapsed().as_secs()))
+            }
             WorkerEvent::Started(_) => {}
         }
     }
-    assert_eq!(seen, vec!["failed:bad", "ok:good"]);
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    // The pause holds up "good"; its success ends the pause, so "next" follows at once.
+    assert_eq!(seen, vec!["failed:bad", "ok:good@10s", "ok:next@10s"]);
+    tokio::time::sleep(Duration::from_secs(45)).await;
     assert_eq!(
-        engine.calls(),
-        vec!["bad", "good"],
-        "no retry inside the backoff window"
+        engine.calls().len(),
+        3,
+        "the failed segment is skipped for the longest wait"
     );
     tokio::time::sleep(Duration::from_secs(10)).await;
-    assert_eq!(engine.calls().len(), 3, "retried once after the backoff");
+    assert_eq!(engine.calls().len(), 4, "then retried once");
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_failing_engine_gets_one_request_per_wait_not_one_per_sentence() {
+    let engine = FakeEngine::new(10);
+    let keys: Vec<String> = (0..20).map(|i| format!("s{i}")).collect();
+    engine.fail.lock().unwrap().extend(keys.clone());
+    let store = Arc::new(Store::default());
+    let (tx, _events) = mpsc::unbounded_channel();
+    let worker = Worker::spawn(engine.clone(), store.clone(), options(), tx);
+    worker.set_plan(work(&keys.iter().map(String::as_str).collect::<Vec<_>>()));
+
+    // Waits of 10, 20 and 40 s after each failure: requests near 0, 10, 30 and 70 s.
+    tokio::time::sleep(Duration::from_secs(75)).await;
+    assert_eq!(engine.calls().len(), 4);
+    // The wait stops growing at the maximum: the next ones come 60 s apart.
+    tokio::time::sleep(Duration::from_secs(60)).await;
+    assert_eq!(engine.calls().len(), 5);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_new_plan_ends_the_pause_and_forgives_failed_segments() {
+    let engine = FakeEngine::new(10);
+    engine.fail.lock().unwrap().push("a".into());
+    let store = Arc::new(Store::default());
+    let (tx, mut events) = mpsc::unbounded_channel();
+    let worker = Worker::spawn(engine.clone(), store.clone(), options(), tx);
+    worker.set_plan(work(&["a"]));
+    while !matches!(next(&mut events).await, WorkerEvent::Failed { .. }) {}
+
+    // For example the server was fixed and the user pressed play again.
+    engine.fail.lock().unwrap().clear();
+    let replanned = tokio::time::Instant::now();
+    worker.set_plan(work(&["a"]));
+    while !matches!(next(&mut events).await, WorkerEvent::Finished { .. }) {}
+    assert!(
+        replanned.elapsed() < Duration::from_secs(1),
+        "{:?}",
+        replanned.elapsed()
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -265,4 +312,33 @@ async fn audio_deleted_after_it_was_made_is_made_again_once_forgotten() {
         WorkerEvent::Started(work(&["a"])[0].job.clone())
     );
     assert_eq!(engine.calls(), vec!["a", "a"]);
+}
+
+#[test]
+fn backoff_doubles_while_failing_caps_at_the_maximum_and_resets() {
+    let at = tokio::time::Instant::now();
+    let failed = BackoffEvent::Failed { at };
+    let waits = |state: Backoff| match state {
+        Backoff::Waiting { streak, until } => (streak, (until - at).as_secs()),
+        Backoff::Working => panic!("expected a wait"),
+    };
+    let mut state = Backoff::Working;
+    let mut seen = vec![];
+    for _ in 0..5 {
+        state = state.next(failed, &options());
+        seen.push(waits(state));
+    }
+    assert_eq!(seen, vec![(1, 10), (2, 20), (3, 40), (4, 60), (5, 60)]);
+    assert_eq!(
+        state.next(BackoffEvent::Succeeded, &options()),
+        Backoff::Working
+    );
+    assert_eq!(
+        state.next(BackoffEvent::NewPlan, &options()),
+        Backoff::Working
+    );
+    assert_eq!(
+        Backoff::Working.next(BackoffEvent::Succeeded, &options()),
+        Backoff::Working
+    );
 }

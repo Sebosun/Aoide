@@ -5,6 +5,9 @@
 //! replaces (never appends to) its pending work. The worker waits for the plan to settle
 //! (debounce) before starting a request, never runs two requests at once, and always finishes
 //! and stores an in-flight request, because servers cannot cancel work.
+//!
+//! Failures usually mean the setup is wrong (server down, unknown voice), not the sentence, so
+//! after one the whole worker backs off (see [`Backoff`]) instead of trying the next segment.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -144,8 +147,62 @@ pub enum WorkerEvent {
 pub struct WorkerOptions {
     /// The plan must be unchanged this long before a new request starts.
     pub debounce: Duration,
-    /// A failed key is skipped for this long.
+    /// After a failure no request starts for this long; it doubles with each failure in a row.
     pub failure_backoff: Duration,
+    /// The longest wait after failures. A failed key is also skipped this long, so a single
+    /// segment the engine cannot say does not hold up the rest.
+    pub max_failure_backoff: Duration,
+}
+
+/// Whether the worker may start requests, given recent failures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Backoff {
+    Working,
+    /// `streak` requests failed in a row; no request starts before `until`.
+    Waiting {
+        streak: u32,
+        until: Instant,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BackoffEvent {
+    Succeeded,
+    Failed {
+        at: Instant,
+    },
+    /// The caller replaced the plan after a jump or a settings change: start afresh.
+    NewPlan,
+}
+
+impl Backoff {
+    /// The whole state machine.
+    pub fn next(self, event: BackoffEvent, options: &WorkerOptions) -> Self {
+        match (self, event) {
+            (_, BackoffEvent::Succeeded | BackoffEvent::NewPlan) => Backoff::Working,
+            (state, BackoffEvent::Failed { at }) => {
+                let streak = match state {
+                    Backoff::Working => 1,
+                    Backoff::Waiting { streak, .. } => streak.saturating_add(1),
+                };
+                let wait = options
+                    .failure_backoff
+                    .saturating_mul(1 << (streak - 1).min(16))
+                    .min(options.max_failure_backoff);
+                Backoff::Waiting {
+                    streak,
+                    until: at + wait,
+                }
+            }
+        }
+    }
+
+    fn until(self) -> Option<Instant> {
+        match self {
+            Backoff::Working => None,
+            Backoff::Waiting { until, .. } => Some(until),
+        }
+    }
 }
 
 impl Default for WorkerOptions {
@@ -153,6 +210,7 @@ impl Default for WorkerOptions {
         Self {
             debounce: Duration::from_millis(450),
             failure_backoff: Duration::from_secs(10),
+            max_failure_backoff: Duration::from_secs(60),
         }
     }
 }
@@ -161,6 +219,8 @@ struct Plan {
     items: Vec<WorkItem>,
     /// No new request starts before this instant.
     settle_at: Instant,
+    /// Counts [`Worker::set_plan`] calls, so the worker can tell a new plan from an update.
+    resets: u64,
 }
 
 /// Handle to the background worker task. Dropping it stops the worker after any in-flight job.
@@ -182,6 +242,7 @@ impl Worker {
         let (plan, receiver) = watch::channel(Plan {
             items: Vec::new(),
             settle_at: Instant::now(),
+            resets: 0,
         });
         let forgotten = Arc::default();
         tokio::spawn(run(
@@ -206,6 +267,7 @@ impl Worker {
         self.plan.send_modify(|plan| {
             plan.items = items;
             plan.settle_at = settle_at;
+            plan.resets += 1;
         });
     }
 
@@ -233,14 +295,21 @@ async fn run(
 ) {
     let mut done = HashSet::new();
     let mut failed: HashMap<String, Instant> = HashMap::new();
+    let mut backoff = Backoff::Working;
+    let mut resets = 0;
     loop {
         for key in forgotten.lock().expect("forgotten lock").drain() {
             done.remove(&key);
         }
         let now = Instant::now();
-        failed.retain(|_, until| *until > now);
         let (settle_at, next) = {
             let current = plan.borrow_and_update();
+            if current.resets != resets {
+                resets = current.resets;
+                backoff = backoff.next(BackoffEvent::NewPlan, &options);
+                failed.clear();
+            }
+            failed.retain(|_, until| *until > now);
             let next = current
                 .items
                 .iter()
@@ -248,8 +317,11 @@ async fn run(
                 .cloned();
             (current.settle_at, next)
         };
+        let start_at = backoff
+            .until()
+            .map_or(settle_at, |until| until.max(settle_at));
         let wake = match &next {
-            Some(_) if settle_at > now => Some(settle_at),
+            Some(_) if start_at > now => Some(start_at),
             Some(_) => None,
             None => failed.values().min().copied(),
         };
@@ -268,6 +340,7 @@ async fn run(
         };
         match outcome {
             Ok(duration_ms) => {
+                backoff = backoff.next(BackoffEvent::Succeeded, &options);
                 done.insert(item.job.key.clone());
                 let _ = events.send(WorkerEvent::Finished {
                     job: item.job,
@@ -275,10 +348,9 @@ async fn run(
                 });
             }
             Err(error) => {
-                failed.insert(
-                    item.job.key.clone(),
-                    Instant::now() + options.failure_backoff,
-                );
+                let at = Instant::now();
+                backoff = backoff.next(BackoffEvent::Failed { at }, &options);
+                failed.insert(item.job.key.clone(), at + options.max_failure_backoff);
                 let _ = events.send(WorkerEvent::Failed {
                     job: item.job,
                     error,
