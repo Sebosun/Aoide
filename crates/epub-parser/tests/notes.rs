@@ -126,3 +126,39 @@ fn ordinary_links_and_superscripts_stay_in_the_text() {
     assert!(book.chapters[0].note_refs.is_empty());
     assert!(book.notes.is_empty());
 }
+
+#[test]
+fn plain_links_to_a_note_in_another_document_are_markers_even_without_sup() {
+    // Some layout tools set the marker in superscript with a class instead of <sup>, and only
+    // the note itself carries epub:type.
+    let bytes = support::epub(
+        r#"<item id="c" href="c.xhtml" media-type="application/xhtml+xml"/><item id="n" href="notes.xhtml" media-type="application/xhtml+xml"/>"#,
+        r#"<itemref idref="c"/><itemref idref="n"/>"#,
+        &[
+            (
+                "OPS/c.xhtml",
+                r#"<h1>One</h1><p>The gate was shut.”<span class="raised"><span id="fn-7-back"><a class="notelink" href="notes.xhtml#fn-7">83</a></span></span> The keeper slept. See <a href="notes.xhtml#fn-7">the note on gates</a>.</p>"#,
+            ),
+            (
+                "OPS/notes.xhtml",
+                &format!(
+                    r##"<html {OPS}><body><div id="fn-7" epub:type="footnote"><p><a class="notelink" href="c.xhtml#fn-7-back">83</a> Gates were shut at dusk.</p></div></body></html>"##
+                ),
+            ),
+        ],
+    );
+    let book = parse_epub(&bytes, &ParseOptions::default()).unwrap();
+    assert_eq!(
+        book.chapters[0].text,
+        "One\n\nThe gate was shut.” The keeper slept. See the note on gates."
+    );
+    assert_eq!(book.notes[0].text, "Gates were shut at dusk.");
+    assert_eq!(
+        book.chapters[0].note_refs.len(),
+        1,
+        "{:?}",
+        book.chapters[0].note_refs
+    );
+    assert_eq!(book.chapters[0].note_refs[0].label, "83");
+    assert_eq!(book.chapters[0].note_refs[0].note, Some(0));
+}

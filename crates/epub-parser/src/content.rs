@@ -116,7 +116,21 @@ pub(crate) fn join_blocks(blocks: &[Block]) -> String {
         .join("\n\n")
 }
 
-pub(crate) fn read(source: &str) -> Content {
+/// Ids of the note bodies in a document (as [`read`] would detach them), for recognising links
+/// to them from other documents.
+pub(crate) fn note_ids(source: &str) -> Vec<String> {
+    let html = Html::parse_document(&crate::xhtml::expand_self_closing(source));
+    html.root_element()
+        .descendants()
+        .filter_map(scraper::ElementRef::wrap)
+        .filter(|element| is_note_body(*element))
+        .filter_map(|element| element.value().id().map(str::to_owned))
+        .collect()
+}
+
+/// `links_to_note` says whether an href (relative to this document) points at a note body,
+/// here or in another document.
+pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Content {
     let html = Html::parse_document(&crate::xhtml::expand_self_closing(source));
     let mut content = Content {
         title: "Untitled chapter".into(),
@@ -150,7 +164,7 @@ pub(crate) fn read(source: &str) -> Content {
                         suppressed += 1;
                         continue;
                     }
-                    if is_note_ref(current) {
+                    if is_note_ref(current, links_to_note) {
                         let marker = current;
                         let label = marker.text().collect::<String>().trim().to_owned();
                         content.refs.insert(
@@ -333,22 +347,28 @@ fn is_note_body(element: scraper::ElementRef<'_>) -> bool {
     })
 }
 
-fn is_note_ref(element: scraper::ElementRef<'_>) -> bool {
+/// A marker is typed as a note reference, or is a short link (a number or symbol) that is
+/// superscripted or points at a note body. Longer links ("see the note on gates") stay prose.
+fn is_note_ref(element: scraper::ElementRef<'_>, links_to_note: &dyn Fn(&str) -> bool) -> bool {
     if element.value().name() != "a" {
         return false;
     }
     if typed(element.value(), &["noteref", "doc-noteref"]) {
         return true;
     }
-    element
+    let Some(href) = element
         .value()
         .attr("href")
-        .is_some_and(|href| href.contains('#'))
-        && element.text().collect::<String>().trim().chars().count() <= 4
-        && (element
-            .ancestors()
-            .filter_map(scraper::ElementRef::wrap)
-            .any(|e| e.value().name() == "sup")
+        .filter(|href| href.contains('#'))
+    else {
+        return false;
+    };
+    element.text().collect::<String>().trim().chars().count() <= 4
+        && (links_to_note(href)
+            || element
+                .ancestors()
+                .filter_map(scraper::ElementRef::wrap)
+                .any(|e| e.value().name() == "sup")
             || element
                 .descendants()
                 .filter_map(scraper::ElementRef::wrap)

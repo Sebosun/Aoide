@@ -39,8 +39,21 @@ pub(crate) fn extract(
     {
         extraction.warnings.push(entry.missing_warning());
     }
+    // Notes first, so a link anywhere in the book can be recognised as pointing at one.
+    let mut note_ids = std::collections::HashSet::new();
     for path in &package.spine {
-        let content = content::read(&archive.read(path)?);
+        let ids = content::note_ids(&archive.read(path)?);
+        note_ids.extend(ids.into_iter().map(|id| format!("{path}#{id}")));
+    }
+    for path in &package.spine {
+        let links_to_note = |href: &str| {
+            crate::location::resolve(path, href).is_ok_and(|target| {
+                target.fragment.is_some_and(|fragment| {
+                    note_ids.contains(&format!("{}#{fragment}", target.path))
+                })
+            })
+        };
+        let content = content::read(&archive.read(path)?, &links_to_note);
         extraction
             .notes
             .extend(content.notes.iter().map(|note| Note {
