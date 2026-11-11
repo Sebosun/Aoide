@@ -33,7 +33,11 @@ export type PrepareView = { state: PrepareState, done: number, total: number,
 /**
  * Place in the queue (0 is first); `None` once done.
  */
-position: number | null, };
+position: number | null, 
+/**
+ * The chapters being prepared, in order; `None` for the whole book.
+ */
+chapters: Array<number> | null, };
 
 export type BlockKind = { "Heading": { level: number, } } | "Paragraph" | "ListItem" | "Preformatted";
 
@@ -76,6 +80,8 @@ voiceWarning: string | null, progress: BookProgress | null,
  * Words read aloud in the whole book, for time estimates.
  */
 wordCount: number, };
+
+export type ChapterAudioView = { done: number, total: number, };
 
 export type PlaybackStatus = "stopped" | "buffering" | "playing" | "paused";
 

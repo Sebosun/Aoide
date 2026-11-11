@@ -103,7 +103,7 @@ export function createMockApi() {
     : stage === "queued" && event === "promote" ? "preparing"
     : stage === "preparing" && event === "demote" ? "queued"
     : stage;
-  const prepareQueue: { id: string; stage: PrepareState }[] = [];
+  const prepareQueue: { id: string; stage: PrepareState; chapters: number[] | null }[] = [];
   const prepareEntry = (id: string) => prepareQueue.find(e => e.id === id);
   /** The first planned book is prepared; the others wait behind it. Then publishes the stages. */
   function settlePrepare() {
@@ -115,7 +115,7 @@ export function createMockApi() {
     }
     prepareQueue.forEach((entry, position) => {
       const b = books.find(b => b.id === entry.id);
-      if (b?.prepare) b.prepare = { ...b.prepare, position, state: entry.stage };
+      if (b?.prepare) b.prepare = { ...b.prepare, position, state: entry.stage, chapters: entry.chapters };
     });
     changed();
   }
@@ -200,9 +200,10 @@ export function createMockApi() {
     async saveBookSettings(id, next) { getBook(id); settings.set(id, JSON.parse(JSON.stringify(next))); },
     async prepareBook(id) {
       const b = getBook(id);
-      const entry = prepareEntry(id) ?? prepareQueue[prepareQueue.push({ id, stage: "waiting" }) - 1];
+      const entry = prepareEntry(id) ?? prepareQueue[prepareQueue.push({ id, stage: "waiting", chapters: null }) - 1];
+      entry.chapters = null;
       entry.stage = nextStage(entry.stage, "planned");
-      if (entry.stage === "queued") b.prepare = { state: "queued", done: 3, total: 120, position: 0 };
+      if (entry.stage === "queued") b.prepare = { state: "queued", done: 3, total: 120, position: 0, chapters: null };
       settlePrepare();
     },
     async setPreparePaused(id, paused) {
@@ -210,6 +211,25 @@ export function createMockApi() {
       if (entry) entry.stage = nextStage(entry.stage, paused ? "pause" : "resume");
       if (entry?.stage === "waiting") entry.stage = nextStage(entry.stage, "planned"); // The mock plans at once.
       settlePrepare();
+    },
+    async prepareChapter(id, chapter) {
+      const b = getBook(id);
+      if (!chapters[Number(id.split("-")[1])]?.[chapter]) throw new Error("no such chapter");
+      const entry = prepareEntry(id);
+      if (entry) { if (entry.chapters && !entry.chapters.includes(chapter)) entry.chapters = [...entry.chapters, chapter].sort((x, y) => x - y); settlePrepare(); return; }
+      const added = prepareQueue[prepareQueue.push({ id, stage: "waiting", chapters: [chapter] }) - 1];
+      added.stage = nextStage(added.stage, "planned");
+      b.prepare = { state: added.stage, done: 0, total: 12, position: 0, chapters: [chapter] };
+      settlePrepare();
+    },
+    async chapterAudio(id) {
+      getBook(id);
+      const list = chapters[Number(id.split("-")[1])], queued = prepareEntry(id);
+      return list.map((_, c) => {
+        const total = 12;
+        if (id === "book-0" && c === 0) return { done: total, total };
+        return { done: queued && (queued.chapters ?? [c]).includes(c) ? 3 : 0, total };
+      });
     },
     async cancelPrepare(id) { const b = books.find(b => b.id === id); if (b) b.prepare = null; const at = prepareQueue.findIndex(e => e.id === id); if (at >= 0) prepareQueue.splice(at, 1); settlePrepare(); },
     async regenerateBook(id) { getBook(id).audioBytes = 0; changed(); },
@@ -306,6 +326,6 @@ export function createMockApi() {
   const setProgressForTest = (id: string, fraction: number) => { getBook(id).progress = { chapter: 0, segmentId: null, fraction }; changed(); };
   const setAudioForTest = (id: string, bytes: number) => { getBook(id).audioBytes = bytes; changed(); };
   /** A book left in the queue by an earlier run that has not started again (resuming at startup is off). */
-  const queueWaitingForTest = (id: string) => { prepareQueue.push({ id, stage: "waiting" }); getBook(id).prepare = { state: "waiting", done: 0, total: 0, position: 0 }; settlePrepare(); };
+  const queueWaitingForTest = (id: string) => { prepareQueue.push({ id, stage: "waiting", chapters: null }); getBook(id).prepare = { state: "waiting", done: 0, total: 0, position: 0, chapters: null }; settlePrepare(); };
   return Object.assign(api, { setProgressForTest, setAudioForTest, queueWaitingForTest, dispose: halt, emitPlayer, emitGeneration, emitConfig, emitEngine: (s: EngineStatusView) => engineHandlers.forEach(h => h({ ...s })) });
 }

@@ -13,6 +13,8 @@ export interface PreparationStatus {
   state: PrepareState | null;
   /** "Preparing", "Queued", …; null when the book is not being prepared. */
   label: string | null;
+  /** "Chapter 3", "Chapters 2 and 5" when only some chapters are prepared; null for the whole book. */
+  scope: string | null;
   /** "3 / 120" segments, while the size is known and the book is not done. */
   count: string | null;
   percent: number;
@@ -35,20 +37,41 @@ export const ACTION_ICONS: Record<PrepareAction, Component> = {
 };
 
 export function preparationStatus(prepare: BookSummary["prepare"]): PreparationStatus {
-  if (!prepare) return { state: null, label: null, count: null, percent: 0, actions: ACTIONS.none };
-  const { state, done, total } = prepare;
+  if (!prepare) return { state: null, label: null, scope: null, count: null, percent: 0, actions: ACTIONS.none };
+  const { state, done, total, chapters } = prepare;
   return {
     state,
     label: LABELS[state],
+    scope: chapterScope(chapters),
     count: total && state !== "done" ? `${done.toLocaleString()} / ${total.toLocaleString()}` : null,
     percent: state === "done" ? 100 : total ? Math.floor((done / total) * 100) : 0,
-    actions: ACTIONS[state],
+    // A chapter-only preparation can still be widened to the whole book.
+    actions: chapters && state !== "done" ? ["prepare", ...ACTIONS[state]] : ACTIONS[state],
   };
+}
+
+/** "Chapter 3", "Chapters 2 and 5", "Chapters 1, 2 and 5" (numbered from 1); null for none. */
+function chapterScope(chapters: number[] | null): string | null {
+  if (!chapters?.length) return null;
+  const numbers = chapters.map(c => String(c + 1));
+  if (numbers.length === 1) return `Chapter ${numbers[0]}`;
+  return `Chapters ${numbers.slice(0, -1).join(", ")} and ${numbers.at(-1)}`;
 }
 
 /** "Preparing · 3 / 120", "Waiting to start", "Ready offline"; empty when not prepared. */
 export function describePreparation(status: PreparationStatus): string {
-  return [status.label, status.count].filter(Boolean).join(" · ");
+  return [status.label, status.scope, status.count].filter(Boolean).join(" · ");
+}
+
+/** Queues one chapter (`chapter` counts from 0) and says so; a failure is told instead. */
+export async function prepareChapter(bookId: string, chapter: number): Promise<void> {
+  const ui = useUiStore();
+  try {
+    await api.prepareChapter(bookId, chapter);
+    ui.toast(`Preparing chapter ${chapter + 1} in the background`);
+  } catch (e) {
+    ui.toast(String(e), "error");
+  }
 }
 
 /** Runs an action; failures and the start of a preparation are told in a toast. */

@@ -1,15 +1,20 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { AudioLines, ChevronDown, List } from "@lucide/vue";
+import { AudioLines, ChevronDown, List, Sparkles } from "@lucide/vue";
 import type { ChapterSummary } from "../../api/types";
 import UiMenu from "../ui/UiMenu.vue";
 import type { MenuEntry } from "../ui/types";
 
 /** `link`: "Chapter 4 of 24 ▾" (Sheet margin); `pill`: a "Chapters" button (library hero);
- *  `chip`: "Chapter 4 · Title ▾" (Lines mode). */
-const props = withDefaults(defineProps<{ chapters: ChapterSummary[]; current: number; playing: number | null; variant?: "link" | "pill" | "chip" }>(), { variant: "link" });
-const emit = defineEmits<{ pick: [index: number] }>();
-const items = computed<MenuEntry[]>(() => props.chapters.map((chapter, i) => ({ id: chapter.index, label: chapter.title, ariaLabel: `Chapter ${i + 1}: ${chapter.title}`, current: chapter.index === props.current, action: () => emit("pick", chapter.index) })));
+ *  `chip`: "Chapter 4 · Title ▾" (Lines mode). With `prepare`, the list ends in "Prepare this
+ *  chapter" for the current chapter. */
+const props = withDefaults(defineProps<{ chapters: ChapterSummary[]; current: number; playing: number | null; variant?: "link" | "pill" | "chip"; prepare?: boolean }>(), { variant: "link", prepare: false });
+const emit = defineEmits<{ pick: [index: number]; prepare: [index: number] }>();
+const items = computed<MenuEntry[]>(() => {
+  const list: MenuEntry[] = props.chapters.map((chapter, i) => ({ id: chapter.index, label: chapter.title, ariaLabel: `Chapter ${i + 1}: ${chapter.title}`, current: chapter.index === props.current, action: () => emit("pick", chapter.index) }));
+  if (props.prepare) list.push({ kind: "separator" }, { id: "prepare", label: "Prepare this chapter", icon: Sparkles, action: () => emit("prepare", props.current) });
+  return list;
+});
 const position = () => `Chapter ${props.chapters.findIndex(c => c.index === props.current) + 1} of ${props.chapters.length}`;
 </script>
 
@@ -21,7 +26,8 @@ const position = () => `Chapter ${props.chapters.findIndex(c => c.index === prop
       <button v-else type="button" class="chapter-menu__button" v-bind="trigger" :aria-label="`${position()}, choose a chapter`" @click="toggle">{{ position() }} <ChevronDown :size="14" /></button>
     </template>
     <template #item="{ item, index }">
-      <span class="chapter-menu__number">{{ index + 1 }}</span><span class="chapter-menu__title">{{ item.label }}</span><AudioLines v-if="item.id === playing" :size="15" class="chapter-menu__playing" aria-hidden="true" />
+      <template v-if="item.id === 'prepare'"><Sparkles :size="15" class="chapter-menu__number" aria-hidden="true" /><span class="chapter-menu__title">{{ item.label }}</span></template>
+      <template v-else><span class="chapter-menu__number">{{ index + 1 }}</span><span class="chapter-menu__title">{{ item.label }}</span><AudioLines v-if="item.id === playing" :size="15" class="chapter-menu__playing" aria-hidden="true" /></template>
     </template>
   </UiMenu>
 </template>

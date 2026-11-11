@@ -4,7 +4,7 @@
 //! The queue order, the paused choice and the "all audio made" mark are saved in the library,
 //! so the queue survives restarts; plans are rebuilt in each run.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use aoide_generation::PlanItem;
 use aoide_library::Library;
@@ -13,6 +13,8 @@ use serde::Serialize;
 
 const QUEUE_KEY: &str = "prepare.queue";
 const PAUSED_KEY: &str = "prepare.paused";
+/// Books queued for some chapters only, with those chapters; the rest are whole books.
+const CHAPTERS_KEY: &str = "prepare.chapters";
 
 fn done_key(id: &str) -> String {
     format!("book.{id}.prepared")
@@ -92,6 +94,16 @@ impl Plan {
         }
     }
 
+    /// Leaves out every item whose playlist index `keep` rejects: it is never made and does
+    /// not count towards progress (a book prepared for some chapters only).
+    pub fn only(&mut self, keep: impl Fn(usize) -> bool) {
+        for (index, item) in self.items.iter_mut().enumerate() {
+            if !keep(index) {
+                item.speakable = false;
+            }
+        }
+    }
+
     pub fn mark_lost(&mut self, keys: &HashSet<String>) {
         for item in self.items.iter_mut().filter(|i| keys.contains(&i.key)) {
             item.cached = false;
@@ -115,10 +127,30 @@ pub struct PrepareView {
     pub total: usize,
     /// Place in the queue (0 is first); `None` once done.
     pub position: Option<usize>,
+    /// The chapters being prepared, in order; `None` for the whole book.
+    pub chapters: Option<Vec<usize>>,
+}
+
+/// What of a book is being prepared.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Scope {
+    Book,
+    /// Only these chapters. Finishing them does not make the book "ready offline".
+    Chapters(BTreeSet<usize>),
+}
+
+impl Scope {
+    fn chapters(&self) -> Option<Vec<usize>> {
+        match self {
+            Scope::Book => None,
+            Scope::Chapters(chapters) => Some(chapters.iter().copied().collect()),
+        }
+    }
 }
 
 struct Entry {
     id: String,
+    scope: Scope,
     stage: Stage,
     /// Present exactly while the stage is `Queued` or `Preparing`.
     plan: Option<Plan>,
@@ -135,9 +167,15 @@ impl Preparation {
     pub fn load(library: &Library) -> Self {
         let ids: Vec<String> = read_json(library, QUEUE_KEY).unwrap_or_default();
         let paused: HashSet<String> = read_json(library, PAUSED_KEY).unwrap_or_default();
+        let mut chapters: HashMap<String, BTreeSet<usize>> =
+            read_json(library, CHAPTERS_KEY).unwrap_or_default();
         let queue = ids
             .into_iter()
             .map(|id| {
+                let scope = chapters
+                    .remove(&id)
+                    .filter(|c| !c.is_empty())
+                    .map_or(Scope::Book, Scope::Chapters);
                 let stage = if paused.contains(&id) {
                     Stage::Paused
                 } else {
@@ -145,6 +183,7 @@ impl Preparation {
                 };
                 Entry {
                     id,
+                    scope,
                     stage,
                     plan: None,
                 }
@@ -170,6 +209,7 @@ impl Preparation {
                 done,
                 total,
                 position: Some(position),
+                chapters: entry.scope.chapters(),
             });
         }
         let made = done_count(library, id)?;
@@ -178,6 +218,7 @@ impl Preparation {
             done: made,
             total: made,
             position: None,
+            chapters: None,
         })
     }
 
@@ -186,18 +227,55 @@ impl Preparation {
         self.position(id).is_some()
     }
 
+    /// Queues the whole book. A book queued for some chapters is widened to the whole book.
     pub fn enqueue(&mut self, library: &Library, id: &str) {
-        if self.contains(id) {
+        if let Some(entry) = self.entry_mut(id) {
+            if entry.scope != Scope::Book {
+                entry.scope = Scope::Book;
+                apply(entry, Event::PlanDropped);
+                clear_done(library, id);
+                self.settle();
+                self.save(library);
+            }
             return;
         }
         let stage = next(self.stage(library, id), Event::Enqueue);
         clear_done(library, id);
         self.queue.push(Entry {
             id: id.into(),
+            scope: Scope::Book,
             stage,
             plan: None,
         });
         self.save(library);
+    }
+
+    /// Queues one chapter, joining the book's entry if it has one. A book queued whole
+    /// already covers it.
+    pub fn enqueue_chapter(&mut self, library: &Library, id: &str, chapter: usize) {
+        if let Some(entry) = self.entry_mut(id) {
+            if let Scope::Chapters(chapters) = &mut entry.scope {
+                if chapters.insert(chapter) {
+                    apply(entry, Event::PlanDropped);
+                    self.settle();
+                    self.save(library);
+                }
+            }
+            return;
+        }
+        let stage = next(self.stage(library, id), Event::Enqueue);
+        self.queue.push(Entry {
+            id: id.into(),
+            scope: Scope::Chapters(BTreeSet::from([chapter])),
+            stage,
+            plan: None,
+        });
+        self.save(library);
+    }
+
+    /// The chapters a queued book is prepared for; `None` for a whole book or one not queued.
+    pub fn chapters(&self, id: &str) -> Option<Vec<usize>> {
+        self.entry(id)?.scope.chapters()
     }
 
     pub fn cancel(&mut self, library: &Library, id: &str) {
@@ -348,7 +426,9 @@ impl Preparation {
             if done == total {
                 apply(entry, Event::Finish);
                 // Zero would read as "not prepared"; a book with nothing to say is still done.
-                let _ = library.set_setting(&done_key(&entry.id), &total.max(1).to_string());
+                if entry.scope == Scope::Book {
+                    let _ = library.set_setting(&done_key(&entry.id), &total.max(1).to_string());
+                }
                 finished.push(entry.id.clone());
             }
         }
@@ -367,9 +447,15 @@ impl Preparation {
             .filter(|e| e.stage == Stage::Paused)
             .map(|e| e.id.as_str())
             .collect();
+        let chapters: HashMap<&str, Vec<usize>> = self
+            .queue
+            .iter()
+            .filter_map(|e| Some((e.id.as_str(), e.scope.chapters()?)))
+            .collect();
         for (key, value) in [
             (QUEUE_KEY, serde_json::to_string(&ids)),
             (PAUSED_KEY, serde_json::to_string(&paused)),
+            (CHAPTERS_KEY, serde_json::to_string(&chapters)),
         ] {
             if let Ok(json) = value {
                 if let Err(error) = library.set_setting(key, &json) {
@@ -567,6 +653,62 @@ mod tests {
             stages(&Preparation::load(&lib), &lib, &["a", "b", "c"]),
             [NotPrepared, Waiting, Paused]
         );
+    }
+
+    #[test]
+    fn a_chapter_is_prepared_on_its_own_and_does_not_mark_the_book_ready() {
+        let lib = library();
+        let mut p = Preparation::default();
+        p.enqueue_chapter(&lib, "a", 2);
+        assert_eq!(p.chapters("a"), Some(vec![2]));
+        assert_eq!(p.view(&lib, "a").unwrap().chapters, Some(vec![2]));
+        p.planned(&lib, "a", plan(&[("k1", false)]));
+        assert_eq!(p.stage(&lib, "a"), Preparing);
+        assert!(p.segment_made(&lib, "k1", 500));
+        assert!(!p.contains("a"));
+        assert_eq!(p.stage(&lib, "a"), NotPrepared);
+        assert_eq!(p.view(&lib, "a"), None);
+    }
+
+    #[test]
+    fn more_chapters_join_the_books_entry_and_the_whole_book_takes_over() {
+        let lib = library();
+        let mut p = Preparation::default();
+        p.enqueue_chapter(&lib, "a", 5);
+        p.planned(&lib, "a", plan(&[("k1", false)]));
+        p.enqueue_chapter(&lib, "a", 2);
+        assert_eq!(p.chapters("a"), Some(vec![2, 5]));
+        assert_eq!(p.unplanned(), ["a"], "planned again for both chapters");
+        p.enqueue(&lib, "a");
+        assert_eq!(p.chapters("a"), None);
+        assert_eq!(p.view(&lib, "a").unwrap().chapters, None);
+        p.enqueue_chapter(&lib, "a", 7);
+        assert_eq!(p.chapters("a"), None, "the whole book already covers it");
+        assert_eq!(p.queued(), ["a"]);
+    }
+
+    #[test]
+    fn chapter_entries_survive_a_restart_next_to_whole_books() {
+        let lib = library();
+        let mut p = Preparation::default();
+        p.enqueue_chapter(&lib, "a", 3);
+        p.enqueue(&lib, "b");
+        let restarted = Preparation::load(&lib);
+        assert_eq!(restarted.queued(), ["a", "b"]);
+        assert_eq!(restarted.chapters("a"), Some(vec![3]));
+        assert_eq!(restarted.chapters("b"), None);
+    }
+
+    #[test]
+    fn preparing_a_chapter_of_a_ready_book_keeps_it_ready() {
+        let lib = library();
+        let mut p = Preparation::default();
+        p.enqueue(&lib, "a");
+        p.planned(&lib, "a", plan(&[("k1", true)]));
+        p.enqueue_chapter(&lib, "a", 0);
+        assert_eq!(p.stage(&lib, "a"), Waiting);
+        p.planned(&lib, "a", plan(&[("k1", true)]));
+        assert_eq!(p.stage(&lib, "a"), Done);
     }
 
     #[test]

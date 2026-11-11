@@ -9,6 +9,7 @@ import { usePlayerStore } from "../../stores/player";
 import { useLibraryStore } from "../../stores/library";
 import { useReaderStore } from "../../stores/reader";
 import { useNavigationStore } from "../../stores/navigation";
+import { prepareChapter } from "../../preparation";
 
 /** Lines mode, for listening from across the room: the spoken sentence large, filling word by
  *  word, with the sentences around it at reading size. */
@@ -50,7 +51,7 @@ const play = (segment: SegmentView) => { if (reader.book) void player.play(reade
     <aside class="reader-lines__side" aria-label="About this book">
       <button type="button" class="reader-lines__cover-link" :aria-label="`Book page for ${reader.book.title}`" title="Book page: details, contents and your listening" @click="navigation.openBook(reader.book.id)"><CoverArt class="reader-lines__cover" :title="reader.book.title" :url="coverUrl" /></button>
       <div class="reader-lines__book"><h2 class="reader-lines__title"><button type="button" class="reader-lines__title-link" tabindex="-1" aria-hidden="true" @click="navigation.openBook(reader.book.id)">{{ reader.book.title }}</button></h2><span class="reader-lines__author">{{ reader.book.authors.join(", ") || "Unknown author" }}</span></div>
-      <ChapterMenu variant="chip" :chapters="reader.book.chapters" :current="reader.currentChapter" :playing="playingHere ? player.state.chapter : null" @pick="reader.startChapter($event)" />
+      <ChapterMenu variant="chip" prepare :chapters="reader.book.chapters" :current="reader.currentChapter" :playing="playingHere ? player.state.chapter : null" @pick="reader.startChapter($event)" @prepare="prepareChapter(reader.book.id, $event)" />
     </aside>
     <ReaderTools class="reader-lines__tools" />
     <div ref="stage" class="reader-lines__stage" :style="{ '--lines-shift': direction }" aria-label="Spoken sentence" aria-live="off">

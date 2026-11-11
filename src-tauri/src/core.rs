@@ -235,6 +235,15 @@ pub struct Paths {
     pub config_dir: PathBuf,
 }
 
+/// How much of one chapter's audio is made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct ChapterAudioView {
+    pub done: usize,
+    pub total: usize,
+}
+
 /// A book and its generation plan.
 struct Target {
     book: Arc<BookModel>,
@@ -1456,7 +1465,16 @@ impl Core {
             let mut preparation = lock(&self.preparation);
             let library = lock(&self.library);
             match built {
-                Ok(target) => preparation.planned(&library, &id, target.plan),
+                Ok(mut target) => {
+                    if let Some(chapters) = preparation.chapters(&id) {
+                        let book = &target.book;
+                        target.plan.only(|index| {
+                            book.locate(index)
+                                .is_some_and(|(c, _)| chapters.contains(&c))
+                        });
+                    }
+                    preparation.planned(&library, &id, target.plan)
+                }
                 Err(error) => {
                     eprintln!("aoide: cannot prepare {id}: {error}");
                     preparation.cancel(&library, &id);
@@ -1467,6 +1485,41 @@ impl Core {
         if changed {
             self.emit(CoreEvent::LibraryChanged);
         }
+    }
+
+    /// Queues one chapter of a book for preparation (joining the book's entry if it has one).
+    pub async fn prepare_chapter(&self, id: &str, chapter: usize) -> Result<(), String> {
+        let book = self.load_book(id)?;
+        if chapter >= book.chapters.len() {
+            return Err("no such chapter".into());
+        }
+        self.ensure_voice().await?;
+        self.ensure_model().await;
+        {
+            let mut preparation = lock(&self.preparation);
+            preparation.enqueue_chapter(&lock(&self.library), id, chapter);
+        }
+        self.replan(false);
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+
+    /// How much of each chapter's audio is made, in the voice and settings it would be read in.
+    pub async fn chapter_audio(&self, id: &str) -> Result<Vec<ChapterAudioView>, String> {
+        let book = self.load_book(id)?;
+        let _ = self.ensure_voice().await; // Without a voice nothing can be cached yet.
+        let target = self.build_target(Arc::clone(&book))?;
+        let mut chapters = vec![ChapterAudioView { done: 0, total: 0 }; book.chapters.len()];
+        for (index, item) in target.plan.items.iter().enumerate() {
+            let Some((chapter, _)) = book.locate(index) else {
+                continue;
+            };
+            if item.speakable {
+                chapters[chapter].total += 1;
+                chapters[chapter].done += usize::from(item.cached);
+            }
+        }
+        Ok(chapters)
     }
 
     pub fn prepare_view(&self, id: &str) -> Option<PrepareView> {

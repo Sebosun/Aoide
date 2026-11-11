@@ -21,6 +21,7 @@ import type {
   BookView,
   Bookmark,
   CandidateStatus,
+  ChapterAudioView,
   ChapterSummary,
   ChapterView,
   ChoiceOption,
@@ -82,6 +83,7 @@ export type {
   BookView,
   Bookmark,
   CandidateStatus,
+  ChapterAudioView,
   ChapterSummary,
   ChapterView,
   ChoiceOption,
@@ -174,6 +176,10 @@ export interface AoideApi {
   /** Queue whole-book generation (progress arrives via BookSummary.prepare + library://changed). */
   prepareBook(bookId: string): Promise<void>;
   cancelPrepare(bookId: string): Promise<void>;
+  /** Queues one chapter (from 0); it joins the book's entry, or is already covered by a whole book. */
+  prepareChapter(bookId: string, chapter: number): Promise<void>;
+  /** How much of each chapter's audio is made, in chapter order. */
+  chapterAudio(bookId: string): Promise<ChapterAudioView[]>;
   /** Pause or resume a queued book's preparation (remembered across restarts). */
   setPreparePaused(bookId: string, paused: boolean): Promise<void>;
   /** Delete the book's generated audio so it is regenerated. */

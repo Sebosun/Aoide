@@ -104,3 +104,12 @@ it("goes to the book's page from the cover in lines mode", async () => {
   expect(useNavigationStore().view).toBe("book");
   wrapper.unmount();
 });
+
+it("prepares the chapter being read from the chapter menu", async () => {
+  const prepare = vi.spyOn(mock, "prepareChapter");
+  const wrapper = await lines();
+  await wrapper.get('[aria-label^="Chapter 1 of"]').trigger("click");
+  await pickMenuItem("Prepare this chapter");
+  expect(prepare).toHaveBeenCalledWith("book-0", 0);
+  wrapper.unmount();
+});

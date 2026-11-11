@@ -204,6 +204,25 @@ async fn prepare_book(core: CoreState<'_>, book_id: String) -> Result<(), String
 }
 
 #[tauri::command]
+async fn prepare_chapter(
+    core: CoreState<'_>,
+    book_id: String,
+    chapter: usize,
+) -> Result<(), String> {
+    let core = Arc::clone(&core);
+    core.prepare_chapter(&book_id, chapter).await
+}
+
+#[tauri::command]
+async fn chapter_audio(
+    core: CoreState<'_>,
+    book_id: String,
+) -> Result<Vec<crate::core::ChapterAudioView>, String> {
+    let core = Arc::clone(&core);
+    core.chapter_audio(&book_id).await
+}
+
+#[tauri::command]
 fn set_prepare_paused(core: CoreState<'_>, book_id: String, paused: bool) {
     core.set_prepare_paused(&book_id, paused);
 }
@@ -654,6 +673,8 @@ pub fn run() {
             save_engine_profile,
             prepare_book,
             cancel_prepare,
+            prepare_chapter,
+            chapter_audio,
             set_prepare_paused,
             regenerate_book,
             set_sleep_timer,

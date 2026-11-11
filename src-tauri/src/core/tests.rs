@@ -398,3 +398,45 @@ async fn shows_a_book_file_in_the_file_manager_and_says_when_it_is_gone() {
     let error = core.show_in_folder(&id).unwrap_err();
     assert!(error.contains("missing"), "{error}");
 }
+
+#[tokio::test]
+async fn preparing_one_chapter_makes_only_its_audio_and_reports_it_per_chapter() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    assert!(
+        core.prepare_chapter(&id, 9).await.is_err(),
+        "no such chapter"
+    );
+
+    core.prepare_chapter(&id, 1).await.unwrap();
+    until("the chapter to finish", || {
+        !engine.requests().is_empty() && core.prepare_view(&id).is_none()
+    })
+    .await;
+
+    let said: Vec<String> = engine.requests().into_iter().map(|r| r.text).collect();
+    assert!(
+        said.iter()
+            .all(|t| !t.contains("Quay") && !t.contains("Gulls")),
+        "{said:?}"
+    );
+    assert!(said.iter().any(|t| t.contains("Lamp")), "{said:?}");
+    let chapters = core.chapter_audio(&id).await.unwrap();
+    assert_eq!(chapters.len(), 2);
+    assert_eq!(chapters[0].done, 0);
+    assert!(
+        chapters[1].total > 0 && chapters[1].done == chapters[1].total,
+        "{chapters:?}"
+    );
+    assert_eq!(
+        stage(&core, &id),
+        None,
+        "one chapter does not make the book ready"
+    );
+}

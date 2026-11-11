@@ -45,6 +45,7 @@ fn contract() -> String {
         crate::book::ExcludedView,
         crate::book::SearchHit,
         super::BookView,
+        super::ChapterAudioView,
         // Playback and generation
         super::PlaybackStatus,
         super::SleepView,

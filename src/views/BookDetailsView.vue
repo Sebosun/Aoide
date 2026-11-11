@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { ArrowLeft, AudioLines, Play, Sparkles } from "@lucide/vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { ArrowLeft, AudioLines, Check, Play, Sparkles } from "@lucide/vue";
 import { api } from "../api";
-import type { BookDetails, BookView, DayListening } from "../api/types";
+import type { BookDetails, BookView, ChapterAudioView, DayListening } from "../api/types";
 import CoverArt from "../components/CoverArt.vue";
 import UiSkeleton from "../components/ui/UiSkeleton.vue";
 import MetadataLookup from "../components/book/MetadataLookup.vue";
@@ -13,7 +13,7 @@ import { useLibraryStore } from "../stores/library";
 import { useNavigationStore } from "../stores/navigation";
 import { usePlayerStore } from "../stores/player";
 import { useReaderStore } from "../stores/reader";
-import { ACTION_LABELS, describePreparation, preparationStatus, runPrepareAction } from "../preparation";
+import { ACTION_LABELS, describePreparation, prepareChapter, preparationStatus, runPrepareAction } from "../preparation";
 
 /** A book's page before (or between) listening: cover, description, facts, contents and
  *  extraction notes, with Start listening. Nothing plays until the person asks. */
@@ -58,6 +58,30 @@ const facts = computed(() => {
   if (audio.value) list.push(["Audio", audio.value]);
   return list;
 });
+/** Each chapter's audio, refreshed while the book is being prepared (at most every 2 s). */
+const chapterAudio = ref<ChapterAudioView[]>([]);
+async function loadChapterAudio() { try { chapterAudio.value = await api.chapterAudio(props.bookId); } catch { chapterAudio.value = []; } }
+let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+function refreshChapterAudio() { refreshTimer ??= setTimeout(() => { refreshTimer = undefined; void loadChapterAudio(); }, 2000); }
+onMounted(loadChapterAudio);
+onUnmounted(() => clearTimeout(refreshTimer));
+watch(() => [summary.value?.prepare, player.generation.preparing?.done], refreshChapterAudio, { deep: true });
+type ChapterState = { kind: "ready" } | { kind: "queued"; label: string } | { kind: "none" } | { kind: "silent" };
+function chapterState(index: number): ChapterState {
+  const audio = chapterAudio.value[index];
+  if (audio && audio.total === 0) return { kind: "silent" };
+  if (audio && audio.done === audio.total) return { kind: "ready" };
+  const prepare = summary.value?.prepare;
+  if (prepare && prepare.state !== "done" && (!prepare.chapters || prepare.chapters.includes(index))) {
+    return { kind: "queued", label: [preparationStatus(prepare).label, audio ? `${audio.done} / ${audio.total}` : null].filter(Boolean).join(" · ") };
+  }
+  return { kind: "none" };
+}
+async function prepareOne(index: number) {
+  await prepareChapter(props.bookId, index);
+  await library.refresh();
+  await loadChapterAudio();
+}
 const longDescription = computed(() => (details.value?.description?.length ?? 0) > 420);
 const notes = computed(() => (overview.value?.warnings.length ?? 0) + (overview.value?.excluded.length ?? 0));
 
@@ -113,6 +137,9 @@ async function chapter(index: number) {
             <button type="button" class="book-page__chapter" :class="{ 'book-page__chapter--current': progress?.chapter === c.index }" :aria-label="`Play chapter ${i + 1}: ${c.title}`" @click="chapter(c.index)">
               <span class="book-page__number">{{ i + 1 }}</span><span class="book-page__chapter-title">{{ c.title }}</span><AudioLines v-if="progress?.chapter === c.index" :size="15" class="book-page__here" aria-hidden="true" />
             </button>
+            <span v-if="chapterState(c.index).kind === 'ready'" class="book-page__chapter-audio book-page__chapter-audio--ready" title="This chapter's audio is made: it plays at once, even offline"><Check :size="14" aria-hidden="true" /> Ready</span>
+            <span v-else-if="chapterState(c.index).kind === 'queued'" class="book-page__chapter-audio">{{ (chapterState(c.index) as { label: string }).label }}</span>
+            <button v-else-if="chapterState(c.index).kind === 'none'" type="button" class="book-page__chapter-prepare" :aria-label="`Prepare chapter ${i + 1}: ${c.title}`" title="Prepare this chapter" @click="prepareOne(c.index)"><Sparkles :size="14" aria-hidden="true" /></button>
           </li>
         </ol>
       </section>
@@ -159,6 +186,14 @@ async function chapter(index: number) {
 .book-page__listening { padding-bottom: 16px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
 .book-page__card { display: grid; gap: 12px; padding: 20px; border-radius: 20px; background: var(--page); }
 .book-page__heading { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.book-page__chapters li { display: flex; align-items: center; gap: 6px; }
+.book-page__chapter-audio { flex: none; display: inline-flex; align-items: center; gap: 4px; padding-right: 8px; font-size: 12px; font-weight: 600; color: var(--dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.book-page__chapter-audio--ready { color: var(--ok); }
+/* Shown on hover or keyboard focus of the row, and always on touch screens. */
+.book-page__chapter-prepare { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 999px; color: var(--dim); opacity: 0; }
+.book-page__chapters li:hover .book-page__chapter-prepare, .book-page__chapter-prepare:focus-visible { opacity: 1; }
+.book-page__chapter-prepare:hover { background: var(--wash); color: var(--ink); }
+@media (hover: none) { .book-page__chapter-prepare { opacity: 1; } }
 .book-page__chapters { display: grid; gap: 2px; padding: 0; margin: 0; list-style: none; max-height: 420px; overflow-y: auto; }
 .book-page__chapter { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; padding: 9px 10px; border-radius: 10px; text-align: left; font-weight: 600; color: var(--reading); font-variant-numeric: tabular-nums; }
 .book-page__chapter:hover { background: var(--wash); }

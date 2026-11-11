@@ -9,7 +9,7 @@ import ChapterMenu from "./ChapterMenu.vue";
  *  extraction or language warnings that opens the book's details, and one for a voice the
  *  engine does not offer that opens the Voice tab. */
 const props = defineProps<{ book: BookView; coverUrl: string | null; chapter: number; playingChapter: number | null; timeLeft: string }>();
-const emit = defineEmits<{ chapter: [index: number]; details: []; voice: []; about: [] }>();
+const emit = defineEmits<{ chapter: [index: number]; details: []; voice: []; about: []; prepare: [index: number] }>();
 const notes = computed(() => props.book.warnings.length + props.book.excluded.length);
 </script>
 
@@ -21,7 +21,7 @@ const notes = computed(() => props.book.warnings.length + props.book.excluded.le
       <span class="book-margin__author">{{ book.authors.join(", ") || "Unknown author" }}</span>
     </button>
     <hr class="book-margin__rule" />
-    <ChapterMenu :chapters="book.chapters" :current="chapter" :playing="playingChapter" @pick="emit('chapter', $event)" />
+    <ChapterMenu :chapters="book.chapters" :current="chapter" :playing="playingChapter" prepare @pick="emit('chapter', $event)" @prepare="emit('prepare', $event)" />
     <span v-if="timeLeft" class="book-margin__time">{{ timeLeft }} in chapter</span>
     <button v-if="book.languageWarning || notes" type="button" class="book-margin__warning" :title="book.languageWarning ?? undefined" @click="emit('details')">
       <TriangleAlert :size="14" /> <span>{{ book.languageWarning ? 'Language not supported by this voice' : '' }}{{ book.languageWarning && notes ? ' · ' : '' }}{{ notes ? `${notes} extraction ${notes === 1 ? 'note' : 'notes'}` : '' }}</span>
