@@ -48,6 +48,12 @@ async fn remove_book(core: CoreState<'_>, book_id: String) -> Result<(), String>
 }
 
 #[tauri::command]
+async fn show_in_folder(core: CoreState<'_>, book_id: String) -> Result<(), String> {
+    let core = Arc::clone(&core);
+    blocking(move || core.show_in_folder(&book_id)).await
+}
+
+#[tauri::command]
 async fn open_book(core: CoreState<'_>, book_id: String) -> Result<BookView, String> {
     let core = Arc::clone(&core);
     blocking(move || core.open_book(&book_id)).await
@@ -614,6 +620,7 @@ pub fn run() {
             import_files,
             rescan_library,
             remove_book,
+            show_in_folder,
             open_book,
             book_overview,
             chapter,

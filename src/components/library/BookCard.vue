@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Download, Ellipsis, Eraser, FolderPlus, Info, Trash2 } from "@lucide/vue";
+import { Download, Ellipsis, Eraser, FolderOpen, FolderPlus, Info, Trash2 } from "@lucide/vue";
 import { useCollections } from "../../composables/useCollections";
 import { useLibraryStore } from "../../stores/library";
 import { api } from "../../api";
@@ -46,6 +46,7 @@ const items = computed<MenuEntry[]>(() => {
   const book = props.book, list: MenuEntry[] = [];
   if (!unavailable.value) {
     list.push({ id: "details", label: "Details", icon: Info, action: () => emit("details") });
+    list.push({ id: "folder", label: "Show in folder", icon: FolderOpen, action: () => act(() => api.showInFolder(book.id)) });
     for (const action of preparation.value.actions) list.push({ id: action, label: ACTION_LABELS[action], icon: ACTION_ICONS[action], action: () => runPrepareAction(book.id, action) });
     list.push({ id: "export", label: "Export as M4B", icon: Download, action: () => act(exportBook) });
     if (book.audioBytes) list.push({ id: "audio", label: "Delete generated audio", icon: Eraser, action: () => act(deleteAudio) });

@@ -360,6 +360,9 @@ impl Events for AppHandle {
 }
 
 /// What Core needs from the world outside the library folder.
+/// Opens the file manager on a file's folder with the file selected.
+pub type ShowInFolder = Arc<dyn Fn(&Path) -> Result<(), String> + Send + Sync>;
+
 pub struct Environment {
     pub events: Arc<dyn Events>,
     pub engines: Registry,
@@ -367,6 +370,8 @@ pub struct Environment {
     pub audio: Vec<OutputCommand>,
     /// Media keys, file and config watchers, and the startup scan. Tests leave them off.
     pub background: bool,
+    /// Opens the file manager on a file's folder with the file selected.
+    pub show_in_folder: ShowInFolder,
 }
 
 impl Environment {
@@ -377,6 +382,9 @@ impl Environment {
             engines: registry(),
             audio: OutputCommand::candidates(OUTPUT_RATE),
             background: true,
+            show_in_folder: Arc::new(|path| {
+                tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| e.to_string())
+            }),
         }
     }
 
@@ -393,6 +401,7 @@ impl Environment {
 pub struct Core {
     events: Arc<dyn Events>,
     audio: Vec<OutputCommand>,
+    show_in_folder: ShowInFolder,
     pub paths: Paths,
     library: Arc<Mutex<Library>>,
     books: Mutex<HashMap<String, Arc<BookModel>>>,
@@ -504,6 +513,7 @@ impl Core {
             engines: registry,
             audio,
             background,
+            show_in_folder,
         } = environment;
         for dir in [&paths.library_dir, &paths.covers_dir, &paths.audio_dir] {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -541,6 +551,7 @@ impl Core {
         let core = Arc::new(Self {
             events,
             audio,
+            show_in_folder,
             paths,
             library,
             books: Mutex::new(HashMap::new()),
@@ -830,6 +841,21 @@ impl Core {
                 }
             })
             .collect()
+    }
+
+    /// Opens the file manager on the book's folder with its EPUB selected.
+    pub fn show_in_folder(&self, id: &str) -> Result<(), String> {
+        let record = lock(&self.library)
+            .book(&BookId(id.into()))
+            .map_err(|e| e.to_string())?
+            .ok_or("no such book")?;
+        if !record.path.is_file() {
+            return Err(format!(
+                "the book's file is missing: {}",
+                record.path.display()
+            ));
+        }
+        (self.show_in_folder)(&record.path)
     }
 
     pub fn remove_book(&self, id: &str) -> Result<(), String> {

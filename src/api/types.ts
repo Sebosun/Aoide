@@ -138,6 +138,8 @@ export interface AoideApi {
   importFiles(paths: string[]): Promise<ImportResult[]>;
   rescanLibrary(): Promise<void>;
   removeBook(bookId: string): Promise<void>;
+  /** Opens the file manager on the book's folder with its EPUB selected. */
+  showInFolder(bookId: string): Promise<void>;
   /** By name. */
   collections(): Promise<Collection[]>;
   /** Fails when the name is empty or already used (ignoring case). Returns the new id. */

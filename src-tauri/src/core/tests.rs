@@ -110,11 +110,17 @@ fn start(root: &Path, engine: &Arc<FakeEngine>) -> (Arc<Core>, Arc<Recorder>) {
     let events = Arc::new(Recorder::default());
     let mut engines = aoide_tts::Registry::new();
     engine.register(&mut engines);
+    let shown = Arc::clone(&events);
     let environment = Environment {
         events: Arc::clone(&events) as Arc<dyn Events>,
         engines,
         audio: Environment::silent_audio(),
         background: false,
+        // Recorded as an event instead of opening a real file manager.
+        show_in_folder: Arc::new(move |path| {
+            shown.emit("test://shown-in-folder", serde_json::json!(path));
+            Ok(())
+        }),
     };
     (Core::start(environment, paths(root)).unwrap(), events)
 }
@@ -361,4 +367,34 @@ async fn a_book_without_readable_text_fails_to_import_and_says_why() {
         .filter(|b| matches!(b.status, aoide_library::BookStatus::Error(_)))
         .collect();
     assert_eq!(failed.len(), 1, "listed as failed, with its reason");
+}
+
+#[tokio::test]
+async fn shows_a_book_file_in_the_file_manager_and_says_when_it_is_gone() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+
+    core.show_in_folder(&id).unwrap();
+    let shown: Vec<_> = events
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(n, _)| n == "test://shown-in-folder")
+        .map(|(_, p)| p.clone())
+        .collect();
+    assert_eq!(
+        shown,
+        vec![serde_json::json!(dir.path().join("Books/quay-lights.epub"))]
+    );
+
+    std::fs::remove_file(dir.path().join("Books/quay-lights.epub")).unwrap();
+    let error = core.show_in_folder(&id).unwrap_err();
+    assert!(error.contains("missing"), "{error}");
 }

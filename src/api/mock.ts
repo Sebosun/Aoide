@@ -157,6 +157,7 @@ export function createMockApi() {
       getBook(id).collections = shelves.filter(s => ids.includes(s.id)).sort((a, b) => a.name.localeCompare(b.name)).map(s => s.id); changed();
     },
     async removeBook(id) { if (state.bookId === id) await api.stop(); const index = books.findIndex(b => b.id === id); if (index >= 0) books.splice(index, 1); changed(); },
+    async showInFolder(id) { getBook(id); },
     async openBook(id): Promise<BookView> { const b = getBook(id); b.lastOpenedAt = Date.now(); return api.bookOverview(id); },
     async bookOverview(id): Promise<BookView> {
       const b = getBook(id), list = chapters[Number(id.split("-")[1])];

@@ -81,3 +81,14 @@ it("flags a book voice the engine does not offer and opens the Voice tab from th
   expect(wrapper.get('[role="dialog"] [role="tab"][aria-selected="true"]').text()).toBe("Voice");
   wrapper.unmount();
 });
+
+it("shows the book's file in the file manager from Details", async () => {
+  const show = vi.spyOn(mock, "showInFolder");
+  const wrapper = await reader("book-1");
+  await wrapper.get('[aria-label="About this book"] .book-margin__warning').trigger("click");
+  await flushPromises();
+  const button = wrapper.get('[role="dialog"]').findAll("button").find(b => b.text() === "Show in folder");
+  await button!.trigger("click");
+  expect(show).toHaveBeenCalledWith("book-1");
+  wrapper.unmount();
+});

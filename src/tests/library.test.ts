@@ -320,3 +320,12 @@ it("writes the size of a book's audio the way Storage does", async () => {
   expect(wrapper.findAll(".book-card").find(card => card.text().includes("The Lantern Keeper"))!.text()).toContain("12% · 2.3 MB");
   wrapper.unmount();
 });
+
+it("shows a book's file in the file manager from its card menu", async () => {
+  const show = vi.spyOn(mock, "showInFolder");
+  const wrapper = await library();
+  await wrapper.get('[aria-label="More for A Map of Quiet Places"]').trigger("click");
+  await pickMenuItem("Show in folder");
+  expect(show).toHaveBeenCalledWith("book-1");
+  wrapper.unmount();
+});

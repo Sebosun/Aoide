@@ -15,6 +15,7 @@ export const tauriApi: AoideApi = {
   importFiles: paths => invoke("import_files", { paths }),
   rescanLibrary: () => invoke("rescan_library"),
   removeBook: bookId => invoke("remove_book", { bookId }),
+  showInFolder: bookId => invoke("show_in_folder", { bookId }),
   collections: () => invoke("collections"),
   createCollection: name => invoke("create_collection", { name }),
   renameCollection: (id, name) => invoke("rename_collection", { id, name }),

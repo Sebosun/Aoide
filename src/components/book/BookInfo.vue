@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { FolderOpen } from "@lucide/vue";
 import { api } from "../../api";
 import type { BookDetails } from "../../api/types";
 import MetadataLookup from "./MetadataLookup.vue";
@@ -9,6 +10,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const reader = useReaderStore();
 const details = ref<BookDetails | null>(null), error = ref("");
 onMounted(async () => { try { details.value = await api.bookDetails(props.bookId); } catch (e) { error.value = String(e); } });
+async function showInFolder() { error.value = ""; try { await api.showInFolder(props.bookId); } catch (e) { error.value = String(e); } }
 </script>
 
 <template>
@@ -23,6 +25,7 @@ onMounted(async () => { try { details.value = await api.bookDetails(props.bookId
   </dl>
   <p v-if="details?.description" class="book-info__description">{{ details.description }}</p>
   <MetadataLookup :book-id="bookId" :matched="Boolean(details?.openLibraryKey)" @applied="details = $event" />
+  <button type="button" class="book-info__folder" @click="showInFolder"><FolderOpen :size="15" aria-hidden="true" /> Show in folder</button>
   <details v-if="reader.book && (reader.book.warnings.length || reader.book.excluded.length)" class="book-info__extraction" :open="notesOpen">
     <summary>Extraction notes · {{ plural(reader.book.warnings.length, "warning", "warnings") }}, {{ plural(reader.book.excluded.length, "section", "sections") }} left out</summary>
     <p v-for="section in reader.book.excluded" :key="section.title"><strong>{{ section.title }}</strong>: {{ section.reason }}</p>
@@ -37,5 +40,7 @@ onMounted(async () => { try { details.value = await api.bookDetails(props.bookId
 .book-info__description { font: 14px/1.6 var(--font-read); color: var(--dim); white-space: pre-line; max-height: 280px; overflow-y: auto; }
 .book-info__extraction { margin-top: 22px; font-size: 12px; color: var(--dim); }
 .book-info__extraction summary { cursor: pointer; }
+.book-info__folder { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; padding: 7px 14px; border-radius: 999px; background: var(--wash); font-size: 13px; font-weight: 600; color: var(--ink); }
+.book-info__folder:hover { background: var(--line); }
 .book-info__error { font-size: 12px; color: var(--accent); overflow-wrap: anywhere; }
 </style>
