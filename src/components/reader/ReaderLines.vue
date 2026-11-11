@@ -8,11 +8,12 @@ import PlayerTransport from "../player/PlayerTransport.vue";
 import { usePlayerStore } from "../../stores/player";
 import { useLibraryStore } from "../../stores/library";
 import { useReaderStore } from "../../stores/reader";
+import { useNavigationStore } from "../../stores/navigation";
 
 /** Lines mode, for listening from across the room: the spoken sentence large, filling word by
  *  word, with the sentences around it at reading size. */
 const emit = defineEmits<{ tools: [] }>();
-const reader = useReaderStore(), player = usePlayerStore(), library = useLibraryStore();
+const reader = useReaderStore(), player = usePlayerStore(), library = useLibraryStore(), navigation = useNavigationStore();
 const coverUrl = computed(() => library.books.find(b => b.id === reader.book?.id)?.coverUrl ?? null);
 const playingHere = computed(() => Boolean(reader.book) && player.state.bookId === reader.book?.id);
 const onPage = computed(() => playingHere.value && player.state.chapter === reader.currentChapter);
@@ -47,8 +48,8 @@ const play = (segment: SegmentView) => { if (reader.book) void player.play(reade
 <template>
   <section v-if="reader.book" class="reader-lines">
     <aside class="reader-lines__side" aria-label="About this book">
-      <CoverArt class="reader-lines__cover" :title="reader.book.title" :url="coverUrl" />
-      <div class="reader-lines__book"><h2 class="reader-lines__title">{{ reader.book.title }}</h2><span class="reader-lines__author">{{ reader.book.authors.join(", ") || "Unknown author" }}</span></div>
+      <button type="button" class="reader-lines__cover-link" :aria-label="`Book page for ${reader.book.title}`" title="Book page: details, contents and your listening" @click="navigation.openBook(reader.book.id)"><CoverArt class="reader-lines__cover" :title="reader.book.title" :url="coverUrl" /></button>
+      <div class="reader-lines__book"><h2 class="reader-lines__title"><button type="button" class="reader-lines__title-link" tabindex="-1" aria-hidden="true" @click="navigation.openBook(reader.book.id)">{{ reader.book.title }}</button></h2><span class="reader-lines__author">{{ reader.book.authors.join(", ") || "Unknown author" }}</span></div>
       <ChapterMenu variant="chip" :chapters="reader.book.chapters" :current="reader.currentChapter" :playing="playingHere ? player.state.chapter : null" @pick="reader.startChapter($event)" />
     </aside>
     <ReaderTools class="reader-lines__tools" />
@@ -65,7 +66,10 @@ const play = (segment: SegmentView) => { if (reader.book) void player.play(reade
 <style scoped>
 .reader-lines { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 300px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; column-gap: 56px; padding-top: 10px; }
 .reader-lines__side { grid-column: 1; grid-row: 1; display: grid; gap: 14px; align-content: center; justify-items: start; min-height: 0; }
-.reader-lines__cover { width: min(100%, 44vh * 2 / 3); font-size: 20px; }
+.reader-lines__cover-link { display: block; width: min(100%, 44vh * 2 / 3); border-radius: 12px; }
+.reader-lines__cover { width: 100%; font-size: 20px; }
+.reader-lines__title-link { font: inherit; color: inherit; text-align: left; letter-spacing: inherit; }
+.reader-lines__title-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .reader-lines__title { font-size: 24px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
 .reader-lines__author { color: var(--dim); font-weight: 500; }
 .reader-lines__tools { position: absolute; top: 14px; right: 0; z-index: 2; }
@@ -91,7 +95,8 @@ const play = (segment: SegmentView) => { if (reader.book) void player.play(reade
 @media (max-width: 999px) {
   .reader-lines { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; padding-top: 6px; }
   .reader-lines__side { grid-row: 1; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 4px 14px; padding-right: 180px; }
-  .reader-lines__cover { grid-row: span 2; width: 100%; font-size: 0; }
+  .reader-lines__cover-link { grid-row: span 2; width: 100%; }
+  .reader-lines__cover { font-size: 0; }
   .reader-lines__title { font-size: 18px; }
   .reader-lines__book { min-width: 0; }
   .reader-lines__tools { top: 6px; }

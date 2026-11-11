@@ -6,6 +6,7 @@ import ReaderView from "../views/ReaderView.vue";
 import { useReaderStore } from "../stores/reader";
 import { usePlayerStore } from "../stores/player";
 import { useLibraryStore } from "../stores/library";
+import { useNavigationStore } from "../stores/navigation";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("../api", () => ({ get api() { return backend.api; } }));
@@ -90,5 +91,13 @@ it("shows the book's file in the file manager from Details", async () => {
   const button = wrapper.get('[role="dialog"]').findAll("button").find(b => b.text() === "Show in folder");
   await button!.trigger("click");
   expect(show).toHaveBeenCalledWith("book-1");
+  wrapper.unmount();
+});
+
+it("goes from the reader to the book's page through its cover and title in the margin", async () => {
+  const wrapper = await reader("book-0");
+  await wrapper.get('[aria-label="About this book"] [aria-label="Book page for The Lantern Keeper"]').trigger("click");
+  expect(useNavigationStore().view).toBe("book");
+  expect(useNavigationStore().bookId).toBe("book-0");
   wrapper.unmount();
 });

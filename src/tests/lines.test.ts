@@ -7,6 +7,7 @@ import { useReaderStore } from "../stores/reader";
 import { usePlayerStore } from "../stores/player";
 import { useLibraryStore } from "../stores/library";
 import { usePreferencesStore } from "../stores/preferences";
+import { useNavigationStore } from "../stores/navigation";
 import { pickMenuItem } from "./helpers";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
@@ -94,5 +95,12 @@ it("keeps each sentence's element as the playhead moves, so lines can glide to t
   expect(wrapper.get('[data-segment-id="0:1:0"]').element).toBe(spoken);
   expect(spoken.classList.contains("reader-lines__line--now")).toBe(false);
   expect(wrapper.get(".reader-lines__word--current").text()).toBe("a");
+  wrapper.unmount();
+});
+
+it("goes to the book's page from the cover in lines mode", async () => {
+  const wrapper = await lines();
+  await wrapper.get('[aria-label="Book page for The Lantern Keeper"]').trigger("click");
+  expect(useNavigationStore().view).toBe("book");
   wrapper.unmount();
 });
