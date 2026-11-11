@@ -49,7 +49,7 @@ function moveTab(delta: number) {
         <div ref="tabList" class="book-tools__tabs" role="tablist" aria-label="Book tools">
           <button v-for="t in tabs" :id="`book-tools-tab-${t.id}`" :key="t.id" type="button" role="tab" class="book-tools__tab" :class="{ 'book-tools__tab--on': tab === t.id }" :aria-selected="tab === t.id" :aria-controls="`book-tools-${t.id}`" :tabindex="tab === t.id ? 0 : -1" @click="tab = t.id" @keydown.right.prevent="moveTab(1)" @keydown.left.prevent="moveTab(-1)"><component :is="t.icon" :size="15" aria-hidden="true" /><span>{{ t.label }}</span></button>
         </div>
-        <span class="book-tools__book">{{ reader.book.title }}</span>
+        <span class="book-tools__book" :title="reader.book.title">{{ reader.book.title }}</span>
         <button type="button" class="book-tools__close" aria-label="Close book tools" @click="emit('close')"><X :size="17" /></button>
       </header>
       <div :id="`book-tools-${tab}`" ref="body" class="book-tools__body" role="tabpanel" :aria-labelledby="`book-tools-tab-${tab}`">
@@ -63,9 +63,9 @@ function moveTab(delta: number) {
 </template>
 
 <style scoped>
-.book-tools { width: min(780px, 100vw); height: min(72vh, 680px); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.book-tools { width: min(780px, 100vw); height: min(72vh, 680px); display: grid; grid-template-rows: auto minmax(0, 1fr); grid-template-columns: minmax(0, 1fr); }
 .book-tools__head { display: flex; align-items: center; gap: 12px; padding: 14px 14px 12px 20px; border-bottom: 1px solid var(--line); }
-.book-tools__tabs { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--ground); }
+.book-tools__tabs { flex-shrink: 0; display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--ground); }
 .book-tools__tab { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--dim); }
 .book-tools__tab--on { background: var(--ink); color: var(--ground); }
 .book-tools__book { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
