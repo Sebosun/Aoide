@@ -121,6 +121,7 @@ Aoide doesn't contain a voice of its own; it talks to a speech server running on
 | --- | --- | --- | --- |
 | **[Chatterbox TTS Server](https://github.com/devnen/Chatterbox-TTS-Server)** | Very natural, expressive, can clone a voice from a short sample | An NVIDIA GPU is strongly recommended | `http://127.0.0.1:8004` |
 | **[Breeze TTS 2](https://github.com/breezeblue-ai/breeze-tts)**, through [`tools/breeze-tts`](tools/breeze-tts/aoide_breeze_tts.py) | Very natural; designs narrator voices from a description and keeps each one steady for a whole book. Weights are for non-commercial use only | An NVIDIA GPU with 12 GB, or 16 GB to keep up with fast listening (see below) | `http://127.0.0.1:8883` |
+| **[Qwen3-TTS](https://github.com/QwenLM/Qwen3-TTS)**, through [`tools/qwen-tts`](tools/qwen-tts/aoide_qwen_tts.py) | Natural, nine built-in voices (two of them English), about 3–4× real time | An NVIDIA GPU with about 5 GB free; setup is in the script's header | `http://127.0.0.1:8882` |
 | **[Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI)** | Clear and pleasant, many stock voices | Runs fine on a CPU | `http://127.0.0.1:8880` |
 | Anything else with an OpenAI-style `/v1/audio/speech` endpoint | – | – | your choice |
 
