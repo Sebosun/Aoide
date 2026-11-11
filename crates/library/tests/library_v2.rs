@@ -422,3 +422,26 @@ fn bookmarks_round_trip_and_sort_by_position_then_creation() {
         }
     );
 }
+
+#[test]
+fn a_books_listening_comes_back_by_day_oldest_first() {
+    let lib = Library::open_in_memory().unwrap();
+    let a = book(&lib, "a");
+    let b = book(&lib, "b");
+    lib.record_listening(&a, "2026-11-10", 300).unwrap();
+    lib.record_listening(&a, "2026-11-03", 100).unwrap();
+    lib.record_listening(&a, "2026-11-10", 50).unwrap();
+    lib.record_listening(&b, "2026-11-04", 999).unwrap();
+    let day = |day: &str, ms| DayListening {
+        day: day.into(),
+        ms,
+    };
+    assert_eq!(
+        lib.book_listening(&a).unwrap(),
+        vec![day("2026-11-03", 100), day("2026-11-10", 350)]
+    );
+    assert!(lib
+        .book_listening(&BookId("none".into()))
+        .unwrap()
+        .is_empty());
+}

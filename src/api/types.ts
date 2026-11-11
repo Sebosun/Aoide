@@ -194,6 +194,8 @@ export interface AoideApi {
   updateBookmarkNote(id: number, note: string): Promise<void>;
   deleteBookmark(id: number): Promise<void>;
   listeningStats(): Promise<ListeningStats>;
+  /** One book's listened time per local day, oldest first. */
+  bookListening(bookId: string): Promise<DayListening[]>;
   bookDetails(bookId: string): Promise<BookDetails>;
   /** Searches Open Library for the book (fails when lookups are turned off). */
   /** Cached for 30 days; refresh asks Open Library again. */

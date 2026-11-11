@@ -2,10 +2,11 @@
 import { computed, onMounted, ref } from "vue";
 import { ArrowLeft, AudioLines, Play, Sparkles } from "@lucide/vue";
 import { api } from "../api";
-import type { BookDetails, BookView } from "../api/types";
+import type { BookDetails, BookView, DayListening } from "../api/types";
 import CoverArt from "../components/CoverArt.vue";
 import UiSkeleton from "../components/ui/UiSkeleton.vue";
 import MetadataLookup from "../components/book/MetadataLookup.vue";
+import BookListening from "../components/book/BookListening.vue";
 import { formatBytes } from "../bytes";
 import { formatDuration, speechMs } from "../estimate";
 import { useLibraryStore } from "../stores/library";
@@ -18,14 +19,13 @@ import { ACTION_LABELS, describePreparation, preparationStatus, runPrepareAction
  *  extraction notes, with Start listening. Nothing plays until the person asks. */
 const props = defineProps<{ bookId: string }>();
 const library = useLibraryStore(), navigation = useNavigationStore(), player = usePlayerStore(), reader = useReaderStore();
-const overview = ref<BookView | null>(null), details = ref<BookDetails | null>(null), listenedMs = ref(0), error = ref("");
+const overview = ref<BookView | null>(null), details = ref<BookDetails | null>(null), listening = ref<DayListening[]>([]), error = ref("");
 const expanded = ref(false);
 const loading = computed(() => !overview.value && !error.value);
 onMounted(async () => {
   try {
-    const [view, info, stats] = await Promise.all([api.bookOverview(props.bookId), api.bookDetails(props.bookId), api.listeningStats().catch(() => null)]);
-    overview.value = view; details.value = info;
-    listenedMs.value = stats?.byBook.find(b => b.bookId === props.bookId)?.ms ?? 0;
+    const [view, info, days] = await Promise.all([api.bookOverview(props.bookId), api.bookDetails(props.bookId), api.bookListening(props.bookId).catch(() => [])]);
+    overview.value = view; details.value = info; listening.value = days;
   } catch (e) { error.value = String(e); }
 });
 
@@ -56,7 +56,6 @@ const facts = computed(() => {
   if (info?.published) list.push(["Published", info.published]);
   if (info?.isbn) list.push(["ISBN", info.isbn]);
   if (audio.value) list.push(["Audio", audio.value]);
-  if (listenedMs.value >= 60_000) list.push(["You listened", formatDuration(listenedMs.value)]);
   return list;
 });
 const longDescription = computed(() => (details.value?.description?.length ?? 0) > 420);
@@ -118,6 +117,7 @@ async function chapter(index: number) {
         </ol>
       </section>
       <section class="book-page__card book-page__side">
+        <BookListening v-if="listening.length" class="book-page__listening" :days="listening" :word-count="overview.wordCount" :fraction="progress?.fraction ?? 0" :speed="player.state.speed" />
         <h2 class="book-page__heading">Details online</h2>
         <MetadataLookup :book-id="bookId" :matched="Boolean(details?.openLibraryKey)" @applied="details = $event" />
         <details v-if="notes" class="book-page__notes">
@@ -156,6 +156,7 @@ async function chapter(index: number) {
 .book-page__subjects { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; list-style: none; }
 .book-page__subjects li { padding: 4px 10px; border-radius: 999px; background: var(--wash); color: var(--dim); font-size: 12px; font-weight: 600; }
 .book-page__lower { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.book-page__listening { padding-bottom: 16px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
 .book-page__card { display: grid; gap: 12px; padding: 20px; border-radius: 20px; background: var(--page); }
 .book-page__heading { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 .book-page__chapters { display: grid; gap: 2px; padding: 0; margin: 0; list-style: none; max-height: 420px; overflow-y: auto; }

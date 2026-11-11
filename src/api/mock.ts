@@ -243,6 +243,10 @@ export function createMockApi() {
     },
     async updateBookmarkNote(id, note) { const mark = bookmarks.find(b => b.id === id); if (!mark) throw new Error("Bookmark not found."); mark.note = note; },
     async deleteBookmark(id) { const index = bookmarks.findIndex(b => b.id === id); if (index >= 0) bookmarks.splice(index, 1); },
+    async bookListening(id) {
+      getBook(id);
+      return id === "book-0" ? [{ day: "2026-11-02", ms: 1_500_000 }, { day: "2026-11-08", ms: 2_400_000 }, { day: "2026-11-10", ms: 1_500_000 }] : [];
+    },
     async listeningStats() {
       const byBook = [...listened].map(([bookId, ms]) => ({ bookId, title: books.find(b => b.id === bookId)?.title ?? "Removed book", ms })).sort((a, b) => b.ms - a.ms);
       return { totalMs: byBook.reduce((t, b) => t + b.ms, 0), byBook, byDay: [{ day: "2026-11-08", ms: 2_400_000 }, { day: "2026-11-09", ms: 3_000_000 }, { day: "2026-11-10", ms: 1_200_000 }] };

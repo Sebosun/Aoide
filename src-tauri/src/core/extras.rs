@@ -220,6 +220,13 @@ impl Core {
         extras.last_tick = playing.then_some(now);
     }
 
+    /// One book's listened time per local day, oldest first.
+    pub fn book_listening(&self, id: &str) -> Result<Vec<aoide_library::DayListening>, String> {
+        lock(&self.library)
+            .book_listening(&BookId(id.into()))
+            .map_err(|e| e.to_string())
+    }
+
     pub fn listening_stats(&self) -> Result<ListeningStatsView, String> {
         let library = lock(&self.library);
         let stats = library.listening_stats().map_err(|e| e.to_string())?;

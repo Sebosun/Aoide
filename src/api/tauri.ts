@@ -47,6 +47,7 @@ export const tauriApi: AoideApi = {
   updateBookmarkNote: (id, note) => invoke("update_bookmark_note", { id, note }),
   deleteBookmark: id => invoke("delete_bookmark", { id }),
   listeningStats: () => invoke("listening_stats"),
+  bookListening: bookId => invoke("book_listening", { bookId }),
   bookDetails: bookId => invoke("book_details", { bookId }),
   lookupMetadata: (bookId, refresh) => invoke("lookup_metadata", { bookId, refresh }),
   applyMetadata: (bookId, match) => invoke("apply_metadata", { bookId, candidate: match }),

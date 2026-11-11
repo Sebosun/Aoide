@@ -437,6 +437,22 @@ impl Library {
         Ok(())
     }
 
+    /// One book's listened time per local day, oldest day first.
+    pub fn book_listening(&self, book: &BookId) -> Result<Vec<DayListening>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT day, ms FROM listening WHERE book_id = ?1 ORDER BY day ASC")?;
+        let days = stmt
+            .query_map([&book.0], |row| {
+                Ok(DayListening {
+                    day: row.get(0)?,
+                    ms: row.get(1)?,
+                })
+            })?
+            .collect::<std::result::Result<_, _>>()?;
+        Ok(days)
+    }
+
     pub fn listening_stats(&self) -> Result<ListeningStats> {
         let total_ms =
             self.conn

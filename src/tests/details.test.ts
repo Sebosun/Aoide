@@ -72,3 +72,23 @@ it("opens details from the card menu, and goes back to the library", async () =>
   expect(useNavigationStore().view).toBe("library");
   wrapper.unmount();
 });
+
+it("shows the time spent with a started book: total, days, a bar per day and time left", async () => {
+  useNavigationStore().openBook("book-0");
+  const wrapper = await app();
+  const listening = wrapper.get('[aria-label="About The Lantern Keeper"] [aria-label="Your listening"]');
+  expect(listening.get(".book-listening__total").text()).toBe("1 h 30 min");
+  expect(listening.text()).toContain("on 3 days");
+  expect(listening.findAll(".book-listening__bar")).toHaveLength(3);
+  expect(listening.text()).toMatch(/left at 1×/);
+  const facts = wrapper.findAll(".book-page__fact dt").map(dt => dt.text());
+  expect(facts).not.toContain("You listened");
+  wrapper.unmount();
+});
+
+it("leaves the listening section out for a book nobody has listened to", async () => {
+  useNavigationStore().openBook("book-1");
+  const wrapper = await app();
+  expect(wrapper.find('[aria-label="Your listening"]').exists()).toBe(false);
+  wrapper.unmount();
+});

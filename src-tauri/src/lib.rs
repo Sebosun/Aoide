@@ -270,6 +270,15 @@ fn delete_bookmark(core: CoreState<'_>, id: i64) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn book_listening(
+    core: CoreState<'_>,
+    book_id: String,
+) -> Result<Vec<aoide_library::DayListening>, String> {
+    let core = Arc::clone(&core);
+    blocking(move || core.book_listening(&book_id)).await
+}
+
+#[tauri::command]
 async fn listening_stats(core: CoreState<'_>) -> Result<ListeningStatsView, String> {
     let core = Arc::clone(&core);
     blocking(move || core.listening_stats()).await
@@ -655,6 +664,7 @@ pub fn run() {
             update_bookmark_note,
             delete_bookmark,
             listening_stats,
+            book_listening,
             book_details,
             app_settings,
             save_app_settings,
