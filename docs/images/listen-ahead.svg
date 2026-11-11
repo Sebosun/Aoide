@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 268" width="1040" height="268" role="img" aria-labelledby="title desc">
+  <title id="title">Audio is made just ahead of where you are listening</title>
+  <desc id="desc">A row of sentences. Those already heard are faded, the one playing is highlighted, the next few are ready, one is being made, and the rest wait. Jump elsewhere and Aoide starts making audio from where you land.</desc>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .bg { fill: #f3f4fb; }
+    .heard { fill: #e2e5f3; }
+    .playing { fill: #e0502f; }
+    .ready { fill: #141a3d; }
+    .making { fill: #ffffff; stroke: #e0502f; stroke-width: 2; stroke-dasharray: 5 4; }
+    .waiting { fill: #ffffff; stroke: #c9cde6; stroke-width: 1.5; }
+    .label { fill: #141a3d; font-size: 14px; font-weight: 700; }
+    .sub { fill: #5a6188; font-size: 13px; }
+    .tick { stroke: #9aa0c3; stroke-width: 1.5; fill: none; }
+    .hot { fill: #c2401f; font-size: 14px; font-weight: 700; }
+    .jump { stroke: #e0502f; stroke-width: 2; fill: none; stroke-dasharray: 6 5; }
+    .jump-head { fill: #e0502f; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #151a33; }
+      .heard { fill: #262c52; }
+      .playing { fill: #ff6a3d; }
+      .ready { fill: #8e97d6; }
+      .making { fill: #1f2547; stroke: #ff6a3d; }
+      .waiting { fill: #1f2547; stroke: #3b4270; }
+      .label { fill: #eef0fb; }
+      .sub { fill: #a9afd3; }
+      .tick { stroke: #6c739e; }
+      .hot { fill: #ff8a63; }
+      .jump { stroke: #ff6a3d; }
+      .jump-head { fill: #ff6a3d; }
+    }
+  </style>
+  <rect class="bg" width="1040" height="268" rx="18"/>
+
+  <!-- 16 sentences, 52 wide, 10 apart, from x=28 -->
+  <g>
+    <rect class="heard" x="28"  y="96" width="52" height="40" rx="8"/>
+    <rect class="heard" x="90"  y="96" width="52" height="40" rx="8"/>
+    <rect class="heard" x="152" y="96" width="52" height="40" rx="8"/>
+    <rect class="heard" x="214" y="96" width="52" height="40" rx="8"/>
+    <rect class="playing" x="276" y="96" width="52" height="40" rx="8"/>
+    <path d="M296 106 l14 10 l-14 10 z" fill="#ffffff"/>
+    <rect class="ready" x="338" y="96" width="52" height="40" rx="8"/>
+    <rect class="ready" x="400" y="96" width="52" height="40" rx="8"/>
+    <rect class="ready" x="462" y="96" width="52" height="40" rx="8"/>
+    <rect class="ready" x="524" y="96" width="52" height="40" rx="8"/>
+    <rect class="making" x="586" y="96" width="52" height="40" rx="8"/>
+    <rect class="waiting" x="648" y="96" width="52" height="40" rx="8"/>
+    <rect class="waiting" x="710" y="96" width="52" height="40" rx="8"/>
+    <rect class="waiting" x="772" y="96" width="52" height="40" rx="8"/>
+    <rect class="waiting" x="834" y="96" width="52" height="40" rx="8"/>
+    <rect class="waiting" x="896" y="96" width="52" height="40" rx="8"/>
+    <rect class="waiting" x="958" y="96" width="52" height="40" rx="8"/>
+  </g>
+
+  <!-- Labels above -->
+  <text class="hot" x="302" y="58" text-anchor="middle">You are here</text>
+  <path class="tick" d="M302 66 v22"/>
+  <text class="label" x="457" y="58" text-anchor="middle">Ready to play</text>
+  <path class="tick" d="M338 78 H576 M338 78 v10 M576 78 v10"/>
+  <text class="label" x="612" y="30" text-anchor="middle">Being made</text>
+  <path class="tick" d="M612 38 v50"/>
+
+  <!-- Labels below -->
+  <path class="tick" d="M28 146 v10 H266 v-10"/>
+  <text class="sub" x="147" y="176" text-anchor="middle">Heard (audio kept for next time)</text>
+  <path class="tick" d="M648 146 v10 H1010 v-10"/>
+  <text class="sub" x="829" y="176" text-anchor="middle">Waiting, in reading order</text>
+
+  <!-- Jump note -->
+  <path class="jump" d="M302 196 C 420 230, 700 230, 812 200"/>
+  <path class="jump-head" d="M818 196 l-12 0 l5 10 z"/>
+  <text class="sub" x="556" y="252" text-anchor="middle">Skip ahead and Aoide starts again from where you land.</text>
+</svg>

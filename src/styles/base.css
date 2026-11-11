@@ -1,0 +1,48 @@
+/* Shared resets and element defaults. Component styles live in each component (scoped). */
+*, *::before, *::after { box-sizing: border-box; }
+/* Content loads after the first paint (library, hero); do not let scroll anchoring move the page. */
+html { background: var(--ground); overflow-anchor: none; }
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--screen);
+  background-attachment: fixed;
+  color: var(--ink);
+  font: 500 14px/1.4 var(--font-ui);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, p, ol, ul, dl, dd, figure, blockquote { margin: 0; }
+button, select, input, textarea { font: inherit; color: inherit; }
+button { border: 0; background: none; padding: 0; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+button, select, [role="button"] { -webkit-tap-highlight-color: transparent; }
+select {
+  background: var(--page);
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+input[type="text"], input[type="number"], input[type="search"], input:not([type]), textarea {
+  background: var(--page);
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  border-radius: 10px;
+  min-width: 0;
+}
+input[type="checkbox"], input[type="range"] { accent-color: var(--accent); }
+input[type="checkbox"] { width: 16px; height: 16px; }
+svg { flex-shrink: 0; }
+img { max-width: 100%; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+::selection { background: var(--wash); color: var(--ink); }
+progress { appearance: none; border: 0; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; accent-color: var(--accent); }
+progress::-webkit-progress-bar { background: var(--line); }
+progress::-webkit-progress-value { background: var(--accent); border-radius: 3px; }
+progress::-moz-progress-bar { background: var(--accent); border-radius: 3px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+}

@@ -1,0 +1,23 @@
+[package]
+name = "aoide-library"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+publish.workspace = true
+description = "Aoide library store: books, progress, segment-cache index, settings"
+
+[features]
+# TypeScript declarations for the UI contract (src/api/contract.ts).
+ts = ["dep:ts-rs"]
+
+[dependencies]
+ts-rs = { version = "12.0.1", optional = true }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+walkdir = "2"
+
+[dev-dependencies]
+tempfile = "3"

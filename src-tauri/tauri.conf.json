@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Aoide",
+  "version": "0.1.0",
+  "identifier": "com.aoide.audiobooks",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Aoide \u2014 EPUB Audiobooks",
+        "theme": "Dark",
+        "width": 1120,
+        "height": 820,
+        "minWidth": 640,
+        "minHeight": 640,
+        "label": "main"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost data: https://covers.openlibrary.org https://*.archive.org; connect-src ipc: http://ipc.localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPDATA/covers/**"
+        ]
+      }
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

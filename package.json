@@ -1,0 +1,37 @@
+{
+  "name": "aoide",
+  "private": true,
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test:ui": "vitest run",
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "vue-tsc --noEmit",
+    "build": "npm run typecheck && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "cargo test --workspace --exclude aoide",
+    "test:parser": "cargo test -p aoide-epub",
+    "check:parser": "cargo fmt -p aoide-epub --check && cargo clippy -p aoide-epub --all-targets -- -D warnings",
+    "test:chatterbox": "cargo test -p aoide-chatterbox",
+    "check:chatterbox": "cargo fmt -p aoide-chatterbox --check && cargo clippy -p aoide-chatterbox --all-targets -- -D warnings",
+    "tauri": "tauri",
+    "check": "cargo fmt --all --check && cargo clippy --workspace --exclude aoide --all-targets -- -D warnings"
+  },
+  "dependencies": {
+    "@lucide/vue": "^1.70.0",
+    "@tauri-apps/api": "^2.0.0",
+    "pinia": "^4.1.0",
+    "vue": "^3.5.45"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vue/test-utils": "^2.4.11",
+    "jsdom": "^29.1.1",
+    "typescript": "~5.9.3",
+    "vite": "^7.0.0",
+    "vitest": "^5.1.0",
+    "vue-tsc": "^3.3.14"
+  }
+}

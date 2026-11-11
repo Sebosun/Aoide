@@ -1,0 +1,26 @@
+[package]
+name = "aoide-tts"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+publish.workspace = true
+description = "Engine-agnostic text-to-speech adapter interface for Aoide"
+
+[features]
+# TypeScript declarations for the UI contract (src/api/contract.ts).
+ts = ["dep:ts-rs"]
+# Shared adapter conformance checks (`aoide_tts::testing`).
+testing = []
+
+[dependencies]
+ts-rs = { version = "12.0.1", optional = true }
+hound = "3.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+url = "2"
+
+[[test]]
+name = "conformance"
+required-features = ["testing"]

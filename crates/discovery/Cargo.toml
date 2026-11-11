@@ -1,0 +1,16 @@
+[package]
+name = "aoide-discovery"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+publish.workspace = true
+description = "Fast parallel search for EPUB files on the local disk"
+
+[dependencies]
+ignore = "0.4"
+rayon = "1"
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"
+sha2 = "0.10"

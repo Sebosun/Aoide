@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 300" width="1040" height="300" role="img" aria-labelledby="title desc">
+  <title id="title">What leaves your computer</title>
+  <desc id="desc">Your books, generated audio and settings stay on your computer. Book text goes only to a speech server on the same computer. Only when you ask for book details does Aoide send a title, first author and ISBN to Open Library, and that can be turned off.</desc>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .bg { fill: #f3f4fb; }
+    .home { fill: #ffffff; stroke: #141a3d; stroke-width: 2; }
+    .card { fill: #f3f4fb; stroke: #d6daef; stroke-width: 1.5; }
+    .cloud { fill: #ffffff; stroke: #c9cde6; stroke-width: 1.5; stroke-dasharray: 6 5; }
+    .h { fill: #141a3d; font-size: 16px; font-weight: 700; }
+    .title { fill: #141a3d; font-size: 15px; font-weight: 700; }
+    .sub { fill: #5a6188; font-size: 13px; }
+    .hot { fill: #c2401f; font-size: 13px; font-weight: 600; }
+    .arrow { stroke: #e0502f; stroke-width: 2.5; fill: none; }
+    .arrow-head { fill: #e0502f; }
+    .soft { stroke: #9aa0c3; stroke-width: 2; fill: none; stroke-dasharray: 6 5; }
+    .soft-head { fill: #9aa0c3; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #151a33; }
+      .home { fill: #1b2142; stroke: #8e97d6; }
+      .card { fill: #262c52; stroke: #3b4270; }
+      .cloud { fill: #1b2142; stroke: #4a5288; }
+      .h, .title { fill: #eef0fb; }
+      .sub { fill: #a9afd3; }
+      .hot { fill: #ff8a63; }
+      .arrow { stroke: #ff6a3d; }
+      .arrow-head { fill: #ff6a3d; }
+      .soft { stroke: #6c739e; }
+      .soft-head { fill: #6c739e; }
+    }
+  </style>
+  <rect class="bg" width="1040" height="300" rx="18"/>
+
+  <!-- Your computer -->
+  <rect class="home" x="24" y="24" width="700" height="252" rx="16"/>
+  <text class="h" x="48" y="56">Your computer</text>
+
+  <rect class="card" x="48" y="76" width="196" height="176" rx="12"/>
+  <text class="title" x="66" y="108">Your files</text>
+  <text class="sub" x="66" y="134">EPUBs (never changed)</text>
+  <text class="sub" x="66" y="156">Generated audio</text>
+  <text class="sub" x="66" y="178">Progress, bookmarks,</text>
+  <text class="sub" x="66" y="196">listening stats</text>
+  <text class="sub" x="66" y="218">Settings</text>
+
+  <rect class="card" x="276" y="76" width="172" height="176" rx="12"/>
+  <text class="title" x="294" y="108">Aoide</text>
+  <text class="sub" x="294" y="134">reads the book,</text>
+  <text class="sub" x="294" y="152">plays the audio,</text>
+  <text class="sub" x="294" y="170">follows along</text>
+
+  <rect class="card" x="512" y="76" width="188" height="176" rx="12"/>
+  <text class="title" x="530" y="108">Speech server</text>
+  <text class="sub" x="530" y="134">Chatterbox, Kokoro</text>
+  <text class="sub" x="530" y="152">or another local</text>
+  <text class="sub" x="530" y="170">text-to-speech server</text>
+
+  <path class="soft" d="M246 164 H270"/>
+  <path class="arrow" d="M450 140 H502"/><path class="arrow-head" d="M508 140 l-10 -6 v12 z"/>
+  <text class="hot" x="480" y="126" text-anchor="middle">text</text>
+  <path class="arrow" d="M510 190 H458"/><path class="arrow-head" d="M452 190 l10 -6 v12 z"/>
+  <text class="hot" x="480" y="214" text-anchor="middle">audio</text>
+
+  <!-- Internet -->
+  <rect class="cloud" x="788" y="76" width="228" height="176" rx="12"/>
+  <text class="title" x="806" y="108">Open Library</text>
+  <text class="sub" x="806" y="134">only when you click</text>
+  <text class="sub" x="806" y="152">“Find details online”:</text>
+  <text class="sub" x="806" y="174">title, first author, ISBN</text>
+  <text class="sub" x="806" y="210">Can be turned off</text>
+  <text class="sub" x="806" y="228">in Settings.</text>
+
+  <path class="soft" d="M362 76 V62 H756 V164 H778"/><path class="soft-head" d="M786 164 l-10 -6 v12 z"/>
+  <text class="sub" x="600" y="54" text-anchor="middle">book details, only on request</text>
+</svg>

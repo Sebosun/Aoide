@@ -1,0 +1,20 @@
+[package]
+name = "aoide-epub"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Deterministic EPUB chapter and narration-text extraction"
+publish = false
+
+[features]
+# TypeScript declarations for the UI contract (src/api/contract.ts).
+ts = ["dep:ts-rs"]
+
+[dependencies]
+ts-rs = { version = "12.0.1", optional = true }
+roxmltree = "0.21"
+scraper = "0.24"
+ego-tree = "0.10"
+percent-encoding = "2"
+thiserror = "2"
+zip = { version = "2.4", default-features = false, features = ["deflate"] }

@@ -1,0 +1,14 @@
+[package]
+name = "aoide-generation"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+publish.workspace = true
+description = "Playhead-first generation planning and the serial TTS worker"
+
+[dependencies]
+aoide-tts = { path = "../tts" }
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["sync", "time", "rt", "macros", "test-util", "rt-multi-thread"] }

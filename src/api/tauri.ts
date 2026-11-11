@@ -1,0 +1,71 @@
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import type * as Wire from "./contract";
+import type { CoreEvents } from "./contract";
+import type { AoideApi, Candidate } from "./types";
+
+const candidates = (list: Wire.Candidate[]): Candidate[] => list.map(({ coverPath, ...c }) => ({ ...c, coverUrl: coverPath ? convertFileSrc(coverPath) : null }));
+/** Subscribes to one of Core's events; the name and payload type come from the contract. */
+const on = <K extends keyof CoreEvents>(name: K, handler: (payload: CoreEvents[K]) => void) =>
+  listen<CoreEvents[K]>(name, event => handler(event.payload));
+
+export const tauriApi: AoideApi = {
+  appInfo: () => invoke("app_info"),
+  listBooks: async () => (await invoke<Wire.BookSummary[]>("list_books")).map(({ coverPath, ...book }) => ({ ...book, coverUrl: coverPath ? convertFileSrc(coverPath) : null })),
+  importFiles: paths => invoke("import_files", { paths }),
+  rescanLibrary: () => invoke("rescan_library"),
+  removeBook: bookId => invoke("remove_book", { bookId }),
+  collections: () => invoke("collections"),
+  createCollection: name => invoke("create_collection", { name }),
+  renameCollection: (id, name) => invoke("rename_collection", { id, name }),
+  deleteCollection: id => invoke("delete_collection", { id }),
+  setBookCollections: (bookId, ids) => invoke("set_book_collections", { bookId, ids }),
+  openBook: bookId => invoke("open_book", { bookId }),
+  bookOverview: bookId => invoke("book_overview", { bookId }),
+  chapter: (bookId, chapter) => invoke("chapter", { bookId, chapter }),
+  play: (bookId, chapter, segmentId) => invoke("play", { bookId, chapter, segmentId }),
+  pause: () => invoke("pause"), resume: () => invoke("resume"), stop: () => invoke("stop"),
+  setSpeed: speed => invoke("set_speed", { speed }), engineStatus: () => invoke("engine_status"),
+  engineOptions: () => invoke("engine_options"),
+  engineVoices: () => invoke("engine_voices"),
+  previewVoice: (profile, voiceId, params, language) => invoke("preview_voice", { profile, voiceId, params, language }),
+  saveEngineProfile: profile => invoke("save_engine_profile", { profile }),
+  bookSettings: bookId => invoke("book_settings", { bookId }),
+  saveBookSettings: (bookId, settings) => invoke("save_book_settings", { bookId, settings }),
+  prepareBook: bookId => invoke("prepare_book", { bookId }),
+  cancelPrepare: bookId => invoke("cancel_prepare", { bookId }),
+  setPreparePaused: (bookId, paused) => invoke("set_prepare_paused", { bookId, paused }),
+  regenerateBook: bookId => invoke("regenerate_book", { bookId }),
+  storageReport: () => invoke("storage_report"),
+  cleanUnusedFiles: () => invoke("clean_unused_files"),
+  setSleepTimer: (minutes, endOfChapter) => invoke("set_sleep_timer", { minutes, endOfChapter }),
+  searchBook: (bookId, query) => invoke("search_book", { bookId, query }),
+  skipChapter: delta => invoke("skip_chapter", { delta }),
+  bookmarks: bookId => invoke("bookmarks", { bookId }),
+  addBookmark: (bookId, note) => invoke("add_bookmark", { bookId, note }),
+  updateBookmarkNote: (id, note) => invoke("update_bookmark_note", { id, note }),
+  deleteBookmark: id => invoke("delete_bookmark", { id }),
+  listeningStats: () => invoke("listening_stats"),
+  bookDetails: bookId => invoke("book_details", { bookId }),
+  lookupMetadata: (bookId, refresh) => invoke("lookup_metadata", { bookId, refresh }),
+  applyMetadata: (bookId, match) => invoke("apply_metadata", { bookId, candidate: match }),
+  appSettings: () => invoke("app_settings"),
+  saveAppSettings: settings => invoke("save_app_settings", { settings }),
+  preferences: () => invoke("preferences"),
+  saveAppearance: appearance => invoke("save_appearance", { appearance }),
+  onConfigChanged: h => on("config://changed", h),
+  exportBook: bookId => invoke("export_book", { bookId }),
+  scanForBooks: async () => candidates(await invoke<Wire.Candidate[]>("scan_for_books")),
+  cancelScan: () => invoke("cancel_scan"),
+  discoveredBooks: async () => candidates(await invoke<Wire.Candidate[]>("discovered_books")),
+  fetchDiscoveredDetails: ids => invoke("fetch_discovered_details", { ids }),
+  importDiscovered: choices => invoke("import_discovered", { choices }),
+  onScanProgress: h => on("discovery://progress", h),
+  onDiscoveryDetails: h => on("discovery://details", h),
+  onDiscoveryImport: h => on("discovery://import", h),
+  onPlayerState: h => on("player://state", h),
+  onEngineStatus: h => on("engine://status", h),
+  onGenerationState: h => on("generation://state", h),
+  onExportProgress: h => on("export://progress", h),
+  onLibraryChanged: h => on("library://changed", () => h()),
+};

@@ -1,0 +1,5 @@
+[env]
+# libopus (bundled via audiopus_sys) declares an old CMake minimum that CMake 4 rejects.
+CMAKE_POLICY_VERSION_MINIMUM = "3.5"
+# Keep the bundled libopus install in <out>/lib where audiopus_sys looks for it.
+CMAKE_TOOLCHAIN_FILE = { value = ".cargo/opus-toolchain.cmake", relative = true }

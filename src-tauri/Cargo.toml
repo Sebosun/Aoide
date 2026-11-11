@@ -1,0 +1,47 @@
+[package]
+name = "aoide"
+version = "0.1.0"
+description = "Local EPUB audiobook player"
+edition = "2021"
+license = "MIT"
+rust-version = "1.77.2"
+
+[lib]
+name = "aoide_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+notify = "8"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+aoide-epub = { path = "../crates/epub-parser" }
+aoide-text = { path = "../crates/segmenter" }
+aoide-tts = { path = "../crates/tts" }
+aoide-chatterbox = { path = "../crates/chatterbox-client" }
+aoide-openai-speech = { path = "../crates/openai-speech" }
+aoide-generation = { path = "../crates/generation" }
+aoide-audio = { path = "../crates/audio" }
+aoide-library = { path = "../crates/library" }
+aoide-metadata = { path = "../crates/metadata" }
+aoide-aligner = { path = "../crates/aligner" }
+aoide-discovery = { path = "../crates/discovery" }
+aoide-config = { path = "../crates/config" }
+rayon = "1"
+reflink-copy = "0.1"
+souvlaki = { version = "0.8.3", default-features = false, features = ["use_zbus"] }
+
+[dev-dependencies]
+aoide-tts = { path = "../crates/tts", features = ["testing", "ts"] }
+aoide-library = { path = "../crates/library", features = ["ts"] }
+aoide-epub = { path = "../crates/epub-parser", features = ["ts"] }
+aoide-config = { path = "../crates/config", features = ["ts"] }
+aoide-metadata = { path = "../crates/metadata", features = ["ts"] }
+tempfile = "3"
+ts-rs = { version = "12.0.1", features = ["no-serde-warnings"] }
+zip = { version = "2.4", default-features = false, features = ["deflate"] }

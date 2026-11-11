@@ -1,0 +1,10 @@
+[package]
+name = "aoide-text"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+publish.workspace = true
+description = "Deterministic sentence segmentation, speech text and word-timing estimates for Aoide"
+
+[dependencies]
+aoide-epub = { path = "../epub-parser" }

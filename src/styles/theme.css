@@ -1,0 +1,75 @@
+/* Aoide design tokens. The only place colours are defined: components use these properties.
+   Light values on :root; dark values when the system is dark (unless the user picked Light)
+   or when the user picked Dark. A theme file in ~/.config/aoide/themes/ overrides any colour
+   token below with the same selectors, injected after this file (see src/theme.ts). */
+:root {
+  --ground: #E9ECF7;
+  --cover-tint: #D6DCF2;
+  --page: #FFFFFF;
+  --ink: #121638;
+  --reading: #262B4F;
+  --dim: #575E88;
+  --faint: #9298BC;
+  --line: #CBD1EA;
+  --glass: rgba(255, 255, 255, .72);
+  --hero: #C9D1F1;
+  --wash: #DDE3F8;
+  --accent: #E0502F;
+  --on-accent: #FFFFFF;
+  --ok: #1E8F5A;
+  --warn: #A8650F;
+  --shadow: rgba(18, 22, 56, .32);
+
+  --screen: linear-gradient(180deg, var(--cover-tint), var(--ground) 70%);
+  --font-ui: "Manrope", system-ui, sans-serif;
+  --font-read: "Newsreader", Georgia, serif;
+  /* Reading text size; the reader's Aa control scales it. */
+  --read-scale: 1;
+  /* Motion: menus and small state changes use --dur-1, views and dialogs --dur-2, sentences
+     gliding in Lines mode --dur-3. */
+  --ease: cubic-bezier(.2, .7, .2, 1);
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 360ms;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0C0F22;
+    --cover-tint: #1C2357;
+    --page: #161B38;
+    --ink: #F2F3FA;
+    --reading: #DFE2F3;
+    --dim: #A3A9CC;
+    --faint: #5E658F;
+    --line: #2A3160;
+    --glass: rgba(22, 27, 56, .78);
+    --hero: #222A63;
+    --wash: #28306A;
+    --accent: #FF7A59;
+    --on-accent: #1E0F0A;
+    --ok: #4FD495;
+    --warn: #E9A94B;
+    --shadow: rgba(0, 0, 0, .6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0C0F22;
+  --cover-tint: #1C2357;
+  --page: #161B38;
+  --ink: #F2F3FA;
+  --reading: #DFE2F3;
+  --dim: #A3A9CC;
+  --faint: #5E658F;
+  --line: #2A3160;
+  --glass: rgba(22, 27, 56, .78);
+  --hero: #222A63;
+  --wash: #28306A;
+  --accent: #FF7A59;
+  --on-accent: #1E0F0A;
+  --ok: #4FD495;
+  --warn: #E9A94B;
+  --shadow: rgba(0, 0, 0, .6);
+  color-scheme: dark;
+}
