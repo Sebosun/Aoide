@@ -225,24 +225,51 @@ Books are recognised by their content, not their file name, so renaming or movin
 
 `settings.toml` holds appearance, playback speed, app settings and the speech engine. Edit it while Aoide is running and the changes apply as soon as you save.
 
-A colour theme is a file in `~/.config/aoide/themes/` with a `[light]` and a `[dark]` table of colour tokens, for example:
+Aoide comes with one built-in theme, **Default**, in a light and a dark version. **Settings → Appearance** picks the theme and whether to use light, dark, or follow your system.
+
+To make your own, add a file to `~/.config/aoide/themes/`, for example `sepia.toml`. It has a `[light]` and a `[dark]` table, and any colour you leave out keeps its Default value, so a theme can be as small as one line. Here is the whole Default theme to start from:
 
 ```toml
 [light]
-accent = "#E0502F"
+ground = "#E9ECF7"       # window background
+cover-tint = "#D6DCF2"   # top of the window background, fading into ground
+page = "#FFFFFF"         # reading page and cards
+ink = "#121638"          # headings and main text
+reading = "#262B4F"      # book text
+dim = "#575E88"          # secondary text
+faint = "#9298BC"        # hints and placeholders
+line = "#CBD1EA"         # borders and dividers
+glass = "rgba(255, 255, 255, .72)"  # translucent panels
+hero = "#C9D1F1"         # the Continue listening card
+wash = "#DDE3F8"         # the sentence being read, hovers, soft fills
+accent = "#E0502F"       # buttons, current word, progress
+on-accent = "#FFFFFF"    # text on accent
+ok = "#1E8F5A"           # "ready"
+warn = "#A8650F"         # warnings
+shadow = "rgba(18, 22, 56, .32)"
 
 [dark]
-accent = "#FF6A3D"
+ground = "#0C0F22"
+cover-tint = "#1C2357"
+page = "#161B38"
+ink = "#F2F3FA"
+reading = "#DFE2F3"
+dim = "#A3A9CC"
+faint = "#5E658F"
+line = "#2A3160"
+glass = "rgba(22, 27, 56, .78)"
+hero = "#222A63"
+wash = "#28306A"
+accent = "#FF7A59"
+on-accent = "#1E0F0A"
+ok = "#4FD495"
+warn = "#E9A94B"
+shadow = "rgba(0, 0, 0, .6)"
 ```
 
-Pick it under **Settings → Appearance**. Per-book settings, progress and bookmarks live in the library database, not here.
+Colours can be hex (`#rgb`, `#rrggbb`, with or without alpha), `rgb()`, `rgba()`, `hsl()`, `hsla()` or `oklch()`. Save the file and it appears in **Settings → Appearance**. Aoide only reads theme files and never changes them.
 
-</details>
-
-<details>
-<summary>Coming from Folio?</summary>
-
-Aoide was called Folio until November 2026. The first time Aoide starts, it moves Folio's folders (`~/.config/folio`, `~/Documents/Folio`, and the `com.folio.audiobooks` data and cache folders) to the new names and updates the paths in your library. Nothing is overwritten. If you start any helper with a path inside the old folders (for example a launch command), update that path.
+Per-book settings, progress and bookmarks live in the library database, not in these files.
 
 </details>
 
