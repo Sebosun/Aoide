@@ -69,3 +69,15 @@ it("opens the extraction notes in Details from the warning in the margin", async
   expect(sheet.text()).toContain("front matter");
   wrapper.unmount();
 });
+
+it("flags a book voice the engine does not offer and opens the Voice tab from the margin", async () => {
+  await mock.saveBookSettings("book-0", { voiceId: "Abigail.wav", params: {}, language: null, readNotes: false });
+  const wrapper = await reader("book-0");
+  const warning = wrapper.get('[aria-label="About this book"] .book-margin__warning--voice');
+  expect(warning.text()).toContain("Voice not available");
+  expect(warning.attributes("title")).toContain("Abigail");
+  await warning.trigger("click");
+  await flushPromises();
+  expect(wrapper.get('[role="dialog"] [role="tab"][aria-selected="true"]').text()).toBe("Voice");
+  wrapper.unmount();
+});

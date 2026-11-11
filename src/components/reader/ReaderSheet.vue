@@ -14,7 +14,7 @@ import { useReaderStore } from "../../stores/reader";
 
 /** Page mode: a full-width sheet with the text in a 640px column, the book in the left
  *  margin, footnotes and tools in the right margin, and the transport docked underneath. */
-const emit = defineEmits<{ tools: [tab?: "details"] }>();
+const emit = defineEmits<{ tools: [tab?: "details" | "voice"] }>();
 const reader = useReaderStore(), library = useLibraryStore();
 const { player, timeLeftMs } = usePlayerControls();
 const wide = useMediaQuery("(min-width: 1000px)");
@@ -40,7 +40,7 @@ const jump = (index: number) => reader.startChapter(index);
   <section v-if="reader.book" class="sheet">
     <div ref="scroller" class="sheet__scroll" @scroll.passive="listeners.onScroll" @scrollend="listeners.onScrollend" @wheel.passive="listeners.onWheel" @touchmove.passive="listeners.onTouchmove" @keydown="listeners.onKeydown">
       <div class="sheet__grid">
-        <BookMargin class="sheet__margin" :book="reader.book" :cover-url="coverUrl" :chapter="reader.currentChapter" :playing-chapter="playingHere ? player.state.chapter : null" :time-left="chapterLeft" @chapter="jump" @details="emit('tools', 'details')" />
+        <BookMargin class="sheet__margin" :book="reader.book" :cover-url="coverUrl" :chapter="reader.currentChapter" :playing-chapter="playingHere ? player.state.chapter : null" :time-left="chapterLeft" @chapter="jump" @details="emit('tools', 'details')" @voice="emit('tools', 'voice')" />
         <ReaderTools class="sheet__tools" />
         <p v-if="reader.error" class="sheet__error" role="alert">{{ reader.error }}</p>
         <ChapterText v-if="reader.chapter" class="sheet__text" :class="{ 'sheet__text--margins': wide }" :chapter="reader.chapter" :current-segment="onPage ? player.state.segmentId : null" :current-word="onPage ? player.state.wordIndex : null" :margin-notes="wide" @play="play" />

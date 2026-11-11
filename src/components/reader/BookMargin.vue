@@ -5,10 +5,11 @@ import type { BookView } from "../../api/types";
 import CoverArt from "../CoverArt.vue";
 import ChapterMenu from "./ChapterMenu.vue";
 
-/** Left margin of the Sheet: cover plate, title, author, chapter and time left, and a line
- *  for extraction or language warnings that opens the book's details. */
+/** Left margin of the Sheet: cover plate, title, author, chapter and time left, a line for
+ *  extraction or language warnings that opens the book's details, and one for a voice the
+ *  engine does not offer that opens the Voice tab. */
 const props = defineProps<{ book: BookView; coverUrl: string | null; chapter: number; playingChapter: number | null; timeLeft: string }>();
-const emit = defineEmits<{ chapter: [index: number]; details: [] }>();
+const emit = defineEmits<{ chapter: [index: number]; details: []; voice: [] }>();
 const notes = computed(() => props.book.warnings.length + props.book.excluded.length);
 </script>
 
@@ -22,6 +23,9 @@ const notes = computed(() => props.book.warnings.length + props.book.excluded.le
     <span v-if="timeLeft" class="book-margin__time">{{ timeLeft }} in chapter</span>
     <button v-if="book.languageWarning || notes" type="button" class="book-margin__warning" :title="book.languageWarning ?? undefined" @click="emit('details')">
       <TriangleAlert :size="14" /> <span>{{ book.languageWarning ? 'Language not supported by this voice' : '' }}{{ book.languageWarning && notes ? ' · ' : '' }}{{ notes ? `${notes} extraction ${notes === 1 ? 'note' : 'notes'}` : '' }}</span>
+    </button>
+    <button v-if="book.voiceWarning" type="button" class="book-margin__warning book-margin__warning--voice" :title="book.voiceWarning" @click="emit('voice')">
+      <TriangleAlert :size="14" /> <span>Voice not available, using another</span>
     </button>
   </aside>
 </template>

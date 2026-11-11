@@ -10,7 +10,7 @@ use aoide_library::Library;
 use aoide_tts::testing::FakeEngine;
 
 use super::preparation::Preparation;
-use super::{Core, CoreEvent, Environment, Events, Paths, PrepareStage};
+use super::{BookSettings, Core, CoreEvent, Environment, Events, Paths, PrepareStage};
 
 #[derive(Default)]
 struct Recorder(Mutex<Vec<(String, serde_json::Value)>>);
@@ -253,4 +253,73 @@ async fn the_voice_preview_uses_the_voice_the_book_will_be_read_in() {
         "{requests:?}"
     );
     assert_eq!(preview.voice_id, "Emily.wav");
+}
+
+#[tokio::test]
+async fn a_book_voice_the_engine_lacks_is_read_with_its_default_and_flagged() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder_with(dir.path(), "", ""); // No voice chosen in the profile.
+    let engine = FakeEngine::with_voices(&["Hazel.wav", "Arthur.wav"]);
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    // Chosen while another engine was active.
+    let chatterbox_voice = BookSettings {
+        voice_id: Some("Abigail.wav".into()),
+        ..BookSettings::default()
+    };
+    core.save_book_settings(&id, chatterbox_voice)
+        .await
+        .unwrap();
+
+    core.prepare_book(&id).await.unwrap();
+    until("preparation to finish", || {
+        stage(&core, &id) == Some(PrepareStage::Done)
+    })
+    .await;
+
+    let voices: Vec<String> = engine.requests().into_iter().map(|r| r.voice_id).collect();
+    assert!(
+        !voices.is_empty() && voices.iter().all(|v| v == "Hazel.wav"),
+        "{voices:?}"
+    );
+    let warning = core
+        .book_overview(&id)
+        .unwrap()
+        .voice_warning
+        .expect("a voice warning");
+    assert!(
+        warning.contains("Abigail") && warning.contains("Hazel"),
+        "{warning}"
+    );
+    assert_eq!(
+        core.book_settings(&id).voice_id.as_deref(),
+        Some("Abigail.wav"),
+        "the book keeps its choice for when that engine is back"
+    );
+}
+
+#[tokio::test]
+async fn a_queue_resumed_at_startup_does_not_send_a_voice_the_engine_lacks() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder_with(dir.path(), "", "voiceId = \"Emily.wav\"");
+    queued_by_an_earlier_run(dir.path(), &id);
+    let library = Library::open(&dir.path().join("data/library.sqlite3")).unwrap();
+    library
+        .set_setting(
+            &format!("book.{id}.settings"),
+            r#"{"voiceId":"Abigail.wav"}"#,
+        )
+        .unwrap();
+    drop(library);
+    let engine = FakeEngine::with_voices(&["Hazel.wav"]);
+    let (core, _events) = start(dir.path(), &engine);
+    until("preparation to finish", || {
+        stage(&core, &id) == Some(PrepareStage::Done)
+    })
+    .await;
+    let voices: Vec<String> = engine.requests().into_iter().map(|r| r.voice_id).collect();
+    assert!(voices.iter().all(|v| v == "Hazel.wav"), "{voices:?}");
 }

@@ -162,7 +162,9 @@ export function createMockApi() {
       const b = getBook(id), list = chapters[Number(id.split("-")[1])];
       const wordCount = list.flatMap(c => c.blocks).flatMap(b => b.segments).reduce((n, s) => n + s.words.length, 0);
       const notes = id === "book-1";
-      return { ...structuredClone(b), chapters: list.map(({ index, title }) => ({ index, title })), warnings: notes ? ["A table in “The long way home” was read as plain text."] : [], excluded: notes ? [{ title: "Copyright", reason: "front matter" }] : [], languageWarning: null, wordCount };
+      const voice = settings.get(id)?.voiceId, offered = (await api.engineVoices()).map(v => v.id);
+      const voiceWarning = voice && !offered.includes(voice) ? `${voice.replace(".wav", "")} is not one of Mock engine's voices, so Emily reads this book. Choose a voice in the book's settings.` : null;
+      return { ...structuredClone(b), chapters: list.map(({ index, title }) => ({ index, title })), warnings: notes ? ["A table in “The long way home” was read as plain text."] : [], excluded: notes ? [{ title: "Copyright", reason: "front matter" }] : [], languageWarning: null, voiceWarning, wordCount };
     },
     async chapter(id, chapter) { return getChapter(id, chapter); },
     async play(id, chapter, segmentId) {

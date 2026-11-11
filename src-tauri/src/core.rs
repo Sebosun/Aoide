@@ -127,6 +127,8 @@ pub struct BookView {
     pub warnings: Vec<String>,
     pub excluded: Vec<ExcludedView>,
     pub language_warning: Option<String>,
+    /// The book's voice is not offered by the active engine, so another one reads it.
+    pub voice_warning: Option<String>,
     pub progress: Option<BookProgressView>,
     /// Words read aloud in the whole book, for time estimates.
     pub word_count: usize,
@@ -265,8 +267,29 @@ struct ActiveEngine {
     profile: EngineProfile,
     engine: Arc<dyn SpeechEngine>,
     model: Option<String>,
+    /// The voice for books that do not choose one.
     voice: Option<String>,
+    voices: VoiceList,
     launched: Option<std::process::Child>,
+}
+
+/// What the active engine has said about its voices.
+#[derive(Debug, Clone, PartialEq)]
+enum VoiceList {
+    /// Not asked yet, or it could not be reached when asked.
+    Unchecked,
+    Known(Vec<aoide_tts::Voice>),
+    /// It was ready but listed none; saved voice names are used as they are.
+    Unlisted,
+}
+
+impl VoiceList {
+    fn offered(&self) -> Option<&[aoide_tts::Voice]> {
+        match self {
+            VoiceList::Known(voices) => Some(voices),
+            VoiceList::Unchecked | VoiceList::Unlisted => None,
+        }
+    }
 }
 
 /// Everything Core tells the UI: one variant per event, with its payload. The UI's map from
@@ -527,6 +550,7 @@ impl Core {
             session: Mutex::new(None),
             engine: Mutex::new(ActiveEngine {
                 voice: profile.voice_id.clone(),
+                voices: VoiceList::Unchecked,
                 profile,
                 engine,
                 model: None,
@@ -563,14 +587,20 @@ impl Core {
         tokio::spawn(Arc::clone(&core).engine_loop());
         tokio::spawn(Arc::clone(&core).aligner_loop());
         let scanner = Arc::clone(&core);
+        let runtime = tokio::runtime::Handle::current();
         tokio::task::spawn_blocking(move || {
             if let Err(error) = scanner.rescan() {
                 eprintln!("aoide: initial scan failed: {error}");
             }
             // Resume books left queued for preparation in an earlier run, unless turned off.
             if scanner.app_settings().resume_prepare {
-                scanner.replan(false);
-                scanner.emit_generation();
+                let resumer = Arc::clone(&scanner);
+                runtime.spawn(async move {
+                    // Voices first, so a voice chosen with another engine is not sent.
+                    let _ = resumer.check_voices(false).await;
+                    resumer.replan(false);
+                    resumer.emit_generation();
+                });
             }
             if background {
                 scanner.watch_library();
@@ -929,6 +959,35 @@ impl Core {
         })
     }
 
+    fn voice_warning(&self, book: &BookModel) -> Option<String> {
+        let settings = self.book_settings(&book.id);
+        let engine = lock(&self.engine);
+        let voices = engine.voices.offered()?;
+        let voicing = Voicing::resolve(
+            engine.engine.descriptor(),
+            &engine.profile.params,
+            engine.voice.as_deref(),
+            &settings,
+            None,
+            fallback_voice(voices).as_deref(),
+            Some(voices),
+        )
+        .ok()?;
+        let missing = voicing.missing_voice?;
+        let name = |id: &str| {
+            voices.iter().find(|v| v.id == id).map_or_else(
+                || id.trim_end_matches(".wav").to_owned(),
+                |v| v.display_name.clone(),
+            )
+        };
+        Some(format!(
+            "{} is not one of {}'s voices, so {} reads this book. Choose a voice in the book's settings.",
+            name(&missing),
+            engine.profile.name,
+            name(&voicing.voice_id)
+        ))
+    }
+
     pub fn open_book(&self, id: &str) -> Result<BookView, String> {
         let view = self.book_overview(id)?;
         let _ = lock(&self.library).set_last_opened(&BookId(id.into()), now_ms());
@@ -947,6 +1006,7 @@ impl Core {
             warnings: book.warnings.clone(),
             excluded: book.excluded.clone(),
             language_warning: self.language_warning(book.language.as_deref()),
+            voice_warning: self.voice_warning(&book),
             progress: self.progress_view(&BookId(id.into())),
             word_count: book.word_count(),
         })
@@ -960,15 +1020,58 @@ impl Core {
 
     // ------------------------------------------------------------ playback
 
+    /// Learns the engine's voices and settles the default voice before anything is planned.
     async fn ensure_voice(&self) -> Result<String, String> {
+        let checked = self.check_voices(false).await;
         if let Some(voice) = lock(&self.engine).voice.clone() {
             return Ok(voice);
         }
-        let engine = Arc::clone(&lock(&self.engine).engine);
-        let voices = engine.voices().await.map_err(|e| e.to_string())?;
-        let voice = fallback_voice(&voices).ok_or("the speech engine has no voices")?;
-        lock(&self.engine).voice = Some(voice.clone());
-        Ok(voice)
+        checked?;
+        Err("the speech engine has no voices".into())
+    }
+
+    /// Asks the engine for its voices once. The default voice becomes the profile's if the
+    /// engine offers it, otherwise the engine's own. `ready`: the engine just reported ready,
+    /// so a failed listing means it cannot list voices rather than that it is down.
+    async fn check_voices(&self, ready: bool) -> Result<(), String> {
+        let engine = {
+            let state = lock(&self.engine);
+            if state.voices != VoiceList::Unchecked {
+                return Ok(());
+            }
+            Arc::clone(&state.engine)
+        };
+        let listed = engine.voices().await;
+        let mut state = lock(&self.engine);
+        if !Arc::ptr_eq(&state.engine, &engine) {
+            return Ok(()); // Switched meanwhile; the new engine is asked on its own.
+        }
+        match listed {
+            Ok(voices) if voices.is_empty() => state.voices = VoiceList::Unlisted,
+            Ok(voices) => {
+                let named = state
+                    .profile
+                    .voice_id
+                    .clone()
+                    .filter(|v| !v.trim().is_empty());
+                let offered = named.clone().filter(|v| voices.iter().any(|o| &o.id == v));
+                if let (Some(voice), None) = (&named, &offered) {
+                    eprintln!(
+                        "aoide: {} has no voice {voice}; using its default",
+                        state.profile.name
+                    );
+                }
+                state.voice = offered.or_else(|| fallback_voice(&voices));
+                state.voices = VoiceList::Known(voices);
+            }
+            Err(error) => {
+                if ready {
+                    state.voices = VoiceList::Unlisted;
+                }
+                return Err(error.to_string());
+            }
+        }
+        Ok(())
     }
 
     async fn ensure_model(&self) {
@@ -1130,6 +1233,7 @@ impl Core {
             &book,
             language.as_deref(),
             fallback.as_deref(),
+            None, // The settings form previews exactly the voice it names.
         )?
         .request(PREVIEW_TEXT.into());
         let audio = engine
@@ -1164,6 +1268,7 @@ impl Core {
         {
             let mut state = lock(&self.engine);
             state.voice = profile.voice_id.clone();
+            state.voices = VoiceList::Unchecked;
             state.profile = profile;
             state.engine = engine;
             state.model = None;
@@ -1238,6 +1343,19 @@ impl Core {
 
     // ------------------------------------------------------------ preparation
 
+    /// Plans made before the engine listed its voices (it was down) may name a voice it does
+    /// not offer: make them again now that the list is known.
+    async fn replan_with_voices(&self) {
+        if let Err(error) = self.restart_session().await {
+            eprintln!("aoide: {error}");
+        }
+        let planned = !lock(&self.preparation).planned_books().is_empty();
+        if planned {
+            lock(&self.preparation).drop_plans(None);
+            self.replan(false);
+        }
+    }
+
     pub async fn prepare_book(&self, id: &str) -> Result<(), String> {
         self.load_book(id)?;
         self.ensure_voice().await?;
@@ -1306,13 +1424,15 @@ impl Core {
         let settings = self.book_settings(&book.id);
         let engine = lock(&self.engine);
         let descriptor = engine.engine.descriptor().clone();
+        let offered = engine.voices.offered();
         let voicing = Voicing::resolve(
             &descriptor,
             &engine.profile.params,
             engine.voice.as_deref(),
             &settings,
             book.language.as_deref(),
-            None,
+            offered.and_then(fallback_voice).as_deref(),
+            offered,
         )?;
         let model = engine.model.clone();
         drop(engine);
@@ -1834,9 +1954,17 @@ impl Core {
                     }
                 }
                 if let EngineStatus::Ready(model) = &status {
-                    let mut state = lock(&self.engine);
-                    if state.model.is_none() {
-                        state.model = model.clone();
+                    {
+                        let mut state = lock(&self.engine);
+                        if state.model.is_none() {
+                            state.model = model.clone();
+                        }
+                    }
+                    if lock(&self.engine).voices == VoiceList::Unchecked {
+                        let _ = self.check_voices(true).await;
+                        if lock(&self.engine).voices.offered().is_some() {
+                            self.replan_with_voices().await;
+                        }
                     }
                 }
                 let (state, detail) = match status {
