@@ -1,0 +1,10 @@
+[package]
+name = "aoide-sync"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+publish.workspace = true
+description = "Deterministic matching of a recording's transcript to a book's text, for Aoide"
+
+[dependencies]
+unicode-normalization = "0.1"

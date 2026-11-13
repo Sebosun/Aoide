@@ -35,6 +35,8 @@ pub struct Position {
 struct Slot {
     entry: Entry,
     audio: Option<Vec<f32>>,
+    /// All of the audio has arrived (always, for audio given with `provide`).
+    complete: bool,
 }
 
 /// Device-independent playback state. All audio is held at `output_rate`.
@@ -77,7 +79,11 @@ impl PlayerCore {
     pub fn load(&mut self, entries: Vec<Entry>, start: usize) {
         self.slots = entries
             .into_iter()
-            .map(|entry| Slot { entry, audio: None })
+            .map(|entry| Slot {
+                entry,
+                audio: None,
+                complete: false,
+            })
             .collect();
         self.playing = false;
         self.index = start.min(self.slots.len());
@@ -90,7 +96,32 @@ impl PlayerCore {
         let rate = self.output_rate;
         if let Some(slot) = self.slots.get_mut(index) {
             slot.audio = Some(resample(pcm, rate).samples);
+            slot.complete = true;
         }
+    }
+
+    /// Adds audio to the end of an entry whose audio arrives in pieces (resampled to the output
+    /// rate). The entry waits at the end of what has arrived until [`PlayerCore::finish`].
+    pub fn append(&mut self, index: usize, pcm: &Pcm) {
+        let rate = self.output_rate;
+        if let Some(slot) = self.slots.get_mut(index) {
+            let samples = resample(pcm, rate).samples;
+            slot.audio.get_or_insert_with(Vec::new).extend(samples);
+        }
+    }
+
+    /// All of an appended entry's audio has arrived.
+    pub fn finish(&mut self, index: usize) {
+        if let Some(slot) = self.slots.get_mut(index) {
+            slot.audio.get_or_insert_with(Vec::new);
+            slot.complete = true;
+        }
+    }
+
+    /// Moves the playhead `offset_ms` into `index` (clamped), keeping the play/pause state.
+    pub fn seek_to(&mut self, index: usize, offset_ms: u32) {
+        self.seek(index);
+        self.offset = (u64::from(offset_ms) * u64::from(self.output_rate) / 1000) as usize;
     }
 
     pub fn has_audio(&self, index: usize) -> bool {
@@ -148,7 +179,12 @@ impl PlayerCore {
     pub fn position(&self) -> Position {
         let offset_ms = self.slots.get(self.index).map_or(0, |slot| {
             let audio = slot.audio.as_ref().map_or(0, Vec::len);
-            (self.offset.min(audio) as u64 * 1000 / u64::from(self.output_rate)) as u32
+            let offset = if slot.complete {
+                self.offset.min(audio)
+            } else {
+                self.offset
+            };
+            (offset as u64 * 1000 / u64::from(self.output_rate)) as u32
         });
         let status = if self.slots.is_empty() {
             Status::Stopped
@@ -202,9 +238,13 @@ impl PlayerCore {
     }
 
     fn stalled(&self) -> bool {
-        self.slots
-            .get(self.index)
-            .is_some_and(|slot| slot.entry.speakable && slot.audio.is_none())
+        self.slots.get(self.index).is_some_and(|slot| {
+            slot.entry.speakable
+                && match &slot.audio {
+                    None => true,
+                    Some(audio) => !slot.complete && self.offset >= audio.len(),
+                }
+        })
     }
 
     /// Takes up to `count` samples from the playhead onward, stopping early when the next audio
@@ -214,6 +254,13 @@ impl PlayerCore {
         while out.len() < count && self.index < self.slots.len() && !self.stalled() {
             let slot = &self.slots[self.index];
             let audio = slot.audio.as_deref().unwrap_or(&[]);
+            if slot.entry.speakable && !slot.complete {
+                // Only what has arrived; the entry waits at its end for more.
+                let take = (count - out.len()).min(audio.len() - self.offset);
+                out.extend_from_slice(&audio[self.offset..self.offset + take]);
+                self.offset += take;
+                continue;
+            }
             let total = audio.len() + self.pause_samples(slot);
             let take = (count - out.len()).min(total - self.offset);
             if self.offset < audio.len() {
