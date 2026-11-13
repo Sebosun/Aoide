@@ -8,7 +8,9 @@ use std::path::{Path, PathBuf};
 use rusqlite::OptionalExtension;
 use sha2::{Digest, Sha256};
 
+mod recordings;
 mod store;
+pub use recordings::{RecordingRow, StoredSyncMap, TranscriptBlock};
 
 /// Lower-case hex SHA-256 of the EPUB file bytes.
 #[derive(

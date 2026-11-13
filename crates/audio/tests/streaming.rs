@@ -94,3 +94,32 @@ fn a_whole_entry_provided_at_once_is_finished() {
     assert_eq!(render(&mut player, 4), [values(0, 3), vec![0.0]].concat());
     assert_eq!(player.position().status, Status::Buffering);
 }
+
+#[test]
+fn a_released_entry_streams_again_from_its_start() {
+    let mut player = PlayerCore::new(RATE);
+    player.load(vec![entry("a"), entry("b")], 0);
+    player.append(0, &ramp(0, 3));
+    player.release(0);
+    assert!(!player.has_audio(0));
+    player.append(0, &ramp(0, 2));
+    player.play();
+    assert_eq!(render(&mut player, 3), [0.0, 0.01, 0.0]);
+    assert_eq!(
+        player.position().status,
+        Status::Buffering,
+        "not finished: it waits"
+    );
+
+    player.provide(1, &ramp(10, 12));
+    player.release_before(2);
+    player.seek(0);
+    player.append(0, &ramp(0, 2));
+    assert_eq!(player.position().status, Status::Playing);
+    render(&mut player, 2);
+    assert_eq!(
+        player.position().status,
+        Status::Buffering,
+        "audio released earlier is not complete when it streams again"
+    );
+}

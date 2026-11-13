@@ -10,6 +10,14 @@ rust-version = "1.77.2"
 name = "aoide_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+default = ["whisper"]
+# Speech recognition for syncing recordings (builds whisper.cpp: CMake, a C++ compiler, libclang).
+whisper = ["aoide-transcribe/whisper"]
+# Recognition on an NVIDIA GPU (needs the CUDA toolkit with cuBLAS) or any Vulkan GPU.
+whisper-cuda = ["whisper", "aoide-transcribe/whisper-cuda"]
+whisper-vulkan = ["whisper", "aoide-transcribe/whisper-vulkan"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -17,7 +25,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["protocol-asset"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+tokio = { version = "1", features = ["sync", "time", "rt", "macros", "fs", "io-util"] }
 notify = "8"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 aoide-epub = { path = "../crates/epub-parser" }
@@ -32,6 +40,11 @@ aoide-metadata = { path = "../crates/metadata" }
 aoide-aligner = { path = "../crates/aligner" }
 aoide-discovery = { path = "../crates/discovery" }
 aoide-config = { path = "../crates/config" }
+aoide-recording = { path = "../crates/recording" }
+aoide-sync = { path = "../crates/sync" }
+aoide-transcribe = { path = "../crates/transcribe" }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+sha2 = "0.10"
 rayon = "1"
 reflink-copy = "0.1"
 souvlaki = { version = "0.8.3", default-features = false, features = ["use_zbus"] }

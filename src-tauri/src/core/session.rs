@@ -2,13 +2,16 @@
 //! audio for, and their word timings. Core does the file reading and decoding around it.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use std::time::Instant;
 
 use aoide_audio::Pcm;
 use aoide_library::WordTiming;
 use aoide_text::WordEstimate;
 
-use super::Target;
+use super::feeder::{Fed, Feeder};
+use super::recording::{clip_audio, RecordingPlan};
+use super::{Source, Target};
 use crate::book::word_index;
 
 /// Decoded audio kept ready ahead of the playhead.
@@ -18,17 +21,38 @@ const KEEP_BEHIND: usize = 2;
 
 pub struct Session {
     pub target: Target,
+    /// Entries given audio (for a recording: asked of the feeder).
     provided: HashSet<usize>,
+    /// For a recording: the feeder decoding its clips.
+    feed: Option<Feed>,
     /// Word timings of provided entries (stored, or fitted to the decoded audio).
     timings: HashMap<usize, Vec<WordEstimate>>,
     pub last_index: usize,
     pub last_saved: Instant,
 }
 
+struct Feed {
+    feeder: Feeder,
+    /// Pieces of earlier generations (before a jump) are dropped.
+    generation: u64,
+    /// Entries whose clip has arrived whole.
+    finished: HashSet<usize>,
+}
+
 impl Session {
-    pub fn new(target: Target, start: usize) -> Self {
+    /// A recording's session decodes its clips at `rate` on a feeder thread.
+    pub fn new(target: Target, start: usize, rate: u32) -> Self {
+        let feed = match &target.source {
+            Source::Speech => None,
+            Source::Recording(plan) => Some(Feed {
+                feeder: Feeder::spawn(plan.files.clone(), rate),
+                generation: 0,
+                finished: HashSet::new(),
+            }),
+        };
         Self {
             target,
+            feed,
             provided: HashSet::new(),
             timings: HashMap::new(),
             last_index: start,
@@ -87,7 +111,64 @@ impl Session {
         let before = playhead.checked_sub(KEEP_BEHIND).filter(|b| *b > 0)?;
         self.provided.retain(|i| *i >= before);
         self.timings.retain(|i, _| *i >= before);
+        if let Some(feed) = self.feed.as_mut() {
+            feed.finished.retain(|i| *i >= before);
+        }
         Some(before)
+    }
+
+    pub fn recording(&self) -> Option<&Arc<RecordingPlan>> {
+        match &self.target.source {
+            Source::Recording(plan) => Some(plan),
+            Source::Speech => None,
+        }
+    }
+
+    /// For a recording: asks the feeder for the clips near the playhead it was not asked for,
+    /// and returns the pieces decoded since the last call that the player should get.
+    pub fn feed(&mut self, playhead: usize) -> Vec<Fed> {
+        let Some(plan) = self.recording().cloned() else {
+            return Vec::new();
+        };
+        for (index, _) in self.wanted(playhead) {
+            let Some(audio) = clip_audio(&plan, index) else {
+                continue;
+            };
+            self.provided.insert(index);
+            self.timings.insert(index, plan.word_times(index));
+            if let Some(feed) = self.feed.as_ref() {
+                feed.feeder.push(index, audio);
+            }
+        }
+        let Some(feed) = self.feed.as_mut() else {
+            return Vec::new();
+        };
+        let mut pieces = feed.feeder.take();
+        pieces.retain(|p| p.generation == feed.generation);
+        for piece in pieces.iter().filter(|p| p.last) {
+            feed.finished.insert(piece.index);
+        }
+        pieces
+    }
+
+    /// For a recording, after a jump: drops what the feeder had not delivered. Returns the
+    /// entries whose partly delivered audio the player should release.
+    pub fn restart_feed(&mut self) -> Vec<usize> {
+        let Some(feed) = self.feed.as_mut() else {
+            return Vec::new();
+        };
+        feed.generation = feed.feeder.reset();
+        let unfinished: Vec<usize> = self
+            .provided
+            .iter()
+            .copied()
+            .filter(|i| !feed.finished.contains(i))
+            .collect();
+        for index in &unfinished {
+            self.provided.remove(index);
+            self.timings.remove(index);
+        }
+        unfinished
     }
 
     /// The word being spoken `offset_ms` into entry `index`, if its audio is playing.
@@ -143,8 +224,10 @@ mod tests {
                     items,
                     requests: vec![],
                 },
+                source: Source::Speech,
             },
             0,
+            48_000,
         )
     }
 

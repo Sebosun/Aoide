@@ -125,6 +125,7 @@ mod tests {
             params: speed(1.5),
             language: Some("pt-BR".into()),
             read_notes: false,
+            narration: None,
         };
         let voicing = Voicing::resolve(
             &descriptor(None),

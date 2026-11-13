@@ -9,7 +9,7 @@ impl Library {
         conn.pragma_update(None, "foreign_keys", true)?;
         let tx = conn.transaction()?;
         let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if !(0..=5).contains(&version) {
+        if !(0..=6).contains(&version) {
             return Err(LibraryError::Corrupt(format!(
                 "unsupported schema version {version}"
             )));
@@ -124,6 +124,36 @@ impl Library {
                 CREATE INDEX book_collections_collection ON book_collections(collection_id);",
             )?;
             tx.pragma_update(None, "user_version", 5)?;
+        }
+        if version <= 5 {
+            tx.execute_batch(
+                "CREATE TABLE recordings (
+                    book_id TEXT PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+                    files TEXT NOT NULL,
+                    total_ms INTEGER NOT NULL CHECK(total_ms >= 0),
+                    stage TEXT NOT NULL,
+                    error TEXT,
+                    accepted INTEGER NOT NULL DEFAULT 0,
+                    added_at INTEGER NOT NULL
+                );
+                CREATE TABLE recording_blocks (
+                    book_id TEXT NOT NULL REFERENCES recordings(book_id) ON DELETE CASCADE,
+                    start_ms INTEGER NOT NULL CHECK(start_ms >= 0),
+                    end_ms INTEGER NOT NULL CHECK(end_ms >= start_ms),
+                    transcriber TEXT NOT NULL,
+                    words TEXT NOT NULL,
+                    levels BLOB NOT NULL,
+                    PRIMARY KEY (book_id, start_ms)
+                );
+                CREATE TABLE sync_maps (
+                    book_id TEXT PRIMARY KEY NOT NULL REFERENCES recordings(book_id) ON DELETE CASCADE,
+                    text_hash TEXT NOT NULL,
+                    map BLOB NOT NULL,
+                    report TEXT NOT NULL,
+                    created_at INTEGER NOT NULL
+                );",
+            )?;
+            tx.pragma_update(None, "user_version", 6)?;
         }
         tx.commit()?;
         Ok(Self { conn })

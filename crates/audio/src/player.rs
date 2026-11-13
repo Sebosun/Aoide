@@ -128,10 +128,19 @@ impl PlayerCore {
         self.slots.get(index).is_some_and(|s| s.audio.is_some())
     }
 
-    /// Frees audio for entries before `index`.
+    /// Frees audio for entries before `index`; they need their audio again to play.
     pub fn release_before(&mut self, index: usize) {
         for slot in self.slots.iter_mut().take(index) {
             slot.audio = None;
+            slot.complete = false;
+        }
+    }
+
+    /// Frees one entry's audio, such as a stream that will not be finished.
+    pub fn release(&mut self, index: usize) {
+        if let Some(slot) = self.slots.get_mut(index) {
+            slot.audio = None;
+            slot.complete = false;
         }
     }
 

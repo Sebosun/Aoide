@@ -7,12 +7,16 @@
 
 use std::ops::Range;
 
+mod check;
 mod clips;
 mod matcher;
+mod storage;
 mod token;
 
+pub use check::found_in_text;
 pub use clips::{clips, Clip, Loudness, Unit};
 pub use matcher::match_book;
+pub use storage::{decode_chapters, encode_chapters};
 pub use token::{tokenize, Token};
 
 /// A word a transcriber heard, with its text as reported (punctuation included).
@@ -64,7 +68,8 @@ pub struct SyncMap {
     pub report: Report,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Report {
     /// Words in the text.
     pub words: usize,
@@ -81,7 +86,8 @@ pub struct Report {
     pub unmatched_audio: Vec<AudioGap>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChapterReport {
     pub words: usize,
     pub matched_words: usize,
@@ -91,7 +97,8 @@ pub struct ChapterReport {
 }
 
 /// Narration that matched no text.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AudioGap {
     pub start_ms: u64,
     pub end_ms: u64,

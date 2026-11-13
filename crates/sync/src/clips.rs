@@ -32,6 +32,22 @@ pub struct Loudness {
     pub levels: Vec<u8>,
 }
 
+impl Loudness {
+    /// The level of each `frame_ms` frame of `samples`: its RMS from -80 dB (0) to 0 dB (255).
+    pub fn measure(samples: &[f32], rate: u32, frame_ms: u32) -> Self {
+        let frame = (rate as usize * frame_ms as usize / 1000).max(1);
+        let levels = samples
+            .chunks(frame)
+            .map(|chunk| {
+                let power = chunk.iter().map(|s| s * s).sum::<f32>() / chunk.len() as f32;
+                let db = 10.0 * power.max(1e-12).log10();
+                ((db + 80.0) / 80.0 * 255.0).clamp(0.0, 255.0) as u8
+            })
+            .collect();
+        Loudness { frame_ms, levels }
+    }
+}
+
 /// Lays `units` (in playlist order) onto the recording.
 ///
 /// Timed units, taken in recording order, get contiguous clips: the first starts at 0, the last

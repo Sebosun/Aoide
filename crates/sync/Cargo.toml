@@ -8,3 +8,7 @@ description = "Deterministic matching of a recording's transcript to a book's te
 
 [dependencies]
 unicode-normalization = "0.1"
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"

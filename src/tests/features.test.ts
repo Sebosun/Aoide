@@ -64,13 +64,13 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
   const wrapper = await settings("Library");
   await wrapper.get('[aria-label="Look up book details online"]').setValue(false);
   await flushPromises();
-  expect(save).toHaveBeenLastCalledWith({ metadataLookup: false, cacheLimitBytes: null, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true });
+  expect(save).toHaveBeenLastCalledWith({ metadataLookup: false, cacheLimitBytes: null, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { modelSize: "base", device: "auto", threads: 0, resumeOnStart: true } });
   await wrapper.findAll('[role="tab"]').find(t => t.text() === "Storage")!.trigger("click");
   await flushPromises();
   await wrapper.get('[aria-label="Audio cache limit in GB"]').setValue("2");
   await submit(wrapper, "Save limit");
   await flushPromises();
-  expect(save).toHaveBeenLastCalledWith({ metadataLookup: false, cacheLimitBytes: 2 * 1024 ** 3, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true });
+  expect(save).toHaveBeenLastCalledWith({ metadataLookup: false, cacheLimitBytes: 2 * 1024 ** 3, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { modelSize: "base", device: "auto", threads: 0, resumeOnStart: true } });
   wrapper.unmount();
 });
 

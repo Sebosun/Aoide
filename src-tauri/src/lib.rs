@@ -400,6 +400,86 @@ async fn import_discovered(
     core.import_discovered(choices).await
 }
 
+#[tauri::command]
+async fn inspect_recording(
+    core: CoreState<'_>,
+    paths: Vec<String>,
+) -> Result<crate::core::InspectionView, String> {
+    let core = Arc::clone(&core);
+    blocking(move || Ok(core.inspect_recording(paths))).await
+}
+
+#[tauri::command]
+async fn attach_recording(
+    core: CoreState<'_>,
+    book_id: String,
+    paths: Vec<String>,
+) -> Result<crate::core::RecordingView, String> {
+    let core = Arc::clone(&core);
+    blocking(move || core.attach_recording(&book_id, paths)).await
+}
+
+#[tauri::command]
+async fn recording(
+    core: CoreState<'_>,
+    book_id: String,
+) -> Result<Option<crate::core::RecordingView>, String> {
+    let core = Arc::clone(&core);
+    blocking(move || Ok(core.recording(&book_id))).await
+}
+
+#[tauri::command]
+async fn recordings(core: CoreState<'_>) -> Result<Vec<crate::core::RecordingView>, String> {
+    let core = Arc::clone(&core);
+    blocking(move || Ok(core.recordings())).await
+}
+
+#[tauri::command]
+async fn sync_report(
+    core: CoreState<'_>,
+    book_id: String,
+) -> Result<crate::core::SyncReportView, String> {
+    let core = Arc::clone(&core);
+    blocking(move || core.sync_report(&book_id)).await
+}
+
+#[tauri::command]
+async fn sync_action(
+    core: CoreState<'_>,
+    book_id: String,
+    action: crate::core::SyncAction,
+) -> Result<(), String> {
+    let core = Arc::clone(&core);
+    blocking(move || core.sync_action(&book_id, action)).await
+}
+
+#[tauri::command]
+async fn remove_recording(core: CoreState<'_>, book_id: String) -> Result<(), String> {
+    let core = Arc::clone(&core);
+    core.remove_recording(&book_id).await
+}
+
+#[tauri::command]
+async fn set_narration(
+    core: CoreState<'_>,
+    book_id: String,
+    narration: crate::core::Narration,
+) -> Result<(), String> {
+    let core = Arc::clone(&core);
+    core.set_narration(&book_id, narration).await
+}
+
+#[tauri::command]
+fn recognition_options(core: CoreState<'_>) -> crate::core::RecognitionOptions {
+    core.recognition_options()
+}
+
+#[tauri::command]
+async fn download_model(core: CoreState<'_>, model_id: String) -> Result<(), String> {
+    let core = Arc::clone(&core);
+    core.download_model(&model_id).await
+}
+
 async fn blocking<T: Send + 'static>(
     f: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
@@ -585,6 +665,7 @@ pub fn run() {
                 covers_dir: data.join("covers"),
                 audio_dir: path.app_cache_dir()?.join("audio"),
                 db_path: data.join("library.sqlite3"),
+                models_dir: data.join("models"),
                 config_dir: aoide_config::config_dir(
                     std::env::var_os("XDG_CONFIG_HOME").as_deref(),
                     &path.home_dir()?,
@@ -622,6 +703,7 @@ pub fn run() {
                     audio_dir: home.join("cache").join("audio"),
                     db_path: home.join("data").join("library.sqlite3"),
                     config_dir: home.join("config").join("aoide"),
+                    models_dir: home.join("data").join("models"),
                 };
             }
             #[allow(unused_mut)]
@@ -698,6 +780,16 @@ pub fn run() {
             preferences,
             save_appearance,
             export_book,
+            inspect_recording,
+            attach_recording,
+            recording,
+            recordings,
+            sync_report,
+            sync_action,
+            remove_recording,
+            set_narration,
+            recognition_options,
+            download_model,
             lookup_metadata,
             scan_for_books,
             cancel_scan,

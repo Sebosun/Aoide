@@ -36,14 +36,23 @@ pub use discovery::{Candidate, CandidateStatus, ImportChoice};
 pub use storage::{CleanResult, StorageReport};
 mod export;
 mod extras;
+mod feeder;
 mod metadata;
 mod preparation;
+mod recording;
+mod syncing;
+pub use recording::{
+    whisper_transcribers, InspectionView, Narration, RecognitionOptions, RecordingView, SyncAction,
+    SyncReportView, TranscriberFactory,
+};
 mod session;
 mod voicing;
 use session::Session;
 use voicing::{fallback_voice, Voicing};
 #[cfg(test)]
 mod contract;
+#[cfg(test)]
+mod recording_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(debug_assertions)]
@@ -113,6 +122,8 @@ pub struct BookSummary {
     pub last_opened_at: Option<i64>,
     /// Ids of the collections the book is on.
     pub collections: Vec<i64>,
+    /// The sync stage of the book's recording, if it has one.
+    pub recording: Option<syncing::Stage>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -174,6 +185,10 @@ pub struct PlayerStateView {
     pub chapter_fraction: f64,
     pub error: Option<String>,
     pub sleep: Option<SleepView>,
+    /// What is being heard: a speech engine or the book's recording.
+    pub source: Narration,
+    /// The recording is playing narration that is not in the text (credits, a dedication…).
+    pub off_text: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -235,6 +250,8 @@ pub struct Paths {
     pub db_path: PathBuf,
     /// User settings and themes (`~/.config/aoide`).
     pub config_dir: PathBuf,
+    /// Speech-recognition models.
+    pub models_dir: PathBuf,
 }
 
 /// How much of one chapter's audio is made.
@@ -250,6 +267,17 @@ pub struct ChapterAudioView {
 struct Target {
     book: Arc<BookModel>,
     plan: Plan,
+    /// Where the audio comes from. A recording's plan has every item made.
+    source: Source,
+}
+
+/// Where a target's audio comes from.
+#[derive(Clone)]
+enum Source {
+    /// A speech engine, through the generation plan.
+    Speech,
+    /// A synced recording, decoded clip by clip.
+    Recording(Arc<recording::RecordingPlan>),
 }
 
 /// Per-book overrides of the global engine profile.
@@ -263,6 +291,8 @@ pub struct BookSettings {
     pub language: Option<String>,
     /// Speak footnotes after the paragraph that references them.
     pub read_notes: bool,
+    /// Which narration plays; `None` until chosen (a speech engine).
+    pub narration: Option<recording::Narration>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -317,6 +347,9 @@ pub enum CoreEvent {
     DiscoveryDetails(String),
     DiscoveryImport(discovery::ImportProgress),
     ExportProgress(export::ExportProgress),
+    /// A book's recording changed stage or made progress.
+    SyncState(recording::RecordingView),
+    ModelDownload(recording::ModelDownloadView),
 }
 
 impl CoreEvent {
@@ -329,6 +362,8 @@ impl CoreEvent {
     pub const DISCOVERY_DETAILS: &'static str = "discovery://details";
     pub const DISCOVERY_IMPORT: &'static str = "discovery://import";
     pub const EXPORT_PROGRESS: &'static str = "export://progress";
+    pub const SYNC_STATE: &'static str = "sync://state";
+    pub const MODEL_DOWNLOAD: &'static str = "model://download";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -341,6 +376,8 @@ impl CoreEvent {
             Self::DiscoveryDetails(_) => Self::DISCOVERY_DETAILS,
             Self::DiscoveryImport(_) => Self::DISCOVERY_IMPORT,
             Self::ExportProgress(_) => Self::EXPORT_PROGRESS,
+            Self::SyncState(_) => Self::SYNC_STATE,
+            Self::ModelDownload(_) => Self::MODEL_DOWNLOAD,
         }
     }
 
@@ -355,6 +392,8 @@ impl CoreEvent {
             Self::DiscoveryDetails(p) => serde_json::to_value(p),
             Self::DiscoveryImport(p) => serde_json::to_value(p),
             Self::ExportProgress(p) => serde_json::to_value(p),
+            Self::SyncState(p) => serde_json::to_value(p),
+            Self::ModelDownload(p) => serde_json::to_value(p),
         }
     }
 }
@@ -383,6 +422,8 @@ pub struct Environment {
     pub background: bool,
     /// Opens the file manager on a file's folder with the file selected.
     pub show_in_folder: ShowInFolder,
+    /// Speech recognition for syncing recordings.
+    pub transcribers: TranscriberFactory,
 }
 
 impl Environment {
@@ -396,6 +437,7 @@ impl Environment {
             show_in_folder: Arc::new(|path| {
                 tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| e.to_string())
             }),
+            transcribers: whisper_transcribers(),
         }
     }
 
@@ -435,6 +477,9 @@ pub struct Core {
     media: Mutex<Option<std::sync::mpsc::Sender<crate::media::MediaUpdate>>>,
     extras: Mutex<extras::ExtrasState>,
     config: Mutex<config::Config>,
+    transcribers: TranscriberFactory,
+    /// Recordings being synced. Lock after `library` when both are needed.
+    syncing: Mutex<recording::SyncState>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -525,6 +570,7 @@ impl Core {
             audio,
             background,
             show_in_folder,
+            transcribers,
         } = environment;
         for dir in [&paths.library_dir, &paths.covers_dir, &paths.audio_dir] {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -592,7 +638,13 @@ impl Core {
             media: Mutex::new(None),
             extras: Mutex::new(Default::default()),
             config: Mutex::new(config),
+            transcribers,
+            syncing: Mutex::new(Default::default()),
         });
+        core.load_recordings(core.app_settings().recognition.resume_on_start);
+        if background {
+            core.spawn_sync_runner();
+        }
         if background {
             *lock(&core.media) = crate::media::spawn(&core);
         }
@@ -881,6 +933,7 @@ impl Core {
             let mut preparation = lock(&self.preparation);
             preparation.forget(&lock(&self.library), id);
         }
+        self.forget_recording(id);
         self.replan(false);
         let files = lock(&self.library)
             .remove_book(&BookId(id.into()))
@@ -938,6 +991,7 @@ impl Core {
             .unwrap_or(0);
         BookSummary {
             prepare: self.prepare_view(&record.id.0),
+            recording: self.recording_stage(&record.id.0),
             progress: self.progress_view(&record.id),
             id: record.id.0,
             title: record.title.unwrap_or_else(|| "Untitled".into()),
@@ -1000,7 +1054,9 @@ impl Core {
             BookStatus::Error(message) => return Err(message),
         }
         let bytes = std::fs::read(&record.path).map_err(|e| e.to_string())?;
-        let read_notes = self.book_settings(id).read_notes;
+        let settings = self.book_settings(id);
+        // A recording is laid onto the book's own text, without footnotes read in between.
+        let read_notes = settings.read_notes && !self.plays_recording(id, &settings);
         let book = Arc::new(BookModel::parse(id, &bytes, read_notes)?);
         let mut books = lock(&self.books);
         if books.len() >= 3 {
@@ -1185,6 +1241,7 @@ impl Core {
             lock(&self.player).play();
             return self.ensure_output();
         }
+        let recording = self.plays_recording(book_id, &self.book_settings(book_id));
         let start = start
             .or_else(|| {
                 let progress = lock(&self.library)
@@ -1195,25 +1252,50 @@ impl Core {
             })
             .or_else(|| book.chapter_start(0))
             .ok_or("the book has no readable text")?;
-        self.ensure_voice().await?;
-        self.ensure_model().await;
-        let target = self.build_target(Arc::clone(&book))?;
+        let recorded = if recording {
+            self.build_recording_target(Arc::clone(&book))
+                .map_err(|error| eprintln!("aoide: {error}; reading with the speech engine"))
+                .ok()
+        } else {
+            None
+        };
+        let target = match recorded {
+            Some(target) => target,
+            None => {
+                self.ensure_voice().await?;
+                self.ensure_model().await;
+                self.build_target(Arc::clone(&book))?
+            }
+        };
         let entries = (0..book.total_entries())
             .map(|i| {
                 let segment = book.segment(i).expect("index in range");
-                Entry {
-                    id: segment.id.clone(),
-                    speakable: !segment.speech.is_empty(),
-                    pause_after_ms: segment.pause_after_ms,
+                match &target.source {
+                    // The clips run on into each other: their pauses are in the recording.
+                    Source::Recording(_) => Entry {
+                        id: segment.id.clone(),
+                        speakable: target.plan.items[i].speakable,
+                        pause_after_ms: 0,
+                    },
+                    Source::Speech => Entry {
+                        id: segment.id.clone(),
+                        speakable: !segment.speech.is_empty(),
+                        pause_after_ms: segment.pause_after_ms,
+                    },
                 }
             })
             .collect();
+        let offset = match &target.source {
+            Source::Recording(plan) => plan.start_offset(start),
+            Source::Speech => 0,
+        };
         {
             let mut player = lock(&self.player);
             player.load(entries, start);
+            player.seek_to(start, offset);
             player.play();
         }
-        *lock(&self.session) = Some(Session::new(target, start));
+        *lock(&self.session) = Some(Session::new(target, start, OUTPUT_RATE));
         *lock(&self.player_error) = None;
         self.replan(true);
         self.ensure_output()
@@ -1588,13 +1670,27 @@ impl Core {
         Ok(Target {
             book,
             plan: Plan { items, requests },
+            source: Source::Speech,
         })
     }
 
     fn seek(&self, index: usize) {
-        lock(&self.player).seek(index);
-        if let Some(session) = lock(&self.session).as_mut() {
-            session.last_index = index;
+        let (offset, released) = match lock(&self.session).as_mut() {
+            Some(session) => {
+                session.last_index = index;
+                let offset = session
+                    .recording()
+                    .map_or(0, |plan| plan.start_offset(index));
+                (offset, session.restart_feed())
+            }
+            None => (0, Vec::new()),
+        };
+        {
+            let mut player = lock(&self.player);
+            for entry in released {
+                player.release(entry);
+            }
+            player.seek_to(index, offset);
         }
         self.save_progress(true);
         self.replan(true);
@@ -1977,6 +2073,10 @@ impl Core {
     /// audio far behind. Returns the playhead.
     fn provide_audio(&self) -> Option<usize> {
         let index = lock(&self.player).position().index;
+        let recording = lock(&self.session).as_ref()?.recording().is_some();
+        if recording {
+            return self.provide_recording(index);
+        }
         let wanted = lock(&self.session).as_ref()?.wanted(index);
         let mut align = Vec::new();
         for (i, key) in wanted {
@@ -2000,6 +2100,31 @@ impl Core {
         if !align.is_empty() && self.app_settings().aligner.is_some() {
             for (book, i, key) in align {
                 self.queue_alignment(&book, i, &key);
+            }
+        }
+        let release = lock(&self.session).as_mut()?.release_behind(index);
+        if let Some(before) = release {
+            lock(&self.player).release_before(before);
+        }
+        Some(index)
+    }
+
+    /// Gives the player the recording's clips near the playhead as the feeder decodes them.
+    fn provide_recording(&self, index: usize) -> Option<usize> {
+        let pieces = lock(&self.session).as_mut()?.feed(index);
+        if !pieces.is_empty() {
+            let mut player = lock(&self.player);
+            for piece in pieces {
+                player.append(
+                    piece.index,
+                    &Pcm {
+                        sample_rate: OUTPUT_RATE,
+                        samples: piece.samples,
+                    },
+                );
+                if piece.last {
+                    player.finish(piece.index);
+                }
             }
         }
         let release = lock(&self.session).as_mut()?.release_behind(index);
@@ -2033,6 +2158,8 @@ impl Core {
                 chapter_fraction: 0.0,
                 error: lock(&self.player_error).clone(),
                 sleep: None,
+                source: Narration::Speech,
+                off_text: false,
             };
         };
         let book = &session.target.book;
@@ -2040,8 +2167,12 @@ impl Core {
         let (chapter, _) = book.locate(index).unwrap_or((0, 0));
         let segment = book.segment(index);
         let latency = (*lock(&self.output_latency_ms) as f32 * speed) as u32;
-        let word = (position.status == Status::Playing)
-            .then(|| session.word_at(index, position.offset_ms.saturating_sub(latency)))
+        let heard_at = position.offset_ms.saturating_sub(latency);
+        let off_text = session
+            .recording()
+            .is_some_and(|plan| plan.off_text(index, heard_at));
+        let word = (position.status == Status::Playing && !off_text)
+            .then(|| session.word_at(index, heard_at))
             .flatten();
         PlayerStateView {
             book_id: Some(book.id.clone()),
@@ -2054,6 +2185,12 @@ impl Core {
             chapter_fraction: book.chapter_fraction(index),
             error: lock(&self.player_error).clone(),
             sleep: self.sleep_view(),
+            source: if session.recording().is_some() {
+                Narration::Recording
+            } else {
+                Narration::Speech
+            },
+            off_text,
         }
     }
 

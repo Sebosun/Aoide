@@ -72,7 +72,7 @@ it("opens the extraction notes in Details from the warning in the margin", async
 });
 
 it("flags a book voice the engine does not offer and opens the Voice tab from the margin", async () => {
-  await mock.saveBookSettings("book-0", { voiceId: "Abigail.wav", params: {}, language: null, readNotes: false });
+  await mock.saveBookSettings("book-0", { voiceId: "Abigail.wav", params: {}, language: null, readNotes: false, narration: null });
   const wrapper = await reader("book-0");
   const warning = wrapper.get('[aria-label="About this book"] .book-margin__warning--voice');
   expect(warning.text()).toContain("Voice not available");

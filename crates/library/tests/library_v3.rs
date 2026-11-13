@@ -32,7 +32,7 @@ fn version_two_databases_gain_the_cache_and_keep_their_data() {
     }
     // Simulate a database written by the v2 schema: drop the v3+ tables and version.
     let conn = rusqlite::Connection::open(&path).unwrap();
-    conn.execute_batch("DROP TABLE IF EXISTS book_collections; DROP TABLE IF EXISTS collections; DROP TABLE IF EXISTS discovered_files; DROP TABLE IF EXISTS metadata_cache; PRAGMA user_version = 2;")
+    conn.execute_batch("DROP TABLE IF EXISTS sync_maps; DROP TABLE IF EXISTS recording_blocks; DROP TABLE IF EXISTS recordings; DROP TABLE IF EXISTS book_collections; DROP TABLE IF EXISTS collections; DROP TABLE IF EXISTS discovered_files; DROP TABLE IF EXISTS metadata_cache; PRAGMA user_version = 2;")
         .unwrap();
     drop(conn);
     let lib = Library::open(&path).unwrap();

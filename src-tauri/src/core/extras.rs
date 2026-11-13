@@ -27,6 +27,8 @@ pub struct AppSettings {
     pub scan: super::discovery::ScanSettings,
     /// Carry on preparing queued books when Aoide starts.
     pub resume_prepare: bool,
+    /// Speech recognition for syncing recordings.
+    pub recognition: super::recording::RecognitionSettings,
 }
 
 /// Library order.
@@ -52,6 +54,7 @@ impl Default for AppSettings {
             library_sort: LibrarySort::Recent,
             scan: Default::default(),
             resume_prepare: true,
+            recognition: Default::default(),
         }
     }
 }

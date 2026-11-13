@@ -73,14 +73,19 @@ dependencies = [
  "aoide-library",
  "aoide-metadata",
  "aoide-openai-speech",
+ "aoide-recording",
+ "aoide-sync",
  "aoide-text",
+ "aoide-transcribe",
  "aoide-tts",
  "chrono",
  "notify",
  "rayon",
  "reflink-copy",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2",
  "souvlaki",
  "tauri",
  "tauri-build",
@@ -222,6 +227,8 @@ dependencies = [
 name = "aoide-sync"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "unicode-normalization",
 ]
 

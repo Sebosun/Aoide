@@ -95,6 +95,25 @@ fn contract() -> String {
         // Export
         super::export::ExportStage,
         super::export::ExportProgress,
+        // Recordings
+        super::syncing::Stage,
+        super::recording::Narration,
+        super::recording::ModelSizeChoice,
+        super::recording::RecognitionDevice,
+        super::recording::RecognitionSettings,
+        super::recording::RecordingFileView,
+        super::recording::RecordingProblemView,
+        super::recording::InspectionView,
+        super::recording::MatchSummaryView,
+        super::recording::RecordingView,
+        super::recording::ChapterMatchView,
+        super::recording::OffTextView,
+        super::recording::SyncReportView,
+        super::recording::SyncAction,
+        super::recording::ModelView,
+        super::recording::RecognitionOptions,
+        super::recording::DownloadStage,
+        super::recording::ModelDownloadView,
     );
     // One line per `CoreEvent` variant.
     let events = [
@@ -127,6 +146,14 @@ fn contract() -> String {
         (
             CoreEvent::EXPORT_PROGRESS,
             name::<super::export::ExportProgress>(&config),
+        ),
+        (
+            CoreEvent::SYNC_STATE,
+            name::<super::recording::RecordingView>(&config),
+        ),
+        (
+            CoreEvent::MODEL_DOWNLOAD,
+            name::<super::recording::ModelDownloadView>(&config),
         ),
     ];
     out.push_str(

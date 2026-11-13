@@ -100,7 +100,7 @@ fn version_four_databases_gain_collections_and_keep_their_books() {
         book(&lib, "kept");
     }
     let conn = rusqlite::Connection::open(&path).unwrap();
-    conn.execute_batch("DROP TABLE IF EXISTS book_collections; DROP TABLE IF EXISTS collections; PRAGMA user_version = 4;")
+    conn.execute_batch("DROP TABLE IF EXISTS sync_maps; DROP TABLE IF EXISTS recording_blocks; DROP TABLE IF EXISTS recordings; DROP TABLE IF EXISTS book_collections; DROP TABLE IF EXISTS collections; PRAGMA user_version = 4;")
         .unwrap();
     drop(conn);
     let lib = Library::open(&path).unwrap();

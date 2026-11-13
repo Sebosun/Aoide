@@ -13,7 +13,7 @@ use super::preparation::Preparation;
 use super::{BookSettings, Core, CoreEvent, Environment, Events, Paths, PrepareStage};
 
 #[derive(Default)]
-struct Recorder(Mutex<Vec<(String, serde_json::Value)>>);
+pub(super) struct Recorder(Mutex<Vec<(String, serde_json::Value)>>);
 
 impl Events for Recorder {
     fn emit(&self, name: &str, payload: serde_json::Value) {
@@ -22,7 +22,7 @@ impl Events for Recorder {
 }
 
 impl Recorder {
-    fn count(&self, name: &str) -> usize {
+    pub(super) fn count(&self, name: &str) -> usize {
         self.0
             .lock()
             .unwrap()
@@ -40,6 +40,7 @@ fn paths(root: &Path) -> Paths {
         audio_dir: root.join("cache/audio"),
         db_path: root.join("data/library.sqlite3"),
         config_dir: root.join("config"),
+        models_dir: root.join("data/models"),
     }
 }
 
@@ -81,7 +82,7 @@ fn epub_with(one: String, two: String) -> Vec<u8> {
 }
 
 /// A library folder holding the test book, with the fake engine selected. Returns the book id.
-fn library_folder(root: &Path, settings: &str) -> String {
+pub(super) fn library_folder(root: &Path, settings: &str) -> String {
     library_folder_with(root, settings, "voiceId = \"Test.wav\"")
 }
 
@@ -107,6 +108,18 @@ network = "loopback"
 }
 
 fn start(root: &Path, engine: &Arc<FakeEngine>) -> (Arc<Core>, Arc<Recorder>) {
+    start_with(
+        root,
+        engine,
+        Arc::new(|_| Err("no speech recognition in this test".into())),
+    )
+}
+
+pub(super) fn start_with(
+    root: &Path,
+    engine: &Arc<FakeEngine>,
+    transcribers: super::TranscriberFactory,
+) -> (Arc<Core>, Arc<Recorder>) {
     let events = Arc::new(Recorder::default());
     let mut engines = aoide_tts::Registry::new();
     engine.register(&mut engines);
@@ -121,12 +134,13 @@ fn start(root: &Path, engine: &Arc<FakeEngine>) -> (Arc<Core>, Arc<Recorder>) {
             shown.emit("test://shown-in-folder", serde_json::json!(path));
             Ok(())
         }),
+        transcribers,
     };
     (Core::start(environment, paths(root)).unwrap(), events)
 }
 
 /// Waits (up to a few seconds) for `check` to hold, letting Core's tasks run.
-async fn until(what: &str, check: impl Fn() -> bool) {
+pub(super) async fn until(what: &str, check: impl Fn() -> bool) {
     for _ in 0..200 {
         if check() {
             return;

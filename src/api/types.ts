@@ -63,6 +63,24 @@ import type {
   StorageReport,
   Theme,
   Voice,
+  ChapterMatchView,
+  DownloadStage,
+  InspectionView,
+  MatchSummaryView,
+  ModelDownloadView,
+  ModelSizeChoice,
+  ModelView,
+  Narration,
+  OffTextView,
+  RecognitionDevice,
+  RecognitionOptions,
+  RecognitionSettings,
+  RecordingFileView,
+  RecordingProblemView,
+  RecordingView,
+  SyncAction,
+  SyncReportView,
+  SyncStage,
 } from "./contract";
 
 export type {
@@ -125,6 +143,24 @@ export type {
   StorageReport,
   Theme,
   Voice,
+  ChapterMatchView,
+  DownloadStage,
+  InspectionView,
+  MatchSummaryView,
+  ModelDownloadView,
+  ModelSizeChoice,
+  ModelView,
+  Narration,
+  OffTextView,
+  RecognitionDevice,
+  RecognitionOptions,
+  RecognitionSettings,
+  RecordingFileView,
+  RecordingProblemView,
+  RecordingView,
+  SyncAction,
+  SyncReportView,
+  SyncStage,
 };
 
 /** A library book; the adapter turns the cover file path into a URL the webview can load. */
@@ -236,4 +272,23 @@ export interface AoideApi {
   onExportProgress(handler: (progress: ExportProgress) => void): Promise<() => void>;
   /** Fires when books are added/changed by the folder watcher or imports. */
   onLibraryChanged(handler: () => void): Promise<() => void>;
+  /** What dropped or chosen audio files hold, before pairing them with a book. */
+  inspectRecording(paths: string[]): Promise<InspectionView>;
+  /** Pairs audio files with a book (replacing its recording) and starts syncing them. */
+  attachRecording(bookId: string, paths: string[]): Promise<RecordingView>;
+  recording(bookId: string): Promise<RecordingView | null>;
+  /** Every book's recording, oldest first. */
+  recordings(): Promise<RecordingView[]>;
+  /** How well the recording matched the text (fails until it is matched). */
+  syncReport(bookId: string): Promise<SyncReportView>;
+  syncAction(bookId: string, action: SyncAction): Promise<void>;
+  /** Forgets the recording and its sync; the audio files are left alone. */
+  removeRecording(bookId: string): Promise<void>;
+  /** Plays the book with its recording (once synced) or a speech engine. */
+  setNarration(bookId: string, narration: Narration): Promise<void>;
+  recognitionOptions(): Promise<RecognitionOptions>;
+  /** Downloads a speech-recognition model (progress on "model://download"). */
+  downloadModel(modelId: string): Promise<void>;
+  onSyncState(handler: (recording: RecordingView) => void): Promise<() => void>;
+  onModelDownload(handler: (download: ModelDownloadView) => void): Promise<() => void>;
 }

@@ -6,6 +6,8 @@ use serde::Serialize;
 
 pub struct ChapterModel {
     pub title: String,
+    /// The chapter's display text (its blocks joined by blank lines); segment ranges index it.
+    pub text: String,
     /// Note markers per segment index.
     pub notes: Vec<Vec<NoteMarker>>,
     pub segments: Vec<Segment>,
@@ -140,6 +142,7 @@ impl BookModel {
                 let model = ChapterModel {
                     notes,
                     title: chapter.title.clone(),
+                    text: chapter.text.clone(),
                     block_kinds: chapter.blocks.iter().map(|b| b.kind).collect(),
                     first_entry,
                     segments,

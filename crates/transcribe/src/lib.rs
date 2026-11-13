@@ -12,6 +12,7 @@ use std::sync::Arc;
 mod whisper;
 #[cfg(feature = "whisper")]
 pub use whisper::{WhisperCpp, WhisperOptions};
+pub mod models;
 
 /// The sample rate transcribers take.
 pub const SAMPLE_RATE: u32 = 16_000;

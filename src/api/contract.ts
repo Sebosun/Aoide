@@ -21,7 +21,11 @@ prepare: PrepareView | null, addedAt: number, lastOpenedAt: number | null,
 /**
  * Ids of the collections the book is on.
  */
-collections: Array<number>, };
+collections: Array<number>, 
+/**
+ * The sync stage of the book's recording, if it has one.
+ */
+recording: SyncStage | null, };
 
 export type ImportResult = { path: string, bookId: string | null, error: string | null, };
 
@@ -95,7 +99,15 @@ export type PlayerState = { bookId: string | null, status: PlaybackStatus, chapt
 /**
  * Output gain, 0.0..=1.0.
  */
-volume: number, chapterFraction: number, error: string | null, sleep: SleepView | null, };
+volume: number, chapterFraction: number, error: string | null, sleep: SleepView | null, 
+/**
+ * What is being heard: a speech engine or the book's recording.
+ */
+source: Narration, 
+/**
+ * The recording is playing narration that is not in the text (credits, a dedication…).
+ */
+offText: boolean, };
 
 export type EngineState = "offline" | "loading" | "ready" | "busy" | "error";
 
@@ -169,7 +181,11 @@ language: string | null,
 /**
  * Speak footnotes after the paragraph that references them.
  */
-readNotes: boolean, };
+readNotes: boolean, 
+/**
+ * Which narration plays; `None` until chosen (a speech engine).
+ */
+narration: Narration | null, };
 
 export type Bookmark = { id: number, bookId: BookId, chapter: number, charOffset: number, segmentId: string | null, 
 /**
@@ -261,7 +277,11 @@ scan: ScanSettings,
 /**
  * Carry on preparing queued books when Aoide starts.
  */
-resumePrepare: boolean, };
+resumePrepare: boolean, 
+/**
+ * Speech recognition for syncing recordings.
+ */
+recognition: RecognitionSettings, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -355,6 +375,82 @@ export type ExportStage = "generating" | "encoding" | "done" | "error";
 
 export type ExportProgress = { bookId: string, stage: ExportStage, done: number, total: number, path: string | null, error: string | null, };
 
+export type SyncStage = "checking" | "waiting" | "needsModel" | "transcribing" | "matching" | "ready" | "sampleMismatch" | "poorMatch" | "paused" | "missing" | "failed";
+
+export type Narration = "speech" | "recording";
+
+export type ModelSizeChoice = "tiny" | "base" | "small";
+
+export type RecognitionDevice = "auto" | "gpu" | "cpu";
+
+export type RecognitionSettings = { modelSize: ModelSizeChoice, device: RecognitionDevice, 
+/**
+ * CPU threads; 0 uses half the cores.
+ */
+threads: number, 
+/**
+ * Carry on syncing recordings when Aoide starts.
+ */
+resumeOnStart: boolean, };
+
+export type RecordingFileView = { path: string, name: string, durationMs: number, codec: string, };
+
+export type RecordingProblemView = { path: string, name: string, 
+/**
+ * Why it is left out, for people.
+ */
+problem: string, drm: boolean, };
+
+export type InspectionView = { files: Array<RecordingFileView>, problems: Array<RecordingProblemView>, totalMs: number, chapters: number, title: string | null, author: string | null, 
+/**
+ * The library book whose title the tags name, if any.
+ */
+suggestedBook: string | null, };
+
+export type MatchSummaryView = { words: number, matchedWords: number, timedWords: number, };
+
+export type RecordingView = { bookId: string, stage: SyncStage, error: string | null, files: Array<RecordingFileView>, totalMs: number, chapters: number, 
+/**
+ * How much of the recording is transcribed.
+ */
+transcribedMs: number, 
+/**
+ * Time left transcribing, once there is a pace to go by.
+ */
+remainingMs: number | null, 
+/**
+ * Place in line among recordings waiting to be transcribed (0 is next).
+ */
+position: number | null, summary: MatchSummaryView | null, accepted: boolean, 
+/**
+ * The model this book's recording is transcribed with.
+ */
+modelId: string, };
+
+export type ChapterMatchView = { index: number, title: string, words: number, matchedWords: number, timedWords: number, startMs: number | null, endMs: number | null, };
+
+export type OffTextView = { startMs: number, endMs: number, excerpt: string, };
+
+export type SyncReportView = { summary: MatchSummaryView, chapters: Array<ChapterMatchView>, 
+/**
+ * Narration that is not in the text (credits, a dedication left out of the EPUB…).
+ */
+offText: Array<OffTextView>, };
+
+export type SyncAction = "pause" | "resume" | "retry" | "accept" | "resync";
+
+export type ModelView = { id: string, size: ModelSizeChoice, englishOnly: boolean, bytes: number, downloaded: boolean, };
+
+export type RecognitionOptions = { settings: RecognitionSettings, 
+/**
+ * This build can use a GPU.
+ */
+gpuBuild: boolean, models: Array<ModelView>, modelsFolder: string, };
+
+export type DownloadStage = "downloading" | "done" | "failed";
+
+export type ModelDownloadView = { id: string, stage: DownloadStage, doneBytes: number, totalBytes: number, error: string | null, };
+
 /** Every event Core emits, by name, with its payload. */
 export type CoreEvents = {
   "library://changed": null,
@@ -366,4 +462,6 @@ export type CoreEvents = {
   "discovery://details": string,
   "discovery://import": DiscoveryImportProgress,
   "export://progress": ExportProgress,
+  "sync://state": RecordingView,
+  "model://download": ModelDownloadView,
 };

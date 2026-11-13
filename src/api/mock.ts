@@ -1,6 +1,6 @@
-import type { PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
+import type { RecordingView, SyncStage, InspectionView, ModelDownloadView, SyncReportView, PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
 
-export const initialPlayer = (): PlayerState => ({ bookId: null, status: "stopped", chapter: 0, segmentId: null, wordIndex: null, speed: 1, volume: 1, chapterFraction: 0, error: null, sleep: null });
+export const initialPlayer = (): PlayerState => ({ bookId: null, status: "stopped", chapter: 0, segmentId: null, wordIndex: null, speed: 1, volume: 1, chapterFraction: 0, error: null, sleep: null, source: "speech", offText: false });
 export const initialGeneration = (): GenerationState => ({ bookId: null, generatingSegmentId: null, bufferedAheadMs: 0, pending: 0, error: null, preparing: null });
 
 /** The same API with every request (not the event subscriptions) taking `ms` longer. */
@@ -22,7 +22,7 @@ export function createMockApi() {
     id: `book-${i}`, title, authors: [i === 0 ? "Mira Vale" : "Ellis Reed"], language: "en", coverUrl: null,
     status: i === 2 ? { kind: "missing" } : i === 4 ? { kind: "error", message: "This EPUB could not be parsed." } : { kind: "present" },
     progress: i === 0 ? { chapter: 0, segmentId: "0:1:0", fraction: 0.12 } : null,
-    audioBytes: i === 0 ? 2457600 : 0, prepare: null, addedAt: 100 + i, lastOpenedAt: i === 0 ? 500 : null, collections: [],
+    audioBytes: i === 0 ? 2457600 : 0, prepare: null, addedAt: 100 + i, lastOpenedAt: i === 0 ? 500 : null, collections: [], recording: null,
   }));
   const shelves: { id: number; name: string; createdAt: number }[] = [];
   const shelfName = (name: string, except?: number) => {
@@ -58,7 +58,7 @@ export function createMockApi() {
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
   const listened = new Map<string, number>([["book-0", 5_400_000], ["book-1", 1_200_000]]);
-  let appSettings: AppSettings = { metadataLookup: true, cacheLimitBytes: null, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true };
+  let appSettings: AppSettings = { metadataLookup: true, cacheLimitBytes: null, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { modelSize: "base", device: "auto", threads: 0, resumeOnStart: true } };
   const found: Candidate[] = [
     { id: "h-tide", status: "new", title: "Notes on the Tide", authors: ["Ines Morrow"], language: "en", isbn: "9780000000101", coverUrl: null, paths: ["~/Downloads/notes-on-the-tide.epub", "~/Documents/Books/tide.epub"], size: 2_400_000, error: null, suggestion: null },
     { id: "h-glass", status: "new", title: "The Glass Meridian", authors: ["Oren Vale"], language: "en", isbn: null, coverUrl: null, paths: ["~/Downloads/glass-meridian.epub"], size: 1_100_000, error: null, suggestion: null },
@@ -73,6 +73,60 @@ export function createMockApi() {
     configDir: "~/.config/aoide",
     problems: [],
   };
+  /** Recordings paired with books, like the app (core/recording.rs): one per book, each with an
+   *  explicit sync stage. `?recording=syncing|ready|review|missing|model|mismatch|failed` gives
+   *  book-0 a recording in that stage. */
+  const recordings = new Map<string, RecordingView>();
+  const syncHandlers = new Set<(r: RecordingView) => void>();
+  const downloadHandlers = new Set<(d: ModelDownloadView) => void>();
+  const downloaded = new Set<string>(["base.en"]);
+  const hour = 3_600_000;
+  const recordingIn = (bookId: string, stage: SyncStage): RecordingView => {
+    const totalMs = 6 * hour + 1_234_000, matched = stage === "ready" || stage === "poorMatch";
+    return {
+      bookId, stage, error: stage === "failed" ? "the recording could not be read" : null,
+      files: [{ path: "~/Audiobooks/the-lantern-keeper.m4b", name: "the-lantern-keeper.m4b", durationMs: totalMs, codec: "aac" }],
+      totalMs, chapters: 12,
+      transcribedMs: matched ? totalMs : stage === "transcribing" ? Math.round(totalMs * 0.37) : 0,
+      remainingMs: stage === "transcribing" ? 14 * 60_000 : null,
+      position: stage === "transcribing" || stage === "waiting" ? 0 : null,
+      summary: matched ? { words: 64_210, matchedWords: stage === "ready" ? 60_400 : 38_100, timedWords: stage === "ready" ? 63_900 : 44_000 } : null,
+      accepted: false, modelId: "base.en",
+    };
+  };
+  const emitSync = (recording: RecordingView) => {
+    recordings.set(recording.bookId, recording);
+    const book = books.find(b => b.id === recording.bookId);
+    if (book) book.recording = recording.stage;
+    syncHandlers.forEach(h => h(structuredClone(recording)));
+  };
+  let syncTimer: ReturnType<typeof setInterval> | undefined;
+  /** Walks a new recording through checking, transcribing and matching, a little at a time. */
+  const simulateSync = (bookId: string) => {
+    clearInterval(syncTimer);
+    syncTimer = setInterval(() => {
+      const r = recordings.get(bookId);
+      if (!r) return clearInterval(syncTimer);
+      if (r.stage === "checking") emitSync({ ...r, stage: "transcribing", position: 0 });
+      else if (r.stage === "transcribing") {
+        const transcribedMs = Math.min(r.totalMs, r.transcribedMs + 45 * 60_000);
+        const remainingMs = Math.round((r.totalMs - transcribedMs) / 27);
+        emitSync(transcribedMs >= r.totalMs ? { ...r, transcribedMs, stage: "matching", remainingMs: null, position: null } : { ...r, transcribedMs, remainingMs });
+      } else if (r.stage === "matching") {
+        clearInterval(syncTimer);
+        emitSync({ ...recordingIn(bookId, "ready"), files: r.files, totalMs: r.totalMs });
+        const current = settings.get(bookId);
+        if (!current?.narration) settings.set(bookId, { voiceId: null, params: {}, language: null, readNotes: false, ...current, narration: "recording" });
+        changed();
+      }
+    }, 400);
+  };
+  const previewStage = ({ syncing: "transcribing", ready: "ready", review: "poorMatch", missing: "missing", model: "needsModel", mismatch: "sampleMismatch", failed: "failed" } as Record<string, SyncStage>)[query.get("recording") ?? ""];
+  if (previewStage) {
+    recordings.set("book-0", recordingIn("book-0", previewStage));
+    books[0].recording = previewStage;
+    if (previewStage === "ready") settings.set("book-0", { voiceId: null, params: {}, language: null, readNotes: false, narration: "recording" });
+  }
   const configHandlers = new Set<(p: Preferences) => void>();
   const emitConfig = (next: Partial<Omit<Preferences, "appearance">> & { appearance?: Partial<Preferences["appearance"]> }) => {
     preferences = { ...preferences, ...next, appearance: { ...preferences.appearance, ...next.appearance } };
@@ -172,7 +226,8 @@ export function createMockApi() {
       const book = getBook(id); const c = chapter ?? book.progress?.chapter ?? 0;
       const segments = getChapter(id, c).blocks.flatMap(b => b.segments).filter(s => s.speakable);
       const segment = segments.find(s => s.id === (segmentId ?? (chapter === null ? book.progress?.segmentId : null))) ?? segments[0];
-      emitPlayer({ ...state, bookId: id, chapter: c, segmentId: segment.id, wordIndex: 0, status: "playing", chapterFraction: segments.indexOf(segment) / segments.length, error: null });
+      const source = settings.get(id)?.narration === "recording" && recordings.get(id)?.stage === "ready" ? "recording" : "speech";
+      emitPlayer({ ...state, bookId: id, chapter: c, segmentId: segment.id, wordIndex: 0, status: "playing", chapterFraction: segments.indexOf(segment) / segments.length, error: null, source, offText: false });
       emitGeneration({ ...initialGeneration(), bookId: id, bufferedAheadMs: 18000 }); run();
     },
     async pause() { halt(); emitPlayer({ ...state, status: "paused" }); },
@@ -197,7 +252,7 @@ export function createMockApi() {
       if (next.network === "loopback" && !/^https?:\/\/(127\.|localhost|\[::1\])/.test(next.baseUrl)) throw new Error("Only loopback addresses are allowed unless home-network access is on.");
       profile = JSON.parse(JSON.stringify(next)); engine.profileName = next.name;
     },
-    async bookSettings(id) { return structuredClone(settings.get(id) ?? { voiceId: null, params: {}, language: null, readNotes: false }); },
+    async bookSettings(id) { return structuredClone(settings.get(id) ?? { voiceId: null, params: {}, language: null, readNotes: false, narration: null }); },
     async saveBookSettings(id, next) { getBook(id); settings.set(id, JSON.parse(JSON.stringify(next))); },
     async prepareBook(id) {
       const b = getBook(id);
@@ -311,7 +366,7 @@ export function createMockApi() {
         const c = found.find(f => f.id === choice.id);
         if (!c || c.status === "unreadable") return { path: c?.paths[0] ?? "", bookId: null, error: "not a readable EPUB" };
         c.status = "inLibrary";
-        books.push({ id: c.id, title: c.title, authors: c.authors, language: c.language, status: { kind: "present" }, coverUrl: null, progress: null, audioBytes: 0, prepare: null, addedAt: 900, lastOpenedAt: null, collections: [] });
+        books.push({ id: c.id, title: c.title, authors: c.authors, language: c.language, status: { kind: "present" }, coverUrl: null, progress: null, audioBytes: 0, prepare: null, recording: null, addedAt: 900, lastOpenedAt: null, collections: [] });
         changed();
         return { path: c.paths[0], bookId: c.id, error: null };
       });
@@ -322,11 +377,94 @@ export function createMockApi() {
     onExportProgress: h => subscribe(exportHandlers, h),
     onPlayerState: h => subscribe(playerHandlers, h), onEngineStatus: h => subscribe(engineHandlers, h), onGenerationState: h => subscribe(generationHandlers, h),
     async onLibraryChanged(h) { libraryHandlers.add(h); return () => { libraryHandlers.delete(h); }; },
+    async inspectRecording(paths): Promise<InspectionView> {
+      const audio = paths.filter(p => /\.(m4b|m4a|mp3|flac|ogg|opus|wav)$/i.test(p) || !/\.[a-z0-9]+$/i.test(p));
+      const protectedFiles = paths.filter(p => /\.(aax|aa)$/i.test(p));
+      const name = (p: string) => p.split("/").pop() ?? p;
+      return {
+        files: audio.map((path, i) => ({ path, name: name(path), durationMs: hour + i * 600_000, codec: path.endsWith(".mp3") ? "mp3" : "aac" })),
+        problems: protectedFiles.map(path => ({ path, name: name(path), problem: "Protected by Audible DRM. Aoide plays only audio files that play in any player.", drm: true })),
+        totalMs: audio.length * hour, chapters: audio.length * 3,
+        title: audio.some(p => p.toLowerCase().includes("lantern")) ? "The Lantern Keeper" : null,
+        author: audio.some(p => p.toLowerCase().includes("lantern")) ? "Mira Vale" : null,
+        suggestedBook: audio.some(p => p.toLowerCase().includes("lantern")) ? "book-0" : null,
+      };
+    },
+    async attachRecording(bookId, paths) {
+      getBook(bookId);
+      const found = await api.inspectRecording(paths);
+      if (found.problems.length) throw new Error(`${found.problems[0].name}: ${found.problems[0].problem}`);
+      if (!found.files.length) throw new Error("No audio files were found there.");
+      const recording: RecordingView = { ...recordingIn(bookId, "checking"), files: found.files, totalMs: found.totalMs, chapters: found.chapters, transcribedMs: 0, remainingMs: null };
+      emitSync(recording); changed(); simulateSync(bookId);
+      return structuredClone(recording);
+    },
+    async recording(bookId) { const r = recordings.get(bookId); return r ? structuredClone(r) : null; },
+    async recordings() { return [...recordings.values()].map(r => structuredClone(r)); },
+    async syncReport(bookId): Promise<SyncReportView> {
+      const r = recordings.get(bookId);
+      if (!r?.summary) throw new Error("the recording is not matched yet");
+      const list = chapters[Number(bookId.split("-")[1])] ?? [];
+      return {
+        summary: { ...r.summary },
+        chapters: list.map((c, i) => ({ index: i, title: c.title, words: 5000, matchedWords: i === 1 && r.stage === "poorMatch" ? 400 : 4700, timedWords: 4980, startMs: i * hour, endMs: (i + 1) * hour - 2_000 })),
+        offText: [
+          { startMs: 0, endMs: 31_000, excerpt: "This is a recording of The Lantern Keeper, read for you by a narrator" },
+          { startMs: r.totalMs - 28_000, endMs: r.totalMs, excerpt: "That was The Lantern Keeper. Thank you for listening" },
+        ],
+      };
+    },
+    async syncAction(bookId, action) {
+      const r = recordings.get(bookId);
+      if (!r) throw new Error("the book has no recording");
+      const next: Partial<Record<SyncStage, SyncStage>> =
+        action === "pause" ? { waiting: "paused", transcribing: "paused", needsModel: "paused" }
+        : action === "resume" ? { paused: "transcribing" }
+        : action === "retry" ? { failed: "checking" }
+        : action === "accept" ? { sampleMismatch: "transcribing", poorMatch: "ready" }
+        : { ready: "checking", poorMatch: "checking", sampleMismatch: "checking", failed: "checking", paused: "checking" };
+      const stage = next[r.stage];
+      if (!stage) return;
+      emitSync({ ...r, stage, accepted: action === "accept" || r.accepted, transcribedMs: action === "resync" ? 0 : r.transcribedMs, summary: action === "resync" ? null : r.summary });
+      changed();
+      if (stage === "transcribing" || stage === "checking") simulateSync(bookId);
+    },
+    async removeRecording(bookId) {
+      recordings.delete(bookId);
+      const book = books.find(b => b.id === bookId);
+      if (book) book.recording = null;
+      const current = settings.get(bookId);
+      if (current) settings.set(bookId, { ...current, narration: null });
+      changed();
+    },
+    async setNarration(bookId, narration) {
+      if (narration === "recording" && recordings.get(bookId)?.stage !== "ready") throw new Error("the recording is not synced yet");
+      settings.set(bookId, { voiceId: null, params: {}, language: null, readNotes: false, ...settings.get(bookId), narration });
+    },
+    async recognitionOptions() {
+      const models: [string, "tiny" | "base" | "small", boolean, number][] = [["tiny.en", "tiny", true, 77_704_715], ["tiny", "tiny", false, 77_691_713], ["base.en", "base", true, 147_964_211], ["base", "base", false, 147_951_465], ["small.en", "small", true, 487_614_201], ["small", "small", false, 487_601_967]];
+      return {
+        settings: structuredClone(appSettings.recognition), gpuBuild: false, modelsFolder: "~/.local/share/com.aoide.audiobooks/models",
+        models: models.map(([id, size, englishOnly, bytes]) => ({ id, size, englishOnly, bytes, downloaded: downloaded.has(id) })),
+      };
+    },
+    async downloadModel(modelId) {
+      const total = 147_964_211;
+      for (const share of [0.25, 0.6, 1]) {
+        await new Promise(resolve => setTimeout(resolve, 150));
+        downloadHandlers.forEach(h => h({ id: modelId, stage: "downloading", doneBytes: Math.round(total * share), totalBytes: total, error: null }));
+      }
+      downloaded.add(modelId);
+      downloadHandlers.forEach(h => h({ id: modelId, stage: "done", doneBytes: total, totalBytes: total, error: null }));
+      for (const r of recordings.values()) if (r.stage === "needsModel") { emitSync({ ...r, stage: "transcribing" }); simulateSync(r.bookId); }
+    },
+    onSyncState: h => subscribe(syncHandlers, h),
+    onModelDownload: h => subscribe(downloadHandlers, h),
   };
   /** Test hooks: put a book at a share of its length, or give it generated audio. */
   const setProgressForTest = (id: string, fraction: number) => { getBook(id).progress = { chapter: 0, segmentId: null, fraction }; changed(); };
   const setAudioForTest = (id: string, bytes: number) => { getBook(id).audioBytes = bytes; changed(); };
   /** A book left in the queue by an earlier run that has not started again (resuming at startup is off). */
   const queueWaitingForTest = (id: string) => { prepareQueue.push({ id, stage: "waiting", chapters: null }); getBook(id).prepare = { state: "waiting", done: 0, total: 0, position: 0, chapters: null }; settlePrepare(); };
-  return Object.assign(api, { setProgressForTest, setAudioForTest, queueWaitingForTest, dispose: halt, emitPlayer, emitGeneration, emitConfig, emitEngine: (s: EngineStatusView) => engineHandlers.forEach(h => h({ ...s })) });
+  return Object.assign(api, { setProgressForTest, setAudioForTest, queueWaitingForTest, dispose: () => { halt(); clearInterval(syncTimer); }, emitPlayer, emitGeneration, emitConfig, emitEngine: (s: EngineStatusView) => engineHandlers.forEach(h => h({ ...s })) });
 }
