@@ -393,9 +393,11 @@ transcribes at a time, in the order they were added.
 | `crates/audio` | `seek_to`, streaming slots |
 | `crates/library` | Migration v6 and data access for the tables above |
 | `crates/config` / `core/extras.rs` | Recognition settings next to `AlignerSettings`: transcriber kind, model, threads, server URL, carry on at start-up |
-| `src-tauri/src/core/recording.rs` (new) | Commands, the sync job runner, the feeder thread, building `RecordingPlan` |
+| `src-tauri/src/core/recordings.rs` (new) | The sync job (`Recordings`, behind a small `SyncHost` trait), the models, and the recording laid onto a book's entries |
+| `src-tauri/src/core/recording.rs` (new) | Settings and views, `RecordingPlan`, the commands as Core calls them, and the playback target |
 | `src-tauri/src/core/syncing.rs` (new) | The stage machine and its table tests |
-| `src-tauri/src/core.rs`, `core/session.rs` | The `Narration` enum in `Target`; session, `provide_audio`, `replan`, `play` and `player_state` branch on it |
+| `src-tauri/src/core/narration.rs` (new) | Each entry's explicit fate (clip, waits for the sync, speech, not recorded, silent), read by playback, the planner and the views |
+| `src-tauri/src/core/playback.rs`, `core/session.rs` | Playback owns the session and player, feeds clips and speech, and follows the sync |
 | `src-tauri/src/lib.rs`, `capabilities/` | New commands; `tauri-plugin-dialog` for *Add audiobook…* (the app has no file picker yet) |
 | `src/api/contract.ts` | Regenerated (`AOIDE_WRITE_CONTRACT=1 cargo test -p aoide contract`) |
 | `src/api/mock.ts`, `src/preview.ts` | Mock recordings in each stage; `?recording=syncing\|ready\|review\|missing` |
