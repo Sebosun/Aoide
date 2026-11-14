@@ -64,7 +64,9 @@ export function usePlayerControls() {
     try { await api.addBookmark(id, ""); ui.toast("Bookmarked"); } catch (e) { ui.toast(String(e), "error"); }
   }
   /** Shown under the scrubber only while it matters. */
-  const status = computed(() => (player.state.status === "buffering" ? "Buffering…" : ""));
+  const status = computed(() => (player.state.status === "buffering" ? "Buffering…" : player.state.offText ? "Not in the text" : ""));
+  /** The book's recording is playing, not a speech engine. */
+  const recording = computed(() => Boolean(player.state.bookId) && player.state.source === "recording");
   /** The buffer and preparation numbers, for the scrubber's tooltip. */
   const detail = computed(() => {
     const parts: string[] = [];
@@ -93,5 +95,5 @@ export function usePlayerControls() {
     const next = list[Math.min(list.length - 1, Math.max(0, at + delta))];
     if (next) void player.play(id, player.state.chapter, next.id);
   }
-  return { player, active, bookId, book, chapterTitle, playingChapter, timeLeftMs, timeLeft, ahead, percent, toggle, seek, step, sleepChoice, setSleep, sleepLabel, bookmark, status, detail, error };
+  return { player, active, recording, bookId, book, chapterTitle, playingChapter, timeLeftMs, timeLeft, ahead, percent, toggle, seek, step, sleepChoice, setSleep, sleepLabel, bookmark, status, detail, error };
 }

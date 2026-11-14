@@ -1675,12 +1675,20 @@ impl Core {
     }
 
     fn seek(&self, index: usize) {
+        self.seek_at(index, None);
+    }
+
+    /// Moves the playhead `offset_ms` into entry `index`; `None` starts where the entry's text
+    /// does (for a recording, just before its first word).
+    fn seek_at(&self, index: usize, offset_ms: Option<u32>) {
         let (offset, released) = match lock(&self.session).as_mut() {
             Some(session) => {
                 session.last_index = index;
-                let offset = session
-                    .recording()
-                    .map_or(0, |plan| plan.start_offset(index));
+                let offset = offset_ms.unwrap_or_else(|| {
+                    session
+                        .recording()
+                        .map_or(0, |plan| plan.start_offset(index))
+                });
                 (offset, session.restart_feed())
             }
             None => (0, Vec::new()),

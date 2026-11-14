@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Download, Ellipsis, Eraser, FolderOpen, FolderPlus, Info, Trash2 } from "@lucide/vue";
+import { Download, Ellipsis, Eraser, FolderOpen, FolderPlus, Headphones, Info, Trash2 } from "@lucide/vue";
+import type { SyncStage } from "../../api/types";
+import { useRecordingsStore } from "../../stores/recordings";
 import { useCollections } from "../../composables/useCollections";
 import { useLibraryStore } from "../../stores/library";
 import { api } from "../../api";
@@ -16,8 +18,15 @@ const props = defineProps<{ book: BookSummary; busy?: boolean }>();
 const emit = defineEmits<{ open: []; details: []; remove: [] }>();
 const unavailable = computed(() => props.book.status.kind !== "present");
 const percent = computed(() => Math.round((props.book.progress?.fraction ?? 0) * 100));
+/** A recording's stage in a few words, for the card. */
+const RECORDING: Record<SyncStage, string> = {
+  checking: "checking recording", waiting: "recording waiting to sync", needsModel: "recording needs a model", transcribing: "syncing recording",
+  matching: "matching recording", ready: "narrated recording", sampleMismatch: "recording needs review", poorMatch: "recording needs review",
+  paused: "recording paused", missing: "recording missing", failed: "recording sync failed",
+};
 const status = computed(() => {
-  const { prepare, audioBytes, progress } = props.book;
+  const { prepare, audioBytes, progress, recording } = props.book;
+  if (recording) return `${percent.value}% · ${RECORDING[recording]}`;
   if (prepare?.state === "done") return `${percent.value}% · ready offline`;
   if (prepare) return describePreparation(preparationStatus(prepare));
   if (audioBytes) return `${percent.value}% · ${formatBytes(audioBytes)}`;
@@ -34,6 +43,11 @@ async function exportBook() {
   const path = await api.exportBook(props.book.id);
   ui.toast(`Exported to ${path}`);
 }
+const recordings = useRecordingsStore();
+async function addAudiobook() {
+  const paths = await api.chooseAudio(false);
+  if (paths?.length) recordings.openPairing(paths, props.book.id);
+}
 async function deleteAudio() {
   const ok = await ui.confirm({ title: `Delete the generated audio of ${props.book.title}?`, body: `Frees ${formatBytes(props.book.audioBytes ?? 0)}. Aoide makes the audio again when you play the book.`, confirmLabel: "Delete audio", danger: true });
   if (ok) { await api.regenerateBook(props.book.id); ui.toast("Generated audio deleted"); }
@@ -48,7 +62,8 @@ const items = computed<MenuEntry[]>(() => {
     list.push({ id: "details", label: "Details", icon: Info, action: () => emit("details") });
     list.push({ id: "folder", label: "Show in folder", icon: FolderOpen, action: () => act(() => api.showInFolder(book.id)) });
     for (const action of preparation.value.actions) list.push({ id: action, label: ACTION_LABELS[action], icon: ACTION_ICONS[action], action: () => runPrepareAction(book.id, action) });
-    list.push({ id: "export", label: "Export as M4B", icon: Download, action: () => act(exportBook) });
+    list.push({ id: "audiobook", label: book.recording ? "Replace audiobook…" : "Add audiobook…", icon: Headphones, action: () => act(addAudiobook) });
+    if (book.recording !== "ready") list.push({ id: "export", label: "Export as M4B", icon: Download, action: () => act(exportBook) });
     if (book.audioBytes) list.push({ id: "audio", label: "Delete generated audio", icon: Eraser, action: () => act(deleteAudio) });
     list.push({ kind: "separator" }, { kind: "heading", label: "Collections" });
     for (const c of library.collections) list.push({ id: `collection:${c.id}`, label: c.name, ariaLabel: c.name, checked: book.collections.includes(c.id), action: () => act(() => shelves.toggle(book, c.id)) });
@@ -69,7 +84,7 @@ const items = computed<MenuEntry[]>(() => {
     <span class="book-card__track"><i :style="{ width: `${percent}%` }" /></span>
     <span v-if="book.status.kind === 'missing'" class="book-card__badge book-card__badge--warn">File missing</span>
     <template v-else-if="book.status.kind === 'error'"><span class="book-card__badge book-card__badge--error">Can't open this EPUB</span><span class="book-card__reason" :title="book.status.message">{{ book.status.message }}</span></template>
-    <span v-else class="book-card__line">{{ status }}</span>
+    <span v-else class="book-card__line"><Headphones v-if="book.recording" class="book-card__mark" :size="12" aria-hidden="true" />{{ status }}</span>
     <UiMenu v-slot="{ toggle, trigger }" class="book-card__more" :label="`Actions for ${book.title}`" :items="items" align="end">
       <button type="button" class="book-card__more-button" :aria-label="`More for ${book.title}`" v-bind="trigger" @click="toggle"><Ellipsis :size="16" /></button>
     </UiMenu>
@@ -86,6 +101,7 @@ const items = computed<MenuEntry[]>(() => {
 .book-card__title { margin-top: 4px; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .book-card__line, .book-card__reason { color: var(--dim); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .book-card__reason { font-size: 11.5px; }
+.book-card__mark { vertical-align: -1px; margin-right: 4px; color: var(--accent); }
 .book-card__track { position: relative; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .book-card__track i { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
 .book-card__badge { font-size: 12px; font-weight: 700; }

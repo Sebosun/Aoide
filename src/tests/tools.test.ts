@@ -31,7 +31,7 @@ it("opens book tools as a modal bottom sheet with four tabs, and Escape returns 
   const sheet = wrapper.get('[role="dialog"]');
   expect(sheet.attributes("aria-modal")).toBe("true");
   expect(sheet.attributes("aria-label")).toBe("Book tools");
-  expect(sheet.findAll('[role="tab"]').map(t => t.text())).toEqual(["Bookmarks", "Search", "Voice", "Details"]);
+  expect(sheet.findAll('[role="tab"]').map(t => t.text())).toEqual(["Bookmarks", "Search", "Narration", "Details"]);
   const selected = sheet.get('[role="tab"][aria-selected="true"]');
   expect(selected.text()).toBe("Bookmarks");
   expect(document.activeElement).toBe(selected.element);
@@ -79,7 +79,7 @@ it("flags a book voice the engine does not offer and opens the Voice tab from th
   expect(warning.attributes("title")).toContain("Abigail");
   await warning.trigger("click");
   await flushPromises();
-  expect(wrapper.get('[role="dialog"] [role="tab"][aria-selected="true"]').text()).toBe("Voice");
+  expect(wrapper.get('[role="dialog"] [role="tab"][aria-selected="true"]').text()).toBe("Narration");
   wrapper.unmount();
 });
 

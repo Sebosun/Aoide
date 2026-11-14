@@ -5,9 +5,13 @@ import { useLibraryStore } from "../../stores/library";
 import { useNavigationStore } from "../../stores/navigation";
 import { usePlayerStore } from "../../stores/player";
 import { ACTION_ICONS, ACTION_LABELS, describePreparation, preparationStatus, runPrepareAction, type PrepareAction } from "../../preparation";
+import { useRecordingsStore } from "../../stores/recordings";
+import { RECORDING_ACTION_ICONS, RECORDING_ACTION_LABELS, recordingStatus, type RecordingAction } from "../../recording";
+import { useUiStore } from "../../stores/ui";
 
 /** What the speech engine is working on: audio for the book playing now, then the books
- *  queued for whole-book preparation, in the order they will be made. */
+ *  queued for whole-book preparation, in the order they will be made; and the recordings being
+ *  synced with their books. */
 const emit = defineEmits<{ close: [] }>();
 const library = useLibraryStore(), navigation = useNavigationStore(), player = usePlayerStore();
 
@@ -30,6 +34,18 @@ function ahead(ms: number) {
 }
 
 function openBook(id: string) { emit("close"); navigation.openBook(id); }
+const recordings = useRecordingsStore(), ui = useUiStore();
+void recordings.start();
+/** Recordings still syncing or needing a decision, in line order. */
+const syncing = computed(() => recordings.syncing
+  .map(recording => ({ recording, status: recordingStatus(recording), title: title(recording.bookId) }))
+  .sort((a, b) => (a.recording.position ?? Infinity) - (b.recording.position ?? Infinity)));
+/** The queue offers the quick actions; the rest are on the book's page. */
+const QUEUE_ACTIONS: RecordingAction[] = ["pause", "resume", "retry"];
+async function syncAction(bookId: string, action: RecordingAction) {
+  try { if (action === "pause" || action === "resume" || action === "retry") await recordings.act(bookId, action); }
+  catch (e) { ui.toast(String(e), "error"); }
+}
 function settings() { emit("close"); navigation.openSettings("engine"); }
 </script>
 
@@ -60,6 +76,20 @@ function settings() { emit("close"); navigation.openSettings("engine"); }
         </li>
       </ol>
       <p v-else class="engine-queue__empty">Nothing is waiting. “Prepare whole book” on a book’s page makes all of its audio ahead of time.</p>
+    </section>
+
+    <section v-if="syncing.length" class="engine-queue__section">
+      <h3 class="engine-queue__heading">Syncing recordings</h3>
+      <ol class="engine-queue__list" aria-label="Recordings being synced">
+        <li v-for="{ recording, status, title: name } in syncing" :key="recording.bookId" class="engine-queue__row" :class="`engine-queue__row--${status.stage}`">
+          <button type="button" class="engine-queue__book" :title="`Open ${name}`" @click="openBook(recording.bookId)">{{ name }}</button>
+          <span class="engine-queue__actions">
+            <button v-for="action in status.actions.filter(a => QUEUE_ACTIONS.includes(a))" :key="action" type="button" class="engine-queue__icon" :aria-label="`${RECORDING_ACTION_LABELS[action]} ${name}`" :title="RECORDING_ACTION_LABELS[action]" @click="syncAction(recording.bookId, action)"><component :is="RECORDING_ACTION_ICONS[action]" :size="13" /></button>
+          </span>
+          <span class="engine-queue__track" aria-hidden="true"><i :style="{ width: `${status.percent ?? (status.working ? 100 : 0)}%` }" /></span>
+          <span class="engine-queue__meta">{{ status.label }}<template v-if="status.stage === 'transcribing' && status.detail"> · {{ status.detail }}</template><template v-else-if="status.stage === 'waiting' && status.detail"> · {{ status.detail }}</template></span>
+        </li>
+      </ol>
     </section>
 
     <footer class="engine-queue__foot">

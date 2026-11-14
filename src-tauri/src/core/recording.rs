@@ -1284,6 +1284,28 @@ impl Core {
         self.save_book_settings(id, settings).await
     }
 
+    /// Plays the book's recording from `at_ms` on its timeline (a stretch in the sync report).
+    pub async fn play_recording_at(&self, id: &str, at_ms: u64) -> Result<(), String> {
+        if !self.plays_recording(id, &self.book_settings(id)) {
+            return Err("choose the recording as the book's narration to listen to it".into());
+        }
+        let playing = lock(&self.session)
+            .as_ref()
+            .is_some_and(|s| s.target.book.id == id && s.recording().is_some());
+        if !playing {
+            self.play(id, None, None).await?;
+        }
+        let found = lock(&self.session).as_ref().and_then(|s| {
+            let clips = &s.recording()?.clips;
+            let index = clips.iter().position(|c| c.audio.contains(&at_ms))?;
+            Some((index, (at_ms - clips[index].audio.start) as u32))
+        });
+        let (index, offset) = found.ok_or("that time is not in the recording")?;
+        self.seek_at(index, Some(offset));
+        lock(&self.player).play();
+        self.ensure_output()
+    }
+
     /// Whether a book plays its recording.
     pub(super) fn plays_recording(&self, id: &str, settings: &BookSettings) -> bool {
         settings.narration == Some(Narration::Recording)

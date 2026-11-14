@@ -12,13 +12,29 @@ import BookDetailsView from "./views/BookDetailsView.vue";
 import MiniPlayer from "./components/player/MiniPlayer.vue";
 import UiHost from "./components/ui/UiHost.vue";
 import SettingsDialog from "./components/settings/SettingsDialog.vue";
+import PairRecordingDialog from "./components/recording/PairRecordingDialog.vue";
+import SyncReport from "./components/recording/SyncReport.vue";
 import { useLibraryStore } from "./stores/library";
 import { usePlayerStore } from "./stores/player";
 import { useNavigationStore } from "./stores/navigation";
 import { usePreferencesStore } from "./stores/preferences";
+import { useRecordingsStore } from "./stores/recordings";
+import { useReaderStore } from "./stores/reader";
+import { isAudioPath } from "./recording";
 import { useShortcuts } from "./composables/useShortcuts";
 
 const library = useLibraryStore(), player = usePlayerStore(), navigation = useNavigationStore(), preferences = usePreferencesStore();
+const recordings = useRecordingsStore(), reader = useReaderStore();
+/** Dropped EPUBs join the library; dropped audio (files or a folder) is paired with a book: the
+ *  one whose page or reader is open, unless the person picks another. */
+function dropped(paths: string[]) {
+  const books = paths.filter(path => /\.epub$/i.test(path)), audio = paths.filter(isAudioPath);
+  if (audio.length) {
+    const open = navigation.view === "book" ? navigation.bookId : navigation.view === "reader" ? reader.book?.id ?? null : null;
+    recordings.openPairing(audio, open);
+  }
+  if (books.length) { navigation.view = "library"; void library.importFiles(books); }
+}
 const dragging = ref(false), dropError = ref("");
 useShortcuts();
 // Screens cross-fade. The library keeps its scroll position for the way back; other screens
@@ -29,20 +45,20 @@ function placeScroll() { window.scrollTo(0, navigation.view === "library" ? libr
 const native = isTauri();
 let unlisten: (() => void) | undefined, disposed = false;
 onMounted(async () => {
-  void library.start(); void player.start(); void preferences.start();
+  void library.start(); void player.start(); void preferences.start(); void recordings.start();
   if (native) {
     try {
       const off = await getCurrentWebview().onDragDropEvent(event => {
         // Only files from outside: a drag that starts inside the window carries no paths.
         const type = event.payload.type;
         dragging.value = type === "enter" ? event.payload.paths.length > 0 : type === "over" && dragging.value;
-        if (event.payload.type === "drop") { navigation.view = "library"; void library.importFiles(event.payload.paths.filter(path => /\.epub$/i.test(path))); }
+        if (event.payload.type === "drop") dropped(event.payload.paths);
       });
       if (disposed) off(); else unlisten = off;
     } catch (e) { dropError.value = `File drop unavailable: ${String(e)}`; }
   }
 });
-onUnmounted(() => { disposed = true; unlisten?.(); window.removeEventListener("blur", endDrag); void Promise.all([library.start(), player.start()]).then(() => { library.dispose(); player.dispose(); preferences.dispose(); }); });
+onUnmounted(() => { disposed = true; unlisten?.(); window.removeEventListener("blur", endDrag); void Promise.all([library.start(), player.start()]).then(() => { library.dispose(); player.dispose(); preferences.dispose(); recordings.dispose(); }); });
 // The browser path: only drags that carry files count, and nested enter/leave pairs are
 // counted so moving over child elements does not flicker or strand the overlay.
 let depth = 0;
@@ -55,9 +71,7 @@ window.addEventListener("blur", endDrag);
 function browserDrop(event: DragEvent) {
   endDrag();
   if (native || !carriesFiles(event)) return;
-  const files = Array.from(event.dataTransfer?.files ?? []).filter(file => /\.epub$/i.test(file.name));
-  navigation.view = "library";
-  void library.importFiles(files.map(file => file.name));
+  dropped(Array.from(event.dataTransfer?.files ?? []).map(file => file.name));
 }
 </script>
 
@@ -77,6 +91,8 @@ function browserDrop(event: DragEvent) {
     <DropOverlay v-if="dragging" />
     <MiniPlayer />
     <SettingsDialog v-if="navigation.settingsOpen" />
+    <PairRecordingDialog v-if="recordings.pairing" :key="recordings.pairing.paths.join('|')" />
+    <SyncReport v-if="recordings.report" :key="recordings.report" />
     <UiHost />
   </div>
 </template>

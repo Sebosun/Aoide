@@ -289,6 +289,10 @@ export interface AoideApi {
   recognitionOptions(): Promise<RecognitionOptions>;
   /** Downloads a speech-recognition model (progress on "model://download"). */
   downloadModel(modelId: string): Promise<void>;
+  /** The system's file chooser for audiobook files (or a folder); null when cancelled. */
+  chooseAudio(folder: boolean): Promise<string[] | null>;
+  /** Plays the book's recording from a time on its timeline (needs the recording narration). */
+  playRecordingAt(bookId: string, atMs: number): Promise<void>;
   onSyncState(handler: (recording: RecordingView) => void): Promise<() => void>;
   onModelDownload(handler: (download: ModelDownloadView) => void): Promise<() => void>;
 }

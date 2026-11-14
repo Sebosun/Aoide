@@ -7,6 +7,8 @@ import CoverArt from "../components/CoverArt.vue";
 import UiSkeleton from "../components/ui/UiSkeleton.vue";
 import MetadataLookup from "../components/book/MetadataLookup.vue";
 import BookListening from "../components/book/BookListening.vue";
+import RecordingPanel from "../components/recording/RecordingPanel.vue";
+import { useRecordingsStore } from "../stores/recordings";
 import { formatBytes } from "../bytes";
 import { formatDuration, speechMs } from "../estimate";
 import { useLibraryStore } from "../stores/library";
@@ -21,6 +23,11 @@ const props = defineProps<{ bookId: string }>();
 const library = useLibraryStore(), navigation = useNavigationStore(), player = usePlayerStore(), reader = useReaderStore();
 const overview = ref<BookView | null>(null), details = ref<BookDetails | null>(null), listening = ref<DayListening[]>([]), error = ref("");
 const expanded = ref(false);
+const recordings = useRecordingsStore(), narration = ref<"speech" | "recording">("speech");
+/** The book plays its synced recording: nothing is prepared or exported with a speech engine. */
+const recorded = computed(() => narration.value === "recording" && recordings.byBook[props.bookId]?.stage === "ready");
+onMounted(async () => { try { narration.value = (await api.bookSettings(props.bookId)).narration ?? "speech"; } catch { /* the page still shows */ } });
+watch(() => recordings.byBook[props.bookId]?.stage, async stage => { if (stage === "ready") narration.value = (await api.bookSettings(props.bookId)).narration ?? "speech"; });
 const loading = computed(() => !overview.value && !error.value);
 onMounted(async () => {
   try {
@@ -55,7 +62,8 @@ const facts = computed(() => {
   if (info?.publisher) list.push(["Publisher", info.publisher]);
   if (info?.published) list.push(["Published", info.published]);
   if (info?.isbn) list.push(["ISBN", info.isbn]);
-  if (audio.value) list.push(["Audio", audio.value]);
+  if (recorded.value) list.push(["Narration", "The paired recording"]);
+  else if (audio.value) list.push(["Audio", audio.value]);
   return list;
 });
 /** Each chapter's audio, refreshed while the book is being prepared (at most every 2 s). */
@@ -107,7 +115,7 @@ async function chapter(index: number) {
         <div class="book-page__actions">
           <button v-if="progress" type="button" class="book-page__start" aria-label="Resume listening" @click="start"><Play :size="18" fill="currentColor" /> Resume</button>
           <button v-else type="button" class="book-page__start" aria-label="Start listening" @click="start"><Play :size="18" fill="currentColor" /> Start listening</button>
-          <button v-if="summary && preparation.actions.includes('prepare')" type="button" class="book-page__secondary" :aria-label="ACTION_LABELS.prepare" @click="runPrepareAction(bookId, 'prepare')"><Sparkles :size="16" /> {{ ACTION_LABELS.prepare }}</button>
+          <button v-if="summary && !recorded && preparation.actions.includes('prepare')" type="button" class="book-page__secondary" :aria-label="ACTION_LABELS.prepare" @click="runPrepareAction(bookId, 'prepare')"><Sparkles :size="16" /> {{ ACTION_LABELS.prepare }}</button>
           <span v-if="progress" class="book-page__progress"><span class="book-page__track"><i :style="{ width: `${percent}%` }" /></span>{{ percent }}% listened</span>
         </div>
         <template v-if="loading">
@@ -139,11 +147,13 @@ async function chapter(index: number) {
             </button>
             <span v-if="chapterState(c.index).kind === 'ready'" class="book-page__chapter-audio book-page__chapter-audio--ready" title="This chapter's audio is made: it plays at once, even offline"><Check :size="14" aria-hidden="true" /> Ready</span>
             <span v-else-if="chapterState(c.index).kind === 'queued'" class="book-page__chapter-audio">{{ (chapterState(c.index) as { label: string }).label }}</span>
-            <button v-else-if="chapterState(c.index).kind === 'none'" type="button" class="book-page__chapter-prepare" :aria-label="`Prepare chapter ${i + 1}: ${c.title}`" title="Prepare this chapter" @click="prepareOne(c.index)"><Sparkles :size="14" aria-hidden="true" /></button>
+            <button v-else-if="!recorded && chapterState(c.index).kind === 'none'" type="button" class="book-page__chapter-prepare" :aria-label="`Prepare chapter ${i + 1}: ${c.title}`" title="Prepare this chapter" @click="prepareOne(c.index)"><Sparkles :size="14" aria-hidden="true" /></button>
           </li>
         </ol>
       </section>
       <section class="book-page__card book-page__side">
+        <h2 class="book-page__heading">Recording</h2>
+        <RecordingPanel class="book-page__recording" :book-id="bookId" />
         <BookListening v-if="listening.length" class="book-page__listening" :days="listening" :word-count="overview.wordCount" :fraction="progress?.fraction ?? 0" :speed="player.state.speed" />
         <h2 class="book-page__heading">Details online</h2>
         <MetadataLookup :book-id="bookId" :matched="Boolean(details?.openLibraryKey)" @applied="details = $event" />
@@ -183,7 +193,7 @@ async function chapter(index: number) {
 .book-page__subjects { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; list-style: none; }
 .book-page__subjects li { padding: 4px 10px; border-radius: 999px; background: var(--wash); color: var(--dim); font-size: 12px; font-weight: 600; }
 .book-page__lower { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-.book-page__listening { padding-bottom: 16px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+.book-page__listening, .book-page__recording { padding-bottom: 16px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
 .book-page__card { display: grid; gap: 12px; padding: 20px; border-radius: 20px; background: var(--page); }
 .book-page__heading { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
 .book-page__chapters li { display: flex; align-items: center; gap: 6px; }

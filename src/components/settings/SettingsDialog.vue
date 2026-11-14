@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, type Component } from "vue";
-import { AudioLines, HardDrive, Highlighter, Info, Library, Palette, X } from "@lucide/vue";
+import { AudioLines, HardDrive, Headphones, Highlighter, Info, Library, Palette, X } from "@lucide/vue";
 import UiDialog from "../ui/UiDialog.vue";
 import AppearanceSettings from "./AppearanceSettings.vue";
 import EngineSettings from "./EngineSettings.vue";
 import LibrarySettings from "./LibrarySettings.vue";
 import WordTimingSettings from "./WordTimingSettings.vue";
+import RecordingSettings from "./RecordingSettings.vue";
 import StorageSettings from "./StorageSettings.vue";
 import AboutSettings from "./AboutSettings.vue";
 import { useNavigationStore, type SettingsTab } from "../../stores/navigation";
@@ -17,6 +18,7 @@ const navigation = useNavigationStore(), preferences = usePreferencesStore();
 const tabs: { id: SettingsTab; label: string; icon: Component; panel: Component }[] = [
   { id: "appearance", label: "Appearance", icon: Palette, panel: AppearanceSettings },
   { id: "engine", label: "Speech engine", icon: AudioLines, panel: EngineSettings },
+  { id: "recordings", label: "Recordings", icon: Headphones, panel: RecordingSettings },
   { id: "library", label: "Library", icon: Library, panel: LibrarySettings },
   { id: "highlighting", label: "Word highlighting", icon: Highlighter, panel: WordTimingSettings },
   { id: "storage", label: "Storage", icon: HardDrive, panel: StorageSettings },

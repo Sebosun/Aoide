@@ -458,6 +458,12 @@ export function createMockApi() {
       downloadHandlers.forEach(h => h({ id: modelId, stage: "done", doneBytes: total, totalBytes: total, error: null }));
       for (const r of recordings.values()) if (r.stage === "needsModel") { emitSync({ ...r, stage: "transcribing" }); simulateSync(r.bookId); }
     },
+    async chooseAudio(folder) { return folder ? ["~/Audiobooks/The Lantern Keeper"] : ["~/Audiobooks/the-lantern-keeper.m4b"]; },
+    async playRecordingAt(bookId, atMs) {
+      if (settings.get(bookId)?.narration !== "recording") throw new Error("choose the recording as the book's narration to listen to it");
+      const list = chapters[Number(bookId.split("-")[1])] ?? [];
+      await api.play(bookId, Math.min(list.length - 1, Math.floor(atMs / hour)), null);
+    },
     onSyncState: h => subscribe(syncHandlers, h),
     onModelDownload: h => subscribe(downloadHandlers, h),
   };
@@ -466,5 +472,11 @@ export function createMockApi() {
   const setAudioForTest = (id: string, bytes: number) => { getBook(id).audioBytes = bytes; changed(); };
   /** A book left in the queue by an earlier run that has not started again (resuming at startup is off). */
   const queueWaitingForTest = (id: string) => { prepareQueue.push({ id, stage: "waiting", chapters: null }); getBook(id).prepare = { state: "waiting", done: 0, total: 0, position: 0, chapters: null }; settlePrepare(); };
-  return Object.assign(api, { setProgressForTest, setAudioForTest, queueWaitingForTest, dispose: () => { halt(); clearInterval(syncTimer); }, emitPlayer, emitGeneration, emitConfig, emitEngine: (s: EngineStatusView) => engineHandlers.forEach(h => h({ ...s })) });
+  /** Gives a book a recording in a stage (and, when ready, the recording as its narration). */
+  const setRecordingForTest = (id: string, stage: SyncStage, narration: "speech" | "recording" | null = stage === "ready" ? "recording" : null) => {
+    emitSync(recordingIn(id, stage));
+    settings.set(id, { voiceId: null, params: {}, language: null, readNotes: false, ...settings.get(id), narration });
+    changed();
+  };
+  return Object.assign(api, { setRecordingForTest, setProgressForTest, setAudioForTest, queueWaitingForTest, dispose: () => { halt(); clearInterval(syncTimer); }, emitPlayer, emitGeneration, emitConfig, emitEngine: (s: EngineStatusView) => engineHandlers.forEach(h => h({ ...s })) });
 }

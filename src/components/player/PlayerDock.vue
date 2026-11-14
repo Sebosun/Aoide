@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Bookmark, Pause, Play, SkipBack, SkipForward, SlidersHorizontal, Square } from "@lucide/vue";
+import { Bookmark, Headphones, Pause, Play, SkipBack, SkipForward, SlidersHorizontal, Square } from "@lucide/vue";
 import CoverArt from "../CoverArt.vue";
 import PlayerScrubber from "./PlayerScrubber.vue";
 import SpeedPill from "./SpeedPill.vue";
@@ -11,7 +11,7 @@ import { usePlayerControls } from "../../composables/usePlayerControls";
 /** One-row transport docked under the page (Sheet reader). */
 const emit = defineEmits<{ tools: [] }>();
 const controls = usePlayerControls();
-const { player, active, book, timeLeft, ahead, percent, toggle, seek, step, bookmark, status, detail, error } = controls;
+const { player, active, recording, book, timeLeft, ahead, percent, toggle, seek, step, bookmark, status, detail, error } = controls;
 const canPlay = computed(() => Boolean(controls.bookId.value));
 </script>
 
@@ -25,7 +25,7 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
     </div>
     <div class="dock__middle">
       <PlayerScrubber :played="player.state.chapterFraction" :ahead="ahead" :start="`${percent}%`" :end="timeLeft" :detail="detail" :disabled="!player.state.bookId" @seek="seek" @step="step" />
-      <p class="dock__status" aria-live="polite"><span v-if="error" class="dock__error" role="alert">{{ error }}</span><span v-if="status">{{ status }}</span></p>
+      <p class="dock__status" aria-live="polite"><span v-if="recording" class="dock__source" title="The narrator's recording is playing"><Headphones :size="12" aria-hidden="true" /> Recording</span><span v-if="error" class="dock__error" role="alert">{{ error }}</span><span v-if="status">{{ status }}</span></p>
     </div>
     <div class="dock__end">
       <SpeedPill />
@@ -33,7 +33,7 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
       <VolumeControl />
       <span class="dock__divider" aria-hidden="true" />
       <button type="button" class="dock__round" aria-label="Add bookmark" title="Bookmark this sentence" :disabled="!canPlay" @click="bookmark"><Bookmark :size="16" /></button>
-      <button type="button" class="dock__round" aria-label="Book tools" aria-haspopup="dialog" title="Bookmarks, search, voice and details" @click="emit('tools')"><SlidersHorizontal :size="16" /></button>
+      <button type="button" class="dock__round" aria-label="Book tools" aria-haspopup="dialog" title="Bookmarks, search, narration and details" @click="emit('tools')"><SlidersHorizontal :size="16" /></button>
       <button type="button" class="dock__round" aria-label="Stop" title="Stop" :disabled="!player.state.bookId" @click="player.stop"><Square :size="15" /></button>
     </div>
   </section>
@@ -50,6 +50,7 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
 .dock__status span { overflow: hidden; text-overflow: ellipsis; }
 .dock__status:empty { display: none; }
 .dock__error { color: var(--accent); flex-shrink: 0; max-width: 60%; }
+.dock__source { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--accent); }
 .dock__end { display: flex; align-items: center; gap: 8px; }
 .dock__end > * { flex: none; }
 .dock__divider { width: 1px; height: 20px; margin: 0 2px; background: var(--line); }

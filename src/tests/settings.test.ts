@@ -37,7 +37,7 @@ it("opens settings from the gear as a modal with a tab per section, and Escape c
   const dialog = wrapper.get('[role="dialog"][aria-label="Settings"]');
   expect(dialog.attributes("aria-modal")).toBe("true");
   expect(dialog.get('[role="tablist"]').attributes("aria-orientation")).toBe("vertical");
-  expect(tabNames(wrapper)).toEqual(["Appearance", "Speech engine", "Library", "Word highlighting", "Storage", "About"]);
+  expect(tabNames(wrapper)).toEqual(["Appearance", "Speech engine", "Recordings", "Library", "Word highlighting", "Storage", "About"]);
   expect(selected(wrapper).text()).toBe("Appearance");
   expect(document.activeElement).toBe(selected(wrapper).element);
   expect(wrapper.findAll(".book-card").length).toBe(4);

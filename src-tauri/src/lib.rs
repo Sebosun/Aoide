@@ -480,6 +480,40 @@ async fn download_model(core: CoreState<'_>, model_id: String) -> Result<(), Str
     core.download_model(&model_id).await
 }
 
+#[tauri::command]
+async fn play_recording_at(core: CoreState<'_>, book_id: String, at_ms: u64) -> Result<(), String> {
+    let core = Arc::clone(&core);
+    core.play_recording_at(&book_id, at_ms).await
+}
+
+/// The system's file chooser for audiobook files, or a folder of them. `None` when cancelled.
+#[tauri::command]
+async fn choose_audio(app: tauri::AppHandle, folder: bool) -> Option<Vec<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let dialog = app.dialog().file();
+    if folder {
+        dialog
+            .set_title("Choose the audiobook's folder")
+            .pick_folder(move |picked| {
+                let _ = tx.send(picked.map(|p| vec![p.to_string()]));
+            });
+    } else {
+        dialog
+            .set_title("Choose the audiobook's files")
+            .add_filter(
+                "Audiobooks",
+                &[
+                    "m4b", "m4a", "mp4", "aac", "mp3", "flac", "ogg", "oga", "opus", "wav",
+                ],
+            )
+            .pick_files(move |picked| {
+                let _ = tx.send(picked.map(|files| files.iter().map(|p| p.to_string()).collect()));
+            });
+    }
+    rx.await.ok().flatten()
+}
+
 async fn blocking<T: Send + 'static>(
     f: impl FnOnce() -> Result<T, String> + Send + 'static,
 ) -> Result<T, String> {
@@ -655,6 +689,7 @@ fn smoke(app: tauri::AppHandle, core: Arc<Core>, seconds: u64) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let path = app.path();
             let data = path.app_data_dir()?;
@@ -790,6 +825,8 @@ pub fn run() {
             set_narration,
             recognition_options,
             download_model,
+            choose_audio,
+            play_recording_at,
             lookup_metadata,
             scan_for_books,
             cancel_scan,

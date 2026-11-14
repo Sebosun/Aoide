@@ -355,3 +355,31 @@ async fn moved_audio_makes_the_recording_missing_until_it_is_back() {
     sync(&again);
     assert_eq!(stage(&again, &f.id), Some(Stage::Ready));
 }
+
+#[tokio::test]
+async fn a_stretch_of_the_recording_plays_from_its_time() {
+    let f = fixture().await;
+    put_model(&f.root);
+    let words = read(&texts(&f.core, &f.id), 0);
+    let second_chapter = words
+        .iter()
+        .find(|(_, _, w)| w.as_str() == "Lamp")
+        .unwrap()
+        .0;
+    let total = words.last().unwrap().1 + 500;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    sync(&f.core);
+
+    f.core
+        .play_recording_at(&f.id, second_chapter + 100)
+        .await
+        .unwrap();
+    let state = f.core.player_state();
+    assert_eq!(state.chapter, 1, "{state:?}");
+    assert_eq!(state.source, Narration::Recording);
+    f.core.stop();
+}

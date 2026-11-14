@@ -49,6 +49,7 @@ rayon = "1"
 reflink-copy = "0.1"
 souvlaki = { version = "0.8.3", default-features = false, features = ["use_zbus"] }
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
 
 [dev-dependencies]
 aoide-tts = { path = "../crates/tts", features = ["testing", "ts"] }

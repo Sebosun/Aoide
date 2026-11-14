@@ -82,6 +82,8 @@ export const tauriApi: AoideApi = {
   setNarration: (bookId, narration) => invoke("set_narration", { bookId, narration }),
   recognitionOptions: () => invoke("recognition_options"),
   downloadModel: modelId => invoke("download_model", { modelId }),
+  chooseAudio: folder => invoke("choose_audio", { folder }),
+  playRecordingAt: (bookId, atMs) => invoke("play_recording_at", { bookId, atMs }),
   onSyncState: h => on("sync://state", h),
   onModelDownload: h => on("model://download", h),
 };
