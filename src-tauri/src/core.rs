@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aoide_audio::output::{OutputCommand, PipeOutput};
-use aoide_audio::{codec, Entry, Pcm, PlayerCore, Status};
+use aoide_audio::{codec, Pcm, PlayerCore, Status};
 use aoide_generation::{
     buffered_ahead_ms, estimate_ms, plan, Job, Listening, PlanItem, Preparing, SegmentStore,
     WorkItem, Worker, WorkerEvent, WorkerOptions,
@@ -38,6 +38,7 @@ mod export;
 mod extras;
 mod feeder;
 mod metadata;
+mod narration;
 mod preparation;
 mod read_along;
 mod recording;
@@ -271,21 +272,10 @@ pub struct ChapterAudioView {
     pub total: usize,
 }
 
-/// A book and its generation plan.
+/// A book and how each of its entries is narrated.
 struct Target {
     book: Arc<BookModel>,
-    plan: Plan,
-    /// Where the audio comes from. A recording's plan has every item made.
-    source: Source,
-}
-
-/// Where a target's audio comes from.
-#[derive(Clone)]
-enum Source {
-    /// A speech engine, through the generation plan.
-    Speech,
-    /// A synced recording, decoded clip by clip.
-    Recording(Arc<recording::RecordingPlan>),
+    narration: narration::NarrationPlan,
 }
 
 /// Per-book overrides of the global engine profile.
@@ -1284,32 +1274,18 @@ impl Core {
             None => {
                 self.ensure_voice().await?;
                 self.ensure_model().await;
-                self.build_target(Arc::clone(&book))?
+                let plan = self.speech_plan(&book)?;
+                Target {
+                    narration: narration::NarrationPlan::speech(&book, plan),
+                    book: Arc::clone(&book),
+                }
             }
         };
-        let entries = (0..book.total_entries())
-            .map(|i| {
-                let segment = book.segment(i).expect("index in range");
-                match &target.source {
-                    // The clips run on into each other: their pauses are in the recording.
-                    Source::Recording(_) if target.plan.requests[i].is_none() => Entry {
-                        id: segment.id.clone(),
-                        speakable: target.plan.items[i].speakable,
-                        pause_after_ms: 0,
-                    },
-                    // Spoken by the engine: a whole book, or what its recording lacks.
-                    _ => Entry {
-                        id: segment.id.clone(),
-                        speakable: !segment.speech.is_empty(),
-                        pause_after_ms: segment.pause_after_ms,
-                    },
-                }
-            })
-            .collect();
-        let offset = match &target.source {
-            Source::Recording(plan) => plan.start_offset(start),
-            Source::Speech => 0,
-        };
+        let entries = target.narration.player_entries(&book);
+        let offset = target
+            .narration
+            .recording_plan()
+            .map_or(0, |plan| plan.start_offset(start));
         {
             let mut player = lock(&self.player);
             player.load(entries, start);
@@ -1481,8 +1457,8 @@ impl Core {
     /// Deletes a book's generated audio; it will be regenerated on demand.
     pub async fn regenerate_book(&self, id: &str) -> Result<(), String> {
         // The worker skips keys it made in this run unless told they are gone.
-        if let Ok(target) = self.load_book(id).and_then(|book| self.build_target(book)) {
-            lock(&self.worker).forget(target.plan.items.into_iter().map(|item| item.key));
+        if let Ok(plan) = self.load_book(id).and_then(|book| self.speech_plan(&book)) {
+            lock(&self.worker).forget(plan.items.into_iter().map(|item| item.key));
         }
         let files = lock(&self.library)
             .delete_book_segments(&BookId(id.into()))
@@ -1567,19 +1543,20 @@ impl Core {
             if lock(&self.engine).voice.is_none() && self.book_settings(&id).voice_id.is_none() {
                 continue; // Voice not known yet; planned once playback or preparation resolves it.
             }
-            let built = self.load_book(&id).and_then(|book| self.build_target(book));
+            let built = self
+                .load_book(&id)
+                .and_then(|book| Ok((self.speech_plan(&book)?, book)));
             let mut preparation = lock(&self.preparation);
             let library = lock(&self.library);
             match built {
-                Ok(mut target) => {
+                Ok((mut plan, book)) => {
                     if let Some(chapters) = preparation.chapters(&id) {
-                        let book = &target.book;
-                        target.plan.only(|index| {
+                        plan.only(|index| {
                             book.locate(index)
                                 .is_some_and(|(c, _)| chapters.contains(&c))
                         });
                     }
-                    preparation.planned(&library, &id, target.plan)
+                    preparation.planned(&library, &id, plan)
                 }
                 Err(error) => {
                     eprintln!("aoide: cannot prepare {id}: {error}");
@@ -1614,9 +1591,9 @@ impl Core {
     pub async fn chapter_audio(&self, id: &str) -> Result<Vec<ChapterAudioView>, String> {
         let book = self.load_book(id)?;
         let _ = self.ensure_voice().await; // Without a voice nothing can be cached yet.
-        let target = self.build_target(Arc::clone(&book))?;
+        let plan = self.speech_plan(&book)?;
         let mut chapters = vec![ChapterAudioView { done: 0, total: 0 }; book.chapters.len()];
-        for (index, item) in target.plan.items.iter().enumerate() {
+        for (index, item) in plan.items.iter().enumerate() {
             let Some((chapter, _)) = book.locate(index) else {
                 continue;
             };
@@ -1633,7 +1610,8 @@ impl Core {
         preparation.view(&lock(&self.library), id)
     }
 
-    fn build_target(&self, book: Arc<BookModel>) -> Result<Target, String> {
+    /// The speech engine's plan for reading all of `book` in its voice and settings.
+    fn speech_plan(&self, book: &BookModel) -> Result<Plan, String> {
         let settings = self.book_settings(&book.id);
         let engine = lock(&self.engine);
         let descriptor = engine.engine.descriptor().clone();
@@ -1688,11 +1666,7 @@ impl Core {
                 }
             })
             .collect();
-        Ok(Target {
-            book,
-            plan: Plan { items, requests },
-            source: Source::Speech,
-        })
+        Ok(Plan { items, requests })
     }
 
     fn seek(&self, index: usize) {
@@ -1735,7 +1709,7 @@ impl Core {
         // A recording is not made by the speech engine, only the text it lacks when asked to
         // speak that (the rest waits for its sync).
         let speech = session.as_ref().filter(|s| s.speaks());
-        let speech_items = speech.map(|s| s.target.plan.speech_items());
+        let speech_items = speech.map(|s| s.target.narration.speech_items());
         let listening = speech
             .zip(speech_items.as_ref())
             .map(|(s, items)| Listening {
@@ -1756,17 +1730,19 @@ impl Core {
         let work = jobs
             .into_iter()
             .filter_map(|job| {
-                let requests = match session.as_ref() {
-                    Some(s) if s.target.book.id == job.book => &s.target.plan.requests,
-                    _ => {
-                        &planned
-                            .iter()
-                            .find(|(book, _)| *book == job.book)?
-                            .1
-                            .requests
+                let request = match session.as_ref() {
+                    Some(s) if s.target.book.id == job.book => {
+                        s.target.narration.request(job.index)
                     }
-                };
-                let request = requests.get(job.index)?.clone()?;
+                    _ => planned
+                        .iter()
+                        .find(|(book, _)| *book == job.book)?
+                        .1
+                        .requests
+                        .get(job.index)?
+                        .as_ref(),
+                }?
+                .clone();
                 Some(WorkItem { job, request })
             })
             .collect();
@@ -2104,14 +2080,13 @@ impl Core {
         }
     }
 
-    /// Decodes cached audio near the playhead into the player. Returns the playhead index.
     /// Gives the player decoded audio for made entries near the playhead, and lets it release
     /// audio far behind. Returns the playhead.
     fn provide_audio(&self) -> Option<usize> {
         let index = lock(&self.player).position().index;
         let recording = lock(&self.session).as_ref()?.recording().is_some();
         if recording {
-            self.provide_recording(index)?;
+            self.provide_recording(index);
         }
         let wanted = lock(&self.session).as_ref()?.wanted_speech(index);
         let mut align = Vec::new();
@@ -2147,8 +2122,10 @@ impl Core {
 
     /// Gives the player the recording's clips near the playhead as the feeder decodes them, and
     /// asks the aligner (when there is one) for their exact word times.
-    fn provide_recording(&self, index: usize) -> Option<usize> {
-        let pieces = lock(&self.session).as_mut()?.feed(index);
+    fn provide_recording(&self, index: usize) {
+        let Some(pieces) = lock(&self.session).as_mut().map(|s| s.feed(index)) else {
+            return;
+        };
         self.align_recording_clips();
         if !pieces.is_empty() {
             let mut player = lock(&self.player);
@@ -2165,11 +2142,6 @@ impl Core {
                 }
             }
         }
-        let release = lock(&self.session).as_mut()?.release_behind(index);
-        if let Some(before) = release {
-            lock(&self.player).release_before(before);
-        }
-        Some(index)
     }
 
     pub(crate) fn player_state(&self) -> PlayerStateView {
@@ -2236,17 +2208,11 @@ impl Core {
                     .chapters
                     .get(chapter)
                     .map_or(index..index, |c| index..c.first_entry + c.segments.len());
-                let items = session.target.plan.items.get(entries).unwrap_or_default();
-                // Not known while part of the chapter waits for the sync.
-                if items.iter().any(|item| item.speakable && !item.cached) {
-                    return None;
-                }
-                let audio: u64 = items.iter().map(|item| u64::from(item.duration_ms)).sum();
+                let audio = session.target.narration.playing_ms(entries)?;
                 let left = audio.saturating_sub(u64::from(position.offset_ms));
                 Some((left as f64 / f64::from(speed.max(0.1))) as u64)
             }),
-            waiting_for_sync: session.recording().is_some()
-                && session.target.plan.waits_for_sync(index),
+            waiting_for_sync: session.target.narration.waits_for_sync(index),
         }
     }
 

@@ -374,10 +374,10 @@ impl Core {
         }
         let book = self.load_book(id)?;
         let target = self.build_recording_target(Arc::clone(&book))?;
-        let Source::Recording(plan) = &target.source else {
-            return Err("the book has no synced recording".into());
-        };
-        let plan: &RecordingPlan = plan;
+        let plan: &RecordingPlan = target
+            .narration
+            .recording_plan()
+            .ok_or("the book has no synced recording")?;
         let carried: Vec<Carry> = plan
             .files
             .iter()

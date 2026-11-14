@@ -10,8 +10,9 @@ use aoide_library::WordTiming;
 use aoide_text::WordEstimate;
 
 use super::feeder::{Fed, Feeder};
+use super::narration::Followed;
 use super::recording::{clip_audio, RecordingPlan};
-use super::{Source, Target};
+use super::Target;
 use crate::book::word_index;
 
 /// Decoded audio kept ready ahead of the playhead.
@@ -46,14 +47,11 @@ struct Feed {
 impl Session {
     /// A recording's session decodes its clips at `rate` on a feeder thread.
     pub fn new(target: Target, start: usize, rate: u32) -> Self {
-        let feed = match &target.source {
-            Source::Speech => None,
-            Source::Recording(plan) => Some(Feed {
-                feeder: Feeder::spawn(plan.files.clone(), rate),
-                generation: 0,
-                finished: HashSet::new(),
-            }),
-        };
+        let feed = target.narration.recording_plan().map(|plan| Feed {
+            feeder: Feeder::spawn(plan.files.clone(), rate),
+            generation: 0,
+            finished: HashSet::new(),
+        });
         Self {
             target,
             feed,
@@ -66,18 +64,15 @@ impl Session {
         }
     }
 
-    /// Entries from the playhead on whose audio is made but not given to the player yet, with
-    /// their cache keys, nearest first.
-    pub fn wanted(&self, playhead: usize) -> Vec<(usize, String)> {
-        let items = &self.target.plan.items;
-        let end = (playhead + PROVIDE_AHEAD).min(items.len());
-        (playhead.min(end)..end)
-            .filter(|i| {
-                let item = &items[*i];
-                item.speakable && item.cached && !self.provided.contains(i)
-            })
-            .map(|i| (i, items[i].key.clone()))
-            .collect()
+    /// Entries from the playhead on said by the speech engine whose audio is made but not given
+    /// to the player yet, with their cache keys, nearest first.
+    pub fn wanted_speech(&self, playhead: usize) -> Vec<(usize, String)> {
+        let mut wanted = self
+            .target
+            .narration
+            .made_speech(playhead..playhead + PROVIDE_AHEAD);
+        wanted.retain(|(i, _)| !self.provided.contains(i));
+        wanted
     }
 
     /// The player now has audio for `index`. Uses stored word timings when they fit the words,
@@ -135,46 +130,23 @@ impl Session {
 
     /// The playhead's entry waits for the recording's sync to reach it.
     pub fn waiting_for_sync(&self) -> bool {
-        self.recording().is_some() && self.target.plan.waits_for_sync(self.last_index)
+        self.target.narration.waits_for_sync(self.last_index)
     }
 
-    /// Like [`Session::wanted`], only entries spoken by the speech engine: all of a book read
-    /// by one, the text a recording lacks when it is asked to speak that.
-    pub fn wanted_speech(&self, playhead: usize) -> Vec<(usize, String)> {
-        let requests = &self.target.plan.requests;
-        self.wanted(playhead)
-            .into_iter()
-            .filter(|(i, _)| requests.get(*i).is_some_and(Option::is_some))
-            .collect()
-    }
-
-    /// Whether the speech engine speaks any of this session's entries.
+    /// Whether the speech engine says any of this session's entries.
     pub fn speaks(&self) -> bool {
-        self.target.plan.requests.iter().any(Option::is_some)
+        self.target.narration.speaks()
     }
 
     /// The recording's sync went further: plays by `target` from now on. Audio already given to
-    /// the player stays. Returns the entries that waited for the sync but turned out not to be
-    /// in the recording, which the player should pass over.
-    pub fn follow(&mut self, target: Target) -> Vec<usize> {
-        let before = std::mem::replace(&mut self.target.plan, target.plan);
-        self.target.source = target.source;
+    /// the player stays.
+    pub fn follow(&mut self, target: Target) -> Followed {
         self.followed = Instant::now();
-        before
-            .items
-            .iter()
-            .zip(&self.target.plan.items)
-            .enumerate()
-            .filter(|(_, (was, now))| was.speakable && !was.cached && !now.speakable)
-            .map(|(index, _)| index)
-            .collect()
+        self.target.narration.follow(target.narration)
     }
 
     pub fn recording(&self) -> Option<&Arc<RecordingPlan>> {
-        match &self.target.source {
-            Source::Recording(plan) => Some(plan),
-            Source::Speech => None,
-        }
+        self.target.narration.recording_plan()
     }
 
     /// For a recording: asks the feeder for the clips near the playhead it was not asked for,
@@ -183,7 +155,12 @@ impl Session {
         let Some(plan) = self.recording().cloned() else {
             return Vec::new();
         };
-        for (index, _) in self.wanted(playhead) {
+        let mut clips = self
+            .target
+            .narration
+            .clips(playhead..playhead + PROVIDE_AHEAD);
+        clips.retain(|i| !self.provided.contains(i));
+        for index in clips {
             let Some(audio) = clip_audio(&plan, index) else {
                 continue;
             };
@@ -227,25 +204,22 @@ impl Session {
 
     /// The word being spoken `offset_ms` into entry `index`, if its audio is playing.
     pub fn word_at(&self, index: usize, offset_ms: u32) -> Option<usize> {
-        let item = self.target.plan.items.get(index)?;
-        if !item.speakable || !item.cached {
-            return None;
-        }
+        let duration_ms = self.target.narration.audio_ms(index)?;
         word_index(
             self.timings.get(&index).map(Vec::as_slice),
             self.target.book.segment(index)?,
-            item.duration_ms,
+            duration_ms,
             offset_ms,
         )
     }
 
     pub fn segment_made(&mut self, key: &str, duration_ms: u32) {
-        self.target.plan.mark_cached(key, duration_ms);
+        self.target.narration.segment_made(key, duration_ms);
     }
 
     /// Audio was deleted (cache limit, regenerate): it has to be made again.
     pub fn audio_lost(&mut self, keys: &HashSet<String>) {
-        self.target.plan.mark_lost(keys);
+        self.target.narration.audio_lost(keys);
     }
 }
 
@@ -257,6 +231,7 @@ mod tests {
 
     use super::*;
     use crate::book::BookModel;
+    use crate::core::narration::NarrationPlan;
     use crate::core::preparation::Plan;
 
     /// The test book (four entries: heading, paragraph, heading, paragraph) with entry 2's audio
@@ -271,14 +246,20 @@ mod tests {
                 duration_ms: 2_000,
             })
             .collect();
+        let requests = (0..book.total_entries())
+            .map(|i| {
+                Some(aoide_tts::SynthesisRequest {
+                    text: format!("entry {i}"),
+                    voice_id: "v".into(),
+                    language: None,
+                    params: Default::default(),
+                })
+            })
+            .collect();
         Session::new(
             Target {
+                narration: NarrationPlan::speech(&book, Plan { items, requests }),
                 book,
-                plan: Plan {
-                    items,
-                    requests: vec![],
-                },
-                source: Source::Speech,
             },
             0,
             48_000,
@@ -300,12 +281,12 @@ mod tests {
     fn wants_made_audio_from_the_playhead_that_the_player_does_not_have() {
         let mut s = session();
         assert_eq!(
-            s.wanted(0),
+            s.wanted_speech(0),
             [(0, "k0".into()), (1, "k1".into()), (3, "k3".into())]
         );
         s.provided(0, None, &pcm());
-        assert_eq!(indexes(s.wanted(0)), [1, 3]);
-        assert_eq!(indexes(s.wanted(2)), [3]);
+        assert_eq!(indexes(s.wanted_speech(0)), [1, 3]);
+        assert_eq!(indexes(s.wanted_speech(2)), [3]);
     }
 
     #[test]
@@ -353,16 +334,16 @@ mod tests {
         }
         assert_eq!(s.release_behind(2), None, "nothing is that far behind yet");
         assert_eq!(s.release_behind(3), Some(1));
-        assert_eq!(indexes(s.wanted(0)), [0]);
+        assert_eq!(indexes(s.wanted_speech(0)), [0]);
     }
 
     #[test]
     fn deleted_audio_is_not_wanted_until_it_is_made_again() {
         let mut s = session();
         s.audio_lost(&HashSet::from(["k1".to_string()]));
-        assert_eq!(indexes(s.wanted(0)), [0, 3]);
+        assert_eq!(indexes(s.wanted_speech(0)), [0, 3]);
         s.segment_made("k2", 1_500);
         s.segment_made("k1", 1_500);
-        assert_eq!(indexes(s.wanted(0)), [0, 1, 2, 3]);
+        assert_eq!(indexes(s.wanted_speech(0)), [0, 1, 2, 3]);
     }
 }

@@ -1417,6 +1417,7 @@ impl Core {
                         .map_err(|e| e.to_string())?;
                     if self.sync_event(id, SyncEvent::Accept, None) == SyncStage::Ready {
                         self.narrate_with_recording_by_default(id);
+                        self.follow_sync(id, true);
                     }
                 }
                 _ => return Err("there is nothing to accept".into()),
@@ -1497,7 +1498,6 @@ impl Core {
         self.ensure_output()
     }
 
-    /// Whether a book plays its recording.
     /// The spoken sentences of `chapter` that the book's recording has no audio for, when the
     /// recording narrates the book.
     pub(super) fn not_narrated(&self, book: Arc<BookModel>, chapter: usize) -> Option<Vec<String>> {
@@ -1505,35 +1505,30 @@ impl Core {
             return None;
         }
         let model = book.chapters.get(chapter)?;
+        let entries = model.first_entry..model.first_entry + model.segments.len();
         let playing = lock(&self.session).as_ref().and_then(|session| {
             (session.target.book.id == book.id && session.recording().is_some())
-                .then(|| session.target.plan.items.clone())
+                .then(|| session.target.narration.unrecorded(entries.clone()))
         });
-        let items = match playing {
-            Some(items) => items,
-            None => {
-                self.build_recording_target(Arc::clone(&book))
-                    .ok()?
-                    .plan
-                    .items
-            }
+        let unrecorded = match playing {
+            Some(unrecorded) => unrecorded,
+            None => self
+                .build_recording_target(Arc::clone(&book))
+                .ok()?
+                .narration
+                .unrecorded(entries),
         };
         Some(
-            model
-                .segments
-                .iter()
-                .enumerate()
-                .filter(|(local, segment)| {
-                    !segment.speech.is_empty()
-                        && items
-                            .get(model.first_entry + local)
-                            .is_some_and(|item| !item.speakable)
-                })
-                .map(|(_, segment)| segment.id.clone())
+            unrecorded
+                .into_iter()
+                .filter_map(|index| book.segment(index))
+                .filter(|segment| !segment.speech.is_empty())
+                .map(|segment| segment.id.clone())
                 .collect(),
         )
     }
 
+    /// Whether a book plays its recording.
     pub(super) fn plays_recording(&self, id: &str, settings: &BookSettings) -> bool {
         settings.narration == Some(Narration::Recording) && self.listenable(id)
     }
@@ -1565,13 +1560,19 @@ impl Core {
             Ok(target) => target,
             Err(error) => return eprintln!("aoide: following the sync of {id}: {error}"),
         };
-        let skipped = match lock(&self.session).as_mut() {
+        let followed = match lock(&self.session).as_mut() {
             Some(session) if session.target.book.id == id => session.follow(target),
             _ => return,
         };
-        let mut player = lock(&self.player);
-        for index in skipped {
-            player.finish(index);
+        {
+            let mut player = lock(&self.player);
+            for index in followed.passed_over {
+                player.finish(index);
+            }
+        }
+        if followed.speech_changed {
+            self.replan(false);
+            self.emit_generation();
         }
     }
 
@@ -1754,65 +1755,25 @@ impl Core {
                 .rposition(|clip| !clip.audio.is_empty() && clip.audio.end <= safe)
                 .map_or(0, |last| last + 1)
         });
-        let mut items = clips
-            .iter()
-            .enumerate()
-            .map(|(index, clip)| aoide_generation::PlanItem {
-                key: format!("clip:{index}"),
-                speakable: index >= synced || !clip.audio.is_empty(),
-                cached: index < synced,
-                duration_ms: (clip.audio.end - clip.audio.start) as u32,
-            })
-            .collect::<Vec<_>>();
-        let mut requests = vec![None; items.len()];
-        if self.book_settings(&book.id).speak_missing {
-            self.speak_missing(&book, &clips[..synced], &mut items, &mut requests);
-        }
-        Ok(Target {
-            book,
-            plan: Plan { items, requests },
-            source: Source::Recording(Arc::new(RecordingPlan {
-                files: stored.files.iter().map(StoredFile::audio).collect(),
-                clips,
-            })),
-        })
-    }
-}
-
-impl Core {
-    /// Gives the speech engine the text the recording lacks (see [`aoide_sync::lacking`]): its
-    /// entries become speech, made and played like any book's.
-    fn speak_missing(
-        &self,
-        book: &Arc<BookModel>,
-        clips: &[aoide_sync::Clip],
-        items: &mut [aoide_generation::PlanItem],
-        requests: &mut [Option<aoide_tts::SynthesisRequest>],
-    ) {
-        let speaking: Vec<u64> = (0..clips.len())
-            .map(|i| {
-                book.segment(i).map_or(0, |s| {
-                    u64::from(aoide_generation::estimate_ms(s.speech.chars().count()))
-                })
-            })
-            .collect();
-        let lacking = aoide_sync::lacking(clips, &speaking);
-        if !lacking.contains(&true) {
-            return;
-        }
-        let speech = match self.build_target(Arc::clone(book)) {
-            Ok(target) => target.plan,
-            Err(error) => {
-                eprintln!("aoide: cannot speak what the recording lacks: {error}");
-                return;
-            }
+        let recording = RecordingPlan {
+            files: stored.files.iter().map(StoredFile::audio).collect(),
+            clips,
         };
-        for (index, _) in lacking.iter().enumerate().filter(|(_, l)| **l) {
-            if let Some(request) = speech.requests[index].clone() {
-                items[index] = speech.items[index].clone();
-                requests[index] = Some(request);
-            }
-        }
+        // Asked to, the speech engine says the text the recording lacks.
+        let speak_missing = self.book_settings(&book.id).speak_missing;
+        let narration =
+            super::narration::NarrationPlan::recording(&book, recording, synced, || {
+                speak_missing
+                    .then(|| {
+                        self.speech_plan(&book)
+                            .map_err(|e| {
+                                eprintln!("aoide: cannot speak what the recording lacks: {e}")
+                            })
+                            .ok()
+                    })
+                    .flatten()
+            });
+        Ok(Target { book, narration })
     }
 }
 

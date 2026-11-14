@@ -160,9 +160,18 @@ struct Fixture {
 }
 
 async fn fixture() -> Fixture {
+    fixture_with(None).await
+}
+
+/// The fixture with `book` in place of the test book.
+async fn fixture_with(book: Option<Vec<u8>>) -> Fixture {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().to_owned();
-    let id = library_folder(&root, "");
+    let mut id = library_folder(&root, "");
+    if let Some(bytes) = book {
+        std::fs::write(root.join("Books/quay-lights.epub"), &bytes).unwrap();
+        id = aoide_library::content_hash(&bytes).0;
+    }
     let engine = FakeEngine::new();
     let (factory, script, heard, choices) = scripted();
     let (core, events) = start_with(&root, &engine, factory);
@@ -582,6 +591,88 @@ async fn what_the_recording_lacks_is_spoken_by_the_speech_engine_when_asked() {
         state.chapter == 0 && state.word_index.is_some()
     })
     .await;
+    f.core.stop();
+}
+
+#[tokio::test]
+async fn text_the_sync_finds_missing_while_playback_waits_for_it_is_spoken_when_asked() {
+    // No word of the second chapter is in the first, so none of it can be matched there.
+    let chapter = |title: &str, body: &str| {
+        format!(
+            r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>{title}</h1><p>{body}</p></body></html>"#
+        )
+    };
+    let f = fixture_with(Some(epub_with(
+        chapter(
+            "Harbour",
+            "Gulls argued over the nets. The tide came in slowly.",
+        ),
+        chapter(
+            "Embers",
+            "Someone lit lanterns at dusk. Coals glowed until morning.",
+        ),
+    )))
+    .await;
+    put_model(&f.root);
+    let chapters = texts(&f.core, &f.id);
+    // Only the first chapter is narrated, so late that the first block of recognition (about
+    // five minutes) ends inside it; the recording ends soon after it.
+    let words = read(&chapters[..1], 340_000);
+    let total = words.last().unwrap().1 + 500;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    // Check, promote, quick check (the samples are silence), then one block.
+    for _ in 0..3 {
+        assert!(f.core.sync_step());
+    }
+    f.core
+        .sync_action(&f.id, super::SyncAction::Accept)
+        .unwrap();
+    while f.core.recording(&f.id).unwrap().transcribed_ms == 0 {
+        assert!(f.core.sync_step());
+    }
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Transcribing));
+    f.core
+        .set_narration(&f.id, Narration::Recording)
+        .await
+        .unwrap();
+    let mut settings = f.core.book_settings(&f.id);
+    settings.speak_missing = true;
+    f.core.save_book_settings(&f.id, settings).await.unwrap();
+
+    f.core.play(&f.id, Some(1), None).await.unwrap();
+    until("playback to wait for the sync", || {
+        f.core.player_state().waiting_for_sync
+    })
+    .await;
+    // Playback settles into waiting, as it does while the sync runs beside it in the app.
+    tokio::time::sleep(super::TICK * 4).await;
+    sync(&f.core);
+    if stage(&f.core, &f.id) == Some(Stage::PoorMatch) {
+        f.core
+            .sync_action(&f.id, super::SyncAction::Accept)
+            .unwrap();
+        sync(&f.core);
+    }
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Ready));
+    assert_eq!(
+        f.core.chapter(&f.id, 1).unwrap().not_narrated,
+        Some(vec![]),
+        "nothing is passed over"
+    );
+    until("the speech engine to speak the second chapter", || {
+        let state = f.core.player_state();
+        state.chapter == 1 && state.word_index.is_some()
+    })
+    .await;
+    let spoken = f.engine.calls();
+    assert!(
+        spoken.iter().any(|t| chapters[1].contains(t.as_str())),
+        "{spoken:?}"
+    );
     f.core.stop();
 }
 

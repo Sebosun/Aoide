@@ -87,28 +87,6 @@ pub struct Plan {
 }
 
 impl Plan {
-    /// For a recording: whether entry `index` has no audio until the sync reaches it (an entry
-    /// the speech engine speaks waits for the engine instead).
-    pub fn waits_for_sync(&self, index: usize) -> bool {
-        self.items
-            .get(index)
-            .is_some_and(|item| item.speakable && !item.cached)
-            && self.requests.get(index).is_some_and(Option::is_none)
-    }
-
-    /// The items as the speech engine's planner should see them: entries it does not speak
-    /// count as made.
-    pub fn speech_items(&self) -> Vec<PlanItem> {
-        self.items
-            .iter()
-            .zip(&self.requests)
-            .map(|(item, request)| PlanItem {
-                cached: item.cached || request.is_none(),
-                ..item.clone()
-            })
-            .collect()
-    }
-
     pub fn mark_cached(&mut self, key: &str, duration_ms: u32) {
         for item in self.items.iter_mut().filter(|i| i.key == key) {
             item.cached = true;

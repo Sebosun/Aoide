@@ -175,24 +175,22 @@ impl Core {
             tokio::time::sleep(Duration::from_millis(700)).await;
         }
         let book = self.load_book(id)?;
-        let target = self.build_target(Arc::clone(&book))?;
-        if let Some(missing) = target.plan.items.iter().find(|i| i.speakable && !i.cached) {
+        let plan = self.speech_plan(&book)?;
+        if let Some(missing) = plan.items.iter().find(|i| i.speakable && !i.cached) {
             return Err(format!("audio for {} is missing; try again", missing.key));
         }
         let core = Arc::clone(self);
         let id = id.to_owned();
-        tokio::task::spawn_blocking(move || core.encode_m4b(&id, &book, &target))
+        tokio::task::spawn_blocking(move || core.encode_m4b(&id, &book, &plan))
             .await
             .map_err(|e| e.to_string())?
     }
 
-    fn encode_m4b(&self, id: &str, book: &BookModel, target: &Target) -> Result<String, String> {
+    fn encode_m4b(&self, id: &str, book: &BookModel, plan: &Plan) -> Result<String, String> {
         // Exact per-entry lengths so chapter marks match the audio.
         let segments: Vec<Option<CachedSegment>> = {
             let library = lock(&self.library);
-            target
-                .plan
-                .items
+            plan.items
                 .iter()
                 .map(|item| {
                     item.speakable
