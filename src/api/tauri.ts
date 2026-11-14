@@ -73,7 +73,7 @@ export const tauriApi: AoideApi = {
   onExportProgress: h => on("export://progress", h),
   onLibraryChanged: h => on("library://changed", () => h()),
   inspectRecording: paths => invoke("inspect_recording", { paths }),
-  attachRecording: (bookId, paths) => invoke("attach_recording", { bookId, paths }),
+  attachRecording: (bookId, paths, asListed = false) => invoke("attach_recording", { bookId, paths, asListed }),
   recording: bookId => invoke("recording", { bookId }),
   recordings: () => invoke("recordings"),
   syncReport: bookId => invoke("sync_report", { bookId }),

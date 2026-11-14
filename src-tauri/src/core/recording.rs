@@ -1183,13 +1183,31 @@ impl Core {
 
     /// Pairs audio files with a book (replacing any recording it had) and starts syncing.
     pub fn attach_recording(&self, id: &str, paths: Vec<String>) -> Result<RecordingView, String> {
+        let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
+        self.attach(id, aoide_recording::inspect(&paths))
+    }
+
+    /// Like [`Core::attach_recording`] for audio files put in order by hand: they play in the
+    /// order given.
+    pub fn attach_recording_as_listed(
+        &self,
+        id: &str,
+        files: Vec<String>,
+    ) -> Result<RecordingView, String> {
+        let files: Vec<PathBuf> = files.into_iter().map(PathBuf::from).collect();
+        self.attach(id, aoide_recording::inspect_as_listed(&files))
+    }
+
+    fn attach(
+        &self,
+        id: &str,
+        found: aoide_recording::Inspection,
+    ) -> Result<RecordingView, String> {
         let book_id = BookId(id.into());
         lock(&self.library)
             .book(&book_id)
             .map_err(|e| e.to_string())?
             .ok_or("book not found")?;
-        let paths: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
-        let found = aoide_recording::inspect(&paths);
         if let Some(problem) = found.problems.first() {
             return Err(format!(
                 "{}: {}",

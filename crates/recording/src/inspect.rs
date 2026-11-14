@@ -17,16 +17,31 @@ const MP4_EXTENSIONS: &[&str] = &["m4a", "m4b", "mp4", "m4p", "aax", "aaxc"];
 /// file, and lays the playable ones out in order: by disc and track tags when every file has
 /// them, otherwise by natural file-name order.
 pub fn inspect(paths: &[PathBuf]) -> Inspection {
+    let (mut files, problems) = probe_all(candidates(paths));
+    order(&mut files);
+    lay_out(files, problems)
+}
+
+/// Like [`inspect`] for audio files put in order by hand: they stay in the order given.
+pub fn inspect_as_listed(files: &[PathBuf]) -> Inspection {
+    let (files, problems) = probe_all(files.to_vec());
+    lay_out(files, problems)
+}
+
+fn probe_all(paths: Vec<PathBuf>) -> (Vec<Probed>, Vec<FileProblem>) {
     let mut files = Vec::new();
     let mut problems = Vec::new();
-    for path in candidates(paths) {
+    for path in paths {
         match probe(&path) {
             Ok(found) => files.push(found),
             Err(problem) => problems.push(FileProblem { path, problem }),
         }
     }
-    order(&mut files);
+    (files, problems)
+}
 
+/// The files one after another, with their chapters on the joined timeline.
+fn lay_out(files: Vec<Probed>, problems: Vec<FileProblem>) -> Inspection {
     let mut chapters = Vec::new();
     let mut start_us = 0u64;
     for found in &files {

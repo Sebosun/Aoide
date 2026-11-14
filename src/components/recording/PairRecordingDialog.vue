@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { FileAudio, Headphones, ShieldAlert, X } from "@lucide/vue";
+import { ChevronDown, ChevronUp, FileAudio, Headphones, ShieldAlert, X } from "@lucide/vue";
 import { api } from "../../api";
-import type { InspectionView } from "../../api/types";
+import type { InspectionView, RecordingFileView } from "../../api/types";
 import UiDialog from "../ui/UiDialog.vue";
 import UiSelect from "../ui/UiSelect.vue";
 import { useRecordingsStore } from "../../stores/recordings";
@@ -21,11 +21,18 @@ onMounted(async () => {
   void library.start();
   try {
     found.value = await api.inspectRecording(pairing.paths);
+    files.value = [...found.value.files];
     if (!bookId.value && found.value.suggestedBook) bookId.value = found.value.suggestedBook;
   } catch (e) { error.value = String(e); }
 });
 const books = computed(() => library.books.filter(b => b.status.kind === "present").map(b => ({ value: b.id, label: b.title, hint: b.authors.join(", ") || undefined })));
-const shown = computed(() => found.value?.files.slice(0, 6) ?? []);
+/** The files in the order they will play; Aoide's order unless moved by hand. */
+const files = ref<RecordingFileView[]>([]), moved = ref(false);
+function move(index: number, by: number) {
+  const list = [...files.value], [file] = list.splice(index, 1);
+  list.splice(index + by, 0, file);
+  files.value = list; moved.value = true;
+}
 const usable = computed(() => Boolean(found.value?.files.length) && !found.value?.problems.length);
 const replacing = computed(() => Boolean(bookId.value && recordings.byBook[bookId.value]));
 /** Recognition runs at roughly 25× real time on an ordinary CPU. */
@@ -34,7 +41,8 @@ async function pair() {
   if (!bookId.value || !usable.value) return;
   busy.value = true; error.value = "";
   try {
-    await recordings.attach(bookId.value, pairing.paths);
+    if (moved.value) await recordings.attach(bookId.value, files.value.map(f => f.path), true);
+    else await recordings.attach(bookId.value, pairing.paths);
     const id = bookId.value;
     recordings.closePairing();
     if (navigation.view !== "reader") navigation.openBook(id);
@@ -53,10 +61,16 @@ async function pair() {
       <p v-if="!found && !error" class="pair__hint" role="status">Looking at the files…</p>
       <template v-if="found">
         <p class="pair__summary">{{ found.files.length ? describeFiles(found) : "No audio Aoide can play was found." }}<template v-if="found.title"> · tagged “{{ found.title }}”<template v-if="found.author"> by {{ found.author }}</template></template></p>
-        <ul v-if="found.files.length" class="pair__files" aria-label="Audio files in order">
-          <li v-for="file in shown" :key="file.path" class="pair__file"><FileAudio :size="14" aria-hidden="true" /><span class="pair__name" :title="file.path">{{ file.name }}</span><span class="pair__length">{{ formatDuration(file.durationMs) }}</span></li>
-          <li v-if="found.files.length > shown.length" class="pair__more">and {{ found.files.length - shown.length }} more</li>
+        <ul v-if="files.length" class="pair__files" aria-label="Audio files in order">
+          <li v-for="(file, index) in files" :key="file.path" class="pair__file">
+            <FileAudio :size="14" aria-hidden="true" /><span class="pair__name" :title="file.path">{{ file.name }}</span><span class="pair__length">{{ formatDuration(file.durationMs) }}</span>
+            <span v-if="files.length > 1" class="pair__order">
+              <button type="button" class="pair__move" :aria-label="`Move ${file.name} earlier`" :disabled="index === 0" @click="move(index, -1)"><ChevronUp :size="14" /></button>
+              <button type="button" class="pair__move" :aria-label="`Move ${file.name} later`" :disabled="index === files.length - 1" @click="move(index, 1)"><ChevronDown :size="14" /></button>
+            </span>
+          </li>
         </ul>
+        <p v-if="files.length > 1" class="pair__hint">Files play in this order{{ moved ? ", as you set it" : ": by track number, otherwise by name" }}.</p>
         <ul v-if="found.problems.length" class="pair__problems" role="alert" aria-label="Files that cannot be used">
           <li v-for="problem in found.problems" :key="problem.path" class="pair__problem"><ShieldAlert :size="14" aria-hidden="true" /><span><strong>{{ problem.name }}</strong> — {{ problem.problem }}</span></li>
         </ul>
@@ -80,10 +94,13 @@ async function pair() {
 .pair__close { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--glass); color: var(--ink); }
 .pair__summary { font-size: 13px; font-weight: 600; }
 .pair__files, .pair__problems { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 200px; overflow-y: auto; }
-.pair__file { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
+.pair__file { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dim); }
+.pair__order { display: inline-flex; gap: 2px; }
+.pair__move { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--dim); }
+.pair__move:hover:not(:disabled) { background: var(--wash); color: var(--ink); }
+.pair__move:disabled { opacity: .35; cursor: default; }
 .pair__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .pair__length { font-variant-numeric: tabular-nums; }
-.pair__more { font-size: 12px; color: var(--faint); padding-left: 22px; }
 .pair__problem { display: flex; gap: 8px; font-size: 12.5px; color: var(--warn); line-height: 1.45; }
 .pair__problem svg { flex-shrink: 0; margin-top: 2px; }
 .pair__field { display: grid; grid-template-columns: 60px minmax(0, 1fr); align-items: center; gap: 10px; font-size: 13px; }

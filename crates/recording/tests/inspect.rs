@@ -1,6 +1,6 @@
 mod support;
 
-use aoide_recording::{inspect, DrmKind, Problem, RecordingChapter};
+use aoide_recording::{inspect, inspect_as_listed, DrmKind, Problem, RecordingChapter};
 use support::{fixture, mp4};
 
 #[test]
@@ -30,6 +30,33 @@ fn files_without_track_tags_follow_natural_name_order() {
         .map(|f| f.path.file_name().unwrap().to_str().unwrap())
         .collect();
     assert_eq!(names, ["part 1.wav", "Part 2.wav", "Part 10.wav"]);
+}
+
+#[test]
+fn files_listed_by_hand_keep_their_order_and_chapters_follow_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths: Vec<_> = ["part 1.wav", "part 2.wav", "part 3.wav"]
+        .iter()
+        .map(|name| {
+            let path = dir.path().join(name);
+            support::sine(&path, 8_000, 440.0, 0.5);
+            path
+        })
+        .collect();
+    let listed = [paths[2].clone(), paths[0].clone(), paths[1].clone()];
+    let found = inspect_as_listed(&listed);
+    let names: Vec<_> = found
+        .files
+        .iter()
+        .map(|f| f.path.file_name().unwrap().to_str().unwrap())
+        .collect();
+    assert_eq!(names, ["part 3.wav", "part 1.wav", "part 2.wav"]);
+    let starts: Vec<_> = found
+        .chapters
+        .iter()
+        .map(|c| (c.title.as_str(), c.start_ms))
+        .collect();
+    assert_eq!(starts, [("part 3", 0), ("part 1", 500), ("part 2", 1_000)]);
 }
 
 #[test]

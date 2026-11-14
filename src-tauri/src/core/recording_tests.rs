@@ -607,3 +607,38 @@ async fn a_recognition_server_on_this_computer_needs_no_model_here() {
         }]
     );
 }
+
+#[tokio::test]
+async fn files_put_in_order_by_hand_keep_that_order() {
+    let f = fixture().await;
+    let dir = f.root.join("Audio");
+    write_recording(&dir.join("part 1.wav"), 2_000);
+    write_recording(&dir.join("part 2.wav"), 2_000);
+    let listed = |names: &[&str]| -> Vec<String> {
+        names
+            .iter()
+            .map(|n| dir.join(n).to_string_lossy().into_owned())
+            .collect()
+    };
+    let names = |view: super::RecordingView| -> Vec<String> {
+        view.files.into_iter().map(|file| file.name).collect()
+    };
+    let sorted = f
+        .core
+        .attach_recording(&f.id, listed(&["part 2.wav", "part 1.wav"]))
+        .unwrap();
+    assert_eq!(
+        names(sorted),
+        ["part 1.wav", "part 2.wav"],
+        "sorted by name"
+    );
+    let by_hand = f
+        .core
+        .attach_recording_as_listed(&f.id, listed(&["part 2.wav", "part 1.wav"]))
+        .unwrap();
+    assert_eq!(names(by_hand), ["part 2.wav", "part 1.wav"]);
+    assert_eq!(
+        names(f.core.recording(&f.id).unwrap()),
+        ["part 2.wav", "part 1.wav"]
+    );
+}

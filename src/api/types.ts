@@ -279,7 +279,8 @@ export interface AoideApi {
   /** What dropped or chosen audio files hold, before pairing them with a book. */
   inspectRecording(paths: string[]): Promise<InspectionView>;
   /** Pairs audio files with a book (replacing its recording) and starts syncing them. */
-  attachRecording(bookId: string, paths: string[]): Promise<RecordingView>;
+  /** `asListed`: the files stay in the order given instead of being sorted. */
+  attachRecording(bookId: string, paths: string[], asListed?: boolean): Promise<RecordingView>;
   recording(bookId: string): Promise<RecordingView | null>;
   /** Every book's recording, oldest first. */
   recordings(): Promise<RecordingView[]>;

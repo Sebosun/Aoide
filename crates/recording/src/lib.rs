@@ -13,7 +13,7 @@ mod drm;
 mod inspect;
 mod reader;
 
-pub use inspect::inspect;
+pub use inspect::{inspect, inspect_as_listed};
 pub use reader::Reader;
 
 /// What [`inspect`] found.

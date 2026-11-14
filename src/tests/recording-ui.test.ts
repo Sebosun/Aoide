@@ -183,3 +183,20 @@ it("starts listening while the recording syncs, and says when playback waits for
   panel.unmount();
   reader.unmount();
 });
+
+it("lets files be put in order by hand before pairing", async () => {
+  const attach = vi.spyOn(mock, "attachRecording");
+  mount(App, { attachTo: document.body });
+  await flushPromises();
+  const paths = ["~/Audiobooks/lantern/part-a.mp3", "~/Audiobooks/lantern/part-b.mp3"];
+  useRecordingsStore().openPairing(paths, "book-0");
+  await flushPromises();
+  const pair = dialog("Pair an audiobook")!;
+  const order = () => [...pair.querySelectorAll('[aria-label="Audio files in order"] li')].map(li => li.querySelector(".pair__name")?.textContent);
+  expect(order()).toEqual(["part-a.mp3", "part-b.mp3"]);
+  expect(pair.querySelector<HTMLButtonElement>('[aria-label="Move part-a.mp3 earlier"]')!.disabled).toBe(true);
+  await click(pair.querySelector<HTMLElement>('[aria-label="Move part-b.mp3 earlier"]'));
+  expect(order()).toEqual(["part-b.mp3", "part-a.mp3"]);
+  await click(byText(pair, "button", "Check and sync"));
+  expect(attach).toHaveBeenCalledWith("book-0", [paths[1], paths[0]], true);
+});

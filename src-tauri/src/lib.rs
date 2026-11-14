@@ -414,9 +414,17 @@ async fn attach_recording(
     core: CoreState<'_>,
     book_id: String,
     paths: Vec<String>,
+    as_listed: Option<bool>,
 ) -> Result<crate::core::RecordingView, String> {
     let core = Arc::clone(&core);
-    blocking(move || core.attach_recording(&book_id, paths)).await
+    blocking(move || {
+        if as_listed == Some(true) {
+            core.attach_recording_as_listed(&book_id, paths)
+        } else {
+            core.attach_recording(&book_id, paths)
+        }
+    })
+    .await
 }
 
 #[tauri::command]

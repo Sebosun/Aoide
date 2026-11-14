@@ -34,7 +34,7 @@ export const useRecordingsStore = defineStore("recordings", () => {
     if (recording) put(recording);
     else if (byBook.value[bookId]) { const { [bookId]: _, ...rest } = byBook.value; byBook.value = rest; void useReaderStore().refreshBook(bookId); }
   }
-  async function attach(bookId: string, paths: string[]) { const recording = await api.attachRecording(bookId, paths); put(recording); return recording; }
+  async function attach(bookId: string, paths: string[], asListed = false) { const recording = await api.attachRecording(bookId, paths, asListed); put(recording); return recording; }
   async function act(bookId: string, action: SyncAction) { await api.syncAction(bookId, action); await load(bookId); }
   async function remove(bookId: string) { await api.removeRecording(bookId); await load(bookId); }
   async function setNarration(bookId: string, narration: Narration) { await api.setNarration(bookId, narration); await useReaderStore().refreshBook(bookId); }
