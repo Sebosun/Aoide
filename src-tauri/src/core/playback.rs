@@ -580,10 +580,10 @@ mod tests {
         let recording = |synced: usize| Target {
             narration: NarrationPlan::recording(
                 &book,
-                RecordingPlan {
+                Arc::new(RecordingPlan {
                     files: vec![],
                     clips: clips.clone(),
-                },
+                }),
                 synced,
                 || None,
             ),

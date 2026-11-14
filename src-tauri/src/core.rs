@@ -1256,7 +1256,8 @@ impl Core {
             self.playback.play();
             return self.ensure_output();
         }
-        let recording = self.plays_recording(book_id, &self.book_settings(book_id));
+        let settings = self.book_settings(book_id);
+        let recording = self.plays_recording(book_id, &settings);
         let start = start
             .or_else(|| {
                 let progress = lock(&self.library)
@@ -1267,7 +1268,7 @@ impl Core {
             })
             .or_else(|| book.chapter_start(0))
             .ok_or("the book has no readable text")?;
-        if recording && self.book_settings(book_id).speak_missing {
+        if recording && settings.speak_missing {
             // The speech engine speaks what the recording lacks; without it, that is passed over.
             if let Err(error) = self.ensure_voice().await {
                 eprintln!("aoide: {error}");
@@ -1275,7 +1276,7 @@ impl Core {
             self.ensure_model().await;
         }
         let recorded = if recording {
-            self.build_recording_target(Arc::clone(&book))
+            self.build_recording_target(Arc::clone(&book), &settings)
                 .map_err(|error| eprintln!("aoide: {error}; reading with the speech engine"))
                 .ok()
         } else {

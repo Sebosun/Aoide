@@ -628,7 +628,8 @@ impl Core {
     /// The spoken sentences of `chapter` that the book's recording has no audio for, when the
     /// recording narrates the book.
     pub(super) fn not_narrated(&self, book: Arc<BookModel>, chapter: usize) -> Option<Vec<String>> {
-        if !self.plays_recording(&book.id, &self.book_settings(&book.id)) {
+        let settings = self.book_settings(&book.id);
+        if !self.plays_recording(&book.id, &settings) {
             return None;
         }
         let model = book.chapters.get(chapter)?;
@@ -636,7 +637,7 @@ impl Core {
         let unrecorded = match self.playback.unrecorded(&book.id, entries.clone()) {
             Some(unrecorded) => unrecorded,
             None => self
-                .build_recording_target(Arc::clone(&book))
+                .build_recording_target(Arc::clone(&book), &settings)
                 .ok()?
                 .narration
                 .unrecorded(entries),
@@ -662,7 +663,8 @@ impl Core {
         let Some(book) = self.playback.should_follow(id, force) else {
             return;
         };
-        let target = match self.build_recording_target(book) {
+        let settings = self.book_settings(id);
+        let target = match self.build_recording_target(book, &settings) {
             Ok(target) => target,
             Err(error) => return eprintln!("aoide: following the sync of {id}: {error}"),
         };
@@ -672,19 +674,21 @@ impl Core {
         }
     }
 
-    // ------------------------------------------------------------ models
-
     // ------------------------------------------------------------ playback
 
-    /// The book's recording as a playback target: its clips (see [`Recordings::playable`]), and
-    /// what it lacks said by the speech engine when asked.
-    pub(super) fn build_recording_target(&self, book: Arc<BookModel>) -> Result<Target, String> {
+    /// The book's recording as a playback target: its clips (see
+    /// [`super::recordings::Recordings::playable`]), and, when `settings` ask for it, what it
+    /// lacks said by the speech engine.
+    pub(super) fn build_recording_target(
+        &self,
+        book: Arc<BookModel>,
+        settings: &BookSettings,
+    ) -> Result<Target, String> {
         let (recording, synced) = self.recordings.playable(self, &book)?;
-        // Asked to, the speech engine says the text the recording lacks.
-        let speak_missing = self.book_settings(&book.id).speak_missing;
         let narration =
             super::narration::NarrationPlan::recording(&book, recording, synced, || {
-                speak_missing
+                settings
+                    .speak_missing
                     .then(|| {
                         self.speech_plan(&book)
                             .map_err(|e| {

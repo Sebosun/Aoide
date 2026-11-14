@@ -279,6 +279,20 @@ fn the_sync_job_runs_on_its_own_and_tells_its_host_how_far_it_got() {
     let (playable, synced) = recordings.playable(&host, &host.book).unwrap();
     assert_eq!(synced, host.book.total_entries(), "all of it is synced");
     assert!(playable.clips.iter().all(|c| !c.audio.is_empty()));
+    let (again, _) = recordings.playable(&host, &host.book).unwrap();
+    assert!(
+        Arc::ptr_eq(&playable, &again),
+        "not laid out again while nothing changed"
+    );
+    recordings
+        .sync_action(&host, &id, super::SyncAction::Resync)
+        .unwrap();
+    while recordings.sync_step(&host) {}
+    let (resynced, _) = recordings.playable(&host, &host.book).unwrap();
+    assert!(
+        !Arc::ptr_eq(&playable, &resynced),
+        "laid out again after syncing again"
+    );
 }
 
 #[tokio::test]

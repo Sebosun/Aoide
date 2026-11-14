@@ -373,11 +373,9 @@ impl Core {
             return Err("the recording is not synced with the book yet".into());
         }
         let book = self.load_book(id)?;
-        let target = self.build_recording_target(Arc::clone(&book))?;
-        let plan: &RecordingPlan = target
-            .narration
-            .recording_plan()
-            .ok_or("the book has no synced recording")?;
+        // Only the recording's clips: what it lacks stays without audio in a read-along book.
+        let (plan, _) = self.recordings.playable(self, &book)?;
+        let plan: &RecordingPlan = &plan;
         let carried: Vec<Carry> = plan
             .files
             .iter()

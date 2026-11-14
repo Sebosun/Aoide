@@ -125,7 +125,7 @@ impl NarrationPlan {
     /// is lacking.
     pub fn recording(
         book: &BookModel,
-        recording: RecordingPlan,
+        recording: Arc<RecordingPlan>,
         synced: usize,
         speech: impl FnOnce() -> Option<Plan>,
     ) -> Self {
@@ -174,7 +174,7 @@ impl NarrationPlan {
         }
         Self {
             entries,
-            recording: Some(Arc::new(recording)),
+            recording: Some(recording),
         }
     }
 
@@ -394,11 +394,11 @@ mod tests {
         }
     }
 
-    fn recording(clips: Vec<Clip>) -> RecordingPlan {
-        RecordingPlan {
+    fn recording(clips: Vec<Clip>) -> Arc<RecordingPlan> {
+        Arc::new(RecordingPlan {
             files: vec![],
             clips,
-        }
+        })
     }
 
     fn speakable(narration: &NarrationPlan, book: &BookModel) -> Vec<bool> {

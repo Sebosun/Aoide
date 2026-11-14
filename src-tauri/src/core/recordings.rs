@@ -170,6 +170,9 @@ struct Live {
     abort: Arc<AtomicBool>,
     /// The quick check passed in this run.
     sample_checked: bool,
+    /// Changes with its stage and transcript (see [`next_change`]), so what is worked out from
+    /// them is known to be current.
+    changes: u64,
 }
 
 impl Live {
@@ -278,6 +281,20 @@ impl SyncState {
     }
 }
 
+/// A number no change to any recording has had before, in this run.
+fn next_change() -> u64 {
+    static CHANGES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    CHANGES.fetch_add(1, Ordering::Relaxed) + 1
+}
+
+/// What a recording laid out for playback depends on: the book's entries and its sync.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Playable {
+    book: String,
+    entries: usize,
+    changes: u64,
+}
+
 // ---------------------------------------------------------------- the job
 
 /// What the sync job needs from the rest of the app.
@@ -295,6 +312,8 @@ pub(super) trait SyncHost: Sync {
 pub(super) struct Recordings {
     library: Arc<Mutex<Library>>,
     state: Mutex<SyncState>,
+    /// The last recording laid onto a book's entries, kept until its sync moves on.
+    playable: Mutex<Option<(Playable, Arc<RecordingPlan>, usize)>>,
     transcribers: TranscriberFactory,
     models_dir: PathBuf,
 }
@@ -308,6 +327,7 @@ impl Recordings {
         Self {
             library,
             state: Mutex::new(SyncState::default()),
+            playable: Mutex::new(None),
             transcribers,
             models_dir,
         }
@@ -342,6 +362,7 @@ impl Recordings {
                     pace_from: None,
                     abort: Arc::new(AtomicBool::new(false)),
                     sample_checked: false,
+                    changes: next_change(),
                 },
             );
         }
@@ -399,6 +420,7 @@ impl Recordings {
             };
             let before = live.stage;
             live.stage = syncing::next(before, event);
+            live.changes = next_change();
             if live.stage == SyncStage::Transcribing && before != SyncStage::Transcribing {
                 live.pace_from = Some((Instant::now(), live.transcribed_ms));
                 live.abort.store(false, Ordering::Relaxed);
@@ -447,6 +469,7 @@ impl Recordings {
             .map_or(0, |b| b.end_ms);
         if let Some(live) = lock(&self.state).live.get_mut(id) {
             live.transcribed_ms = transcribed;
+            live.changes = next_change();
         }
         if transcribed < row.total_ms {
             self.sync_event(host, id, SyncEvent::Verified(Found::Untranscribed), None);
@@ -668,6 +691,7 @@ impl Recordings {
             let mut state = lock(&self.state);
             if let Some(live) = state.live.get_mut(id) {
                 live.transcribed_ms = end;
+                live.changes = next_change();
             }
             if end < total {
                 state.reader = Some((id.to_owned(), decoded));
@@ -873,6 +897,7 @@ impl Recordings {
                 pace_from: None,
                 abort: Arc::new(AtomicBool::new(false)),
                 sample_checked: false,
+                changes: next_change(),
             },
         );
         host.emit(CoreEvent::LibraryChanged);
@@ -1054,6 +1079,7 @@ impl Recordings {
                     }
                     if let Some(live) = state.live.get_mut(id) {
                         live.transcribed_ms = 0;
+                        live.changes = next_change();
                         live.sample_checked = false;
                     }
                 }
@@ -1192,8 +1218,37 @@ impl Recordings {
 
     /// The book's recording laid onto its entries, and how many of them are synced: once
     /// synced, by the stored sync map; while it syncs, by the transcript so far matched here,
-    /// with the entries the sync has not safely reached left for playback to wait on.
+    /// with the entries the sync has not safely reached left for playback to wait on. Laid out
+    /// again only once the sync has moved on.
     pub(super) fn playable(
+        &self,
+        host: &dyn SyncHost,
+        book: &BookModel,
+    ) -> Result<(Arc<RecordingPlan>, usize), String> {
+        let key = {
+            let state = lock(&self.state);
+            let live = state
+                .live
+                .get(&book.id)
+                .ok_or("the book has no recording")?;
+            Playable {
+                book: book.id.clone(),
+                entries: book.total_entries(),
+                changes: live.changes,
+            }
+        };
+        if let Some((kept, plan, synced)) = lock(&self.playable).as_ref() {
+            if *kept == key {
+                return Ok((Arc::clone(plan), *synced));
+            }
+        }
+        let (plan, synced) = self.lay_out(host, book)?;
+        let plan = Arc::new(plan);
+        *lock(&self.playable) = Some((key, Arc::clone(&plan), synced));
+        Ok((plan, synced))
+    }
+
+    fn lay_out(
         &self,
         host: &dyn SyncHost,
         book: &BookModel,
