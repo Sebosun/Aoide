@@ -1754,7 +1754,7 @@ impl Core {
                 .rposition(|clip| !clip.audio.is_empty() && clip.audio.end <= safe)
                 .map_or(0, |last| last + 1)
         });
-        let items = clips
+        let mut items = clips
             .iter()
             .enumerate()
             .map(|(index, clip)| aoide_generation::PlanItem {
@@ -1764,7 +1764,10 @@ impl Core {
                 duration_ms: (clip.audio.end - clip.audio.start) as u32,
             })
             .collect::<Vec<_>>();
-        let requests = vec![None; items.len()];
+        let mut requests = vec![None; items.len()];
+        if self.book_settings(&book.id).speak_missing {
+            self.speak_missing(&book, &clips[..synced], &mut items, &mut requests);
+        }
         Ok(Target {
             book,
             plan: Plan { items, requests },
@@ -1773,6 +1776,43 @@ impl Core {
                 clips,
             })),
         })
+    }
+}
+
+impl Core {
+    /// Gives the speech engine the text the recording lacks (see [`aoide_sync::lacking`]): its
+    /// entries become speech, made and played like any book's.
+    fn speak_missing(
+        &self,
+        book: &Arc<BookModel>,
+        clips: &[aoide_sync::Clip],
+        items: &mut [aoide_generation::PlanItem],
+        requests: &mut [Option<aoide_tts::SynthesisRequest>],
+    ) {
+        let speaking: Vec<u64> = (0..clips.len())
+            .map(|i| {
+                book.segment(i).map_or(0, |s| {
+                    u64::from(aoide_generation::estimate_ms(s.speech.chars().count()))
+                })
+            })
+            .collect();
+        let lacking = aoide_sync::lacking(clips, &speaking);
+        if !lacking.contains(&true) {
+            return;
+        }
+        let speech = match self.build_target(Arc::clone(book)) {
+            Ok(target) => target.plan,
+            Err(error) => {
+                eprintln!("aoide: cannot speak what the recording lacks: {error}");
+                return;
+            }
+        };
+        for (index, _) in lacking.iter().enumerate().filter(|(_, l)| **l) {
+            if let Some(request) = speech.requests[index].clone() {
+                items[index] = speech.items[index].clone();
+                requests[index] = Some(request);
+            }
+        }
     }
 }
 

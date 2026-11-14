@@ -126,6 +126,7 @@ mod tests {
             language: Some("pt-BR".into()),
             read_notes: false,
             narration: None,
+            speak_missing: false,
         };
         let voicing = Voicing::resolve(
             &descriptor(None),

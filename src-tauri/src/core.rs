@@ -301,6 +301,8 @@ pub struct BookSettings {
     pub read_notes: bool,
     /// Which narration plays; `None` until chosen (a speech engine).
     pub narration: Option<recording::Narration>,
+    /// While the recording plays, the speech engine speaks the text it lacks.
+    pub speak_missing: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1263,6 +1265,13 @@ impl Core {
             })
             .or_else(|| book.chapter_start(0))
             .ok_or("the book has no readable text")?;
+        if recording && self.book_settings(book_id).speak_missing {
+            // The speech engine speaks what the recording lacks; without it, that is passed over.
+            if let Err(error) = self.ensure_voice().await {
+                eprintln!("aoide: {error}");
+            }
+            self.ensure_model().await;
+        }
         let recorded = if recording {
             self.build_recording_target(Arc::clone(&book))
                 .map_err(|error| eprintln!("aoide: {error}; reading with the speech engine"))
@@ -1283,12 +1292,13 @@ impl Core {
                 let segment = book.segment(i).expect("index in range");
                 match &target.source {
                     // The clips run on into each other: their pauses are in the recording.
-                    Source::Recording(_) => Entry {
+                    Source::Recording(_) if target.plan.requests[i].is_none() => Entry {
                         id: segment.id.clone(),
                         speakable: target.plan.items[i].speakable,
                         pause_after_ms: 0,
                     },
-                    Source::Speech => Entry {
+                    // Spoken by the engine: a whole book, or what its recording lacks.
+                    _ => Entry {
                         id: segment.id.clone(),
                         speakable: !segment.speech.is_empty(),
                         pause_after_ms: segment.pause_after_ms,
@@ -1722,13 +1732,15 @@ impl Core {
         let preparation = lock(&self.preparation);
         let planned = preparation.planned_books();
         let playhead = lock(&self.player).position().index;
-        // A recording is not made by the speech engine (what it lacks waits for its sync).
-        let listening = session
-            .as_ref()
-            .filter(|s| s.recording().is_none())
-            .map(|s| Listening {
+        // A recording is not made by the speech engine, only the text it lacks when asked to
+        // speak that (the rest waits for its sync).
+        let speech = session.as_ref().filter(|s| s.speaks());
+        let speech_items = speech.map(|s| s.target.plan.speech_items());
+        let listening = speech
+            .zip(speech_items.as_ref())
+            .map(|(s, items)| Listening {
                 book: &s.target.book.id,
-                items: &s.target.plan.items,
+                items,
                 playhead,
                 lookahead_ms: LOOKAHEAD_MS,
             });
@@ -1760,12 +1772,12 @@ impl Core {
             .collect();
         {
             let mut generation = lock(&self.generation);
-            // Only speech is made; a recording has nothing to report here.
-            let speech = session.as_ref().filter(|s| s.recording().is_none());
+            // Only speech is made; a recording that speaks nothing has nothing to report here.
             generation.book_id = speech.map(|s| s.target.book.id.clone());
             generation.pending = pending;
-            generation.buffered_ahead_ms =
-                speech.map_or(0, |s| buffered_ahead_ms(&s.target.plan.items, playhead));
+            generation.buffered_ahead_ms = speech_items
+                .as_ref()
+                .map_or(0, |items| buffered_ahead_ms(items, playhead));
         }
         let worker = lock(&self.worker);
         if jump {
@@ -2099,9 +2111,9 @@ impl Core {
         let index = lock(&self.player).position().index;
         let recording = lock(&self.session).as_ref()?.recording().is_some();
         if recording {
-            return self.provide_recording(index);
+            self.provide_recording(index)?;
         }
-        let wanted = lock(&self.session).as_ref()?.wanted(index);
+        let wanted = lock(&self.session).as_ref()?.wanted_speech(index);
         let mut align = Vec::new();
         for (i, key) in wanted {
             let segment = lock(&self.library).segment(&key).ok().flatten();
@@ -2234,12 +2246,7 @@ impl Core {
                 Some((left as f64 / f64::from(speed.max(0.1))) as u64)
             }),
             waiting_for_sync: session.recording().is_some()
-                && session
-                    .target
-                    .plan
-                    .items
-                    .get(index)
-                    .is_some_and(|item| item.speakable && !item.cached),
+                && session.target.plan.waits_for_sync(index),
         }
     }
 

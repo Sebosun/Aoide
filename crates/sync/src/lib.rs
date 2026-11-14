@@ -14,7 +14,7 @@ mod storage;
 mod token;
 
 pub use check::found_in_text;
-pub use clips::{clips, Clip, Loudness, Unit};
+pub use clips::{clips, lacking, Clip, Loudness, Unit};
 pub use matcher::match_book;
 pub use storage::{decode_chapters, encode_chapters};
 pub use token::{tokenize, Token};

@@ -119,7 +119,7 @@ export function createMockApi() {
         clearInterval(syncTimer);
         emitSync({ ...recordingIn(bookId, "ready"), files: r.files, totalMs: r.totalMs });
         const current = settings.get(bookId);
-        if (!current?.narration) settings.set(bookId, { voiceId: null, params: {}, language: null, readNotes: false, ...current, narration: "recording" });
+        if (!current?.narration) settings.set(bookId, { voiceId: null, params: {}, language: null, readNotes: false, speakMissing: false, ...current, narration: "recording" });
         changed();
       }
     }, 400);
@@ -128,7 +128,7 @@ export function createMockApi() {
   if (previewStage) {
     recordings.set("book-0", recordingIn("book-0", previewStage));
     books[0].recording = previewStage;
-    if (previewStage === "ready") settings.set("book-0", { voiceId: null, params: {}, language: null, readNotes: false, narration: "recording" });
+    if (previewStage === "ready") settings.set("book-0", { voiceId: null, params: {}, language: null, readNotes: false, narration: "recording", speakMissing: false });
   }
   const configHandlers = new Set<(p: Preferences) => void>();
   const emitConfig = (next: Partial<Omit<Preferences, "appearance">> & { appearance?: Partial<Preferences["appearance"]> }) => {
@@ -266,7 +266,7 @@ export function createMockApi() {
       if (next.network === "loopback" && !/^https?:\/\/(127\.|localhost|\[::1\])/.test(next.baseUrl)) throw new Error("Only loopback addresses are allowed unless home-network access is on.");
       profile = JSON.parse(JSON.stringify(next)); engine.profileName = next.name;
     },
-    async bookSettings(id) { return structuredClone(settings.get(id) ?? { voiceId: null, params: {}, language: null, readNotes: false, narration: null }); },
+    async bookSettings(id) { return structuredClone(settings.get(id) ?? { voiceId: null, params: {}, language: null, readNotes: false, narration: null, speakMissing: false }); },
     async saveBookSettings(id, next) { getBook(id); settings.set(id, JSON.parse(JSON.stringify(next))); },
     async prepareBook(id) {
       const b = getBook(id);
@@ -462,7 +462,7 @@ export function createMockApi() {
     async setNarration(bookId, narration) {
       const recording = recordings.get(bookId);
       if (narration === "recording" && !(recording && recordingStatus(recording).listenable)) throw new Error("the recording is not synced yet");
-      settings.set(bookId, { voiceId: null, params: {}, language: null, readNotes: false, ...settings.get(bookId), narration });
+      settings.set(bookId, { voiceId: null, params: {}, language: null, readNotes: false, speakMissing: false, ...settings.get(bookId), narration });
     },
     async recognitionOptions() {
       const models: [string, "tiny" | "base" | "small", boolean, number][] = [["tiny.en", "tiny", true, 77_704_715], ["tiny", "tiny", false, 77_691_713], ["base.en", "base", true, 147_964_211], ["base", "base", false, 147_951_465], ["small.en", "small", true, 487_614_201], ["small", "small", false, 487_601_967]];
@@ -498,7 +498,7 @@ export function createMockApi() {
   /** Gives a book a recording in a stage (and, when ready, the recording as its narration). */
   const setRecordingForTest = (id: string, stage: SyncStage, narration: "speech" | "recording" | null = stage === "ready" ? "recording" : null) => {
     emitSync(recordingIn(id, stage));
-    settings.set(id, { voiceId: null, params: {}, language: null, readNotes: false, ...settings.get(id), narration });
+    settings.set(id, { voiceId: null, params: {}, language: null, readNotes: false, speakMissing: false, ...settings.get(id), narration });
     changed();
   };
   return Object.assign(api, { setRecordingForTest, setProgressForTest, setAudioForTest, queueWaitingForTest, dispose: () => { halt(); clearInterval(syncTimer); }, emitPlayer, emitGeneration, emitConfig, emitEngine: (s: EngineStatusView) => engineHandlers.forEach(h => h({ ...s })) });

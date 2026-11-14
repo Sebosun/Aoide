@@ -173,3 +173,47 @@ impl Loudness {
             .map(|f| f as u64 * frame + frame / 2)
     }
 }
+
+/// Which units are text the recording lacks, for a speech engine to fill in when asked: runs of
+/// units with no timed word where the recording moves on without narration that could hold them.
+/// `speaking_ms` is about how long each unit takes to say. A run is not lacking when the
+/// narration that matched no text beside it (the lead-in of the next timed unit, or what follows
+/// the last one) is at least half that long: the narrator most likely read it.
+pub fn lacking(clips: &[Clip], speaking_ms: &[u64]) -> Vec<bool> {
+    let mut out = vec![false; clips.len()];
+    if clips.iter().all(|c| c.text.is_none()) {
+        return out;
+    }
+    let length = |ranges: &mut dyn Iterator<Item = &Range<u64>>| -> u64 {
+        ranges.map(|r| r.end.saturating_sub(r.start)).sum()
+    };
+    let mut i = 0;
+    while i < clips.len() {
+        if clips[i].text.is_some() {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        while i < clips.len() && clips[i].text.is_none() {
+            i += 1;
+        }
+        let needed: u64 = (start..i)
+            .map(|u| speaking_ms.get(u).copied().unwrap_or(0))
+            .sum();
+        let unplaced = match (clips.get(i), start.checked_sub(1).map(|p| &clips[p])) {
+            (Some(next), _) => {
+                let text = next.text.as_ref().expect("timed");
+                length(&mut next.off_text.iter().filter(|r| r.end <= text.start))
+            }
+            (None, Some(last)) => {
+                let text = last.text.as_ref().expect("timed");
+                length(&mut last.off_text.iter().filter(|r| r.start >= text.end))
+            }
+            (None, None) => 0,
+        };
+        if unplaced * 2 < needed {
+            out[start..i].fill(true);
+        }
+    }
+    out
+}

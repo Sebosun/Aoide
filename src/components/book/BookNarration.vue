@@ -13,14 +13,32 @@ import { recordingStatus } from "../../recording";
  *  settings. Switching restarts playback at the current sentence. */
 const props = defineProps<{ bookId: string }>();
 const recordings = useRecordingsStore(), reader = useReaderStore();
-const narration = ref<Narration>("speech"), error = ref("");
+const narration = ref<Narration>("speech"), speakMissing = ref(false), error = ref("");
 const recording = computed(() => recordings.byBook[props.bookId] ?? null);
 const ready = computed(() => Boolean(recording.value && recordingStatus(recording.value).listenable));
 /** What actually plays: the recording only when chosen and (partly) synced. */
 const playing = computed<Narration>(() => narration.value === "recording" && ready.value ? "recording" : "speech");
 onMounted(async () => {
-  try { narration.value = (await api.bookSettings(props.bookId)).narration ?? "speech"; } catch (e) { error.value = String(e); }
+  try {
+    const settings = await api.bookSettings(props.bookId);
+    narration.value = settings.narration ?? "speech"; speakMissing.value = settings.speakMissing;
+  } catch (e) { error.value = String(e); }
 });
+/** Chapters show which sentences play; drop what is loaded so they are read again. */
+async function reloadChapters() {
+  if (reader.book?.id !== props.bookId) return;
+  reader.cache = Object.fromEntries(Object.entries(reader.cache).filter(([key]) => !key.startsWith(`${props.bookId}:`)));
+  await reader.loadChapter(reader.currentChapter);
+}
+async function setSpeakMissing(on: boolean) {
+  error.value = "";
+  try {
+    const settings = await api.bookSettings(props.bookId);
+    await api.saveBookSettings(props.bookId, { ...settings, speakMissing: on });
+    speakMissing.value = on;
+    await reloadChapters();
+  } catch (e) { error.value = String(e); }
+}
 async function choose(next: Narration) {
   if (next === playing.value) return;
   error.value = "";
@@ -28,10 +46,7 @@ async function choose(next: Narration) {
     await recordings.setNarration(props.bookId, next);
     narration.value = next;
     // Footnotes are read only with a speech engine, so the chapters' segments may change.
-    if (reader.book?.id === props.bookId) {
-      reader.cache = Object.fromEntries(Object.entries(reader.cache).filter(([key]) => !key.startsWith(`${props.bookId}:`)));
-      await reader.loadChapter(reader.currentChapter);
-    }
+    await reloadChapters();
   } catch (e) { error.value = String(e); }
 }
 </script>
@@ -46,7 +61,10 @@ async function choose(next: Narration) {
     <RecordingPanel :book-id="bookId" />
     <div class="book-narration__speech">
       <BookVoice v-if="playing === 'speech'" :book-id="bookId" />
-      <p v-else class="book-narration__hint">The narrator's recording plays for this book. Choose <em>Speech engine</em> above for a voice, footnotes read aloud and preparing audio ahead.</p>
+      <template v-else>
+        <p class="book-narration__hint">The narrator's recording plays for this book. Choose <em>Speech engine</em> above for a voice, footnotes read aloud and preparing audio ahead.</p>
+        <label class="book-narration__check"><input type="checkbox" :checked="speakMissing" aria-label="Speak what the recording lacks with the speech engine" @change="setSpeakMissing(($event.target as HTMLInputElement).checked)" /> <span>Speak what the recording lacks with the speech engine<small>Chapters and passages the narrator skipped are read in this book's speech-engine voice instead of being passed over.</small></span></label>
+      </template>
     </div>
   </div>
 </template>
@@ -59,5 +77,8 @@ async function choose(next: Narration) {
 .book-narration__option:disabled { opacity: .45; }
 .book-narration__speech { padding-top: 20px; border-top: 1px solid var(--line); }
 .book-narration__hint { font-size: 12.5px; color: var(--dim); line-height: 1.5; }
+.book-narration__check { display: flex; align-items: flex-start; gap: 10px; margin-top: 14px; font-size: 13px; font-weight: 600; }
+.book-narration__check input { margin-top: 2px; }
+.book-narration__check small { display: block; margin-top: 3px; font-weight: 400; font-size: 12px; color: var(--dim); line-height: 1.45; }
 .book-narration__error { font-size: 12px; font-weight: 600; color: var(--accent); }
 </style>

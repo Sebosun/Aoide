@@ -521,6 +521,71 @@ async fn sentences_the_recording_lacks_are_marked_in_the_chapter() {
 }
 
 #[tokio::test]
+async fn what_the_recording_lacks_is_spoken_by_the_speech_engine_when_asked() {
+    let f = fixture().await;
+    put_model(&f.root);
+    // Only the first chapter is narrated.
+    let chapters = texts(&f.core, &f.id);
+    let words = read(&chapters[..1], 0);
+    let total = words.last().unwrap().1 + 500;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    sync(&f.core);
+    if stage(&f.core, &f.id) == Some(Stage::PoorMatch) {
+        f.core
+            .sync_action(&f.id, super::SyncAction::Accept)
+            .unwrap();
+        sync(&f.core);
+    }
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Ready));
+
+    let mut settings = f.core.book_settings(&f.id);
+    assert!(!settings.speak_missing, "off unless asked");
+    settings.speak_missing = true;
+    f.core.save_book_settings(&f.id, settings).await.unwrap();
+    assert_eq!(
+        f.core.chapter(&f.id, 1).unwrap().not_narrated,
+        Some(vec![]),
+        "nothing is passed over"
+    );
+
+    f.core.play(&f.id, Some(1), None).await.unwrap();
+    until("the speech engine to speak the second chapter", || {
+        let state = f.core.player_state();
+        state.chapter == 1 && state.word_index.is_some()
+    })
+    .await;
+    let spoken = f.engine.calls();
+    assert!(
+        spoken.iter().any(|t| chapters[1].contains(t.as_str())),
+        "{spoken:?}"
+    );
+    assert!(
+        !spoken.iter().any(|t| chapters[0].contains(t.as_str())),
+        "the narrated chapter is not spoken: {spoken:?}"
+    );
+    let state = f.core.player_state();
+    assert_eq!(state.source, Narration::Recording);
+    assert!(!state.waiting_for_sync);
+    assert_eq!(
+        f.core.generation_state().book_id.as_deref(),
+        Some(f.id.as_str())
+    );
+
+    // The narrated chapter still plays the recording.
+    f.core.play(&f.id, Some(0), None).await.unwrap();
+    until("a word of the recording", || {
+        let state = f.core.player_state();
+        state.chapter == 0 && state.word_index.is_some()
+    })
+    .await;
+    f.core.stop();
+}
+
+#[tokio::test]
 async fn the_synced_part_plays_while_the_rest_is_still_syncing() {
     let f = fixture().await;
     put_model(&f.root);

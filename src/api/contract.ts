@@ -200,7 +200,11 @@ readNotes: boolean,
 /**
  * Which narration plays; `None` until chosen (a speech engine).
  */
-narration: Narration | null, };
+narration: Narration | null, 
+/**
+ * While the recording plays, the speech engine speaks the text it lacks.
+ */
+speakMissing: boolean, };
 
 export type Bookmark = { id: number, bookId: BookId, chapter: number, charOffset: number, segmentId: string | null, 
 /**

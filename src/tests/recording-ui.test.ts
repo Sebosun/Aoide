@@ -71,6 +71,23 @@ it("switches narration once part of the recording is synced", async () => {
   expect(wrapper.text()).toContain("The narrator's recording plays for this book");
 });
 
+it("lets the speech engine speak what the recording lacks, only when asked", async () => {
+  await useLibraryStore().start();
+  mock.setRecordingForTest("book-0", "ready", "recording");
+  const wrapper = mount(BookNarration, { props: { bookId: "book-0" }, attachTo: document.body });
+  await flushPromises();
+  const toggle = wrapper.get('[aria-label="Speak what the recording lacks with the speech engine"]');
+  expect((toggle.element as HTMLInputElement).checked).toBe(false);
+  await toggle.setValue(true);
+  await flushPromises();
+  expect((await mock.bookSettings("book-0")).speakMissing).toBe(true);
+  expect((await mock.bookSettings("book-0")).narration).toBe("recording");
+
+  await wrapper.get('[role="radio"]:last-child').trigger("click");
+  await flushPromises();
+  expect(wrapper.find('[aria-label="Speak what the recording lacks with the speech engine"]').exists(), "only for the recording").toBe(false);
+});
+
 it("lists recordings being synced in the queue with their pause button", async () => {
   mount(App, { attachTo: document.body });
   await flushPromises();

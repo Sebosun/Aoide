@@ -135,13 +135,22 @@ impl Session {
 
     /// The playhead's entry waits for the recording's sync to reach it.
     pub fn waiting_for_sync(&self) -> bool {
-        self.recording().is_some()
-            && self
-                .target
-                .plan
-                .items
-                .get(self.last_index)
-                .is_some_and(|item| item.speakable && !item.cached)
+        self.recording().is_some() && self.target.plan.waits_for_sync(self.last_index)
+    }
+
+    /// Like [`Session::wanted`], only entries spoken by the speech engine: all of a book read
+    /// by one, the text a recording lacks when it is asked to speak that.
+    pub fn wanted_speech(&self, playhead: usize) -> Vec<(usize, String)> {
+        let requests = &self.target.plan.requests;
+        self.wanted(playhead)
+            .into_iter()
+            .filter(|(i, _)| requests.get(*i).is_some_and(Option::is_some))
+            .collect()
+    }
+
+    /// Whether the speech engine speaks any of this session's entries.
+    pub fn speaks(&self) -> bool {
+        self.target.plan.requests.iter().any(Option::is_some)
     }
 
     /// The recording's sync went further: plays by `target` from now on. Audio already given to
