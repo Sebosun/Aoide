@@ -1,7 +1,8 @@
 //! whisper.cpp, built in.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::sync::Once;
 
 use whisper_rs::{
@@ -85,6 +86,12 @@ fn dtw_preset(model: &Path) -> Option<DtwModelPreset> {
     })
 }
 
+/// whisper.cpp asks this between computations whether to stop. `data` is an `AtomicBool`.
+unsafe extern "C" fn should_abort(data: *mut std::ffi::c_void) -> bool {
+    // SAFETY: set above to the request's abort flag, alive for the whole recognition.
+    unsafe { (*data.cast::<AtomicBool>()).load(Ordering::Relaxed) }
+}
+
 impl Transcriber for WhisperCpp {
     fn id(&self) -> &str {
         &self.id
@@ -111,8 +118,14 @@ impl Transcriber for WhisperCpp {
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
         if let Some(abort) = &request.abort {
-            let abort = abort.clone();
-            params.set_abort_callback_safe(move || abort.load(Ordering::Relaxed));
+            // Not `set_abort_callback_safe`: in whisper-rs 0.16 its trampoline reads the boxed
+            // closure as the wrong type, so the flag reads as garbage, usually "stop".
+            // SAFETY: the user data is the request's flag, which outlives `full` below, and
+            // `should_abort` only reads it.
+            unsafe {
+                params.set_abort_callback(Some(should_abort));
+                params.set_abort_callback_user_data(Arc::as_ptr(abort).cast_mut().cast());
+            }
         }
         let vad = self.options.vad_model.as_ref().and_then(|p| p.to_str());
         if let Some(vad) = vad {

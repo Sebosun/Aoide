@@ -26,7 +26,8 @@ const RECORDING: Record<SyncStage, string> = {
 };
 const status = computed(() => {
   const { prepare, audioBytes, progress, recording } = props.book;
-  if (recording) return `${percent.value}% · ${RECORDING[recording]}`;
+  // Listening progress only once started, so it is not read as the sync's.
+  if (recording) return progress?.fraction ? `${percent.value}% · ${RECORDING[recording]}` : RECORDING[recording].replace(/^./, c => c.toUpperCase());
   if (prepare?.state === "done") return `${percent.value}% · ready offline`;
   if (prepare) return describePreparation(preparationStatus(prepare));
   if (audioBytes) return `${percent.value}% · ${formatBytes(audioBytes)}`;

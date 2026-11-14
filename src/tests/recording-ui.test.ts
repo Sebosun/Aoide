@@ -145,3 +145,17 @@ it("marks the sentences the recording lacks, and says so when it lacks the whole
   expect(segments.every(s => s.classes("chapter-text__segment--unnarrated"))).toBe(true);
   expect(wrapper.text()).toContain("This chapter is not in the recording");
 });
+
+it("tells a book's listening progress apart from its recording's sync on the card", async () => {
+  mock.setRecordingForTest("book-1", "transcribing");
+  mock.setRecordingForTest("book-0", "ready");
+  await useLibraryStore().start();
+  await flushPromises();
+  const { default: LibraryView } = await import("../views/LibraryView.vue");
+  const wrapper = mount(LibraryView, { attachTo: document.body });
+  await flushPromises();
+  const card = (title: string) => wrapper.findAll(".book-card").find(c => c.text().includes(title))!.findAll(".book-card__line").at(-1)!.text();
+  expect(card("A Map of Quiet Places")).toBe("Syncing recording");
+  expect(card("The Lantern Keeper")).toBe("12% · narrated recording");
+  wrapper.unmount();
+});
