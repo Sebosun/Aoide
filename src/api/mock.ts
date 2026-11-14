@@ -1,6 +1,6 @@
 import type { RecordingView, SyncStage, InspectionView, ModelDownloadView, SyncReportView, PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
 
-export const initialPlayer = (): PlayerState => ({ bookId: null, status: "stopped", chapter: 0, segmentId: null, wordIndex: null, speed: 1, volume: 1, chapterFraction: 0, error: null, sleep: null, source: "speech", offText: false });
+export const initialPlayer = (): PlayerState => ({ bookId: null, status: "stopped", chapter: 0, segmentId: null, wordIndex: null, speed: 1, volume: 1, chapterFraction: 0, error: null, sleep: null, source: "speech", offText: false, chapterLeftMs: null });
 export const initialGeneration = (): GenerationState => ({ bookId: null, generatingSegmentId: null, bufferedAheadMs: 0, pending: 0, error: null, preparing: null });
 
 /** The same API with every request (not the event subscriptions) taking `ms` longer. */
@@ -227,7 +227,7 @@ export function createMockApi() {
       const segments = getChapter(id, c).blocks.flatMap(b => b.segments).filter(s => s.speakable);
       const segment = segments.find(s => s.id === (segmentId ?? (chapter === null ? book.progress?.segmentId : null))) ?? segments[0];
       const source = settings.get(id)?.narration === "recording" && recordings.get(id)?.stage === "ready" ? "recording" : "speech";
-      emitPlayer({ ...state, bookId: id, chapter: c, segmentId: segment.id, wordIndex: 0, status: "playing", chapterFraction: segments.indexOf(segment) / segments.length, error: null, source, offText: false });
+      emitPlayer({ ...state, bookId: id, chapter: c, segmentId: segment.id, wordIndex: 0, status: "playing", chapterFraction: segments.indexOf(segment) / segments.length, error: null, source, offText: false, chapterLeftMs: null });
       emitGeneration({ ...initialGeneration(), bookId: id, bufferedAheadMs: 18000 }); run();
     },
     async pause() { halt(); emitPlayer({ ...state, status: "paused" }); },

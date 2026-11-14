@@ -107,7 +107,12 @@ source: Narration,
 /**
  * The recording is playing narration that is not in the text (credits, a dedication…).
  */
-offText: boolean, };
+offText: boolean, 
+/**
+ * Listening time left in the chapter at this speed, when it is known exactly (a
+ * recording); otherwise the interface estimates it from the words left.
+ */
+chapterLeftMs: number | null, };
 
 export type EngineState = "offline" | "loading" | "ready" | "busy" | "error";
 

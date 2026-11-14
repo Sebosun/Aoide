@@ -112,3 +112,18 @@ it("says when the narration playing is not in the text", async () => {
   await flushPromises();
   expect(wrapper.get(".reader__chip").text()).toBe("Not in the text");
 });
+
+it("shows the exact time left in the chapter while a recording plays", async () => {
+  await useLibraryStore().start();
+  await useReaderStore().open("book-0");
+  const player = usePlayerStore();
+  await player.start();
+  const wrapper = mount(ReaderView, { attachTo: document.body });
+  await flushPromises();
+  mock.setRecordingForTest("book-0", "ready");
+  await player.play("book-0", 0, null);
+  await flushPromises();
+  mock.emitPlayer({ ...player.state, chapterLeftMs: 47 * 60_000 });
+  await flushPromises();
+  expect(wrapper.get('[aria-label="Player"]').text()).toContain("47 min left");
+});

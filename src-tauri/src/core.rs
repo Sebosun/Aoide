@@ -189,6 +189,9 @@ pub struct PlayerStateView {
     pub source: Narration,
     /// The recording is playing narration that is not in the text (credits, a dedication…).
     pub off_text: bool,
+    /// Listening time left in the chapter at this speed, when it is known exactly (a
+    /// recording); otherwise the interface estimates it from the words left.
+    pub chapter_left_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -2168,6 +2171,7 @@ impl Core {
                 sleep: None,
                 source: Narration::Speech,
                 off_text: false,
+                chapter_left_ms: None,
             };
         };
         let book = &session.target.book;
@@ -2199,6 +2203,23 @@ impl Core {
                 Narration::Speech
             },
             off_text,
+            chapter_left_ms: session.recording().map(|_| {
+                let entries = book
+                    .chapters
+                    .get(chapter)
+                    .map_or(index..index, |c| index..c.first_entry + c.segments.len());
+                let audio: u64 = session
+                    .target
+                    .plan
+                    .items
+                    .get(entries)
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|item| u64::from(item.duration_ms))
+                    .sum();
+                let left = audio.saturating_sub(u64::from(position.offset_ms));
+                (left as f64 / f64::from(speed.max(0.1))) as u64
+            }),
         }
     }
 

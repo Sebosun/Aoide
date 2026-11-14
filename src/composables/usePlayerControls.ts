@@ -26,6 +26,8 @@ export function usePlayerControls() {
   /** The playing chapter's text, when it has been loaded. */
   const playingChapter = computed(() => player.state.bookId ? reader.cache[`${player.state.bookId}:${player.state.chapter}`] : undefined);
   const timeLeftMs = computed(() => {
+    // A recording knows it exactly; speech is estimated from the words left.
+    if (player.state.chapterLeftMs !== null) return player.state.chapterLeftMs;
     const chapter = playingChapter.value;
     return chapter ? speechMs(wordsLeft(chapter, player.state.segmentId, player.state.wordIndex), player.state.speed) : null;
   });

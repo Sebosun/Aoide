@@ -383,6 +383,15 @@ async fn a_stretch_of_the_recording_plays_from_its_time() {
     let state = f.core.player_state();
     assert_eq!(state.chapter, 1, "{state:?}");
     assert_eq!(state.source, Narration::Recording);
+    // The last chapter runs to the end of the recording: what is left is known, not estimated.
+    let left = state
+        .chapter_left_ms
+        .expect("exact time left for a recording");
+    let expected = total - second_chapter;
+    assert!(
+        left + 1_500 > expected && left < expected + 500,
+        "{left} ms left, expected about {expected}"
+    );
     f.core.stop();
 }
 
