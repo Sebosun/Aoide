@@ -575,6 +575,29 @@ Conclusions:
   bisects once for the latest point that seeks and decodes forward from it (tested with a synthetic
   fixture). Worth reporting upstream.
 
+## App end-to-end (2026-11-14)
+
+The app itself (CUDA build, base.en on the GPU, decoding the next block alongside) synced a
+second owned unabridged novel: one M4B of 10 h 15 min, 13 chapters, about 98,000 words.
+
+| | |
+|---|---|
+| Sync time | about 4 min 20 s, about 140× real time |
+| Text matched to a heard word | 94.9 %; every story chapter 94–97 %, the front matter 70 % (its title page and series blurb are not read) |
+| Text timed | 99.6 % |
+| Not in the text | 2 stretches: a spoken part title (5 s) and the closing credits (32 s) |
+
+It found two bugs that the tests had missed, both now covered:
+
+- whisper-rs 0.16's `set_abort_callback_safe` hands whisper.cpp a pointer of the wrong type, so
+  the abort flag read as "stop" and every recognition failed with error -6.
+- The read-ahead appended audio from the end of the block's range instead of from the end of
+  what was already decoded, so up to 30 s per block were heard twice (86.6 % matched, a hundred
+  false "not in the text" stretches).
+
+"Listen now" during the sync played the synced part from the book page. Waiting at the sync's
+edge is covered by a core test, not yet checked by hand.
+
 ## Risks
 
 | Risk | Mitigation |
