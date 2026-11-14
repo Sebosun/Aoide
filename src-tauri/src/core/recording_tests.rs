@@ -33,6 +33,17 @@ impl Transcriber for Scripted {
     fn transcribe(&self, request: &Request<'_>) -> Result<Vec<Word>, Error> {
         let start = (request.samples[0] * SCALE).round() as u64;
         let end = start + request.samples.len() as u64 * 1_000 / u64::from(RATE);
+        // Every sample is its own time, so the audio it is given must run on without a jump.
+        let per_ms = f64::from(RATE) / 1_000.0;
+        if let Some((n, _)) = request.samples.iter().enumerate().find(|(n, &sample)| {
+            let expected = start as f64 + *n as f64 / per_ms;
+            (f64::from(sample) * f64::from(SCALE) - expected).abs() > 2.0
+        }) {
+            return Err(Error::Failed(format!(
+                "the audio from {start} ms jumps after {} ms",
+                n as f64 / per_ms
+            )));
+        }
         self.heard.lock().unwrap().push(start);
         Ok(self
             .script

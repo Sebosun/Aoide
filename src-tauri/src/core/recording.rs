@@ -910,12 +910,14 @@ impl Core {
         // The next block starts at this one's cut, at most CUT_SLACK_MS before `read_to`, so
         // reading this far covers all of it. It is decoded while this block is recognised.
         let ahead = (read_to + BLOCK_MS + CUT_SLACK_MS).min(total);
+        // From where the decoded audio ends, which may be past `read_to` already.
+        let decoded_to = decoded.to_ms();
         let (heard, more) = std::thread::scope(|scope| {
             let Decoded {
                 reader, samples, ..
             } = &mut decoded;
-            let reading = (ahead > read_to)
-                .then(|| scope.spawn(move || reader.read(read_to..ahead, SAMPLE_RATE)));
+            let reading = (ahead > decoded_to)
+                .then(|| scope.spawn(move || reader.read(decoded_to..ahead, SAMPLE_RATE)));
             let heard = hear(&samples[..cut]);
             (heard, reading.and_then(|r| r.join().ok()))
         });
