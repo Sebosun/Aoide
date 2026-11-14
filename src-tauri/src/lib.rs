@@ -2,6 +2,8 @@ mod book;
 mod core;
 mod media;
 mod rename;
+#[cfg(debug_assertions)]
+mod smoke;
 
 use std::sync::Arc;
 
@@ -536,189 +538,6 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| e.to_string())?
 }
 
-/// Debug-only headless check: plays the first present book whose title contains
-/// `AOIDE_SMOKE_BOOK`, logs player/generation state to stderr, then exits.
-#[cfg(debug_assertions)]
-fn smoke(app: tauri::AppHandle, core: Arc<Core>, seconds: u64) {
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        let wanted = std::env::var("AOIDE_SMOKE_BOOK")
-            .unwrap_or_default()
-            .to_lowercase();
-        if let Ok(url) = std::env::var("AOIDE_SMOKE_ALIGNER") {
-            let mut settings = core.app_settings();
-            settings.aligner = Some(crate::core::AlignerSettings {
-                base_url: url,
-                network: Default::default(),
-                launch: None,
-            });
-            eprintln!(
-                "smoke: aligner settings: {:?}",
-                core.save_app_settings(settings)
-            );
-        }
-        if std::env::var("AOIDE_SMOKE_DISCOVER").is_ok() {
-            for round in 1..=2 {
-                let started = std::time::Instant::now();
-                match core.scan_for_books().await {
-                    Ok(found) => {
-                        eprintln!("smoke: scan {round} took {:?}", started.elapsed());
-                        for c in &found {
-                            eprintln!(
-                                "smoke:   {:10?} {:?} by {:?} x{} cover={} err={:?}",
-                                c.status,
-                                c.title,
-                                c.authors,
-                                c.paths.len(),
-                                c.cover_path.is_some(),
-                                c.error
-                            );
-                        }
-                    }
-                    Err(error) => eprintln!("smoke: scan failed: {error}"),
-                }
-            }
-            let new: Vec<_> = core
-                .discovered_books()
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|c| c.status == crate::core::CandidateStatus::New)
-                .collect();
-            if std::env::var("AOIDE_SMOKE_DETAILS").is_ok() {
-                let ids = new.iter().map(|c| c.id.clone()).collect();
-                eprintln!(
-                    "smoke: details: {:?}",
-                    core.fetch_discovered_details(ids).await
-                );
-                for c in core
-                    .discovered_books()
-                    .unwrap_or_default()
-                    .iter()
-                    .filter(|c| c.status == crate::core::CandidateStatus::New)
-                {
-                    eprintln!(
-                        "smoke:   suggestion for {:?}: {:?}",
-                        c.title,
-                        c.suggestion.as_ref().map(|m| (&m.title, &m.key))
-                    );
-                }
-            }
-            let choices = new
-                .iter()
-                .map(|c| crate::core::ImportChoice {
-                    id: c.id.clone(),
-                    apply_suggestion: false,
-                    pair_audiobook: false,
-                })
-                .collect();
-            eprintln!("smoke: import: {:?}", core.import_discovered(choices).await);
-            let titles: Vec<String> = core
-                .list_books()
-                .unwrap_or_default()
-                .into_iter()
-                .map(|b| b.title)
-                .collect();
-            eprintln!("smoke: library now: {titles:?}");
-            for c in core.discovered_books().unwrap_or_default() {
-                eprintln!("smoke:   after import {:10?} {:?}", c.status, c.title);
-            }
-            app.exit(0);
-            return;
-        }
-        let books = core.list_books().unwrap_or_default();
-        eprintln!("smoke: {} books", books.len());
-        let Some(book) = books.iter().find(|b| {
-            matches!(b.status, aoide_library::BookStatus::Present)
-                && b.title.to_lowercase().contains(&wanted)
-        }) else {
-            eprintln!("smoke: no matching book");
-            app.exit(1);
-            return;
-        };
-        let view = core.open_book(&book.id);
-        eprintln!(
-            "smoke: opened {:?}: {:?}",
-            book.title,
-            view.as_ref().map(|v| v.chapters.len())
-        );
-        if std::env::var("AOIDE_SMOKE_PREPARE").is_ok() {
-            if let Err(error) = core.prepare_book(&book.id).await {
-                eprintln!("smoke: prepare failed: {error}");
-            }
-            for t in 0..seconds {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                let g = core.generation_state();
-                eprintln!(
-                    "smoke: t={t:>2}s preparing={:?} gen={:?} err={:?}",
-                    g.preparing, g.generating_segment_id, g.error
-                );
-            }
-            core.cancel_prepare(&book.id);
-            app.exit(0);
-            return;
-        }
-        if std::env::var("AOIDE_SMOKE_EXPORT").is_ok() {
-            let started = std::time::Instant::now();
-            let result = core.export_book(&book.id).await;
-            eprintln!("smoke: export after {:?}: {result:?}", started.elapsed());
-            app.exit(if result.is_ok() { 0 } else { 1 });
-            return;
-        }
-        if std::env::var("AOIDE_SMOKE_READ_ALONG").is_ok() {
-            // The recording is checked after start; wait for that to settle.
-            for _ in 0..120 {
-                let stage = core.recording(&book.id).map(|r| r.stage);
-                if stage != Some(crate::core::SyncStage::Checking) {
-                    break;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            }
-            let started = std::time::Instant::now();
-            let result = core.export_read_along(&book.id).await;
-            eprintln!(
-                "smoke: read-along export after {:?}: {result:?}",
-                started.elapsed()
-            );
-            app.exit(if result.is_ok() { 0 } else { 1 });
-            return;
-        }
-        let chapter = std::env::var("AOIDE_SMOKE_CHAPTER")
-            .ok()
-            .and_then(|c| c.parse().ok());
-        if let Err(error) = core.play(&book.id, chapter, None).await {
-            eprintln!("smoke: play failed: {error}");
-        }
-        let started = std::time::Instant::now();
-        while started.elapsed().as_secs() < seconds {
-            tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-            let p = core.player_state();
-            let g = core.generation_state();
-            eprintln!(
-                "smoke: t={:>2}s {:?} seg={:?} word={:?} frac={:.3} | gen={:?} buffered={}ms pending={} err={:?}",
-                started.elapsed().as_secs(), p.status, p.segment_id, p.word_index, p.chapter_fraction,
-                g.generating_segment_id, g.buffered_ahead_ms, g.pending, g.error
-            );
-        }
-        match core.add_bookmark(&book.id, "smoke note") {
-            Ok(mark) => eprintln!(
-                "smoke: bookmark {:?} at {:?}: {:?}",
-                mark.id, mark.segment_id, mark.excerpt
-            ),
-            Err(error) => eprintln!("smoke: bookmark failed: {error}"),
-        }
-        core.stop();
-        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-        match core.listening_stats() {
-            Ok(stats) => eprintln!(
-                "smoke: listened total {} ms, days {:?}",
-                stats.total_ms, stats.by_day
-            ),
-            Err(error) => eprintln!("smoke: stats failed: {error}"),
-        }
-        app.exit(0);
-    });
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -762,17 +581,8 @@ pub fn run() {
             }
             // Debug builds can run against a throwaway folder instead of the real library.
             #[cfg(debug_assertions)]
-            if let Ok(home) = std::env::var("AOIDE_SMOKE_HOME") {
-                let home = std::path::PathBuf::from(home);
-                paths = Paths {
-                    home_dir: home.join("Home"),
-                    library_dir: home.join("Books"),
-                    covers_dir: home.join("data").join("covers"),
-                    audio_dir: home.join("cache").join("audio"),
-                    db_path: home.join("data").join("library.sqlite3"),
-                    config_dir: home.join("config").join("aoide"),
-                    models_dir: home.join("data").join("models"),
-                };
+            if let Some(home) = std::env::var_os("AOIDE_SMOKE_HOME") {
+                paths = smoke::paths(std::path::Path::new(&home));
             }
             #[allow(unused_mut)]
             let mut environment = crate::core::Environment::desktop(app.handle().clone());
@@ -788,7 +598,7 @@ pub fn run() {
                     .map_err(Box::<dyn std::error::Error>::from)?;
             #[cfg(debug_assertions)]
             if let Ok(seconds) = std::env::var("AOIDE_SMOKE_SECONDS") {
-                smoke(
+                smoke::spawn(
                     app.handle().clone(),
                     Arc::clone(&core),
                     seconds.parse().unwrap_or(20),
