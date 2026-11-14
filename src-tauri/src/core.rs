@@ -474,6 +474,8 @@ pub struct Core {
     sleep: Mutex<Option<SleepTimer>>,
     media: Mutex<Option<std::sync::mpsc::Sender<crate::media::MediaUpdate>>>,
     extras: Mutex<extras::ExtrasState>,
+    /// Exact word timings being asked for. Never held with the playback's locks.
+    aligning: Mutex<align::Aligning>,
     config: Mutex<config::Config>,
     /// Recordings and their sync.
     recordings: recordings::Recordings,
@@ -656,6 +658,7 @@ impl Core {
             sleep: Mutex::new(None),
             media: Mutex::new(None),
             extras: Mutex::new(Default::default()),
+            aligning: Mutex::new(Default::default()),
             config: Mutex::new(config),
             recordings,
         });
@@ -2019,12 +2022,7 @@ impl Core {
         let Some(tick) = self.playback.tick(&LibraryAudio(self)) else {
             return false;
         };
-        self.align_recording_clips();
-        if !tick.to_align.is_empty() && self.app_settings().aligner.is_some() {
-            for (book, index, key) in tick.to_align {
-                self.queue_alignment(&book, index, &key);
-            }
-        }
+        self.align(tick.to_align);
         tick.moved
     }
 

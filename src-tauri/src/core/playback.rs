@@ -12,6 +12,7 @@ use aoide_audio::{Pcm, PlayerCore, Position, Status};
 use aoide_library::WordTiming;
 use aoide_text::WordEstimate;
 
+use super::align::Alignable;
 use super::narration::NarrationPlan;
 use super::recording::{Narration, RecordingPlan};
 use super::session::Session;
@@ -36,14 +37,11 @@ pub trait SpeechAudio {
 }
 
 /// What one tick of playback did.
-#[derive(Debug, PartialEq, Eq)]
 pub struct Tick {
-    pub playhead: usize,
     /// The playhead is on another entry than at the last tick (or this session's first tick).
     pub moved: bool,
-    /// Speech just given to the player that should be aligned for exact word times:
-    /// (book, index, key).
-    pub to_align: Vec<(String, usize, String)>,
+    /// What was just given to the player without exact word times.
+    pub to_align: Vec<Alignable>,
 }
 
 /// The playhead, for saving the listener's place.
@@ -223,15 +221,25 @@ impl Playback {
     /// behind. `None` when nothing is playing.
     pub fn tick(&self, audio: &dyn SpeechAudio) -> Option<Tick> {
         let playhead = self.position().index;
-        let (moved, pieces, wanted) = {
+        let (moved, pieces, wanted, mut to_align) = {
             let mut session = lock(&self.session);
             let session = session.as_mut()?;
             let moved = session.ticked.replace(playhead) != Some(playhead);
-            (
-                moved,
-                session.feed(playhead),
-                session.wanted_speech(playhead),
-            )
+            let pieces = session.feed(playhead);
+            let book = session.target.book.id.clone();
+            let clips: Vec<Alignable> = match session.recording().cloned() {
+                Some(plan) => session
+                    .take_to_align()
+                    .into_iter()
+                    .map(|index| Alignable::Clip {
+                        book: book.clone(),
+                        index,
+                        plan: Arc::clone(&plan),
+                    })
+                    .collect(),
+                None => Vec::new(),
+            };
+            (moved, pieces, session.wanted_speech(playhead), clips)
         };
         if !pieces.is_empty() {
             let mut player = lock(&self.player);
@@ -249,7 +257,6 @@ impl Playback {
                 }
             }
         }
-        let mut to_align = Vec::new();
         for (index, key) in wanted {
             let MadeSpeech { pcm, timings } = match audio.read(&key) {
                 Ok(Some(read)) => read,
@@ -262,7 +269,11 @@ impl Playback {
             lock(&self.player).provide(index, &pcm);
             if let Some(session) = lock(&self.session).as_mut() {
                 if session.provided(index, timings.as_deref(), &pcm) {
-                    to_align.push((session.target.book.id.clone(), index, key));
+                    to_align.push(Alignable::Speech {
+                        book: session.target.book.id.clone(),
+                        index,
+                        key,
+                    });
                 }
             }
         }
@@ -270,20 +281,7 @@ impl Playback {
         if let Some(before) = release {
             lock(&self.player).release_before(before);
         }
-        Some(Tick {
-            playhead,
-            moved,
-            to_align,
-        })
-    }
-
-    /// Recording clips given to the player since the last call, with the book and recording.
-    pub fn take_clips_to_align(&self) -> Option<(String, Arc<RecordingPlan>, Vec<usize>)> {
-        let mut session = lock(&self.session);
-        let session = session.as_mut()?;
-        let clips = session.take_to_align();
-        let plan = session.recording()?.clone();
-        Some((session.target.book.id.clone(), plan, clips))
+        Some(Tick { moved, to_align })
     }
 
     #[cfg(test)]
@@ -514,7 +512,7 @@ mod tests {
         let audio = memory(&["k0", "k1"]);
         let first = playback.tick(&audio).unwrap();
         assert!(first.moved, "a session's first tick");
-        assert_eq!(first.playhead, 0);
+        assert_eq!(playback.position().index, 0);
         assert_eq!(first.to_align.len(), 2, "no stored word timings");
         assert!(!playback.tick(&audio).unwrap().moved);
         assert_eq!(playback.state().status, PlaybackStatus::Playing);
@@ -523,7 +521,7 @@ mod tests {
         let pause = playback.book().unwrap().segment(0).unwrap().pause_after_ms as usize;
         listen(&playback, 1_000 + pause + 100);
         let tick = playback.tick(&audio).unwrap();
-        assert_eq!((tick.playhead, tick.moved), (1, true));
+        assert_eq!((playback.position().index, tick.moved), (1, true));
         assert!(tick.to_align.is_empty(), "given once");
         assert!(!playback.tick(&audio).unwrap().moved);
     }
@@ -619,7 +617,7 @@ mod tests {
         playback.tick(&memory(&["k0", "k1", "k2", "k3"])).unwrap();
         playback.seek(2, None);
         let tick = playback.tick(&memory(&["k0", "k1", "k2", "k3"])).unwrap();
-        assert_eq!((tick.playhead, tick.moved), (2, true));
+        assert_eq!((playback.position().index, tick.moved), (2, true));
         assert_eq!(playback.state().segment_id, Some("1:0:0".into()));
     }
 }
