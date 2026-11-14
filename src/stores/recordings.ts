@@ -37,7 +37,7 @@ export const useRecordingsStore = defineStore("recordings", () => {
   async function attach(bookId: string, paths: string[], asListed = false) { const recording = await api.attachRecording(bookId, paths, asListed); put(recording); return recording; }
   async function act(bookId: string, action: SyncAction) { await api.syncAction(bookId, action); await load(bookId); }
   async function remove(bookId: string) { await api.removeRecording(bookId); await load(bookId); }
-  async function setNarration(bookId: string, narration: Narration) { await api.setNarration(bookId, narration); await useReaderStore().refreshBook(bookId); }
+  async function setNarration(bookId: string, narration: Narration) { await api.setNarration(bookId, narration); await load(bookId); await useReaderStore().refreshBook(bookId); }
   function openPairing(paths: string[], bookId: string | null = null) { pairing.value = { paths, bookId }; }
   function dispose() { unlisten?.(); startup = undefined; }
   return { byBook, error, pairing, report, syncing, start, load, attach, act, remove, setNarration, openPairing, closePairing: () => { pairing.value = null; }, openReport: (bookId: string) => { report.value = bookId; }, closeReport: () => { report.value = null; }, dispose };

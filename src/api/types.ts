@@ -1,6 +1,7 @@
 /** The UI↔core contract. Everything that crosses the IPC seam is declared from the Rust types in
- *  `contract.ts` (generated; see src-tauri/src/core/contract.rs). The Tauri adapter reshapes a
- *  few of them (cover paths become webview URLs); those are defined from their wire types here. */
+ *  `contract.ts` (generated; see src-tauri/src/core/contract.rs), commands and their argument and
+ *  result types included. The Tauri adapter reshapes a few types (cover paths become webview
+ *  URLs); those are defined from their wire types here. */
 import type * as Wire from "./contract";
 
 import type {
@@ -85,87 +86,8 @@ import type {
   SyncStage,
 } from "./contract";
 
-export type {
-  AlignerSettings,
-  AppInfo,
-  AppSettings,
-  Appearance,
-  AppearanceMode,
-  BlockKind,
-  BlockView,
-  BookDetails,
-  BookId,
-  BookListeningView,
-  BookProgress,
-  BookSettings,
-  BookStatus,
-  BookStorage,
-  BookView,
-  Bookmark,
-  CandidateStatus,
-  ChapterAudioView,
-  ChapterSummary,
-  ChapterView,
-  ChoiceOption,
-  Collection,
-  DayListening,
-  DiscoveryImportProgress,
-  EngineDescriptor,
-  EngineOptions,
-  EngineProfile,
-  EngineState,
-  EngineStatusView,
-  ExcludedView,
-  ExportProgress,
-  ExportStage,
-  GenerationState,
-  ImportResult,
-  LaunchCommand,
-  LibrarySort,
-  ListeningStats,
-  MetadataMatch,
-  NetworkScope,
-  NoteMarker,
-  ParamKind,
-  ParamSpec,
-  ParamValue,
-  PlaybackStatus,
-  PlayerState,
-  Preferences,
-  PrepareState,
-  PrepareView,
-  PreparingView,
-  ReaderMode,
-  ScanProgress,
-  ScanSettings,
-  ScanStage,
-  SearchHit,
-  SegmentView,
-  SleepView,
-  StorageReport,
-  Theme,
-  Voice,
-  ChapterMatchView,
-  DownloadStage,
-  InspectionView,
-  MatchSummaryView,
-  ModelDownloadView,
-  ModelSizeChoice,
-  ModelView,
-  Narration,
-  OffTextView,
-  RecognitionDevice,
-  RecognitionEngine,
-  RecognitionServer,
-  RecognitionOptions,
-  RecognitionSettings,
-  RecordingFileView,
-  RecordingProblemView,
-  RecordingView,
-  SyncAction,
-  SyncReportView,
-  SyncStage,
-};
+// Every contract type, under its own name (the two reshaped above it are declared here instead).
+export type * from "./contract";
 
 /** A library book; the adapter turns the cover file path into a URL the webview can load. */
 export type BookSummary = Omit<Wire.BookSummary, "coverPath"> & { coverUrl: string | null };

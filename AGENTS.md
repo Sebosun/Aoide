@@ -6,5 +6,5 @@
 - Chatterbox protocol code belongs in `crates/chatterbox-client`. Test the public client over loopback HTTP with synthetic responses; real-server/GPU synthesis tests are explicit opt-ins. Keep production requests loopback-only, with proxies, redirects, and automatic retries disabled.
 - Use tiny synthetic EPUB fixtures with original text in committed tests. Personal EPUBs stay outside Git; inspect only metadata, navigation, and bounded excerpts when establishing local regression expectations.
 - Model anything with states as an explicit enum changed by one transition function over named events (as in `src-tauri/src/core/preparation.rs`); views render that stage.
-- `src/api/contract.ts` is generated from the Rust types and `CoreEvent`. After changing a type that crosses IPC, run `AOIDE_WRITE_CONTRACT=1 cargo test -p aoide contract`.
+- `src/api/contract.ts` is generated from the Rust types, `CoreEvent` and the `#[tauri::command]` functions in `lib.rs`. After changing a type that crosses IPC or a command, run `AOIDE_WRITE_CONTRACT=1 cargo test -p aoide contract`. Let the core decide (as fields of its views) rather than re-deriving its rules in the UI or the mock.
 - Extraction is deterministic. Preserve uncertain content and expose warnings; report excluded sections and their reasons. Never modify source books.

@@ -705,11 +705,19 @@ async fn the_synced_part_plays_while_the_rest_is_still_syncing() {
     let partial = f.core.recording(&f.id).unwrap();
     assert_eq!(partial.stage, Stage::Transcribing);
     assert!(partial.transcribed_ms < 400_000, "{partial:?}");
+    assert!(partial.listenable, "what is synced so far can be heard");
+    assert!(!partial.narrates, "not chosen yet");
 
     f.core
         .set_narration(&f.id, Narration::Recording)
         .await
         .expect("a recording can be listened to while it syncs");
+    assert!(f.core.recording(&f.id).unwrap().narrates);
+    assert_eq!(
+        f.events.payloads(CoreEvent::SYNC_STATE).last().unwrap()["narrates"],
+        true,
+        "the views are told"
+    );
     f.core.play(&f.id, Some(0), None).await.unwrap();
     until("the synced first chapter to play", || {
         let state = f.core.player_state();

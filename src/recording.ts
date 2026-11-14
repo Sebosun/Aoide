@@ -17,7 +17,7 @@ export interface RecordingStatus {
   actions: RecordingAction[];
   /** It is synced. */
   playable: boolean;
-  /** What is synced so far can be listened to (all of it once synced). */
+  /** What is synced so far can be listened to (all of it once synced); decided in the core. */
   listenable: boolean;
   /** Something is going on (shown with a moving bar). */
   working: boolean;
@@ -45,7 +45,7 @@ export const RECORDING_ACTION_ICONS: Record<RecordingAction, Component> = {
 const share = (part: number, whole: number) => Math.floor((part / Math.max(1, whole)) * 100);
 
 export function recordingStatus(recording: RecordingView): RecordingStatus {
-  const { stage, transcribedMs, totalMs, summary } = recording;
+  const { stage, transcribedMs, totalMs, summary, listenable } = recording;
   const percent = ["transcribing", "paused", "waiting"].includes(stage) && transcribedMs ? share(transcribedMs, totalMs) : stage === "transcribing" ? 0 : null;
   const found = summary ? `${share(summary.matchedWords, summary.words)}% of the text found in the recording` : null;
   const detail: Record<SyncStage, string | null> = {
@@ -62,10 +62,10 @@ export function recordingStatus(recording: RecordingView): RecordingStatus {
     failed: recording.error,
   };
   // While it syncs, what is synced so far can be listened to (the core waits at the edge).
-  const syncing = ["waiting", "transcribing", "paused", "matching"].includes(stage) && transcribedMs > 0;
+  const listenEarly = listenable && stage !== "ready" && stage !== "matching";
   return {
-    stage, label: LABELS[stage], detail: detail[stage], percent, actions: syncing && stage !== "matching" ? ["listen", ...ACTIONS[stage]] : ACTIONS[stage],
-    playable: stage === "ready", listenable: stage === "ready" || syncing, working: ["checking", "transcribing", "matching"].includes(stage),
+    stage, label: LABELS[stage], detail: detail[stage], percent, actions: listenEarly ? ["listen", ...ACTIONS[stage]] : ACTIONS[stage],
+    playable: stage === "ready", listenable, working: ["checking", "transcribing", "matching"].includes(stage),
   };
 }
 

@@ -49,6 +49,7 @@ pub struct StorageReport {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct CleanResult {
     pub files: u64,
     pub bytes: u64,

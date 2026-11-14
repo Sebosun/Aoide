@@ -93,6 +93,7 @@ pub struct Candidate {
 
 #[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct ImportChoice {
     pub id: String,
     /// Apply the suggested Open Library match after importing.

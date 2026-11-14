@@ -1,9 +1,11 @@
-//! The UI↔core contract: TypeScript declarations of every type the commands and events carry,
-//! generated from the Rust types into `src/api/contract.ts`.
+//! The UI↔core contract, generated into `src/api/contract.ts`: TypeScript declarations of every
+//! type the commands and events carry (from the Rust types), every event with its payload, and
+//! every Tauri command in `lib.rs` with its arguments and result.
 //!
 //! The test fails when the file is out of date. Regenerate it with
 //! `AOIDE_WRITE_CONTRACT=1 cargo test -p aoide contract`.
 
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
 use ts_rs::{Config, TS};
@@ -16,11 +18,15 @@ fn contract() -> String {
         "// Generated from the Rust types by `AOIDE_WRITE_CONTRACT=1 cargo test -p aoide contract`.\n\
          // Do not edit: change the Rust type and regenerate.\n\n",
     );
+    // Each declared type's TypeScript name by its Rust name, for the commands.
+    let mut names: HashMap<String, String> = HashMap::new();
     macro_rules! declare {
         ($($ty:ty),* $(,)?) => {$(
             out.push_str("export ");
             out.push_str(&<$ty as TS>::decl(&config));
             out.push_str("\n\n");
+            let rust = stringify!($ty).rsplit("::").next().unwrap_or_default().trim().to_owned();
+            names.insert(rust, <$ty as TS>::ident(&config));
         )*};
     }
     declare!(
@@ -80,9 +86,11 @@ fn contract() -> String {
         super::extras::AppSettings,
         super::storage::BookStorage,
         super::storage::StorageReport,
+        super::storage::CleanResult,
         // Finding books
         super::discovery::CandidateStatus,
         super::discovery::Candidate,
+        super::discovery::ImportChoice,
         super::discovery::ScanStage,
         super::discovery::ScanProgress,
         super::discovery::ImportProgress,
@@ -117,6 +125,8 @@ fn contract() -> String {
         super::recording::DownloadStage,
         super::recording::ModelDownloadView,
     );
+    // Type aliases the commands use.
+    names.insert("Params".into(), name::<aoide_tts::Params>(&config));
     // One line per `CoreEvent` variant.
     let events = [
         (CoreEvent::LIBRARY_CHANGED, "null".to_owned()),
@@ -164,8 +174,179 @@ fn contract() -> String {
     for (event, payload) in events {
         out.push_str(&format!("  \"{event}\": {payload},\n"));
     }
-    out.push_str("};\n");
+    out.push_str("};\n\n");
+    out.push_str(&commands(&names));
     out
+}
+
+/// The Tauri commands in `lib.rs` as a TypeScript map from name to arguments and result.
+fn commands(names: &HashMap<String, String>) -> String {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs");
+    let file = syn::parse_file(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let mut registered = BTreeSet::new();
+    let mut out = String::from(
+        "/** Every command Core answers, by name, with its arguments and result. */\n\
+         export type Commands = {\n",
+    );
+    let mut declared = BTreeSet::new();
+    for item in &file.items {
+        let syn::Item::Fn(function) = item else {
+            continue;
+        };
+        if function.sig.ident == "run" {
+            registered.extend(handler_names(function));
+        }
+        let command = function.attrs.iter().any(|a| {
+            let path = a.path();
+            path.segments.len() == 2 && path.segments[1].ident == "command"
+        });
+        if !command {
+            continue;
+        }
+        let name = function.sig.ident.to_string();
+        let mut args = Vec::new();
+        for input in &function.sig.inputs {
+            let syn::FnArg::Typed(arg) = input else {
+                continue;
+            };
+            let syn::Pat::Ident(ident) = &*arg.pat else {
+                continue;
+            };
+            let injected = ["CoreState", "State", "AppHandle", "Window", "WebviewWindow"];
+            if injected.contains(&last_ident(&arg.ty).as_str()) {
+                continue;
+            }
+            let ty = typescript(&arg.ty, names).unwrap_or_else(|e| panic!("{name}: {e}"));
+            args.push(format!("{}: {ty}", camel(&ident.ident.to_string())));
+        }
+        let result = match &function.sig.output {
+            syn::ReturnType::Default => "void".to_owned(),
+            syn::ReturnType::Type(_, ty) => {
+                typescript(ty, names).unwrap_or_else(|e| panic!("{name}: {e}"))
+            }
+        };
+        let args = if args.is_empty() {
+            "Record<string, never>".to_owned()
+        } else {
+            format!("{{ {} }}", args.join("; "))
+        };
+        out.push_str(&format!(
+            "  \"{name}\": {{ args: {args}; result: {result} }};\n"
+        ));
+        declared.insert(name);
+    }
+    out.push_str("};\n");
+    assert_eq!(
+        declared, registered,
+        "every #[tauri::command] in lib.rs is registered in generate_handler!, and only those"
+    );
+    out
+}
+
+/// The commands named in `run`'s `generate_handler!`.
+fn handler_names(run: &syn::ItemFn) -> BTreeSet<String> {
+    let text = quote_tokens(run);
+    let start = text
+        .find("generate_handler !")
+        .expect("run registers the commands");
+    let list = &text[start..];
+    let list = &list[list.find('[').unwrap() + 1..list.find(']').unwrap()];
+    list.split(',')
+        .map(|n| n.trim().to_owned())
+        .filter(|n| !n.is_empty())
+        .collect()
+}
+
+fn quote_tokens(run: &syn::ItemFn) -> String {
+    use quote::ToTokens;
+    run.to_token_stream().to_string()
+}
+
+fn last_ident(ty: &syn::Type) -> String {
+    match ty {
+        syn::Type::Path(path) => path
+            .path
+            .segments
+            .last()
+            .map(|s| s.ident.to_string())
+            .unwrap_or_default(),
+        syn::Type::Reference(reference) => last_ident(&reference.elem),
+        _ => String::new(),
+    }
+}
+
+/// `book_id` → `bookId`, as Tauri names command arguments.
+fn camel(name: &str) -> String {
+    let mut out = String::new();
+    let mut upper = false;
+    for c in name.chars() {
+        if c == '_' {
+            upper = true;
+        } else if upper {
+            out.extend(c.to_uppercase());
+            upper = false;
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// The TypeScript for a Rust type a command takes or returns.
+fn typescript(ty: &syn::Type, names: &HashMap<String, String>) -> Result<String, String> {
+    let generic = |segment: &syn::PathSegment, n: usize| -> Result<String, String> {
+        let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+            return Err(format!("{} without type arguments", segment.ident));
+        };
+        let types: Vec<&syn::Type> = args
+            .args
+            .iter()
+            .filter_map(|a| match a {
+                syn::GenericArgument::Type(t) => Some(t),
+                _ => None,
+            })
+            .collect();
+        typescript(types.get(n).ok_or("missing type argument")?, names)
+    };
+    match ty {
+        syn::Type::Reference(reference) => typescript(&reference.elem, names),
+        syn::Type::Tuple(tuple) if tuple.elems.is_empty() => Ok("void".into()),
+        syn::Type::Path(path) => {
+            let segment = path.path.segments.last().ok_or("empty path")?;
+            let ident = segment.ident.to_string();
+            Ok(match ident.as_str() {
+                "String" | "str" | "PathBuf" => "string".into(),
+                "bool" => "boolean".into(),
+                "u8" | "u16" | "u32" | "u64" | "usize" | "i8" | "i16" | "i32" | "i64" | "isize"
+                | "f32" | "f64" => "number".into(),
+                "Result" => generic(segment, 0)?,
+                "Option" => format!("{} | null", generic(segment, 0)?),
+                "Vec" => {
+                    let item = generic(segment, 0)?;
+                    if item.contains(' ') {
+                        format!("({item})[]")
+                    } else {
+                        format!("{item}[]")
+                    }
+                }
+                "HashMap" | "BTreeMap" => {
+                    format!("Record<{}, {}>", generic(segment, 0)?, generic(segment, 1)?)
+                }
+                // The raw bytes of a binary answer.
+                "Response" => "ArrayBuffer".into(),
+                other => names
+                    .get(other)
+                    .cloned()
+                    .ok_or_else(|| format!("{other} is not declared in core/contract.rs"))?,
+            })
+        }
+        _ => Err(format!("unsupported type {}", quote_type(ty))),
+    }
+}
+
+fn quote_type(ty: &syn::Type) -> String {
+    use quote::ToTokens;
+    ty.to_token_stream().to_string()
 }
 
 fn name<T: TS>(config: &Config) -> String {

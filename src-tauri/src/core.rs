@@ -1316,6 +1316,8 @@ impl Core {
             .map_err(|e| e.to_string())?;
         // Footnote narration changes segmentation: reparse.
         lock(&self.books).remove(id);
+        // Whether its recording narrates it may have changed.
+        self.emit_recording(id);
         if self.playback.is_book(id) {
             self.restart_session().await?;
         }

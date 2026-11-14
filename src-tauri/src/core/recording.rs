@@ -293,6 +293,11 @@ pub struct RecordingView {
     pub accepted: bool,
     /// The model this book's recording is transcribed with.
     pub model_id: String,
+    /// It can be listened to: synced, or syncing with part of it transcribed (what is synced
+    /// so far plays).
+    pub listenable: bool,
+    /// It narrates the book: chosen as the book's narration, and listenable.
+    pub narrates: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -510,6 +515,13 @@ struct Live {
     abort: Arc<AtomicBool>,
     /// The quick check passed in this run.
     sample_checked: bool,
+}
+
+impl Live {
+    /// Synced, or syncing with part of it transcribed: what is synced can be listened to.
+    fn listenable(&self) -> bool {
+        self.stage == SyncStage::Ready || (self.stage.listenable() && self.transcribed_ms > 0)
+    }
 }
 
 #[derive(Default)]
@@ -803,7 +815,7 @@ impl Core {
         after
     }
 
-    fn emit_recording(&self, id: &str) {
+    pub(super) fn emit_recording(&self, id: &str) {
         if let Some(view) = self.recording(id) {
             self.emit(CoreEvent::SyncState(view));
         }
@@ -1127,6 +1139,7 @@ impl Core {
         }
         drop(library);
         lock(&self.books).remove(id);
+        self.emit_recording(id);
     }
 
     /// Missing recordings whose files are back are checked again.
@@ -1309,7 +1322,9 @@ impl Core {
             Some((l.total_ms - l.transcribed_ms.min(l.total_ms)) * elapsed / done)
         });
         let position = state.position(id);
+        let listenable = live.is_some_and(Live::listenable);
         drop(state);
+        let narrates = listenable && self.book_settings(id).narration == Some(Narration::Recording);
         Some(RecordingView {
             book_id: id.to_owned(),
             stage,
@@ -1323,6 +1338,8 @@ impl Core {
             summary: report.as_ref().map(summary),
             accepted: row.accepted,
             model_id: self.model_for_book(id).id.to_owned(),
+            listenable,
+            narrates,
         })
     }
 
@@ -1520,12 +1537,11 @@ impl Core {
         settings.narration == Some(Narration::Recording) && self.listenable(id)
     }
 
-    /// Synced, or syncing with part of it transcribed: what is synced can be listened to.
     fn listenable(&self, id: &str) -> bool {
-        let state = lock(&self.syncing);
-        state.live.get(id).is_some_and(|live| {
-            live.stage == SyncStage::Ready || (live.stage.listenable() && live.transcribed_ms > 0)
-        })
+        lock(&self.syncing)
+            .live
+            .get(id)
+            .is_some_and(Live::listenable)
     }
 
     /// The recording being listened to while it syncs has more synced (or is done): playback

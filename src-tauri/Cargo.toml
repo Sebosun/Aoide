@@ -59,5 +59,8 @@ aoide-epub = { path = "../crates/epub-parser", features = ["ts"] }
 aoide-config = { path = "../crates/config", features = ["ts"] }
 aoide-metadata = { path = "../crates/metadata", features = ["ts"] }
 roxmltree = "0.21"
+# Read the Tauri commands for the generated contract.
+quote = "1"
+syn = { version = "2", features = ["full"] }
 tempfile = "3"
 ts-rs = { version = "12.0.1", features = ["no-serde-warnings"] }

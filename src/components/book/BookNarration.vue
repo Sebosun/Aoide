@@ -7,47 +7,34 @@ import BookVoice from "./BookVoice.vue";
 import RecordingPanel from "../recording/RecordingPanel.vue";
 import { useRecordingsStore } from "../../stores/recordings";
 import { useReaderStore } from "../../stores/reader";
-import { recordingStatus } from "../../recording";
 
 /** Who reads the book: its paired recording (synced, or while it syncs) or a speech engine, with each one's
  *  settings. Switching restarts playback at the current sentence. */
 const props = defineProps<{ bookId: string }>();
 const recordings = useRecordingsStore(), reader = useReaderStore();
-const narration = ref<Narration>("speech"), speakMissing = ref(false), error = ref("");
+const speakMissing = ref(false), error = ref("");
 const recording = computed(() => recordings.byBook[props.bookId] ?? null);
-const ready = computed(() => Boolean(recording.value && recordingStatus(recording.value).listenable));
-/** What actually plays: the recording only when chosen and (partly) synced. */
-const playing = computed<Narration>(() => narration.value === "recording" && ready.value ? "recording" : "speech");
+const ready = computed(() => Boolean(recording.value?.listenable));
+/** What actually plays, as the core decides: the recording only when chosen and (partly) synced. */
+const playing = computed<Narration>(() => recording.value?.narrates ? "recording" : "speech");
 onMounted(async () => {
-  try {
-    const settings = await api.bookSettings(props.bookId);
-    narration.value = settings.narration ?? "speech"; speakMissing.value = settings.speakMissing;
-  } catch (e) { error.value = String(e); }
+  try { speakMissing.value = (await api.bookSettings(props.bookId)).speakMissing; } catch (e) { error.value = String(e); }
 });
-/** Chapters show which sentences play; drop what is loaded so they are read again. */
-async function reloadChapters() {
-  if (reader.book?.id !== props.bookId) return;
-  reader.cache = Object.fromEntries(Object.entries(reader.cache).filter(([key]) => !key.startsWith(`${props.bookId}:`)));
-  await reader.loadChapter(reader.currentChapter);
-}
 async function setSpeakMissing(on: boolean) {
   error.value = "";
   try {
     const settings = await api.bookSettings(props.bookId);
     await api.saveBookSettings(props.bookId, { ...settings, speakMissing: on });
     speakMissing.value = on;
-    await reloadChapters();
+    // Chapters show which sentences play: read them again.
+    await reader.refreshBook(props.bookId);
   } catch (e) { error.value = String(e); }
 }
 async function choose(next: Narration) {
   if (next === playing.value) return;
   error.value = "";
-  try {
-    await recordings.setNarration(props.bookId, next);
-    narration.value = next;
-    // Footnotes are read only with a speech engine, so the chapters' segments may change.
-    await reloadChapters();
-  } catch (e) { error.value = String(e); }
+  // Footnotes are read only with a speech engine, so the store reads the chapters again.
+  try { await recordings.setNarration(props.bookId, next); } catch (e) { error.value = String(e); }
 }
 </script>
 

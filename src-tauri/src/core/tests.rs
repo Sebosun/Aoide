@@ -30,6 +30,17 @@ impl Recorder {
             .filter(|(n, _)| n == name)
             .count()
     }
+
+    /// The payloads of the events named `name`, in order.
+    pub(super) fn payloads(&self, name: &str) -> Vec<serde_json::Value> {
+        self.0
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(n, _)| n == name)
+            .map(|(_, payload)| payload.clone())
+            .collect()
+    }
 }
 
 fn paths(root: &Path) -> Paths {

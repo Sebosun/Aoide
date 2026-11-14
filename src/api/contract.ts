@@ -342,6 +342,8 @@ unusedFiles: number, unusedBytes: number,
  */
 books: Array<BookStorage>, };
 
+export type CleanResult = { files: number, bytes: number, };
+
 export type CandidateStatus = "new" | "inLibrary" | "removed" | "unreadable";
 
 export type Candidate = { 
@@ -358,6 +360,16 @@ suggestion: MetadataMatch | null,
  * has a recording.
  */
 audiobook: Array<string>, };
+
+export type ImportChoice = { id: string, 
+/**
+ * Apply the suggested Open Library match after importing.
+ */
+applySuggestion: boolean, 
+/**
+ * Pair the audiobook found beside it after importing.
+ */
+pairAudiobook: boolean, };
 
 export type ScanStage = "walking" | "reading" | "done" | "cancelled" | "error";
 
@@ -473,7 +485,16 @@ position: number | null, summary: MatchSummaryView | null, accepted: boolean,
 /**
  * The model this book's recording is transcribed with.
  */
-modelId: string, };
+modelId: string, 
+/**
+ * It can be listened to: synced, or syncing with part of it transcribed (what is synced
+ * so far plays).
+ */
+listenable: boolean, 
+/**
+ * It narrates the book: chosen as the book's narration, and listenable.
+ */
+narrates: boolean, };
 
 export type ChapterMatchView = { index: number, title: string, words: number, matchedWords: number, timedWords: number, startMs: number | null, endMs: number | null, };
 
@@ -512,4 +533,78 @@ export type CoreEvents = {
   "export://progress": ExportProgress,
   "sync://state": RecordingView,
   "model://download": ModelDownloadView,
+};
+
+/** Every command Core answers, by name, with its arguments and result. */
+export type Commands = {
+  "app_info": { args: Record<string, never>; result: AppInfo };
+  "list_books": { args: Record<string, never>; result: BookSummary[] };
+  "import_files": { args: { paths: string[] }; result: ImportResult[] };
+  "rescan_library": { args: Record<string, never>; result: void };
+  "remove_book": { args: { bookId: string }; result: void };
+  "show_in_folder": { args: { bookId: string }; result: void };
+  "open_book": { args: { bookId: string }; result: BookView };
+  "book_overview": { args: { bookId: string }; result: BookView };
+  "chapter": { args: { bookId: string; chapter: number }; result: ChapterView };
+  "play": { args: { bookId: string; chapter: number | null; segmentId: string | null }; result: void };
+  "pause": { args: Record<string, never>; result: void };
+  "resume": { args: Record<string, never>; result: void };
+  "stop": { args: Record<string, never>; result: void };
+  "set_speed": { args: { speed: number }; result: void };
+  "set_volume": { args: { volume: number }; result: void };
+  "engine_status": { args: Record<string, never>; result: EngineStatusView };
+  "book_settings": { args: { bookId: string }; result: BookSettings };
+  "save_book_settings": { args: { bookId: string; settings: BookSettings }; result: void };
+  "engine_options": { args: Record<string, never>; result: EngineOptions };
+  "engine_voices": { args: Record<string, never>; result: Voice[] };
+  "collections": { args: Record<string, never>; result: Collection[] };
+  "create_collection": { args: { name: string }; result: number };
+  "rename_collection": { args: { id: number; name: string }; result: void };
+  "delete_collection": { args: { id: number }; result: void };
+  "set_book_collections": { args: { bookId: string; ids: number[] }; result: void };
+  "storage_report": { args: Record<string, never>; result: StorageReport };
+  "clean_unused_files": { args: Record<string, never>; result: CleanResult };
+  "preview_voice": { args: { profile: EngineProfile; voiceId: string | null; params: { [key in string]: ParamValue }; language: string | null }; result: ArrayBuffer };
+  "save_engine_profile": { args: { profile: EngineProfile }; result: void };
+  "prepare_book": { args: { bookId: string }; result: void };
+  "prepare_chapter": { args: { bookId: string; chapter: number }; result: void };
+  "chapter_audio": { args: { bookId: string }; result: ChapterAudioView[] };
+  "set_prepare_paused": { args: { bookId: string; paused: boolean }; result: void };
+  "cancel_prepare": { args: { bookId: string }; result: void };
+  "regenerate_book": { args: { bookId: string }; result: void };
+  "set_sleep_timer": { args: { minutes: number | null; endOfChapter: boolean }; result: void };
+  "search_book": { args: { bookId: string; query: string }; result: SearchHit[] };
+  "skip_chapter": { args: { delta: number }; result: void };
+  "bookmarks": { args: { bookId: string }; result: Bookmark[] };
+  "add_bookmark": { args: { bookId: string; note: string }; result: Bookmark };
+  "update_bookmark_note": { args: { id: number; note: string }; result: void };
+  "delete_bookmark": { args: { id: number }; result: void };
+  "book_listening": { args: { bookId: string }; result: DayListening[] };
+  "listening_stats": { args: Record<string, never>; result: ListeningStats };
+  "book_details": { args: { bookId: string }; result: BookDetails };
+  "app_settings": { args: Record<string, never>; result: AppSettings };
+  "save_app_settings": { args: { settings: AppSettings }; result: void };
+  "preferences": { args: Record<string, never>; result: Preferences };
+  "save_appearance": { args: { appearance: Appearance }; result: void };
+  "lookup_metadata": { args: { bookId: string; refresh: boolean }; result: MetadataMatch[] };
+  "apply_metadata": { args: { bookId: string; candidate: MetadataMatch }; result: BookDetails };
+  "export_book": { args: { bookId: string }; result: string };
+  "export_read_along": { args: { bookId: string }; result: string };
+  "scan_for_books": { args: Record<string, never>; result: Candidate[] };
+  "cancel_scan": { args: Record<string, never>; result: void };
+  "discovered_books": { args: Record<string, never>; result: Candidate[] };
+  "fetch_discovered_details": { args: { ids: string[] }; result: void };
+  "import_discovered": { args: { choices: ImportChoice[] }; result: ImportResult[] };
+  "inspect_recording": { args: { paths: string[] }; result: InspectionView };
+  "attach_recording": { args: { bookId: string; paths: string[]; asListed: boolean | null }; result: RecordingView };
+  "recording": { args: { bookId: string }; result: RecordingView | null };
+  "recordings": { args: Record<string, never>; result: RecordingView[] };
+  "sync_report": { args: { bookId: string }; result: SyncReportView };
+  "sync_action": { args: { bookId: string; action: SyncAction }; result: void };
+  "remove_recording": { args: { bookId: string }; result: void };
+  "set_narration": { args: { bookId: string; narration: Narration }; result: void };
+  "recognition_options": { args: Record<string, never>; result: RecognitionOptions };
+  "download_model": { args: { modelId: string }; result: void };
+  "play_recording_at": { args: { bookId: string; atMs: number }; result: void };
+  "choose_audio": { args: { folder: boolean }; result: string[] | null };
 };

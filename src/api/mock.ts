@@ -1,5 +1,4 @@
 import type { RecordingView, SyncStage, InspectionView, ModelDownloadView, SyncReportView, PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
-import { recordingStatus } from "../recording";
 
 export const initialPlayer = (): PlayerState => ({ bookId: null, status: "stopped", chapter: 0, segmentId: null, wordIndex: null, speed: 1, volume: 1, chapterFraction: 0, error: null, sleep: null, source: "speech", offText: false, chapterLeftMs: null, waitingForSync: false });
 export const initialGeneration = (): GenerationState => ({ bookId: null, generatingSegmentId: null, bufferedAheadMs: 0, pending: 0, error: null, preparing: null });
@@ -56,6 +55,8 @@ export function createMockApi() {
   ];
   let profile: EngineProfile = { id: "default", name: "Local Chatterbox", kind: "chatterbox", baseUrl: "http://127.0.0.1:8004", model: null, network: "loopback", voiceId: "Emily.wav", params: {}, launch: null };
   const settings = new Map<string, BookSettings>();
+  /** A book's settings; nobody has changed them for most books. */
+  const settingsOf = (id: string): BookSettings => settings.get(id) ?? { voiceId: null, params: {}, language: null, readNotes: false, narration: null, speakMissing: false };
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
   const listened = new Map<string, number>([["book-0", 5_400_000], ["book-1", 1_200_000]]);
@@ -84,7 +85,13 @@ export function createMockApi() {
   const downloadHandlers = new Set<(d: ModelDownloadView) => void>();
   const downloaded = new Set<string>(["base.en"]);
   const hour = 3_600_000;
-  const recordingIn = (bookId: string, stage: SyncStage): RecordingView => {
+  /** What the core decides about a recording (core/recording.rs): what is synced so far can be
+   *  listened to, and it narrates the book once chosen. */
+  const decide = (r: Omit<RecordingView, "listenable" | "narrates">): RecordingView => {
+    const listenable = r.stage === "ready" || (["waiting", "transcribing", "paused", "matching"].includes(r.stage) && r.transcribedMs > 0);
+    return { ...r, listenable, narrates: listenable && settingsOf(r.bookId).narration === "recording" };
+  };
+  const recordingIn = (bookId: string, stage: SyncStage): Omit<RecordingView, "listenable" | "narrates"> => {
     const totalMs = 6 * hour + 1_234_000, matched = stage === "ready" || stage === "poorMatch";
     return {
       bookId, stage, error: stage === "failed" ? "the recording could not be read" : null,
@@ -97,7 +104,8 @@ export function createMockApi() {
       accepted: false, modelId: "base.en",
     };
   };
-  const emitSync = (recording: RecordingView) => {
+  const emitSync = (undecided: Omit<RecordingView, "listenable" | "narrates">) => {
+    const recording = decide(undecided);
     recordings.set(recording.bookId, recording);
     const book = books.find(b => b.id === recording.bookId);
     if (book) book.recording = recording.stage;
@@ -117,18 +125,17 @@ export function createMockApi() {
         emitSync(transcribedMs >= r.totalMs ? { ...r, transcribedMs, stage: "matching", remainingMs: null, position: null } : { ...r, transcribedMs, remainingMs });
       } else if (r.stage === "matching") {
         clearInterval(syncTimer);
+        if (!settingsOf(bookId).narration) settings.set(bookId, { ...settingsOf(bookId), narration: "recording" });
         emitSync({ ...recordingIn(bookId, "ready"), files: r.files, totalMs: r.totalMs });
-        const current = settings.get(bookId);
-        if (!current?.narration) settings.set(bookId, { voiceId: null, params: {}, language: null, readNotes: false, speakMissing: false, ...current, narration: "recording" });
         changed();
       }
     }, 400);
   };
   const previewStage = ({ syncing: "transcribing", ready: "ready", review: "poorMatch", missing: "missing", model: "needsModel", mismatch: "sampleMismatch", failed: "failed" } as Record<string, SyncStage>)[query.get("recording") ?? ""];
   if (previewStage) {
-    recordings.set("book-0", recordingIn("book-0", previewStage));
+    if (previewStage === "ready") settings.set("book-0", { ...settingsOf("book-0"), narration: "recording" });
+    recordings.set("book-0", decide(recordingIn("book-0", previewStage)));
     books[0].recording = previewStage;
-    if (previewStage === "ready") settings.set("book-0", { voiceId: null, params: {}, language: null, readNotes: false, narration: "recording", speakMissing: false });
   }
   const configHandlers = new Set<(p: Preferences) => void>();
   const emitConfig = (next: Partial<Omit<Preferences, "appearance">> & { appearance?: Partial<Preferences["appearance"]> }) => {
@@ -184,7 +191,7 @@ export function createMockApi() {
     if (!result) throw new Error("Chapter not found.");
     const view = structuredClone(result);
     // A recording narrating the book lacks its last chapter, to show how that looks.
-    if (settings.get(id)?.narration === "recording" && recordings.get(id)?.stage === "ready") {
+    if (recordings.get(id)?.narrates && recordings.get(id)?.stage === "ready") {
       view.notNarrated = book.length > 1 && chapter === book.length - 1 ? view.blocks.flatMap(b => b.segments).filter(s => s.speakable).map(s => s.id) : [];
     }
     return view;
@@ -239,8 +246,7 @@ export function createMockApi() {
       const book = getBook(id); const c = chapter ?? book.progress?.chapter ?? 0;
       const segments = getChapter(id, c).blocks.flatMap(b => b.segments).filter(s => s.speakable);
       const segment = segments.find(s => s.id === (segmentId ?? (chapter === null ? book.progress?.segmentId : null))) ?? segments[0];
-      const recording = recordings.get(id);
-      const source = settings.get(id)?.narration === "recording" && recording && recordingStatus(recording).listenable ? "recording" : "speech";
+      const source = recordings.get(id)?.narrates ? "recording" : "speech";
       emitPlayer({ ...state, bookId: id, chapter: c, segmentId: segment.id, wordIndex: 0, status: "playing", chapterFraction: segments.indexOf(segment) / segments.length, error: null, source, offText: false, chapterLeftMs: null, waitingForSync: false });
       emitGeneration({ ...initialGeneration(), bookId: id, bufferedAheadMs: 18000 }); run();
     },
@@ -266,8 +272,12 @@ export function createMockApi() {
       if (next.network === "loopback" && !/^https?:\/\/(127\.|localhost|\[::1\])/.test(next.baseUrl)) throw new Error("Only loopback addresses are allowed unless home-network access is on.");
       profile = JSON.parse(JSON.stringify(next)); engine.profileName = next.name;
     },
-    async bookSettings(id) { return structuredClone(settings.get(id) ?? { voiceId: null, params: {}, language: null, readNotes: false, narration: null, speakMissing: false }); },
-    async saveBookSettings(id, next) { getBook(id); settings.set(id, JSON.parse(JSON.stringify(next))); },
+    async bookSettings(id) { return structuredClone(settingsOf(id)); },
+    async saveBookSettings(id, next) {
+      getBook(id); settings.set(id, JSON.parse(JSON.stringify(next)));
+      const recording = recordings.get(id);
+      if (recording) emitSync(recording); // Whether it narrates the book may have changed.
+    },
     async prepareBook(id) {
       const b = getBook(id);
       const entry = prepareEntry(id) ?? prepareQueue[prepareQueue.push({ id, stage: "waiting", chapters: null }) - 1];
@@ -417,9 +427,9 @@ export function createMockApi() {
       const found = await api.inspectRecording(paths);
       if (found.problems.length) throw new Error(`${found.problems[0].name}: ${found.problems[0].problem}`);
       if (!found.files.length) throw new Error("No audio files were found there.");
-      const recording: RecordingView = { ...recordingIn(bookId, "checking"), files: found.files, totalMs: found.totalMs, chapters: found.chapters, transcribedMs: 0, remainingMs: null };
-      emitSync(recording); changed(); simulateSync(bookId);
-      return structuredClone(recording);
+      emitSync({ ...recordingIn(bookId, "checking"), files: found.files, totalMs: found.totalMs, chapters: found.chapters, transcribedMs: 0, remainingMs: null });
+      changed(); simulateSync(bookId);
+      return structuredClone(recordings.get(bookId)!);
     },
     async recording(bookId) { const r = recordings.get(bookId); return r ? structuredClone(r) : null; },
     async recordings() { return [...recordings.values()].map(r => structuredClone(r)); },
@@ -455,14 +465,13 @@ export function createMockApi() {
       recordings.delete(bookId);
       const book = books.find(b => b.id === bookId);
       if (book) book.recording = null;
-      const current = settings.get(bookId);
-      if (current) settings.set(bookId, { ...current, narration: null });
+      if (settings.has(bookId)) settings.set(bookId, { ...settingsOf(bookId), narration: null });
       changed();
     },
     async setNarration(bookId, narration) {
       const recording = recordings.get(bookId);
-      if (narration === "recording" && !(recording && recordingStatus(recording).listenable)) throw new Error("the recording is not synced yet");
-      settings.set(bookId, { voiceId: null, params: {}, language: null, readNotes: false, speakMissing: false, ...settings.get(bookId), narration });
+      if (narration === "recording" && !recording?.listenable) throw new Error("the recording is not synced yet");
+      await api.saveBookSettings(bookId, { ...settingsOf(bookId), narration });
     },
     async recognitionOptions() {
       const models: [string, "tiny" | "base" | "small", boolean, number][] = [["tiny.en", "tiny", true, 77_704_715], ["tiny", "tiny", false, 77_691_713], ["base.en", "base", true, 147_964_211], ["base", "base", false, 147_951_465], ["small.en", "small", true, 487_614_201], ["small", "small", false, 487_601_967]];
@@ -483,7 +492,7 @@ export function createMockApi() {
     },
     async chooseAudio(folder) { return folder ? ["~/Audiobooks/The Lantern Keeper"] : ["~/Audiobooks/the-lantern-keeper.m4b"]; },
     async playRecordingAt(bookId, atMs) {
-      if (settings.get(bookId)?.narration !== "recording") throw new Error("choose the recording as the book's narration to listen to it");
+      if (!recordings.get(bookId)?.narrates) throw new Error("choose the recording as the book's narration to listen to it");
       const list = chapters[Number(bookId.split("-")[1])] ?? [];
       await api.play(bookId, Math.min(list.length - 1, Math.floor(atMs / hour)), null);
     },
@@ -497,8 +506,8 @@ export function createMockApi() {
   const queueWaitingForTest = (id: string) => { prepareQueue.push({ id, stage: "waiting", chapters: null }); getBook(id).prepare = { state: "waiting", done: 0, total: 0, position: 0, chapters: null }; settlePrepare(); };
   /** Gives a book a recording in a stage (and, when ready, the recording as its narration). */
   const setRecordingForTest = (id: string, stage: SyncStage, narration: "speech" | "recording" | null = stage === "ready" ? "recording" : null) => {
+    settings.set(id, { ...settingsOf(id), narration });
     emitSync(recordingIn(id, stage));
-    settings.set(id, { voiceId: null, params: {}, language: null, readNotes: false, speakMissing: false, ...settings.get(id), narration });
     changed();
   };
   return Object.assign(api, { setRecordingForTest, setProgressForTest, setAudioForTest, queueWaitingForTest, dispose: () => { halt(); clearInterval(syncTimer); }, emitPlayer, emitGeneration, emitConfig, emitEngine: (s: EngineStatusView) => engineHandlers.forEach(h => h({ ...s })) });
