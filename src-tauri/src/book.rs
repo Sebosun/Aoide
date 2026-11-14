@@ -78,6 +78,9 @@ pub struct ChapterView {
     pub index: usize,
     pub title: String,
     pub blocks: Vec<BlockView>,
+    /// When the book's recording narrates it: the spoken sentences it has no audio for, which
+    /// playback skips. `None` while a speech engine narrates.
+    pub not_narrated: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -299,6 +302,7 @@ impl BookModel {
             index,
             title: model.title.clone(),
             blocks,
+            not_narrated: None,
         })
     }
 }

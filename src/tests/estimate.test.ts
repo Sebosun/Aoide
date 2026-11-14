@@ -9,7 +9,7 @@ const chapter: ChapterView = { index: 0, title: "T", blocks: [
     { id: "0:1:1", words: ["* * *"], speakable: false, note: false, notes: [] },
     { id: "0:1:2", words: "five six seven eight nine".split(" "), speakable: true, note: false, notes: [] },
   ] },
-] };
+], notNarrated: null };
 
 it("estimates speech time from words and speed", () => {
   expect(speechMs(160, 1)).toBe(60_000);

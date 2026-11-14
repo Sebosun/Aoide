@@ -65,7 +65,12 @@ export type BlockView = { kind: string, level: number | null, segments: Array<Se
 
 export type ChapterSummary = { index: number, title: string, };
 
-export type ChapterView = { index: number, title: string, blocks: Array<BlockView>, };
+export type ChapterView = { index: number, title: string, blocks: Array<BlockView>, 
+/**
+ * When the book's recording narrates it: the spoken sentences it has no audio for, which
+ * playback skips. `None` while a speech engine narrates.
+ */
+notNarrated: Array<string> | null, };
 
 export type ExcludedView = { title: string, reason: string, };
 

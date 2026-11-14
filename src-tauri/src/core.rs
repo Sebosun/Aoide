@@ -1138,9 +1138,12 @@ impl Core {
     }
 
     pub fn chapter(&self, id: &str, chapter: usize) -> Result<ChapterView, String> {
-        self.load_book(id)?
+        let book = self.load_book(id)?;
+        let mut view = book
             .chapter_view(chapter)
-            .ok_or_else(|| "no such chapter".into())
+            .ok_or_else(|| "no such chapter".to_owned())?;
+        view.not_narrated = self.not_narrated(book, chapter);
+        Ok(view)
     }
 
     // ------------------------------------------------------------ playback

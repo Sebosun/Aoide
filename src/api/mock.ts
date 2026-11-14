@@ -42,7 +42,7 @@ export function createMockApi() {
       ["A place to begin", "The next morning, a stranger asked for directions. Ren folded the map and offered to walk beside her.", "They took the long way. There was plenty of time."],
     ],
   ];
-  const chapters: ChapterView[][] = texts.map(book => book.map((parts, c) => ({ index: c, title: parts[0], blocks: parts.map((text, b) => ({ kind: b === 0 ? "heading" : "paragraph", level: b === 0 ? 2 : null, segments: [{ id: `${c}:${b}:0`, words: text.split(/\s+/), speakable: true, note: false, notes: c === 0 && b === 1 ? [{ afterWord: 2, label: "1", text: "A short original note shown in the browser preview." }] : [] }] })) })));
+  const chapters: ChapterView[][] = texts.map(book => book.map((parts, c) => ({ index: c, title: parts[0], blocks: parts.map((text, b) => ({ kind: b === 0 ? "heading" : "paragraph", level: b === 0 ? 2 : null, segments: [{ id: `${c}:${b}:0`, words: text.split(/\s+/), speakable: true, note: false, notes: c === 0 && b === 1 ? [{ afterWord: 2, label: "1", text: "A short original note shown in the browser preview." }] : [] }] })), notNarrated: null })));
   const descriptors: EngineDescriptor[] = [
     { kind: "chatterbox", name: "Chatterbox TTS Server", adapterVersion: 1, languages: ["en", "fr", "de"], wordTimings: false, maxChars: 300, params: [
       { key: "temperature", label: "Temperature", kind: { type: "float", min: 0.05, max: 2, step: 0.05 }, default: 0.8 },
@@ -175,7 +175,17 @@ export function createMockApi() {
   }
   const unused = { files: 3, bytes: 12 * 1024 ** 2 };
   const getBook = (id: string) => { const b = books.find(b => b.id === id); if (!b || b.status.kind !== "present") throw new Error("Book is unavailable."); return b; };
-  const getChapter = (id: string, chapter: number) => { getBook(id); const result = chapters[Number(id.split("-")[1])]?.[chapter]; if (!result) throw new Error("Chapter not found."); return structuredClone(result); };
+  const getChapter = (id: string, chapter: number) => {
+    getBook(id);
+    const book = chapters[Number(id.split("-")[1])], result = book?.[chapter];
+    if (!result) throw new Error("Chapter not found.");
+    const view = structuredClone(result);
+    // A recording narrating the book lacks its last chapter, to show how that looks.
+    if (settings.get(id)?.narration === "recording" && recordings.get(id)?.stage === "ready") {
+      view.notNarrated = book.length > 1 && chapter === book.length - 1 ? view.blocks.flatMap(b => b.segments).filter(s => s.speakable).map(s => s.id) : [];
+    }
+    return view;
+  };
   const halt = () => { clearInterval(timer); timer = undefined; };
   const tick = () => {
     if (state.status !== "playing" || !state.bookId) return;

@@ -28,5 +28,10 @@ export const useReaderStore = defineStore("reader", () => {
     const first = chapter.value?.blocks.flatMap(b => b.segments).find(s => s.speakable);
     if (first && book.value && currentChapter.value === index) await usePlayerStore().play(book.value.id, index, first.id);
   }
-  return { book, cache, currentChapter, chapter, error, loading, open, chapterText, loadChapter, startChapter };
+  /** Fetches a book's chapters again (its narration changed what they mark). */
+  async function refreshBook(id: string) {
+    cache.value = Object.fromEntries(Object.entries(cache.value).filter(([key]) => !key.startsWith(`${id}:`)));
+    if (book.value?.id === id) await loadChapter(currentChapter.value);
+  }
+  return { book, cache, currentChapter, chapter, error, loading, open, chapterText, loadChapter, startChapter, refreshBook };
 });

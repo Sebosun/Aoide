@@ -442,3 +442,43 @@ async fn a_long_recording_is_heard_block_after_block_without_gaps_or_overlaps() 
     let summary = f.core.recording(&f.id).unwrap().summary.unwrap();
     assert_eq!(summary.matched_words, summary.words, "{summary:?}");
 }
+
+#[tokio::test]
+async fn sentences_the_recording_lacks_are_marked_in_the_chapter() {
+    let f = fixture().await;
+    put_model(&f.root);
+    // Only the first chapter is narrated.
+    let first = texts(&f.core, &f.id).remove(0);
+    let words = read(&[first], 0);
+    let total = words.last().unwrap().1 + 500;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    let speech = f.core.chapter(&f.id, 1).unwrap();
+    assert_eq!(
+        speech.not_narrated, None,
+        "nothing is marked while speech narrates"
+    );
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    sync(&f.core);
+    if stage(&f.core, &f.id) == Some(Stage::PoorMatch) {
+        f.core
+            .sync_action(&f.id, super::SyncAction::Accept)
+            .unwrap();
+        sync(&f.core);
+    }
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Ready));
+
+    assert_eq!(f.core.chapter(&f.id, 0).unwrap().not_narrated, Some(vec![]));
+    let second = f.core.chapter(&f.id, 1).unwrap();
+    let speakable: Vec<String> = second
+        .blocks
+        .iter()
+        .flat_map(|b| &b.segments)
+        .filter(|s| s.speakable)
+        .map(|s| s.id.clone())
+        .collect();
+    assert!(!speakable.is_empty());
+    assert_eq!(second.not_narrated, Some(speakable));
+}

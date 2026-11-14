@@ -1381,6 +1381,42 @@ impl Core {
     }
 
     /// Whether a book plays its recording.
+    /// The spoken sentences of `chapter` that the book's recording has no audio for, when the
+    /// recording narrates the book.
+    pub(super) fn not_narrated(&self, book: Arc<BookModel>, chapter: usize) -> Option<Vec<String>> {
+        if !self.plays_recording(&book.id, &self.book_settings(&book.id)) {
+            return None;
+        }
+        let model = book.chapters.get(chapter)?;
+        let playing = lock(&self.session).as_ref().and_then(|session| {
+            (session.target.book.id == book.id && session.recording().is_some())
+                .then(|| session.target.plan.items.clone())
+        });
+        let items = match playing {
+            Some(items) => items,
+            None => {
+                self.build_recording_target(Arc::clone(&book))
+                    .ok()?
+                    .plan
+                    .items
+            }
+        };
+        Some(
+            model
+                .segments
+                .iter()
+                .enumerate()
+                .filter(|(local, segment)| {
+                    !segment.speech.is_empty()
+                        && items
+                            .get(model.first_entry + local)
+                            .is_some_and(|item| !item.speakable)
+                })
+                .map(|(_, segment)| segment.id.clone())
+                .collect(),
+        )
+    }
+
     pub(super) fn plays_recording(&self, id: &str, settings: &BookSettings) -> bool {
         settings.narration == Some(Narration::Recording)
             && self.recording_stage(id).is_some_and(SyncStage::playable)

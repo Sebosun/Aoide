@@ -127,3 +127,21 @@ it("shows the exact time left in the chapter while a recording plays", async () 
   await flushPromises();
   expect(wrapper.get('[aria-label="Player"]').text()).toContain("47 min left");
 });
+
+it("marks the sentences the recording lacks, and says so when it lacks the whole chapter", async () => {
+  await useLibraryStore().start();
+  const reader = useReaderStore();
+  await reader.open("book-0");
+  await useRecordingsStore().start();
+  const wrapper = mount(ReaderView, { attachTo: document.body });
+  await flushPromises();
+  expect(wrapper.find(".chapter-text__segment--unnarrated").exists()).toBe(false);
+  mock.setRecordingForTest("book-0", "ready");
+  await flushPromises();
+  await reader.loadChapter(1);
+  await flushPromises();
+  const segments = wrapper.findAll(".chapter-text__segment");
+  expect(segments.length).toBeGreaterThan(0);
+  expect(segments.every(s => s.classes("chapter-text__segment--unnarrated"))).toBe(true);
+  expect(wrapper.text()).toContain("This chapter is not in the recording");
+});
