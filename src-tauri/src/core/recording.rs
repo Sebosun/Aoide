@@ -633,6 +633,13 @@ impl RecordingPlan {
         })
     }
 
+    /// Names a clip's spoken stretch for exact alignment: the same sentence over the same part
+    /// of the recording. `None` for a clip with no text.
+    pub fn align_key(&self, book: &str, index: usize) -> Option<String> {
+        let text = self.clips.get(index)?.text.clone()?;
+        Some(format!("rec:{book}:{index}:{}-{}", text.start, text.end))
+    }
+
     /// Whether `offset_ms` into `index` is narration that is not in the text.
     pub fn off_text(&self, index: usize, offset_ms: u32) -> bool {
         self.clips.get(index).is_some_and(|clip| {

@@ -2131,9 +2131,11 @@ impl Core {
         Some(index)
     }
 
-    /// Gives the player the recording's clips near the playhead as the feeder decodes them.
+    /// Gives the player the recording's clips near the playhead as the feeder decodes them, and
+    /// asks the aligner (when there is one) for their exact word times.
     fn provide_recording(&self, index: usize) -> Option<usize> {
         let pieces = lock(&self.session).as_mut()?.feed(index);
+        self.align_recording_clips();
         if !pieces.is_empty() {
             let mut player = lock(&self.player);
             for piece in pieces {

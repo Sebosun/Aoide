@@ -211,7 +211,7 @@ Open a book and press play.
 python tools/aligner/aoide_aligner.py --port 8890
 ```
 
-Then turn on **Settings → Word highlighting → Exact word timing** with the address `http://127.0.0.1:8890`. The first start downloads a 1.2 GB model. It uses about 1 GB of video memory; add `--device cpu` to keep the GPU free for your speech server, at about half a second per sentence. Each sentence is aligned once, just before it plays. Words the model can't spell (numbers, non-Latin scripts) fall back to the estimate.
+Then turn on **Settings → Word highlighting → Exact word timing** with the address `http://127.0.0.1:8890`. The first start downloads a 1.2 GB model. It uses about 1 GB of video memory; add `--device cpu` to keep the GPU free for your speech server, at about half a second per sentence. Each sentence is aligned once, just before it plays. It works for a paired audiobook too: its sentences are aligned as they play, each once per run. Words the model can't spell (numbers, non-Latin scripts) fall back to the estimate.
 
 ### Keyboard shortcuts
 

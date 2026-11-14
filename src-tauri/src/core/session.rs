@@ -27,6 +27,8 @@ pub struct Session {
     feed: Option<Feed>,
     /// Word timings of provided entries (stored, or fitted to the decoded audio).
     timings: HashMap<usize, Vec<WordEstimate>>,
+    /// For a recording: clips given to the player that exact word times may be asked for.
+    to_align: Vec<usize>,
     pub last_index: usize,
     pub last_saved: Instant,
     /// When a recording being synced last took up the sync's progress.
@@ -57,6 +59,7 @@ impl Session {
             feed,
             provided: HashSet::new(),
             timings: HashMap::new(),
+            to_align: Vec::new(),
             last_index: start,
             last_saved: Instant::now(),
             followed: Instant::now(),
@@ -120,6 +123,16 @@ impl Session {
         Some(before)
     }
 
+    /// Recording clips given to the player since the last call.
+    pub fn take_to_align(&mut self) -> Vec<usize> {
+        std::mem::take(&mut self.to_align)
+    }
+
+    #[cfg(test)]
+    pub fn timings_of(&self, index: usize) -> Option<Vec<WordEstimate>> {
+        self.timings.get(&index).cloned()
+    }
+
     /// The playhead's entry waits for the recording's sync to reach it.
     pub fn waiting_for_sync(&self) -> bool {
         self.recording().is_some()
@@ -167,6 +180,7 @@ impl Session {
             };
             self.provided.insert(index);
             self.timings.insert(index, plan.word_times(index));
+            self.to_align.push(index);
             if let Some(feed) = self.feed.as_ref() {
                 feed.feeder.push(index, audio);
             }

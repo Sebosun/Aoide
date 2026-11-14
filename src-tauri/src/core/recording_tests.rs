@@ -11,7 +11,7 @@ use aoide_tts::testing::FakeEngine;
 use super::recording::{Narration, RecognitionEngine, TranscriberChoice};
 use super::syncing::Stage;
 use super::tests::{library_folder, start_with, until};
-use super::{Core, CoreEvent, TranscriberFactory};
+use super::{lock, Core, CoreEvent, TranscriberFactory};
 
 /// Sample value per millisecond of the recording.
 const SCALE: f32 = 100_000.0;
@@ -641,4 +641,88 @@ async fn files_put_in_order_by_hand_keep_that_order() {
         names(f.core.recording(&f.id).unwrap()),
         ["part 2.wav", "part 1.wav"]
     );
+}
+
+/// An aligner that places word k at 50·k ms of whatever it is sent.
+fn fifty_ms_aligner() -> String {
+    use std::io::{BufRead, BufReader, Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(stream) = stream else { return };
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut length = 0;
+            loop {
+                let mut line = String::new();
+                if reader.read_line(&mut line).unwrap_or(0) == 0 {
+                    break;
+                }
+                if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                    length = v.trim().parse().unwrap();
+                }
+                if line == "\r\n" {
+                    break;
+                }
+            }
+            let mut body = vec![0; length];
+            reader.read_exact(&mut body).unwrap();
+            let request: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
+            let words = request["words"].as_array().map_or(0, Vec::len);
+            let spans: Vec<[u32; 2]> = (0..words as u32).map(|k| [k * 50, k * 50 + 40]).collect();
+            let reply = serde_json::json!({ "words": spans }).to_string();
+            let mut stream = stream;
+            let _ = write!(
+                stream,
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}",
+                reply.len()
+            );
+        }
+    });
+    url
+}
+
+#[tokio::test]
+async fn a_recording_gets_exact_word_times_from_the_aligner() {
+    let f = fixture().await;
+    put_model(&f.root);
+    let words = read(&texts(&f.core, &f.id), 1_000);
+    let total = words.last().unwrap().1 + 1_000;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    sync(&f.core);
+    let mut settings = f.core.app_settings();
+    settings.aligner = Some(super::extras::AlignerSettings {
+        base_url: fifty_ms_aligner(),
+        network: aoide_tts::NetworkScope::Loopback,
+        launch: None,
+    });
+    f.core.save_app_settings(settings).unwrap();
+
+    let book = f.core.load_book(&f.id).unwrap();
+    let index = book.chapter_start(1).unwrap() + 1;
+    f.core
+        .play(
+            &f.id,
+            Some(1),
+            Some(book.segment(index).unwrap().id.clone()),
+        )
+        .await
+        .unwrap();
+    until("the aligner's word times to arrive", || {
+        lock(&f.core.session).as_ref().is_some_and(|session| {
+            let starts: Vec<u32> = session
+                .timings_of(index)
+                .unwrap_or_default()
+                .iter()
+                .map(|t| t.start_ms)
+                .collect();
+            starts.len() > 1 && starts.windows(2).all(|w| w[1] == w[0] + 50)
+        })
+    })
+    .await;
+    f.core.stop();
 }

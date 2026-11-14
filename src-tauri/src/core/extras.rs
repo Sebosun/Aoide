@@ -103,6 +103,9 @@ pub struct ExtrasState {
     pub(super) align_queue: std::collections::VecDeque<(String, usize, String)>,
     /// Cache keys already aligned or given up on in this run.
     pub(super) align_done: HashSet<String>,
+    /// Exact word times of recording clips aligned in this run, by alignment key (see
+    /// `RecordingPlan::align_key`), relative to the clip.
+    pub(super) recording_aligned: HashMap<String, Vec<aoide_text::WordEstimate>>,
     pub(super) aligner_child: Option<std::process::Child>,
     pub(super) aligner_launched: bool,
     /// Set while a "Find books" scan runs; storing `true` cancels it.
