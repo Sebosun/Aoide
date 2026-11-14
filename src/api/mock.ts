@@ -358,6 +358,10 @@ export function createMockApi() {
       getBook(id); const path = `~/Documents/Aoide/Exports/${books.find(b => b.id === id)!.title}.m4b`;
       exportHandlers.forEach(h => h({ bookId: id, stage: "done", done: 1, total: 1, path, error: null })); return path;
     },
+    async exportReadAlong(id) {
+      getBook(id); const path = `~/Documents/Aoide/Exports/${books.find(b => b.id === id)!.title} (read-along).epub`;
+      exportHandlers.forEach(h => h({ bookId: id, stage: "done", done: 1, total: 1, path, error: null })); return path;
+    },
     async scanForBooks() {
       scanHandlers.forEach(h => h({ stage: "walking", dirs: 1200, files: 48000, found: 3, read: 0, toRead: 0, error: null }));
       scanned = true;

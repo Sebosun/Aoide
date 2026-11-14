@@ -30,7 +30,7 @@ Aoide reads your EPUB books aloud with a text-to-speech engine that runs on your
 - **A tidy library.** Drop EPUBs on the window, or let Aoide find the ones already scattered around your computer. Covers, progress, collections and per-book details from Open Library if you want them.
 - **Listening stats.** Time per day and per book, streaks, and a heat map of the last six months.
 - **Bring your own audiobook.** Own the DRM-free audiobook of a book? Pair it with the EPUB and the narrator's recording plays with the same sentence and word highlighting. Aoide listens to it once on your computer to find where each sentence is.
-- **Take it with you.** Export any book as an M4B audiobook with chapters and cover, for your phone or another player.
+- **Take it with you.** Export any book as an M4B audiobook with chapters and cover, for your phone or another player. A book paired with its audiobook exports as a read-along EPUB instead (EPUB 3 Media Overlays), which highlights each sentence in other reading apps that support them.
 
 <table>
   <tr>
@@ -199,7 +199,7 @@ Open a book and press play.
 
 **A voice per book.** In the reader, open the book tools (the sliders icon in the player) and go to **Narration**. Choose a voice, language and settings for just this book, and press **Preview voice** to hear a sample before saving. Changing the voice later lets you regenerate the book's audio.
 
-**Exporting.** **Export as M4B**, in a book's menu in the library or under **Narration** in the book tools, saves an audiobook file with chapter marks and cover to `~/Documents/Aoide/Exports`. This needs [`ffmpeg`](https://ffmpeg.org/) installed.
+**Exporting.** **Export as M4B**, in a book's menu in the library or under **Narration** in the book tools, saves an audiobook file with chapter marks and cover to `~/Documents/Aoide/Exports`. This needs [`ffmpeg`](https://ffmpeg.org/) installed. A book whose own audiobook is synced offers **Export read-along EPUB** instead. It saves `<title> (read-along).epub` there: the text with the recording inside, which other reading apps with EPUB 3 Media Overlays play with sentence highlighting. MP3, M4B/M4A and Ogg Opus recordings go in unchanged. Other formats are converted with ffmpeg. Images and the book's own styling are not carried over.
 
 **Your own audiobook.** Drop the audiobook's files (M4B, M4A, MP3, FLAC, Ogg or WAV; one file or a folder of parts) on the window, or choose **Add audiobook…** in a book's menu, then pick the book it reads. Aoide first checks three short samples against the text, then listens to the whole recording in the background; the engine pill shows its progress and you can pause it. The first time, it asks you to download a speech-recognition model (about 140 MB) in **Settings → Recordings**. You don't have to wait: **Listen now** plays what is synced so far, and if you catch up with the sync, playback waits for it. When it's done, the book plays the recording instead of the speech engine, with the same highlighting and controls. **See the report** on the book's page shows how much of the text was found in each chapter and lists narration that isn't in the text, such as credits. Under **Narration** in the book tools you can switch a book back to the speech engine at any time. Your audio files are never changed or copied, and recordings protected by DRM (Audible AAX, for example) can't be used.
 
@@ -231,7 +231,7 @@ The same list is in **Settings → About**.
 | What | Where |
 | --- | --- |
 | Your books | `~/Documents/Aoide/Books` (add your own scan folders under **Find books**) |
-| Exported audiobooks | `~/Documents/Aoide/Exports` |
+| Exported audiobooks and read-along EPUBs | `~/Documents/Aoide/Exports` |
 | Settings | `~/.config/aoide/settings.toml` |
 | Colour themes | `~/.config/aoide/themes/*.toml` |
 | Library, progress, bookmarks, covers | `~/.local/share/com.aoide.audiobooks` |

@@ -99,10 +99,15 @@ fn read(texts: &[String], from_ms: u64) -> Vec<(u64, u64, String)> {
 
 /// A mono 32-bit float WAV of `total_ms` whose every sample is its own time over [`SCALE`].
 fn write_recording(path: &Path, total_ms: u64) {
+    write_recording_part(path, 0, total_ms);
+}
+
+/// One file of a recording split into parts: its samples go on from `from_ms`.
+fn write_recording_part(path: &Path, from_ms: u64, total_ms: u64) {
     let frames = total_ms * u64::from(RATE) / 1_000;
     let mut data = Vec::with_capacity(frames as usize * 4);
     for n in 0..frames {
-        let ms = n as f32 * 1_000.0 / RATE as f32;
+        let ms = from_ms as f32 + n as f32 * 1_000.0 / RATE as f32;
         data.extend_from_slice(&(ms / SCALE).to_le_bytes());
     }
     let mut wav = Vec::new();
@@ -725,4 +730,114 @@ async fn a_recording_gets_exact_word_times_from_the_aligner() {
     })
     .await;
     f.core.stop();
+}
+
+#[tokio::test]
+async fn a_synced_recording_exports_as_a_read_along_epub() {
+    if std::process::Command::new("ffmpeg").arg("-version").output().is_err() {
+        eprintln!("skipped: the export needs ffmpeg to turn WAV into AAC");
+        return;
+    }
+    let f = fixture().await;
+    put_model(&f.root);
+    let words = read(&texts(&f.core, &f.id), 500);
+    let total = words.last().unwrap().1 + 500;
+    // Two files, the second starting mid-sentence.
+    let split = words[words.len() / 2].0 + 100;
+    *f.script.lock().unwrap() = words;
+    let parts = [f.root.join("Audio/part 1.wav"), f.root.join("Audio/part 2.wav")];
+    write_recording_part(&parts[0], 0, split);
+    write_recording_part(&parts[1], split, total - split);
+    f.core
+        .attach_recording(
+            &f.id,
+            parts.iter().map(|p| p.to_string_lossy().into()).collect(),
+        )
+        .unwrap();
+    assert!(
+        f.core.export_read_along(&f.id).await.is_err(),
+        "nothing to export before the sync is done"
+    );
+    sync(&f.core);
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Ready));
+
+    let path = f.core.export_read_along(&f.id).await.unwrap();
+    assert!(path.ends_with(" (read-along).epub"), "{path}");
+    let bytes = std::fs::read(&path).unwrap();
+    let parsed = aoide_epub::parse_epub(&bytes, &aoide_epub::ParseOptions::default()).unwrap();
+    let exported: Vec<String> = parsed.chapters.iter().map(|c| c.text.clone()).collect();
+    assert_eq!(exported, texts(&f.core, &f.id), "the same text, chapter by chapter");
+
+    let mut zip = zip::ZipArchive::new(std::io::Cursor::new(&bytes)).unwrap();
+    {
+        let first = zip.by_index(0).unwrap();
+        assert_eq!(first.name(), "mimetype");
+        assert_eq!(first.compression(), zip::CompressionMethod::Stored);
+    }
+    let read_entry = |zip: &mut zip::ZipArchive<std::io::Cursor<&Vec<u8>>>, name: &str| {
+        let mut text = String::new();
+        std::io::Read::read_to_string(&mut zip.by_name(name).unwrap(), &mut text).unwrap();
+        text
+    };
+    let package = read_entry(&mut zip, "OEBPS/package.opf");
+    assert!(package.contains("media-overlay="), "{package}");
+    assert!(package.contains("property=\"media:duration\""));
+    let audio: Vec<String> = zip
+        .file_names()
+        .filter(|n| n.starts_with("OEBPS/audio/"))
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(audio, ["OEBPS/audio/01.m4a", "OEBPS/audio/02.m4a"]);
+    assert!(package.contains("media-type=\"audio/mp4\""));
+
+    // Every narrated sentence is in an overlay, played in order, without gaps or overlaps.
+    let smils: Vec<String> = zip
+        .file_names()
+        .filter(|n| n.ends_with(".smil"))
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(smils.len(), 2, "one overlay per chapter");
+    let starts = [0, split];
+    let mut voiced = Vec::new();
+    let mut spans = Vec::new();
+    for name in smils {
+        let smil = read_entry(&mut zip, &name);
+        let doc = roxmltree::Document::parse(&smil).unwrap();
+        for par in doc.descendants().filter(|n| n.has_tag_name("par")) {
+            let text = par.children().find(|n| n.has_tag_name("text")).unwrap();
+            let audio = par.children().find(|n| n.has_tag_name("audio")).unwrap();
+            let fragment = text.attribute("src").unwrap().split('#').nth(1).unwrap();
+            let file = match audio.attribute("src").unwrap() {
+                "audio/01.m4a" => 0,
+                "audio/02.m4a" => 1,
+                other => panic!("unexpected audio {other}"),
+            };
+            let seconds = |name: &str| -> u64 {
+                let value = audio.attribute(name).unwrap();
+                let mut total = 0.0;
+                for part in value.split(':') {
+                    total = total * 60.0 + part.parse::<f64>().unwrap();
+                }
+                (total * 1_000.0).round() as u64
+            };
+            spans.push((starts[file] + seconds("clipBegin"), starts[file] + seconds("clipEnd")));
+            if voiced.last() != Some(&fragment.to_owned()) {
+                voiced.push(fragment.to_owned());
+            }
+        }
+    }
+    let book = f.core.load_book(&f.id).unwrap();
+    let narrated: Vec<String> = book
+        .chapters
+        .iter()
+        .flat_map(|c| &c.segments)
+        .filter(|s| !s.speech.is_empty())
+        .map(|s| format!("s{}", s.id.replace(':', "-")))
+        .collect();
+    assert_eq!(voiced, narrated);
+    assert!(
+        spans.windows(2).all(|w| w[0].1 == w[1].0),
+        "each clip starts where the last ended: {spans:?}"
+    );
+    assert!(spans.iter().any(|s| s.1 == split), "a clip is cut at the file boundary");
 }

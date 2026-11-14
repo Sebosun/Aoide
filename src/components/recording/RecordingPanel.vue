@@ -41,6 +41,7 @@ async function act(action: RecordingAction) {
     if (action === "report") recordings.openReport(id);
     else if (action === "listen") { await recordings.setNarration(id, "recording"); await usePlayerStore().play(id, null, null); }
     else if (action === "download") await downloadModel();
+    else if (action === "export") await exportReadAlong();
     else if (action === "remove") {
       const ok = await ui.confirm({ title: `Remove the recording from ${title.value}?`, body: "Aoide forgets the recording and its sync. The audio files stay where they are.", confirmLabel: "Remove", danger: true });
       if (ok) await recordings.remove(id);
@@ -49,6 +50,11 @@ async function act(action: RecordingAction) {
       if (ok) await recordings.act(id, "resync");
     } else await recordings.act(id, action);
   } catch (e) { error.value = String(e); }
+}
+async function exportReadAlong() {
+  ui.toast(`Exporting ${title.value} with its recording… this can take a minute`);
+  const path = await api.exportReadAlong(props.bookId);
+  ui.toast(`Exported to ${path}`);
 }
 async function downloadModel() {
   const id = recording.value?.modelId;

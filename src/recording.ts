@@ -1,10 +1,10 @@
 import type { Component } from "vue";
-import { Check, Download, FileText, Headphones, Pause, Play, RotateCcw, Trash2 } from "@lucide/vue";
+import { BookDown, Check, Download, FileText, Headphones, Pause, Play, RotateCcw, Trash2 } from "@lucide/vue";
 import type { RecordingView, SyncStage } from "./api/types";
 import { formatDuration } from "./estimate";
 
 /** What a person can do about a book's recording. */
-export type RecordingAction = "listen" | "pause" | "resume" | "retry" | "accept" | "resync" | "download" | "report" | "remove";
+export type RecordingAction = "listen" | "pause" | "resume" | "retry" | "accept" | "resync" | "download" | "report" | "export" | "remove";
 
 /** How a recording's sync reads and what it offers, for every view that shows it. The stage is
  *  decided in the core (core/syncing.rs); this only presents it. */
@@ -31,15 +31,15 @@ const LABELS: Record<SyncStage, string> = {
 };
 const ACTIONS: Record<SyncStage, RecordingAction[]> = {
   checking: ["remove"], waiting: ["pause", "remove"], needsModel: ["download", "remove"], transcribing: ["pause", "remove"],
-  matching: [], ready: ["report", "resync", "remove"], sampleMismatch: ["accept", "remove"], poorMatch: ["report", "accept", "remove"],
+  matching: [], ready: ["report", "export", "resync", "remove"], sampleMismatch: ["accept", "remove"], poorMatch: ["report", "accept", "remove"],
   paused: ["resume", "remove"], missing: ["remove"], failed: ["retry", "remove"],
 };
 export const RECORDING_ACTION_LABELS: Record<RecordingAction, string> = {
   listen: "Listen now", pause: "Pause syncing", resume: "Resume syncing", retry: "Try again", accept: "Use it anyway", resync: "Sync again",
-  download: "Download the model", report: "See the report", remove: "Remove recording",
+  download: "Download the model", report: "See the report", export: "Export read-along EPUB", remove: "Remove recording",
 };
 export const RECORDING_ACTION_ICONS: Record<RecordingAction, Component> = {
-  listen: Headphones, pause: Pause, resume: Play, retry: RotateCcw, accept: Check, resync: RotateCcw, download: Download, report: FileText, remove: Trash2,
+  listen: Headphones, pause: Pause, resume: Play, retry: RotateCcw, accept: Check, resync: RotateCcw, download: Download, report: FileText, export: BookDown, remove: Trash2,
 };
 
 const share = (part: number, whole: number) => Math.floor((part / Math.max(1, whole)) * 100);

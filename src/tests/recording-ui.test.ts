@@ -200,3 +200,30 @@ it("lets files be put in order by hand before pairing", async () => {
   await click(byText(pair, "button", "Check and sync"));
   expect(attach).toHaveBeenCalledWith("book-0", [paths[1], paths[0]], true);
 });
+
+it("exports a synced book as a read-along EPUB from its card and its recording panel", async () => {
+  const exportReadAlong = vi.spyOn(mock, "exportReadAlong");
+  mock.setRecordingForTest("book-0", "ready");
+  await useLibraryStore().start();
+  await flushPromises();
+  const { default: LibraryView } = await import("../views/LibraryView.vue");
+  const { default: UiHost } = await import("../components/ui/UiHost.vue");
+  const host = mount(UiHost, { attachTo: document.body });
+  const library = mount(LibraryView, { attachTo: document.body });
+  await flushPromises();
+  await library.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
+  const labels = () => [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+  expect(labels().map(m => m.textContent?.trim())).not.toContain("Export as M4B");
+  await click(labels().find(m => m.textContent?.includes("Export read-along EPUB")));
+  expect(exportReadAlong).toHaveBeenCalledWith("book-0");
+  expect(host.text()).toContain("Exported to ~/Documents/Aoide/Exports/The Lantern Keeper (read-along).epub");
+  library.unmount();
+
+  const panel = mount(BookNarration, { props: { bookId: "book-0" }, attachTo: document.body });
+  await flushPromises();
+  await panel.get('[aria-label="Export read-along EPUB"]').trigger("click");
+  await flushPromises();
+  expect(exportReadAlong).toHaveBeenCalledTimes(2);
+  panel.unmount();
+  host.unmount();
+});

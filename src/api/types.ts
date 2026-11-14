@@ -259,6 +259,8 @@ export interface AoideApi {
   onConfigChanged(handler: (preferences: Preferences) => void): Promise<() => void>;
   /** Writes an M4B audiobook (generating missing audio first); resolves with the output path. */
   exportBook(bookId: string): Promise<string>;
+  /** Writes the book with its synced recording as an EPUB 3 with Media Overlays; returns its path. */
+  exportReadAlong(bookId: string): Promise<string>;
   /** Scans the configured folders; resolves with everything found. */
   scanForBooks(): Promise<Candidate[]>;
   cancelScan(): Promise<void>;

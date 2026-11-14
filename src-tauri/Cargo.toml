@@ -50,6 +50,7 @@ reflink-copy = "0.1"
 souvlaki = { version = "0.8.3", default-features = false, features = ["use_zbus"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 aoide-tts = { path = "../crates/tts", features = ["testing", "ts"] }
@@ -57,6 +58,6 @@ aoide-library = { path = "../crates/library", features = ["ts"] }
 aoide-epub = { path = "../crates/epub-parser", features = ["ts"] }
 aoide-config = { path = "../crates/config", features = ["ts"] }
 aoide-metadata = { path = "../crates/metadata", features = ["ts"] }
+roxmltree = "0.21"
 tempfile = "3"
 ts-rs = { version = "12.0.1", features = ["no-serde-warnings"] }
-zip = { version = "2.4", default-features = false, features = ["deflate"] }

@@ -369,6 +369,12 @@ async fn export_book(core: CoreState<'_>, book_id: String) -> Result<String, Str
 }
 
 #[tauri::command]
+async fn export_read_along(core: CoreState<'_>, book_id: String) -> Result<String, String> {
+    let core = Arc::clone(&core);
+    core.export_read_along(&book_id).await
+}
+
+#[tauri::command]
 async fn scan_for_books(core: CoreState<'_>) -> Result<Vec<crate::core::Candidate>, String> {
     let core = Arc::clone(&core);
     core.scan_for_books().await
@@ -657,6 +663,24 @@ fn smoke(app: tauri::AppHandle, core: Arc<Core>, seconds: u64) {
             app.exit(if result.is_ok() { 0 } else { 1 });
             return;
         }
+        if std::env::var("AOIDE_SMOKE_READ_ALONG").is_ok() {
+            // The recording is checked after start; wait for that to settle.
+            for _ in 0..120 {
+                let stage = core.recording(&book.id).map(|r| r.stage);
+                if stage != Some(crate::core::SyncStage::Checking) {
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            }
+            let started = std::time::Instant::now();
+            let result = core.export_read_along(&book.id).await;
+            eprintln!(
+                "smoke: read-along export after {:?}: {result:?}",
+                started.elapsed()
+            );
+            app.exit(if result.is_ok() { 0 } else { 1 });
+            return;
+        }
         let chapter = std::env::var("AOIDE_SMOKE_CHAPTER")
             .ok()
             .and_then(|c| c.parse().ok());
@@ -823,6 +847,7 @@ pub fn run() {
             preferences,
             save_appearance,
             export_book,
+            export_read_along,
             inspect_recording,
             attach_recording,
             recording,

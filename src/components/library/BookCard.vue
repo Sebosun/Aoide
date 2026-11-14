@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Download, Ellipsis, Eraser, FolderOpen, FolderPlus, Headphones, Info, Trash2 } from "@lucide/vue";
+import { BookDown, Download, Ellipsis, Eraser, FolderOpen, FolderPlus, Headphones, Info, Trash2 } from "@lucide/vue";
 import type { SyncStage } from "../../api/types";
 import { useRecordingsStore } from "../../stores/recordings";
 import { useCollections } from "../../composables/useCollections";
@@ -44,6 +44,11 @@ async function exportBook() {
   const path = await api.exportBook(props.book.id);
   ui.toast(`Exported to ${path}`);
 }
+async function exportReadAlong() {
+  ui.toast(`Exporting ${props.book.title} with its recording… this can take a minute`);
+  const path = await api.exportReadAlong(props.book.id);
+  ui.toast(`Exported to ${path}`);
+}
 const recordings = useRecordingsStore();
 async function addAudiobook() {
   const paths = await api.chooseAudio(false);
@@ -64,7 +69,8 @@ const items = computed<MenuEntry[]>(() => {
     list.push({ id: "folder", label: "Show in folder", icon: FolderOpen, action: () => act(() => api.showInFolder(book.id)) });
     for (const action of preparation.value.actions) list.push({ id: action, label: ACTION_LABELS[action], icon: ACTION_ICONS[action], action: () => runPrepareAction(book.id, action) });
     list.push({ id: "audiobook", label: book.recording ? "Replace audiobook…" : "Add audiobook…", icon: Headphones, action: () => act(addAudiobook) });
-    if (book.recording !== "ready") list.push({ id: "export", label: "Export as M4B", icon: Download, action: () => act(exportBook) });
+    if (book.recording === "ready") list.push({ id: "export-read-along", label: "Export read-along EPUB", icon: BookDown, action: () => act(exportReadAlong) });
+    else list.push({ id: "export", label: "Export as M4B", icon: Download, action: () => act(exportBook) });
     if (book.audioBytes) list.push({ id: "audio", label: "Delete generated audio", icon: Eraser, action: () => act(deleteAudio) });
     list.push({ kind: "separator" }, { kind: "heading", label: "Collections" });
     for (const c of library.collections) list.push({ id: `collection:${c.id}`, label: c.name, ariaLabel: c.name, checked: book.collections.includes(c.id), action: () => act(() => shelves.toggle(book, c.id)) });

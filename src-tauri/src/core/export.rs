@@ -145,7 +145,7 @@ impl Core {
         result
     }
 
-    fn emit_export(&self, id: &str, stage: ExportStage, done: usize, total: usize) {
+    pub(super) fn emit_export(&self, id: &str, stage: ExportStage, done: usize, total: usize) {
         self.emit(CoreEvent::ExportProgress(ExportProgress {
             book_id: id.into(),
             stage,
@@ -352,7 +352,7 @@ impl Core {
     }
 }
 
-fn which_ffmpeg() -> Result<(), String> {
+pub(super) fn which_ffmpeg() -> Result<(), String> {
     Command::new("ffmpeg")
         .arg("-version")
         .stdout(Stdio::null())

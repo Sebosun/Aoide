@@ -39,8 +39,10 @@ mod extras;
 mod feeder;
 mod metadata;
 mod preparation;
+mod read_along;
 mod recording;
 mod syncing;
+pub use syncing::Stage as SyncStage;
 pub use recording::{
     app_transcribers, InspectionView, Narration, RecognitionOptions, RecordingView, SyncAction,
     SyncReportView, TranscriberFactory,

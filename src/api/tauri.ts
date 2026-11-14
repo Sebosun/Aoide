@@ -59,6 +59,7 @@ export const tauriApi: AoideApi = {
   saveAppearance: appearance => invoke("save_appearance", { appearance }),
   onConfigChanged: h => on("config://changed", h),
   exportBook: bookId => invoke("export_book", { bookId }),
+  exportReadAlong: bookId => invoke("export_read_along", { bookId }),
   scanForBooks: async () => candidates(await invoke<Wire.Candidate[]>("scan_for_books")),
   cancelScan: () => invoke("cancel_scan"),
   discoveredBooks: async () => candidates(await invoke<Wire.Candidate[]>("discovered_books")),
