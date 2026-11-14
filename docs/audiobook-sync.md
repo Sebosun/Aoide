@@ -529,6 +529,8 @@ transcribes at a time, in the order they were added.
 | **2. Polish** (about 1 week) | Drop to pair, with the suggested book and quick check; the full report with "play this stretch"; off-text excerpts; exact times in the dock; the model-download interface; the OpenAI-style transcription adapter; reordering files; **listening while it syncs** (match the transcript so far every few blocks and allow playback up to the transcribed edge) | A wrong book is caught in seconds; you can start listening a minute after adding |
 | **3. Extras** (open) | Exact word timing through the aligner; narrated footnotes matched and shown; opt-in TTS for passages the recording lacks; export a synced EPUB 3 with Media Overlays to Exports (a new file, never the source; it plays in other read-along apps); *Find books* pairing audiobooks it finds next to EPUBs. Low priority: importing EPUBs that already carry Media Overlays, which are rare outside fixed-layout children's books | |
 
+**Status (2026-11-14):** phases 0 and 1 are done, and phase 2's drop-to-pair, quick check, report with off-text excerpts and model download are in. The rest of phase 2 and phase 3 are open.
+
 ## Phase 0 results (2026-11-14)
 
 Measured with `crates/transcribe/examples/sync_book.rs` on an owned 10.4-hour unabridged novel:

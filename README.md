@@ -29,6 +29,7 @@ Aoide reads your EPUB books aloud with a text-to-speech engine that runs on your
 - **Footnotes done right.** Notes are left out of the narration and shown beside the text. You can have them read aloud after their paragraph instead.
 - **A tidy library.** Drop EPUBs on the window, or let Aoide find the ones already scattered around your computer. Covers, progress, collections and per-book details from Open Library if you want them.
 - **Listening stats.** Time per day and per book, streaks, and a heat map of the last six months.
+- **Bring your own audiobook.** Own the DRM-free audiobook of a book? Pair it with the EPUB and the narrator's recording plays with the same sentence and word highlighting. Aoide listens to it once on your computer to find where each sentence is.
 - **Take it with you.** Export any book as an M4B audiobook with chapters and cover, for your phone or another player.
 
 <table>
@@ -66,6 +67,7 @@ When you skip around, it waits a moment for you to settle and then starts from w
 
 - Book text goes only to the speech server you set up, and by default Aoide refuses any server that isn't on the same computer. If your speech server runs on another machine at home (say, one with a better graphics card), tick *Allow addresses on my home network* in Settings.
 - Open Library sees a book's title, first author and ISBN only when you click *Find details online*. You can turn lookups off completely in Settings.
+- Pairing an audiobook downloads a speech-recognition model from huggingface.co once, when you press **Download** in **Settings → Recordings**. It is checked against a fixed checksum. The recording itself is only read on your computer.
 - There is no account, no telemetry and no update check.
 
 ## Getting started
@@ -80,7 +82,8 @@ Install these first:
 
 - [Node.js](https://nodejs.org/) 22.12 or newer, with npm
 - [Rust](https://rustup.rs/), stable
-- CMake and a C/C++ compiler (for the bundled Opus audio library)
+- CMake and a C/C++ compiler (for the bundled Opus audio library and whisper.cpp)
+- Clang's `libclang` (to build the whisper.cpp bindings)
 - The [Tauri system libraries](https://v2.tauri.app/start/prerequisites/#linux) for your distribution (WebKitGTK and friends)
 
 <details>
@@ -89,15 +92,15 @@ Install these first:
 ```sh
 # Fedora
 sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file libappindicator-gtk3-devel \
-  librsvg2-devel dbus-devel pkgconf-pkg-config gcc-c++ make cmake
+  librsvg2-devel dbus-devel pkgconf-pkg-config gcc-c++ make cmake clang-devel
 
 # Debian / Ubuntu
 sudo apt install libwebkit2gtk-4.1-dev libssl-dev curl wget file libayatana-appindicator3-dev \
-  librsvg2-dev libdbus-1-dev pkg-config build-essential cmake
+  librsvg2-dev libdbus-1-dev pkg-config build-essential cmake libclang-dev
 
 # Arch
 sudo pacman -S --needed webkit2gtk-4.1 openssl curl wget file libappindicator-gtk3 librsvg \
-  dbus pkgconf base-devel cmake
+  dbus pkgconf base-devel cmake clang
 ```
 
 </details>
@@ -112,6 +115,19 @@ npm run tauri build -- --no-bundle
 ```
 
 The app is now at `target/release/aoide`. Run it from there, or copy it somewhere on your `PATH`.
+
+<details>
+<summary>Faster audiobook syncing on a graphics card</summary>
+
+Syncing an audiobook runs speech recognition on the processor by default, at about 25 times real time (a 10-hour book takes around 25 minutes). To use an NVIDIA card instead, install the CUDA toolkit with cuBLAS, make sure `nvcc` is on your `PATH` (it is often in `/usr/local/cuda/bin`), and build with:
+
+```sh
+npm run tauri build -- --no-bundle --features whisper-cuda
+```
+
+`--features whisper-vulkan` does the same for other cards through Vulkan. **Settings → Recordings → Runs on** then chooses between the card and the processor.
+
+</details>
 
 ### 2. Set up a speech server
 
@@ -181,9 +197,11 @@ Open a book and press play.
 
 **Preparing ahead.** On a book's page, **Prepare whole book** makes all its audio in the background, so it plays instantly later, even with the speech server off. Click the engine pill in the top bar to see the queue, pause it or cancel. Unfinished books carry on next time you start Aoide (you can turn that off under **Settings → Library**).
 
-**A voice per book.** In the reader, open the book tools (the sliders icon in the player) and go to **Voice**. Choose a voice, language and settings for just this book, and press **Preview voice** to hear a sample before saving. Changing the voice later lets you regenerate the book's audio.
+**A voice per book.** In the reader, open the book tools (the sliders icon in the player) and go to **Narration**. Choose a voice, language and settings for just this book, and press **Preview voice** to hear a sample before saving. Changing the voice later lets you regenerate the book's audio.
 
-**Exporting.** **Export as M4B**, in a book's menu in the library or under **Voice** in the book tools, saves an audiobook file with chapter marks and cover to `~/Documents/Aoide/Exports`. This needs [`ffmpeg`](https://ffmpeg.org/) installed.
+**Exporting.** **Export as M4B**, in a book's menu in the library or under **Narration** in the book tools, saves an audiobook file with chapter marks and cover to `~/Documents/Aoide/Exports`. This needs [`ffmpeg`](https://ffmpeg.org/) installed.
+
+**Your own audiobook.** Drop the audiobook's files (M4B, M4A, MP3, FLAC, Ogg or WAV; one file or a folder of parts) on the window, or choose **Add audiobook…** in a book's menu, then pick the book it reads. Aoide first checks three short samples against the text, then listens to the whole recording in the background; the engine pill shows its progress and you can pause it. The first time, it asks you to download a speech-recognition model (about 140 MB) in **Settings → Recordings**. When it's done, the book plays the recording instead of the speech engine, with the same highlighting and controls. **See the report** on the book's page shows how much of the text was found in each chapter and lists narration that isn't in the text, such as credits. Under **Narration** in the book tools you can switch a book back to the speech engine at any time. Your audio files are never changed or copied, and recordings protected by DRM (Audible AAX, for example) can't be used.
 
 **Storage.** Generated audio is kept so nothing is made twice. Set a size limit in **Settings → Storage**; the oldest audio goes first, never the book you're listening to or preparing.
 
@@ -217,6 +235,7 @@ The same list is in **Settings → About**.
 | Settings | `~/.config/aoide/settings.toml` |
 | Colour themes | `~/.config/aoide/themes/*.toml` |
 | Library, progress, bookmarks, covers | `~/.local/share/com.aoide.audiobooks` |
+| Speech-recognition models | `~/.local/share/com.aoide.audiobooks/models` |
 | Generated audio | `~/.cache/com.aoide.audiobooks` (safe to delete; it's made again when needed) |
 
 Books are recognised by their content, not their file name, so renaming or moving a file keeps your progress. If a file disappears, the book stays in your library as *missing* and comes back when the file does.
@@ -284,6 +303,10 @@ Per-book settings, progress and bookmarks live in the library database, not in t
 
 **A book's chapters look wrong, or some text is missing.** In the reader, open the book tools and go to **Details**: *Extraction notes* lists anything Aoide left out (copyright pages, tables of contents and the like) and why, plus any warnings. Some EPUBs have poor navigation, so chapters may be grouped differently from the printed book. Your file is never modified.
 
+**An audiobook won't pair, or syncs badly.** *Protected by DRM* means the files only play in their store's app; Aoide can't use them. *Doesn't match the book* after the quick check usually means another book, edition or language; choose **Use it anyway** if you're sure. A low share in the sync report points to an abridged recording or a different edition; chapters it couldn't find play with the speech engine. If you move or rename the audio files, the book shows *Audio files missing* and speaks with the speech engine; put the files back and Aoide notices within a minute.
+
+**Syncing is slow.** It runs at about 25 times real time on a processor. Choose a smaller model in **Settings → Recordings**, raise the thread count, or build with a graphics card (see *Build Aoide*). Syncing pauses when you quit and carries on next time.
+
 **Export as M4B is missing or fails.** Install `ffmpeg` and make sure it's on your `PATH`.
 
 **The word highlight drifts a little.** That's the estimate at work. Try *Exact word timing* above.
@@ -321,6 +344,9 @@ The browser preview at `http://127.0.0.1:1420` runs the whole interface against 
 | `crates/library` | SQLite store for books, progress, the audio cache index, bookmarks, stats and per-book settings. |
 | `crates/discovery` | Fast parallel EPUB search on disk for *Find books*. |
 | `crates/metadata` | Open Library search, descriptions and covers. |
+| `crates/recording` | Reads an audiobook's files (M4B, MP3, FLAC, Ogg, WAV) as one timeline with chapters, and spots DRM. |
+| `crates/transcribe` | Speech recognition with whisper.cpp, model list with checksums. |
+| `crates/sync` | Matches recognised words to the book's sentences; deterministic, no audio. |
 | `crates/aligner` | Client for the optional forced aligner in `tools/aligner`. |
 | `crates/config` | `settings.toml` and colour themes. |
 | `src-tauri` | Wires it all together: commands, events, and the core's state machines. |

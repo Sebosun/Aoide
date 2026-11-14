@@ -7,20 +7,11 @@
 - **Library**: content-hash identity, missing-file handling, *Find books* scan, Open Library details, collections, listening stats, bookmarks, search, sleep timer, MPRIS.
 - **Export**: M4B with chapters and cover.
 - **Exact word timing** through the optional local aligner.
+- **Your own audiobook**: pair a DRM-free recording with its EPUB; local speech recognition (whisper.cpp, CPU or GPU) syncs it in the background and it plays with the same highlighting. Design, phases and measurements in [audiobook-sync.md](audiobook-sync.md).
 - **Interface**: custom dropdowns, dialogs and toasts, book details page, settings with tabs, storage tab, interface zoom, keyboard shortcuts.
 
 ## Next
 
 - More engine adapters.
+- Audiobook sync, phases 2 and 3 (see [audiobook-sync.md](audiobook-sync.md#phases)): listening while it syncs, an OpenAI-style transcription adapter, exact word timing for recordings, EPUB 3 Media Overlays export.
 - Release builds (AppImage, RPM, DEB) instead of build-from-source only.
-
-## Idea: pair a real audiobook with its EPUB
-
-Import DRM-free audio (one M4B or a folder of MP3s) and play it against the book text with the same sentence and word highlight, instead of generated speech. Judged feasible; not started.
-
-- Transcribe the audio with Whisper (word timestamps, voice-activity filtering). A small model is enough because the book supplies the real words.
-- Anchor the transcript to the EPUB text: word runs that occur exactly once in both and appear in the same order become sync points; a word-level diff fills the gaps between them. Unmatched stretches (narrator credits, spoken chapter titles, skipped footnotes) are flagged, not forced.
-- Word-level timing: refine each matched sentence with the existing MMS_FA aligner in `tools/aligner`.
-- Detect a low match rate (abridged or dramatised recording, different translation or edition) and tell the user instead of showing a bad sync.
-- Start with a command-line prototype (audio + EPUB in, timing file out) on two or three owned books, one with footnotes or a long intro. Read how the open-source Storyteller project does this before writing the aligner.
-- Rough effort: prototype 2–4 days; import flow, background job and playback 1–2 weeks; hardening (multi-file books, mismatch report, resume, more languages) 1–3 weeks.
