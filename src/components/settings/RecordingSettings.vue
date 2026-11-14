@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { Check, Download, Headphones } from "@lucide/vue";
 import { api } from "../../api";
-import type { ModelDownloadView, ModelSizeChoice, RecognitionDevice, RecognitionOptions, RecognitionSettings } from "../../api/types";
+import type { ModelDownloadView, ModelSizeChoice, RecognitionDevice, RecognitionEngine, RecognitionOptions, RecognitionSettings } from "../../api/types";
 import SettingsSection from "./SettingsSection.vue";
 import SettingsField from "./SettingsField.vue";
 import SettingsNote from "./SettingsNote.vue";
@@ -11,8 +11,9 @@ import UiSelect from "../ui/UiSelect.vue";
 import { useAppSettings } from "../../composables/useAppSettings";
 import { formatBytes } from "../../bytes";
 
-/** Speech recognition for syncing recordings: the model, where it runs, and the models on this
- *  computer. Models are downloaded only when asked, and checked against fixed checksums. */
+/** Speech recognition for syncing recordings: built in (the model, where it runs, and the models
+ *  on this computer, downloaded only when asked and checked against fixed checksums), or a
+ *  recognition server with the OpenAI transcription API. */
 const { settings, error, message, save } = useAppSettings();
 const options = ref<RecognitionOptions | null>(null), form = ref<RecognitionSettings | null>(null);
 const downloads = ref<Record<string, ModelDownloadView>>({}), downloadError = ref("");
@@ -24,7 +25,12 @@ onMounted(async () => {
   if (disposed) off(); else unlisten = off;
 });
 onUnmounted(() => { disposed = true; unlisten?.(); });
-watch(settings, value => { if (value) form.value = { ...value.recognition }; }, { once: true });
+watch(settings, value => { if (value) form.value = { ...value.recognition, server: { ...value.recognition.server } }; }, { once: true });
+const engines: { value: RecognitionEngine; label: string; hint: string }[] = [
+  { value: "builtIn", label: "Built in", hint: "whisper.cpp inside Aoide" },
+  { value: "server", label: "A recognition server", hint: "OpenAI-style, such as faster-whisper-server" },
+];
+const builtIn = computed(() => form.value?.engine === "builtIn");
 
 const sizes: { value: ModelSizeChoice; label: string; hint: string }[] = [
   { value: "tiny", label: "Tiny", hint: "78 MB · fastest, hears less" },
@@ -49,15 +55,25 @@ function submit() { if (form.value) void save({ recognition: { ...form.value, th
 <template>
   <form v-if="form" class="recording-settings" @submit.prevent="submit">
     <SettingsSection title="Recordings" :icon="Headphones">
-      <SettingsNote>To sync an audiobook with its book, Aoide listens to the narration with a speech-recognition model (whisper.cpp) on this computer. Nothing is sent anywhere.</SettingsNote>
-      <SettingsField label="Model" as="div"><UiSelect v-model="form.modelSize" label="Speech-recognition model" :options="sizes" /></SettingsField>
-      <SettingsField label="Runs on" as="div"><UiSelect v-model="form.device" label="Where recognition runs" :options="devices" /></SettingsField>
-      <SettingsField label="CPU threads" sub="0 uses half the cores"><input v-model.number="form.threads" type="number" min="0" max="64" aria-label="CPU threads" /></SettingsField>
+      <SettingsNote v-if="builtIn">To sync an audiobook with its book, Aoide listens to the narration with a speech-recognition model (whisper.cpp) on this computer. Nothing is sent anywhere.</SettingsNote>
+      <SettingsNote v-else>Aoide sends the narration, a few minutes at a time, to this server's <code>/v1/audio/transcriptions</code> and needs word timestamps back (faster-whisper-server and LocalAI give them).</SettingsNote>
+      <SettingsField label="Recognition" as="div"><UiSelect v-model="form.engine" label="What recognises the narration" :options="engines" /></SettingsField>
+      <template v-if="builtIn">
+        <SettingsField label="Model" as="div"><UiSelect v-model="form.modelSize" label="Speech-recognition model" :options="sizes" /></SettingsField>
+        <SettingsField label="Runs on" as="div"><UiSelect v-model="form.device" label="Where recognition runs" :options="devices" /></SettingsField>
+        <SettingsField label="CPU threads" sub="0 uses half the cores"><input v-model.number="form.threads" type="number" min="0" max="64" aria-label="CPU threads" /></SettingsField>
+      </template>
+      <template v-else>
+        <SettingsField label="Address"><input v-model.trim="form.server.baseUrl" type="url" placeholder="http://127.0.0.1:8000" aria-label="Recognition server address" /></SettingsField>
+        <SettingsField label="Model" sub="Empty sends whisper-1"><input v-model.trim="form.server.model" type="text" placeholder="Systran/faster-whisper-base.en" aria-label="Recognition server model" /></SettingsField>
+        <label class="recording-settings__check"><input v-model="form.server.network" type="checkbox" true-value="privateNetwork" false-value="loopback" aria-label="Allow home-network addresses for recognition" /> Allow addresses on my home network</label>
+        <SettingsNote v-if="form.server.network === 'privateNetwork'" tone="warn">The narration will be sent over your home network to this server. Use this only with a machine you trust.</SettingsNote>
+      </template>
       <label class="recording-settings__check"><input v-model="form.resumeOnStart" type="checkbox" aria-label="Carry on syncing when Aoide starts" /> Carry on syncing recordings when Aoide starts</label>
     </SettingsSection>
     <SettingsActions :message="message" :error="error" />
 
-    <SettingsSection title="Models on this computer">
+    <SettingsSection v-if="builtIn" title="Models on this computer">
       <ul class="recording-settings__models" aria-label="Speech-recognition models">
         <li v-for="model in models" :key="model.id" class="recording-settings__model">
           <span class="recording-settings__name">{{ model.id }}<small>{{ model.englishOnly ? "English books" : "Other languages" }} · {{ formatBytes(model.bytes) }}</small></span>

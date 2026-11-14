@@ -13,6 +13,9 @@ mod whisper;
 #[cfg(feature = "whisper")]
 pub use whisper::{WhisperCpp, WhisperOptions};
 pub mod models;
+mod server;
+pub use aoide_tts::NetworkScope;
+pub use server::{ServerOptions, ServerTranscriber};
 
 /// The sample rate transcribers take.
 pub const SAMPLE_RATE: u32 = 16_000;

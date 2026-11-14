@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use aoide_transcribe::{Error, Request, Transcriber, Word};
 use aoide_tts::testing::FakeEngine;
 
-use super::recording::Narration;
+use super::recording::{Narration, RecognitionEngine, TranscriberChoice};
 use super::syncing::Stage;
 use super::tests::{library_folder, start_with, until};
 use super::{Core, CoreEvent, TranscriberFactory};
@@ -61,17 +61,26 @@ impl Transcriber for Scripted {
     }
 }
 
-fn scripted() -> (TranscriberFactory, Script, Arc<Mutex<Vec<u64>>>) {
+type Choices = Arc<Mutex<Vec<TranscriberChoice>>>;
+
+/// A factory of scripted transcribers that keeps what each was asked to load.
+fn scripted() -> (TranscriberFactory, Script, Arc<Mutex<Vec<u64>>>, Choices) {
     let script: Script = Arc::default();
     let heard = Arc::new(Mutex::new(Vec::new()));
-    let (s, h) = (Arc::clone(&script), Arc::clone(&heard));
-    let factory: TranscriberFactory = Arc::new(move |_| {
+    let choices: Choices = Arc::default();
+    let (s, h, c) = (
+        Arc::clone(&script),
+        Arc::clone(&heard),
+        Arc::clone(&choices),
+    );
+    let factory: TranscriberFactory = Arc::new(move |choice: &TranscriberChoice| {
+        c.lock().unwrap().push(choice.clone());
         Ok(Box::new(Scripted {
             script: Arc::clone(&s),
             heard: Arc::clone(&h),
         }) as Box<dyn Transcriber>)
     });
-    (factory, script, heard)
+    (factory, script, heard, choices)
 }
 
 /// `texts` read aloud from `from_ms`, 400 ms a word.
@@ -141,6 +150,7 @@ struct Fixture {
     engine: Arc<FakeEngine>,
     script: Script,
     heard: Arc<Mutex<Vec<u64>>>,
+    choices: Choices,
     audio: PathBuf,
 }
 
@@ -149,7 +159,7 @@ async fn fixture() -> Fixture {
     let root = dir.path().to_owned();
     let id = library_folder(&root, "");
     let engine = FakeEngine::new();
-    let (factory, script, heard) = scripted();
+    let (factory, script, heard, choices) = scripted();
     let (core, events) = start_with(&root, &engine, factory);
     until("the library scan", || {
         core.list_books().is_ok_and(|b| b.len() == 1)
@@ -165,6 +175,7 @@ async fn fixture() -> Fixture {
         engine,
         script,
         heard,
+        choices,
     }
 }
 
@@ -314,7 +325,7 @@ async fn a_sync_stopped_by_quitting_carries_on_from_its_last_block() {
     assert!(partial.transcribed_ms > 0 && partial.transcribed_ms < total);
     f.core.shutdown();
 
-    let (factory, script, heard) = scripted();
+    let (factory, script, heard, _) = scripted();
     *script.lock().unwrap() = f.script.lock().unwrap().clone();
     let (again, _) = start_with(&f.root, &f.engine, factory);
     sync(&again);
@@ -375,7 +386,7 @@ async fn moved_audio_makes_the_recording_missing_until_it_is_back() {
     std::fs::rename(&f.audio, &moved).unwrap();
     f.core.shutdown();
 
-    let (factory, _, _) = scripted();
+    let (factory, _, _, _) = scripted();
     let (again, _) = start_with(&f.root, &f.engine, factory);
     sync(&again);
     assert_eq!(stage(&again, &f.id), Some(Stage::Missing));
@@ -560,4 +571,39 @@ async fn the_synced_part_plays_while_the_rest_is_still_syncing() {
     .await;
     assert!(f.engine.calls().is_empty(), "{:?}", f.engine.calls());
     f.core.stop();
+}
+
+#[tokio::test]
+async fn a_recognition_server_on_this_computer_needs_no_model_here() {
+    let f = fixture().await;
+    let words = read(&texts(&f.core, &f.id), 1_000);
+    let total = words.last().unwrap().1 + 1_000;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    sync(&f.core);
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::NeedsModel));
+
+    let mut settings = f.core.app_settings();
+    settings.recognition.engine = RecognitionEngine::Server;
+    settings.recognition.server.base_url = "http://192.168.1.20:8000".into();
+    assert!(
+        f.core.save_app_settings(settings.clone()).is_err(),
+        "another computer only with the home network allowed"
+    );
+    settings.recognition.server.base_url = "http://127.0.0.1:8000".into();
+    settings.recognition.server.model = "base.en".into();
+    f.core.save_app_settings(settings).unwrap();
+    sync(&f.core);
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Ready));
+    assert_eq!(
+        f.choices.lock().unwrap().as_slice(),
+        [TranscriberChoice::Server {
+            base_url: "http://127.0.0.1:8000".into(),
+            model: "base.en".into(),
+            network: aoide_tts::NetworkScope::Loopback,
+        }]
+    );
 }

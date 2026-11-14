@@ -17,6 +17,7 @@ use aoide_sync::{
 };
 use aoide_transcribe::models::{self, lateness_ms, ModelInfo, ModelSize};
 use aoide_transcribe::{quietest_cut, Request, Transcriber, SAMPLE_RATE};
+use aoide_tts::NetworkScope;
 use serde::Deserialize;
 
 use super::syncing::{self, Event as SyncEvent, Found, Stage as SyncStage};
@@ -78,10 +79,45 @@ pub enum RecognitionDevice {
     Cpu,
 }
 
+/// What recognises the narration.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum RecognitionEngine {
+    /// whisper.cpp inside Aoide, with a model downloaded once.
+    #[default]
+    BuiltIn,
+    /// A server with the OpenAI transcription API (`/v1/audio/transcriptions`).
+    Server,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct RecognitionServer {
+    pub base_url: String,
+    /// Sent as `model`; empty sends `whisper-1`.
+    pub model: String,
+    pub network: NetworkScope,
+}
+
+impl Default for RecognitionServer {
+    fn default() -> Self {
+        Self {
+            base_url: "http://127.0.0.1:8000".into(),
+            model: String::new(),
+            network: NetworkScope::Loopback,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct RecognitionSettings {
+    pub engine: RecognitionEngine,
+    /// Used when `engine` is `Server`.
+    pub server: RecognitionServer,
     pub model_size: ModelSizeChoice,
     pub device: RecognitionDevice,
     /// CPU threads; 0 uses half the cores.
@@ -93,6 +129,8 @@ pub struct RecognitionSettings {
 impl Default for RecognitionSettings {
     fn default() -> Self {
         Self {
+            engine: RecognitionEngine::BuiltIn,
+            server: RecognitionServer::default(),
             model_size: ModelSizeChoice::Base,
             device: RecognitionDevice::Auto,
             threads: 0,
@@ -117,36 +155,76 @@ pub enum Narration {
 
 /// What a transcriber is loaded with.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TranscriberChoice {
-    pub model: PathBuf,
-    pub use_gpu: bool,
-    pub threads: usize,
+pub enum TranscriberChoice {
+    Whisper {
+        model: PathBuf,
+        use_gpu: bool,
+        threads: usize,
+    },
+    Server {
+        base_url: String,
+        model: String,
+        network: NetworkScope,
+    },
 }
 
-/// Makes transcribers: whisper.cpp in the app, a script in tests.
+/// Makes transcribers: whisper.cpp or a server in the app, a script in tests.
 pub type TranscriberFactory =
     Arc<dyn Fn(&TranscriberChoice) -> Result<Box<dyn Transcriber>, String> + Send + Sync>;
 
-/// whisper.cpp, when this build has it.
-pub fn whisper_transcribers() -> TranscriberFactory {
-    Arc::new(|choice: &TranscriberChoice| {
+/// whisper.cpp (when this build has it) or a recognition server.
+pub fn app_transcribers() -> TranscriberFactory {
+    Arc::new(|choice: &TranscriberChoice| match choice {
+        TranscriberChoice::Server {
+            base_url,
+            model,
+            network,
+        } => server_transcriber(base_url, model, *network)
+            .map(|s| Box::new(s) as Box<dyn Transcriber>),
         #[cfg(feature = "whisper")]
-        {
-            aoide_transcribe::WhisperCpp::new(aoide_transcribe::WhisperOptions {
-                model: choice.model.clone(),
-                threads: choice.threads,
-                use_gpu: choice.use_gpu,
-                vad_model: None,
-            })
-            .map(|w| Box::new(w) as Box<dyn Transcriber>)
-            .map_err(|e| e.to_string())
-        }
+        TranscriberChoice::Whisper {
+            model,
+            use_gpu,
+            threads,
+        } => aoide_transcribe::WhisperCpp::new(aoide_transcribe::WhisperOptions {
+            model: model.clone(),
+            threads: *threads,
+            use_gpu: *use_gpu,
+            vad_model: None,
+        })
+        .map(|w| Box::new(w) as Box<dyn Transcriber>)
+        .map_err(|e| e.to_string()),
         #[cfg(not(feature = "whisper"))]
-        {
-            let _ = choice;
-            Err("this build of Aoide has no speech recognition".into())
-        }
+        TranscriberChoice::Whisper { .. } => Err(
+            "this build of Aoide has no built-in speech recognition; use a recognition server"
+                .into(),
+        ),
     })
+}
+
+fn server_transcriber(
+    base_url: &str,
+    model: &str,
+    network: NetworkScope,
+) -> Result<aoide_transcribe::ServerTranscriber, String> {
+    aoide_transcribe::ServerTranscriber::new(aoide_transcribe::ServerOptions {
+        base_url: base_url.to_owned(),
+        model: Some(model.to_owned()),
+        network,
+        ..Default::default()
+    })
+    .map_err(|e| e.to_string())
+}
+
+impl RecognitionSettings {
+    /// Refuses a server address outside its network scope.
+    pub(super) fn validate(&self) -> Result<(), String> {
+        if self.engine == RecognitionEngine::Server {
+            aoide_tts::validate_endpoint(&self.server.base_url, self.server.network)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------- views
@@ -788,10 +866,13 @@ impl Core {
         self.paths.models_dir.join(model.file_name())
     }
 
-    /// Waiting and first in line: starts transcribing once the model is here.
+    /// Waiting and first in line: starts transcribing once the model is here (a recognition
+    /// server needs none).
     fn promote(&self, id: &str) -> Result<(), String> {
         let model = self.model_for_book(id);
-        if self.model_path(model).is_file() {
+        if self.app_settings().recognition.engine == RecognitionEngine::Server
+            || self.model_path(model).is_file()
+        {
             self.sync_event(id, SyncEvent::Promote, None);
         } else {
             self.sync_event(id, SyncEvent::ModelMissing, None);
@@ -801,15 +882,20 @@ impl Core {
 
     fn transcriber_for(&self, id: &str) -> Result<Arc<dyn Transcriber>, String> {
         let settings = self.app_settings().recognition;
-        let model = self.model_for_book(id);
-        let use_gpu = match settings.device {
-            RecognitionDevice::Auto | RecognitionDevice::Gpu => models::GPU_BUILD,
-            RecognitionDevice::Cpu => false,
-        };
-        let choice = TranscriberChoice {
-            model: self.model_path(model),
-            use_gpu,
-            threads: settings.threads as usize,
+        let choice = match settings.engine {
+            RecognitionEngine::Server => TranscriberChoice::Server {
+                base_url: settings.server.base_url,
+                model: settings.server.model,
+                network: settings.server.network,
+            },
+            RecognitionEngine::BuiltIn => TranscriberChoice::Whisper {
+                model: self.model_path(self.model_for_book(id)),
+                use_gpu: match settings.device {
+                    RecognitionDevice::Auto | RecognitionDevice::Gpu => models::GPU_BUILD,
+                    RecognitionDevice::Cpu => false,
+                },
+                threads: settings.threads as usize,
+            },
         };
         if let Some((loaded, transcriber)) = lock(&self.syncing).transcriber.as_ref() {
             if *loaded == choice {

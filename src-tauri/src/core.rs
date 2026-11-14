@@ -42,7 +42,7 @@ mod preparation;
 mod recording;
 mod syncing;
 pub use recording::{
-    whisper_transcribers, InspectionView, Narration, RecognitionOptions, RecordingView, SyncAction,
+    app_transcribers, InspectionView, Narration, RecognitionOptions, RecordingView, SyncAction,
     SyncReportView, TranscriberFactory,
 };
 mod session;
@@ -443,7 +443,7 @@ impl Environment {
             show_in_folder: Arc::new(|path| {
                 tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| e.to_string())
             }),
-            transcribers: whisper_transcribers(),
+            transcribers: app_transcribers(),
         }
     }
 

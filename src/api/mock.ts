@@ -59,7 +59,7 @@ export function createMockApi() {
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
   const listened = new Map<string, number>([["book-0", 5_400_000], ["book-1", 1_200_000]]);
-  let appSettings: AppSettings = { metadataLookup: true, cacheLimitBytes: null, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { modelSize: "base", device: "auto", threads: 0, resumeOnStart: true } };
+  let appSettings: AppSettings = { metadataLookup: true, cacheLimitBytes: null, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { engine: "builtIn", server: { baseUrl: "http://127.0.0.1:8000", model: "", network: "loopback" }, modelSize: "base", device: "auto", threads: 0, resumeOnStart: true } };
   const found: Candidate[] = [
     { id: "h-tide", status: "new", title: "Notes on the Tide", authors: ["Ines Morrow"], language: "en", isbn: "9780000000101", coverUrl: null, paths: ["~/Downloads/notes-on-the-tide.epub", "~/Documents/Books/tide.epub"], size: 2_400_000, error: null, suggestion: null },
     { id: "h-glass", status: "new", title: "The Glass Meridian", authors: ["Oren Vale"], language: "en", isbn: null, coverUrl: null, paths: ["~/Downloads/glass-meridian.epub"], size: 1_100_000, error: null, suggestion: null },

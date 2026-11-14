@@ -305,7 +305,7 @@ Per-book settings, progress and bookmarks live in the library database, not in t
 
 **An audiobook won't pair, or syncs badly.** *Protected by DRM* means the files only play in their store's app; Aoide can't use them. *Doesn't match the book* after the quick check usually means another book, edition or language; choose **Use it anyway** if you're sure. A low share in the sync report points to an abridged recording or a different edition; chapters it couldn't find are skipped while the recording plays, so switch the book to the speech engine under **Narration** to hear them. If you move or rename the audio files, the book shows *Audio files missing* and speaks with the speech engine; put the files back and Aoide notices within a minute.
 
-**Syncing is slow.** It runs at about 25 times real time on a processor. Choose a smaller model in **Settings → Recordings**, raise the thread count, or build with a graphics card (see *Build Aoide*). Syncing pauses when you quit and carries on next time.
+**Syncing is slow.** It runs at about 25 times real time on a processor. Choose a smaller model in **Settings → Recordings**, raise the thread count, or build with a graphics card (see *Build Aoide*). If you already run a speech-recognition server with the OpenAI transcription API and word timestamps (faster-whisper-server, LocalAI), choose **A recognition server** there instead; like the speech server, it must be on this computer unless you allow your home network. Syncing pauses when you quit and carries on next time.
 
 **Export as M4B is missing or fails.** Install `ffmpeg` and make sure it's on your `PATH`.
 

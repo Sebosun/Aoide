@@ -100,6 +100,8 @@ fn contract() -> String {
         super::recording::Narration,
         super::recording::ModelSizeChoice,
         super::recording::RecognitionDevice,
+        super::recording::RecognitionEngine,
+        super::recording::RecognitionServer,
         super::recording::RecognitionSettings,
         super::recording::RecordingFileView,
         super::recording::RecordingProblemView,

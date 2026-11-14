@@ -282,6 +282,7 @@ impl Core {
     }
 
     pub fn save_app_settings(&self, settings: AppSettings) -> Result<(), String> {
+        settings.recognition.validate()?;
         if let Some(aligner) = &settings.aligner {
             aoide_aligner::Aligner::new(aoide_aligner::Options {
                 base_url: aligner.base_url.clone(),
@@ -290,7 +291,12 @@ impl Core {
             })
             .map_err(|e| e.to_string())?;
         }
+        let recognition_changed = self.app_settings().recognition != settings.recognition;
         lock(&self.config).update(|file| file.set_section(super::config::APP, &settings))?;
+        if recognition_changed {
+            // Another model size or a recognition server may be what a waiting sync needs.
+            self.models_changed();
+        }
         lock(&self.extras).last_eviction = None;
         self.enforce_cache_limit();
         Ok(())

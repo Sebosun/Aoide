@@ -197,3 +197,22 @@ it("deletes the audio of finished books, but not of the book that is playing", a
   wrapper.unmount();
   host.unmount();
 });
+
+it("uses a recognition server instead of the built-in model", async () => {
+  const wrapper = mount(SettingsDialog, { attachTo: document.body });
+  await flushPromises();
+  await wrapper.findAll('[role="tab"]').find(t => t.text() === "Recordings")!.trigger("click");
+  await flushPromises();
+  expect(wrapper.find('[aria-label="Speech-recognition models"]').exists()).toBe(true);
+  expect(wrapper.find('[aria-label="Recognition server address"]').exists()).toBe(false);
+
+  await choose(wrapper, "What recognises the narration", "A recognition serverOpenAI-style, such as faster-whisper-server");
+  expect(wrapper.find('[aria-label="Speech-recognition models"]').exists(), "no model is needed here").toBe(false);
+  await wrapper.get('[aria-label="Recognition server address"]').setValue("http://127.0.0.1:8001");
+  await wrapper.get('[aria-label="Recognition server model"]').setValue("Systran/faster-whisper-base.en");
+  await wrapper.get("form.recording-settings").trigger("submit");
+  await flushPromises();
+  const saved = (await mock.appSettings()).recognition;
+  expect(saved).toMatchObject({ engine: "server", server: { baseUrl: "http://127.0.0.1:8001", model: "Systran/faster-whisper-base.en", network: "loopback" } });
+  wrapper.unmount();
+});

@@ -410,7 +410,19 @@ export type ModelSizeChoice = "tiny" | "base" | "small";
 
 export type RecognitionDevice = "auto" | "gpu" | "cpu";
 
-export type RecognitionSettings = { modelSize: ModelSizeChoice, device: RecognitionDevice, 
+export type RecognitionEngine = "builtIn" | "server";
+
+export type RecognitionServer = { baseUrl: string, 
+/**
+ * Sent as `model`; empty sends `whisper-1`.
+ */
+model: string, network: NetworkScope, };
+
+export type RecognitionSettings = { engine: RecognitionEngine, 
+/**
+ * Used when `engine` is `Server`.
+ */
+server: RecognitionServer, modelSize: ModelSizeChoice, device: RecognitionDevice, 
 /**
  * CPU threads; 0 uses half the cores.
  */
