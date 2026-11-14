@@ -1,6 +1,7 @@
 //! The sync of a book's recording: one explicit [`Stage`], changed only by [`next`] in response
 //! to an [`Event`]. Progress numbers sit beside the stage and never decide it. A recording plays
-//! only when it is [`Stage::Ready`]; accepting a poor match makes it ready.
+//! fully once it is [`Stage::Ready`] (accepting a poor match makes it ready), and what is synced
+//! so far plays while it syncs (see [`Stage::listenable`]).
 
 use serde::{Deserialize, Serialize};
 

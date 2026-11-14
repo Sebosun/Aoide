@@ -43,6 +43,7 @@ mod playback;
 mod preparation;
 mod read_along;
 mod recording;
+mod recordings;
 mod syncing;
 pub use recording::{
     app_transcribers, InspectionView, Narration, RecognitionOptions, RecordingView, SyncAction,
@@ -474,9 +475,8 @@ pub struct Core {
     media: Mutex<Option<std::sync::mpsc::Sender<crate::media::MediaUpdate>>>,
     extras: Mutex<extras::ExtrasState>,
     config: Mutex<config::Config>,
-    transcribers: TranscriberFactory,
-    /// Recordings being synced. Lock after `library` when both are needed.
-    syncing: Mutex<recording::SyncState>,
+    /// Recordings and their sync.
+    recordings: recordings::Recordings,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -623,6 +623,11 @@ impl Core {
             player.set_speed(settings.speed);
             player.set_volume(settings.volume);
         }
+        let recordings = recordings::Recordings::new(
+            Arc::clone(&library),
+            transcribers,
+            paths.models_dir.clone(),
+        );
         let core = Arc::new(Self {
             events,
             audio,
@@ -652,10 +657,10 @@ impl Core {
             media: Mutex::new(None),
             extras: Mutex::new(Default::default()),
             config: Mutex::new(config),
-            transcribers,
-            syncing: Mutex::new(Default::default()),
+            recordings,
         });
-        core.load_recordings(core.app_settings().recognition.resume_on_start);
+        core.recordings
+            .load_recordings(core.app_settings().recognition.resume_on_start);
         if background {
             core.spawn_sync_runner();
         }

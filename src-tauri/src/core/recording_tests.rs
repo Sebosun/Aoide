@@ -8,7 +8,8 @@ use std::sync::{Arc, Mutex};
 use aoide_transcribe::{Error, Request, Transcriber, Word};
 use aoide_tts::testing::FakeEngine;
 
-use super::recording::{Narration, RecognitionEngine, TranscriberChoice};
+use super::recording::{Narration, RecognitionEngine, RecognitionSettings, TranscriberChoice};
+use super::recordings::{Recordings, SyncHost};
 use super::syncing::Stage;
 use super::tests::{epub, epub_with, library_folder, start_with, until};
 use super::{Core, CoreEvent, TranscriberFactory};
@@ -191,6 +192,93 @@ async fn fixture_with(book: Option<Vec<u8>>) -> Fixture {
         heard,
         choices,
     }
+}
+
+/// The sync job's host in a test: one book, and what the job tells it.
+struct TestHost {
+    book: Arc<crate::book::BookModel>,
+    events: Mutex<Vec<&'static str>>,
+    synced: Mutex<Vec<bool>>,
+}
+
+impl SyncHost for TestHost {
+    fn emit(&self, event: CoreEvent) {
+        self.events.lock().unwrap().push(event.name());
+    }
+
+    fn load_book(&self, _: &str) -> Result<Arc<crate::book::BookModel>, String> {
+        Ok(Arc::clone(&self.book))
+    }
+
+    fn recognition(&self) -> RecognitionSettings {
+        // A recognition server needs no model here.
+        RecognitionSettings {
+            engine: RecognitionEngine::Server,
+            ..Default::default()
+        }
+    }
+
+    fn narration(&self, _: &str) -> Option<Narration> {
+        Some(Narration::Recording)
+    }
+
+    fn synced(&self, _: &str, ready: bool) {
+        self.synced.lock().unwrap().push(ready);
+    }
+}
+
+#[test]
+fn the_sync_job_runs_on_its_own_and_tells_its_host_how_far_it_got() {
+    let dir = tempfile::tempdir().unwrap();
+    let bytes = epub();
+    let id = aoide_library::content_hash(&bytes).0;
+    let library = aoide_library::Library::open_in_memory().unwrap();
+    let book = aoide_library::NewBook {
+        id: aoide_library::BookId(id.clone()),
+        path: dir.path().join("quay-lights.epub"),
+        title: Some("Quay Lights".into()),
+        authors: vec![],
+        language: Some("en".into()),
+        cover_path: None,
+        error: None,
+    };
+    library.upsert_book(&book, 0).unwrap();
+    let host = TestHost {
+        book: Arc::new(crate::book::BookModel::parse(&id, &bytes, false).unwrap()),
+        events: Mutex::default(),
+        synced: Mutex::default(),
+    };
+    let texts: Vec<String> = host.book.chapters.iter().map(|c| c.text.clone()).collect();
+    let (factory, script, _, _) = scripted();
+    let words = read(&texts, 1_000);
+    let total = words.last().unwrap().1 + 1_000;
+    *script.lock().unwrap() = words;
+    let audio = dir.path().join("quay-lights.wav");
+    write_recording(&audio, total);
+
+    let recordings = Recordings::new(
+        Arc::new(Mutex::new(library)),
+        factory,
+        dir.path().join("models"),
+    );
+    let view = recordings
+        .attach_recording(&host, &id, vec![audio.to_string_lossy().into()])
+        .unwrap();
+    assert_eq!((view.stage, view.listenable), (Stage::Checking, false));
+    while recordings.sync_step(&host) {}
+
+    let view = recordings.view(&host, &id).unwrap();
+    assert_eq!(view.stage, Stage::Ready, "{view:?}");
+    assert!(view.listenable && view.narrates);
+    assert_eq!(
+        host.synced.lock().unwrap().last(),
+        Some(&true),
+        "told once synced"
+    );
+    assert!(host.events.lock().unwrap().contains(&CoreEvent::SYNC_STATE));
+    let (playable, synced) = recordings.playable(&host, &host.book).unwrap();
+    assert_eq!(synced, host.book.total_entries(), "all of it is synced");
+    assert!(playable.clips.iter().all(|c| !c.audio.is_empty()));
 }
 
 #[tokio::test]
