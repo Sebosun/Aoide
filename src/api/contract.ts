@@ -306,7 +306,19 @@ audioBytes: number, coversBytes: number,
 /**
  * EPUB copies in the library folder.
  */
-booksBytes: number, databaseBytes: number, 
+booksBytes: number, 
+/**
+ * The library database, without the recordings' sync data.
+ */
+databaseBytes: number, 
+/**
+ * Recordings' transcripts, loudness and sync maps (kept in the database).
+ */
+syncBytes: number, 
+/**
+ * Speech-recognition models.
+ */
+modelsBytes: number, 
 /**
  * Files nothing refers to: unindexed audio and covers of removed books.
  */

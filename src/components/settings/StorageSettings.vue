@@ -29,6 +29,11 @@ const parts = computed(() => {
     { key: "books", label: "Books", bytes: r.booksBytes },
     { key: "covers", label: "Covers", bytes: r.coversBytes },
     { key: "database", label: "Database", bytes: r.databaseBytes },
+    // Only once audiobooks are used.
+    ...[
+      { key: "sync", label: "Audiobook sync", bytes: r.syncBytes },
+      { key: "models", label: "Speech recognition", bytes: r.modelsBytes },
+    ].filter(part => part.bytes > 0),
   ];
 });
 const total = computed(() => parts.value.reduce((n, p) => n + p.bytes, 0));
@@ -146,6 +151,8 @@ function submit() {
 .storage__bar-part--books, .storage__dot--books { background: var(--ink); }
 .storage__bar-part--covers, .storage__dot--covers { background: var(--dim); }
 .storage__bar-part--database, .storage__dot--database { background: var(--faint); }
+.storage__bar-part--sync, .storage__dot--sync { background: var(--warn); }
+.storage__bar-part--models, .storage__dot--models { background: var(--ok); }
 .storage__legend { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 0; margin: 0; list-style: none; font-size: 12.5px; color: var(--dim); }
 .storage__legend li { display: inline-flex; align-items: center; gap: 7px; }
 .storage__legend b { color: var(--ink); font-variant-numeric: tabular-nums; }

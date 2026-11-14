@@ -34,7 +34,12 @@ pub struct StorageReport {
     pub covers_bytes: u64,
     /// EPUB copies in the library folder.
     pub books_bytes: u64,
+    /// The library database, without the recordings' sync data.
     pub database_bytes: u64,
+    /// Recordings' transcripts, loudness and sync maps (kept in the database).
+    pub sync_bytes: u64,
+    /// Speech-recognition models.
+    pub models_bytes: u64,
     /// Files nothing refers to: unindexed audio and covers of removed books.
     pub unused_files: u64,
     pub unused_bytes: u64,
@@ -150,16 +155,17 @@ impl Core {
     }
 
     pub fn storage_report(&self) -> Result<StorageReport, String> {
-        let (audio_bytes, usage) = {
+        let (audio_bytes, usage, sync_bytes) = {
             let library = lock(&self.library);
             (
                 library.total_audio_bytes().map_err(|e| e.to_string())?,
                 library.audio_usage().map_err(|e| e.to_string())?,
+                library.sync_data_bytes().map_err(|e| e.to_string())?,
             )
         };
         let unused = self.unused()?;
         let db = &self.paths.db_path;
-        let database_bytes = ["", "-wal", "-shm"]
+        let database_bytes: u64 = ["", "-wal", "-shm"]
             .iter()
             .map(|suffix| {
                 let mut name = db.as_os_str().to_owned();
@@ -171,7 +177,9 @@ impl Core {
             audio_bytes,
             covers_bytes: tree_bytes(&self.paths.covers_dir),
             books_bytes: tree_bytes(&self.paths.library_dir),
-            database_bytes,
+            database_bytes: database_bytes.saturating_sub(sync_bytes),
+            sync_bytes,
+            models_bytes: tree_bytes(&self.paths.models_dir),
             unused_files: unused.files.len() as u64,
             unused_bytes: unused.bytes,
             books: usage

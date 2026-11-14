@@ -293,6 +293,7 @@ export function createMockApi() {
       const audio = books.filter(b => b.audioBytes > 0).sort((a, b) => b.audioBytes - a.audioBytes);
       return {
         audioBytes: audio.reduce((n, b) => n + b.audioBytes, 0), coversBytes: 1_400_000, booksBytes: 3_600_000, databaseBytes: 240_000,
+        syncBytes: recordings.size * 1_900_000, modelsBytes: recordings.size ? 147_964_211 : 0,
         unusedFiles: unused.files, unusedBytes: unused.bytes,
         books: audio.map(b => ({ bookId: b.id, bytes: b.audioBytes, segments: Math.ceil(b.audioBytes / 40_000), newestAt: 1_000, inUse: state.bookId === b.id && state.status !== "stopped" })),
       };

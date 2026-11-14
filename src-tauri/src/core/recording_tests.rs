@@ -202,6 +202,12 @@ async fn a_recording_syncs_and_then_plays_in_place_of_the_speech_engine() {
     );
     let summary = f.core.list_books().unwrap().remove(0);
     assert_eq!(summary.recording, Some(Stage::Ready));
+    let storage = f.core.storage_report().unwrap();
+    assert!(
+        storage.sync_bytes > 0,
+        "the transcript and sync map count as disk use"
+    );
+    assert!(storage.models_bytes > 0, "and so does the model");
 
     f.core.play(&f.id, Some(1), None).await.unwrap();
     until("a word of the recording to be heard", || {

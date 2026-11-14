@@ -143,6 +143,18 @@ it("shows what uses disk space, per kind and per book", async () => {
   wrapper.unmount();
 });
 
+it("counts recordings' sync data and recognition models once there are any", async () => {
+  let wrapper = await storageTab();
+  expect(wrapper.get('[aria-label="Disk use"]').text()).not.toContain("Speech recognition");
+  wrapper.unmount();
+  mock.setRecordingForTest("book-0", "ready");
+  wrapper = await storageTab();
+  const usage = wrapper.get('[aria-label="Disk use"]').text();
+  expect(usage).toContain("Speech recognition");
+  expect(usage).toContain("Audiobook sync");
+  wrapper.unmount();
+});
+
 it("cleans up unused files and deletes a book's audio after confirming", async () => {
   const clean = vi.spyOn(mock, "cleanUnusedFiles"), regenerate = vi.spyOn(mock, "regenerateBook");
   const wrapper = await storageTab();
