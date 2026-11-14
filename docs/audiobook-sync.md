@@ -537,6 +537,10 @@ transcribes at a time, in the order they were added.
 
 The source EPUB's images and styling are not carried over.
 
+Also from phase 3: *Find books* pairs audiobooks it finds beside EPUBs (`aoide_discovery::Neighbourhood`, `Candidate::audiobook`). It looks in the EPUB's folder and the folder above it, and one folder down from each. A file or folder there names the book when its name holds all of the book's words, from the file name or the title. Before comparing, names are lower-cased and lose apostrophes, plural `s`, bracketed text, numbers, the author's names and words like "unabridged". An exact set of words beats a looser one, so "Dune" can still pick "Dune Messiah" when nothing better is there. Like any pairing, it goes through the quick check. New books can be imported with their audiobook paired (`ImportChoice::pair_audiobook`). A book already in the library gets *Pair…*, which opens the pairing dialog. Books that already have a recording are not offered one.
+
+Still open from phase 3: opt-in TTS for passages the recording lacks; narrated footnotes matched and shown; importing EPUBs that already carry Media Overlays (low priority).
+
 ## Phase 0 results (2026-11-14)
 
 Measured with `crates/transcribe/examples/sync_book.rs` on an owned 10.4-hour unabridged novel:

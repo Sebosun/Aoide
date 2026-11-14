@@ -348,7 +348,12 @@ id: string, status: CandidateStatus, title: string, authors: Array<string>, lang
 /**
  * Best cached Open Library match, if details were fetched.
  */
-suggestion: MetadataMatch | null, };
+suggestion: MetadataMatch | null, 
+/**
+ * The audiobook kept beside it (audio files, or one folder), unless the book already
+ * has a recording.
+ */
+audiobook: Array<string>, };
 
 export type ScanStage = "walking" | "reading" | "done" | "cancelled" | "error";
 

@@ -86,6 +86,9 @@ pub struct Candidate {
     pub error: Option<String>,
     /// Best cached Open Library match, if details were fetched.
     pub suggestion: Option<Match>,
+    /// The audiobook kept beside it (audio files, or one folder), unless the book already
+    /// has a recording.
+    pub audiobook: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
@@ -94,6 +97,9 @@ pub struct ImportChoice {
     pub id: String,
     /// Apply the suggested Open Library match after importing.
     pub apply_suggestion: bool,
+    /// Pair the audiobook found beside it after importing.
+    #[serde(default)]
+    pub pair_audiobook: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -137,6 +143,7 @@ pub fn group_candidates(
                     .clone()
                     .or_else(|| Some("could not be read".into())),
                 suggestion: None,
+                audiobook: Vec::new(),
             }),
         }
     }
@@ -170,6 +177,7 @@ pub fn group_candidates(
             size: first.size,
             error: None,
             suggestion: None,
+            audiobook: Vec::new(),
             id: hash,
             status,
         });
@@ -381,12 +389,31 @@ impl Core {
             .map(|b| b.id.0)
             .filter(|id| !removed.contains(id))
             .collect();
+        let paired: HashSet<String> = lock(&self.library)
+            .recordings()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .map(|r| r.book_id.0)
+            .collect();
         let mut candidates = group_candidates(&files, &in_library, &removed);
-        for candidate in candidates
-            .iter_mut()
-            .filter(|c| c.status == CandidateStatus::New)
-        {
-            candidate.suggestion = self.cached_match(&query_for(candidate));
+        let mut beside = aoide_discovery::Neighbourhood::default();
+        for candidate in &mut candidates {
+            if candidate.status == CandidateStatus::New {
+                candidate.suggestion = self.cached_match(&query_for(candidate));
+            }
+            if candidate.status != CandidateStatus::Unreadable && !paired.contains(&candidate.id) {
+                candidate.audiobook = candidate
+                    .paths
+                    .iter()
+                    .map(|p| {
+                        beside.audiobook(Path::new(p), Some(&candidate.title), &candidate.authors)
+                    })
+                    .find(|found| !found.is_empty())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .collect();
+            }
         }
         Ok(candidates)
     }
@@ -444,7 +471,7 @@ impl Core {
             match outcome {
                 Ok(path) => {
                     if let Some(c) = candidate {
-                        imported.push((c.clone(), choice.apply_suggestion));
+                        imported.push((c.clone(), choice.clone()));
                     }
                     results.push(ImportResult {
                         path,
@@ -469,8 +496,22 @@ impl Core {
         tokio::task::spawn_blocking(move || core.rescan())
             .await
             .map_err(|e| e.to_string())??;
-        for (candidate, apply) in imported {
-            if let (true, Some(suggestion)) = (apply, candidate.suggestion) {
+        for (candidate, choice) in &imported {
+            if !choice.pair_audiobook || candidate.audiobook.is_empty() {
+                continue;
+            }
+            if let Err(error) = self.attach_recording(&candidate.id, candidate.audiobook.clone()) {
+                results.push(ImportResult {
+                    path: candidate.audiobook[0].clone(),
+                    book_id: Some(candidate.id.clone()),
+                    error: Some(format!(
+                        "imported, but its audiobook was not paired: {error}"
+                    )),
+                });
+            }
+        }
+        for (candidate, choice) in imported {
+            if let (true, Some(suggestion)) = (choice.apply_suggestion, candidate.suggestion) {
                 if let Err(error) = self.apply_metadata(&candidate.id, suggestion).await {
                     eprintln!(
                         "aoide: could not apply details to {}: {error}",

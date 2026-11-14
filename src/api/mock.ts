@@ -61,11 +61,13 @@ export function createMockApi() {
   const listened = new Map<string, number>([["book-0", 5_400_000], ["book-1", 1_200_000]]);
   let appSettings: AppSettings = { metadataLookup: true, cacheLimitBytes: null, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { engine: "builtIn", server: { baseUrl: "http://127.0.0.1:8000", model: "", network: "loopback" }, modelSize: "base", device: "auto", threads: 0, resumeOnStart: true } };
   const found: Candidate[] = [
-    { id: "h-tide", status: "new", title: "Notes on the Tide", authors: ["Ines Morrow"], language: "en", isbn: "9780000000101", coverUrl: null, paths: ["~/Downloads/notes-on-the-tide.epub", "~/Documents/Books/tide.epub"], size: 2_400_000, error: null, suggestion: null },
-    { id: "h-glass", status: "new", title: "The Glass Meridian", authors: ["Oren Vale"], language: "en", isbn: null, coverUrl: null, paths: ["~/Downloads/glass-meridian.epub"], size: 1_100_000, error: null, suggestion: null },
-    { id: "book-0", status: "inLibrary", title: "The Lantern Keeper", authors: ["Mira Vale"], language: "en", isbn: null, coverUrl: null, paths: ["~/Documents/lantern.epub"], size: 900_000, error: null, suggestion: null },
-    { id: "path:~/Documents/broken.epub", status: "unreadable", title: "broken", authors: [], language: null, isbn: null, coverUrl: null, paths: ["~/Documents/broken.epub"], size: 10, error: "not a readable EPUB", suggestion: null },
+    { id: "h-tide", status: "new", title: "Notes on the Tide", authors: ["Ines Morrow"], language: "en", isbn: "9780000000101", coverUrl: null, paths: ["~/Downloads/notes-on-the-tide.epub", "~/Documents/Books/tide.epub"], size: 2_400_000, error: null, suggestion: null, audiobook: ["~/Downloads/Notes on the Tide (Unabridged).m4b"] },
+    { id: "h-glass", status: "new", title: "The Glass Meridian", authors: ["Oren Vale"], language: "en", isbn: null, coverUrl: null, paths: ["~/Downloads/glass-meridian.epub"], size: 1_100_000, error: null, suggestion: null, audiobook: [] },
+    { id: "book-0", status: "inLibrary", title: "The Lantern Keeper", authors: ["Mira Vale"], language: "en", isbn: null, coverUrl: null, paths: ["~/Documents/lantern.epub"], size: 900_000, error: null, suggestion: null, audiobook: ["~/Audiobooks/Mira Vale - The Lantern Keeper"] },
+    { id: "path:~/Documents/broken.epub", status: "unreadable", title: "broken", authors: [], language: null, isbn: null, coverUrl: null, paths: ["~/Documents/broken.epub"], size: 10, error: "not a readable EPUB", suggestion: null, audiobook: [] },
   ];
+  /** What a scan found; like the app, a book that has a recording is not offered another. */
+  const listed = () => structuredClone(found).map(c => recordings.has(c.id) ? { ...c, audiobook: [] } : c);
   const query = typeof location === "undefined" ? new URLSearchParams() : new URLSearchParams(location.search);
   const mode = query.get("theme");
   let preferences: Preferences = {
@@ -366,10 +368,10 @@ export function createMockApi() {
       scanHandlers.forEach(h => h({ stage: "walking", dirs: 1200, files: 48000, found: 3, read: 0, toRead: 0, error: null }));
       scanned = true;
       scanHandlers.forEach(h => h({ stage: "done", dirs: 0, files: 0, found: 4, read: 2, toRead: 2, error: null }));
-      return structuredClone(found);
+      return listed();
     },
     async cancelScan() {},
-    async discoveredBooks() { return scanned ? structuredClone(found) : []; },
+    async discoveredBooks() { return scanned ? listed() : []; },
     async fetchDiscoveredDetails(ids) {
       for (const id of ids) {
         const c = found.find(f => f.id === id);
@@ -378,15 +380,18 @@ export function createMockApi() {
       }
     },
     async importDiscovered(choices) {
-      return choices.map((choice, done) => {
+      const results = [];
+      for (const [done, choice] of choices.entries()) {
         importHandlers.forEach(h => h({ done, total: choices.length, current: found.find(f => f.id === choice.id)?.title ?? null }));
         const c = found.find(f => f.id === choice.id);
-        if (!c || c.status === "unreadable") return { path: c?.paths[0] ?? "", bookId: null, error: "not a readable EPUB" };
+        if (!c || c.status === "unreadable") { results.push({ path: c?.paths[0] ?? "", bookId: null, error: "not a readable EPUB" }); continue; }
         c.status = "inLibrary";
         books.push({ id: c.id, title: c.title, authors: c.authors, language: c.language, status: { kind: "present" }, coverUrl: null, progress: null, audioBytes: 0, prepare: null, recording: null, addedAt: 900, lastOpenedAt: null, collections: [] });
         changed();
-        return { path: c.paths[0], bookId: c.id, error: null };
-      });
+        results.push({ path: c.paths[0], bookId: c.id, error: null });
+        if (choice.pairAudiobook && c.audiobook.length) await api.attachRecording(c.id, c.audiobook);
+      }
+      return results;
     },
     onScanProgress: h => subscribe(scanHandlers, h),
     onDiscoveryDetails: h => subscribe(detailHandlers, h),

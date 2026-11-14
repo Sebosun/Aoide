@@ -5,6 +5,7 @@ import { createMockApi } from "../api/mock";
 import FindBooksView from "../views/FindBooksView.vue";
 import App from "../App.vue";
 import { useLibraryStore } from "../stores/library";
+import { useRecordingsStore } from "../stores/recordings";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("../api", () => ({ get api() { return backend.api; } }));
@@ -54,12 +55,12 @@ it("imports the selected books, applying chosen online details, and refreshes th
   await wrapper.get('[aria-label="Select Notes on the Tide"]').setValue(true);
   await wrapper.get('[aria-label="Import selected books"]').trigger("click");
   await flushPromises();
-  expect(importer).toHaveBeenCalledWith([{ id: "h-tide", applySuggestion: true }]);
+  expect(importer).toHaveBeenCalledWith([{ id: "h-tide", applySuggestion: true, pairAudiobook: true }]);
   expect(titles(wrapper)).toEqual(["The Glass Meridian"]);
   expect(useLibraryStore().books.some(b => b.title === "Notes on the Tide")).toBe(true);
   await wrapper.get('[aria-label="Import all new books"]').trigger("click");
   await flushPromises();
-  expect(importer).toHaveBeenLastCalledWith([{ id: "h-glass", applySuggestion: true }]);
+  expect(importer).toHaveBeenLastCalledWith([{ id: "h-glass", applySuggestion: true, pairAudiobook: false }]);
   wrapper.unmount();
 });
 
@@ -75,5 +76,36 @@ it("saves which folders are searched", async () => {
   expect(save).toHaveBeenCalledWith(expect.objectContaining({
     scan: { roots: ["/home/me/Books", "/media/shelf"], exclude: ["/home/me/Books/old"], includeHidden: [], onStartup: true },
   }));
+  wrapper.unmount();
+});
+
+it("shows audiobooks found beside new books and pairs them on import unless told not to", async () => {
+  const importer = vi.spyOn(mock, "importDiscovered");
+  const wrapper = mount(FindBooksView);
+  await wrapper.get('[aria-label="Scan for books"]').trigger("click");
+  await flushPromises();
+  const tide = wrapper.findAll(".find__card").find(c => c.text().includes("Notes on the Tide"))!;
+  expect(tide.get(".find__audiobook").text()).toContain("Notes on the Tide (Unabridged).m4b");
+  expect(wrapper.findAll(".find__audiobook")).toHaveLength(1);
+  await wrapper.get('[aria-label="Pair audiobooks found beside books when importing"]').setValue(false);
+  await wrapper.get('[aria-label="Select Notes on the Tide"]').setValue(true);
+  await wrapper.get('[aria-label="Import selected books"]').trigger("click");
+  await flushPromises();
+  expect(importer).toHaveBeenCalledWith([{ id: "h-tide", applySuggestion: false, pairAudiobook: false }]);
+  wrapper.unmount();
+});
+
+it("pairs the audiobook found beside a book already in the library through the pairing dialog", async () => {
+  const wrapper = mount(FindBooksView);
+  await wrapper.get('[aria-label="Scan for books"]').trigger("click");
+  await flushPromises();
+  await wrapper.get('[aria-label="Show books already in the library"]').trigger("click");
+  expect(wrapper.get(".find__audiobook").text()).toContain("The Lantern Keeper");
+  await wrapper.get('[aria-label="Pair the audiobook beside The Lantern Keeper"]').trigger("click");
+  expect(useRecordingsStore().pairing).toEqual({ paths: ["~/Audiobooks/Mira Vale - The Lantern Keeper"], bookId: "book-0" });
+  await useRecordingsStore().attach("book-0", ["~/Audiobooks/Mira Vale - The Lantern Keeper"]);
+  await flushPromises();
+  expect(wrapper.find('[aria-label="Pair the audiobook beside The Lantern Keeper"]').exists()).toBe(false);
+  expect(wrapper.text()).toContain("Paired");
   wrapper.unmount();
 });

@@ -1,4 +1,5 @@
-//! Fast, parallel search for EPUB files on the local disk, and streaming content hashes.
+//! Fast, parallel search for EPUB files on the local disk, streaming content hashes, and the
+//! audiobook kept beside an EPUB.
 //!
 //! Nothing here opens files for writing or follows symbolic links.
 
@@ -236,3 +237,6 @@ pub fn hash_all(
         Err(_) => paths.into_iter().map(hash).collect(),
     }
 }
+
+mod beside;
+pub use beside::{audiobook_beside, Neighbourhood};

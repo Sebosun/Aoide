@@ -42,11 +42,11 @@ mod preparation;
 mod read_along;
 mod recording;
 mod syncing;
-pub use syncing::Stage as SyncStage;
 pub use recording::{
     app_transcribers, InspectionView, Narration, RecognitionOptions, RecordingView, SyncAction,
     SyncReportView, TranscriberFactory,
 };
+pub use syncing::Stage as SyncStage;
 mod session;
 mod voicing;
 use session::Session;

@@ -7,7 +7,7 @@ import { useLibraryStore } from "./library";
 export const useDiscoveryStore = defineStore("discovery", () => {
   const candidates = ref<Candidate[]>([]), progress = ref<ScanProgress | null>(null), importing = ref<DiscoveryImportProgress | null>(null);
   const scanning = ref(false), fetching = ref<{ done: number; total: number } | null>(null), error = ref(""), filter = ref<CandidateStatus>("new");
-  const selected = ref<Set<string>>(new Set()), applyDetails = ref(true);
+  const selected = ref<Set<string>>(new Set()), applyDetails = ref(true), pairAudiobooks = ref(true);
   const counts = computed(() => {
     const c: Record<CandidateStatus, number> = { new: 0, inLibrary: 0, removed: 0, unreadable: 0 };
     for (const candidate of candidates.value) c[candidate.status]++;
@@ -42,7 +42,10 @@ export const useDiscoveryStore = defineStore("discovery", () => {
   async function importBooks(ids: string[]) {
     if (!ids.length) return;
     error.value = "";
-    const choices = ids.map(id => ({ id, applySuggestion: applyDetails.value && Boolean(candidates.value.find(c => c.id === id)?.suggestion) }));
+    const choices = ids.map(id => {
+      const candidate = candidates.value.find(c => c.id === id);
+      return { id, applySuggestion: applyDetails.value && Boolean(candidate?.suggestion), pairAudiobook: pairAudiobooks.value && Boolean(candidate?.audiobook.length) };
+    });
     try {
       const results = await api.importDiscovered(choices);
       const failed = results.filter(r => r.error);
@@ -54,5 +57,5 @@ export const useDiscoveryStore = defineStore("discovery", () => {
   }
   function toggle(id: string, on: boolean) { const next = new Set(selected.value); if (on) next.add(id); else next.delete(id); selected.value = next; }
   function dispose() { unlisteners.splice(0).forEach(fn => fn()); startup = undefined; }
-  return { candidates, progress, importing, scanning, fetching, error, filter, selected, applyDetails, counts, visible, needingDetails, start, scan, cancel: () => api.cancelScan(), fetchDetails, importBooks, toggle, dispose };
+  return { candidates, progress, importing, scanning, fetching, error, filter, selected, applyDetails, pairAudiobooks, counts, visible, needingDetails, start, scan, cancel: () => api.cancelScan(), fetchDetails, importBooks, toggle, dispose };
 });

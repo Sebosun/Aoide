@@ -10,7 +10,7 @@ use aoide_tts::testing::FakeEngine;
 
 use super::recording::{Narration, RecognitionEngine, TranscriberChoice};
 use super::syncing::Stage;
-use super::tests::{library_folder, start_with, until};
+use super::tests::{epub, epub_with, library_folder, start_with, until};
 use super::{lock, Core, CoreEvent, TranscriberFactory};
 
 /// Sample value per millisecond of the recording.
@@ -734,7 +734,11 @@ async fn a_recording_gets_exact_word_times_from_the_aligner() {
 
 #[tokio::test]
 async fn a_synced_recording_exports_as_a_read_along_epub() {
-    if std::process::Command::new("ffmpeg").arg("-version").output().is_err() {
+    if std::process::Command::new("ffmpeg")
+        .arg("-version")
+        .output()
+        .is_err()
+    {
         eprintln!("skipped: the export needs ffmpeg to turn WAV into AAC");
         return;
     }
@@ -745,7 +749,10 @@ async fn a_synced_recording_exports_as_a_read_along_epub() {
     // Two files, the second starting mid-sentence.
     let split = words[words.len() / 2].0 + 100;
     *f.script.lock().unwrap() = words;
-    let parts = [f.root.join("Audio/part 1.wav"), f.root.join("Audio/part 2.wav")];
+    let parts = [
+        f.root.join("Audio/part 1.wav"),
+        f.root.join("Audio/part 2.wav"),
+    ];
     write_recording_part(&parts[0], 0, split);
     write_recording_part(&parts[1], split, total - split);
     f.core
@@ -766,7 +773,11 @@ async fn a_synced_recording_exports_as_a_read_along_epub() {
     let bytes = std::fs::read(&path).unwrap();
     let parsed = aoide_epub::parse_epub(&bytes, &aoide_epub::ParseOptions::default()).unwrap();
     let exported: Vec<String> = parsed.chapters.iter().map(|c| c.text.clone()).collect();
-    assert_eq!(exported, texts(&f.core, &f.id), "the same text, chapter by chapter");
+    assert_eq!(
+        exported,
+        texts(&f.core, &f.id),
+        "the same text, chapter by chapter"
+    );
 
     let mut zip = zip::ZipArchive::new(std::io::Cursor::new(&bytes)).unwrap();
     {
@@ -820,7 +831,10 @@ async fn a_synced_recording_exports_as_a_read_along_epub() {
                 }
                 (total * 1_000.0).round() as u64
             };
-            spans.push((starts[file] + seconds("clipBegin"), starts[file] + seconds("clipEnd")));
+            spans.push((
+                starts[file] + seconds("clipBegin"),
+                starts[file] + seconds("clipEnd"),
+            ));
             if voiced.last() != Some(&fragment.to_owned()) {
                 voiced.push(fragment.to_owned());
             }
@@ -839,5 +853,69 @@ async fn a_synced_recording_exports_as_a_read_along_epub() {
         spans.windows(2).all(|w| w[0].1 == w[1].0),
         "each clip starts where the last ended: {spans:?}"
     );
-    assert!(spans.iter().any(|s| s.1 == split), "a clip is cut at the file boundary");
+    assert!(
+        spans.iter().any(|s| s.1 == split),
+        "a clip is cut at the file boundary"
+    );
+}
+
+#[tokio::test]
+async fn find_books_offers_audiobooks_kept_beside_epubs_and_pairs_them_on_import() {
+    let f = fixture().await;
+    // A copy of the book already in the library, its recording beside it.
+    let shelf = f.root.join("Shelf/Quay Lights");
+    std::fs::create_dir_all(&shelf).unwrap();
+    std::fs::write(shelf.join("quay-lights.epub"), epub()).unwrap();
+    write_recording(&shelf.join("quay-lights.wav"), 3_000);
+    // A new book, its recording in a folder beside it.
+    let other = f.root.join("Other");
+    std::fs::create_dir_all(other.join("Harbour [Audiobook]")).unwrap();
+    let html = |text: &str| {
+        format!(r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><p>{text}</p></body></html>"#)
+    };
+    let harbour = epub_with(html("Nets dried on the wall."), html("Boats slept."));
+    std::fs::write(other.join("Harbour.epub"), &harbour).unwrap();
+    write_recording(&other.join("Harbour [Audiobook]/01.wav"), 3_000);
+    let harbour_id = aoide_library::content_hash(&harbour).0;
+
+    let mut settings = f.core.app_settings();
+    settings.scan.roots = vec![
+        f.root.join("Shelf").to_string_lossy().into(),
+        other.to_string_lossy().into(),
+    ];
+    f.core.save_app_settings(settings).unwrap();
+    let found = f.core.scan_for_books().await.unwrap();
+    let audiobook = |id: &str| {
+        found
+            .iter()
+            .find(|c| c.id == id)
+            .map(|c| c.audiobook.clone())
+            .unwrap()
+    };
+    let path = |p: PathBuf| p.to_string_lossy().into_owned();
+    assert_eq!(audiobook(&f.id), vec![path(shelf.join("quay-lights.wav"))]);
+    assert_eq!(
+        audiobook(&harbour_id),
+        vec![path(other.join("Harbour [Audiobook]"))]
+    );
+
+    // Paired books are not offered again.
+    f.core.attach_recording(&f.id, audiobook(&f.id)).unwrap();
+    let again = f.core.discovered_books().unwrap();
+    let ours = again.iter().find(|c| c.id == f.id).unwrap();
+    assert!(ours.audiobook.is_empty());
+
+    let results = f
+        .core
+        .import_discovered(vec![super::ImportChoice {
+            id: harbour_id.clone(),
+            apply_suggestion: false,
+            pair_audiobook: true,
+        }])
+        .await
+        .unwrap();
+    assert!(results.iter().all(|r| r.error.is_none()), "{results:?}");
+    let paired = f.core.recording(&harbour_id).expect("paired on import");
+    assert_eq!(paired.files.len(), 1);
+    assert_eq!(paired.total_ms, 3_000);
 }

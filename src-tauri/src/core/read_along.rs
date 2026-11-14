@@ -426,8 +426,7 @@ impl Core {
             })
         });
         let modified = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-        let documents =
-            read_along_documents(&book, &plan.clips, &audio, cover.as_ref(), &modified);
+        let documents = read_along_documents(&book, &plan.clips, &audio, cover.as_ref(), &modified);
 
         let exports = self
             .paths
@@ -489,10 +488,7 @@ impl Core {
                     let _ = std::fs::remove_file(&source);
                 }
             }
-            zip.finish()
-                .map_err(zip_error)?
-                .flush()
-                .map_err(io_error)?;
+            zip.finish().map_err(zip_error)?.flush().map_err(io_error)?;
             Ok(())
         })();
         let _ = std::fs::remove_dir_all(&work);
@@ -558,10 +554,7 @@ mod tests {
             duration_us: ms * 1_000,
         };
         let files = [audio(1_000), audio(2_000)];
-        assert_eq!(
-            in_files(&files, 800..1_300),
-            [(0, 800, 1_000), (1, 0, 300)]
-        );
+        assert_eq!(in_files(&files, 800..1_300), [(0, 800, 1_000), (1, 0, 300)]);
         assert_eq!(clock(3_723_004), "1:02:03.004");
     }
 }

@@ -64,7 +64,7 @@ pub(super) fn epub() -> Vec<u8> {
 }
 
 /// The test book's package with these two chapter documents.
-fn epub_with(one: String, two: String) -> Vec<u8> {
+pub(super) fn epub_with(one: String, two: String) -> Vec<u8> {
     let files = [
         ("mimetype", "application/epub+zip".to_string()),
         ("META-INF/container.xml", r#"<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#.into()),

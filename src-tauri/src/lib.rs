@@ -608,6 +608,7 @@ fn smoke(app: tauri::AppHandle, core: Arc<Core>, seconds: u64) {
                 .map(|c| crate::core::ImportChoice {
                     id: c.id.clone(),
                     apply_suggestion: false,
+                    pair_audiobook: false,
                 })
                 .collect();
             eprintln!("smoke: import: {:?}", core.import_discovered(choices).await);

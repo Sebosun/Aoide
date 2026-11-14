@@ -268,7 +268,8 @@ export interface AoideApi {
   discoveredBooks(): Promise<Candidate[]>;
   /** Open Library lookups for these candidates; "discovery://details" fires per id. */
   fetchDiscoveredDetails(ids: string[]): Promise<void>;
-  importDiscovered(choices: { id: string; applySuggestion: boolean }[]): Promise<ImportResult[]>;
+  /** `pairAudiobook` pairs the audiobook found beside a book once it is imported. */
+  importDiscovered(choices: { id: string; applySuggestion: boolean; pairAudiobook: boolean }[]): Promise<ImportResult[]>;
   onScanProgress(handler: (progress: ScanProgress) => void): Promise<() => void>;
   onDiscoveryDetails(handler: (id: string) => void): Promise<() => void>;
   onDiscoveryImport(handler: (progress: DiscoveryImportProgress) => void): Promise<() => void>;
