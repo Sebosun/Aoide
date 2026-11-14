@@ -48,16 +48,19 @@ it("refuses DRM-protected files and says why", async () => {
   expect(byText(pair, "button", "Check and sync")!.hasAttribute("disabled")).toBe(true);
 });
 
-it("switches narration only once the recording is synced", async () => {
+it("switches narration once part of the recording is synced", async () => {
   await useLibraryStore().start();
-  mock.setRecordingForTest("book-0", "transcribing");
+  mock.setRecordingForTest("book-0", "checking");
   const wrapper = mount(BookNarration, { props: { bookId: "book-0" }, attachTo: document.body });
   await flushPromises();
-  const recording = wrapper.get('[role="radio"]:first-child');
-  expect(recording.attributes("disabled")).toBeDefined();
+  expect(wrapper.get('[role="radio"]:first-child').attributes("disabled")).toBeDefined();
   expect(wrapper.get('[role="radio"][aria-checked="true"]').text()).toBe("Speech engine");
+
+  mock.setRecordingForTest("book-0", "transcribing");
+  await flushPromises();
   expect(wrapper.text()).toContain("Syncing");
   expect(wrapper.find('[aria-label="Pause syncing"]').exists()).toBe(true);
+  expect(wrapper.get('[role="radio"]:first-child').attributes("disabled"), "what is synced can be listened to").toBeUndefined();
 
   mock.setRecordingForTest("book-0", "ready", "speech");
   await flushPromises();
@@ -158,4 +161,25 @@ it("tells a book's listening progress apart from its recording's sync on the car
   expect(card("A Map of Quiet Places")).toBe("Syncing recording");
   expect(card("The Lantern Keeper")).toBe("12% · narrated recording");
   wrapper.unmount();
+});
+
+it("starts listening while the recording syncs, and says when playback waits for the sync", async () => {
+  await useLibraryStore().start();
+  await useReaderStore().open("book-0");
+  const player = usePlayerStore();
+  await player.start();
+  mock.setRecordingForTest("book-0", "transcribing");
+  const reader = mount(ReaderView, { attachTo: document.body });
+  const panel = mount(BookNarration, { props: { bookId: "book-0" }, attachTo: document.body });
+  await flushPromises();
+  await panel.get('[aria-label="Listen now"]').trigger("click");
+  await flushPromises();
+  expect((await mock.bookSettings("book-0")).narration).toBe("recording");
+  expect(player.state.bookId).toBe("book-0");
+  expect(player.state.source).toBe("recording");
+  mock.emitPlayer({ ...player.state, status: "buffering", waitingForSync: true });
+  await flushPromises();
+  expect(reader.get('[aria-label="Player"]').text()).toContain("Waiting for the sync to reach here");
+  panel.unmount();
+  reader.unmount();
 });

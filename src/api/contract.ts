@@ -117,7 +117,12 @@ offText: boolean,
  * Listening time left in the chapter at this speed, when it is known exactly (a
  * recording); otherwise the interface estimates it from the words left.
  */
-chapterLeftMs: number | null, };
+chapterLeftMs: number | null, 
+/**
+ * The recording is being listened to while it syncs, and the sync has not reached the
+ * playhead yet: playback waits for it.
+ */
+waitingForSync: boolean, };
 
 export type EngineState = "offline" | "loading" | "ready" | "busy" | "error";
 

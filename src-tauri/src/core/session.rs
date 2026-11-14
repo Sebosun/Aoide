@@ -29,6 +29,8 @@ pub struct Session {
     timings: HashMap<usize, Vec<WordEstimate>>,
     pub last_index: usize,
     pub last_saved: Instant,
+    /// When a recording being synced last took up the sync's progress.
+    pub followed: Instant,
 }
 
 struct Feed {
@@ -57,6 +59,7 @@ impl Session {
             timings: HashMap::new(),
             last_index: start,
             last_saved: Instant::now(),
+            followed: Instant::now(),
         }
     }
 
@@ -115,6 +118,34 @@ impl Session {
             feed.finished.retain(|i| *i >= before);
         }
         Some(before)
+    }
+
+    /// The playhead's entry waits for the recording's sync to reach it.
+    pub fn waiting_for_sync(&self) -> bool {
+        self.recording().is_some()
+            && self
+                .target
+                .plan
+                .items
+                .get(self.last_index)
+                .is_some_and(|item| item.speakable && !item.cached)
+    }
+
+    /// The recording's sync went further: plays by `target` from now on. Audio already given to
+    /// the player stays. Returns the entries that waited for the sync but turned out not to be
+    /// in the recording, which the player should pass over.
+    pub fn follow(&mut self, target: Target) -> Vec<usize> {
+        let before = std::mem::replace(&mut self.target.plan, target.plan);
+        self.target.source = target.source;
+        self.followed = Instant::now();
+        before
+            .items
+            .iter()
+            .zip(&self.target.plan.items)
+            .enumerate()
+            .filter(|(_, (was, now))| was.speakable && !was.cached && !now.speakable)
+            .map(|(index, _)| index)
+            .collect()
     }
 
     pub fn recording(&self) -> Option<&Arc<RecordingPlan>> {

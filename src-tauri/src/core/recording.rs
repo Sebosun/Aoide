@@ -33,6 +33,10 @@ const SAMPLE_MS: u64 = 20_000;
 const SAMPLE_AT: [f64; 3] = [0.2, 0.5, 0.8];
 /// A sample counts as found when this share of its word triples is in the text.
 const SAMPLE_FOUND: f32 = 0.3;
+/// While a recording syncs, only what ends this long before the sync's edge is played.
+const SYNC_MARGIN_MS: u64 = 30_000;
+/// How often playback picks up the sync's progress when it is not waiting for it.
+const FOLLOW_EVERY: Duration = Duration::from_secs(60);
 /// Below this share of the text matched, a sync needs the user's review.
 const POOR_BELOW: f64 = 0.75;
 /// Changes when matching changes, so stored maps are made again.
@@ -962,11 +966,12 @@ impl Core {
             self.sync_event(id, SyncEvent::TranscriptDone, None);
         } else {
             self.emit_recording(id);
+            self.follow_sync(id, false);
         }
         Ok(())
     }
 
-    fn heard_words(&self, id: &str) -> Result<Vec<HeardWord>, String> {
+    pub(super) fn heard_words(&self, id: &str) -> Result<Vec<HeardWord>, String> {
         let blocks = lock(&self.library)
             .transcript_blocks(&BookId(id.into()))
             .map_err(|e| e.to_string())?;
@@ -1006,6 +1011,7 @@ impl Core {
             .map_err(|e| e.to_string())?;
         if self.sync_event(id, SyncEvent::Matched { review }, None) == SyncStage::Ready {
             self.narrate_with_recording_by_default(id);
+            self.follow_sync(id, true);
         }
         Ok(())
     }
@@ -1348,9 +1354,7 @@ impl Core {
     }
 
     pub async fn set_narration(&self, id: &str, narration: Narration) -> Result<(), String> {
-        if narration == Narration::Recording
-            && !self.recording_stage(id).is_some_and(SyncStage::playable)
-        {
+        if narration == Narration::Recording && !self.listenable(id) {
             return Err("the recording is not synced yet".into());
         }
         let mut settings = self.book_settings(id);
@@ -1418,8 +1422,44 @@ impl Core {
     }
 
     pub(super) fn plays_recording(&self, id: &str, settings: &BookSettings) -> bool {
-        settings.narration == Some(Narration::Recording)
-            && self.recording_stage(id).is_some_and(SyncStage::playable)
+        settings.narration == Some(Narration::Recording) && self.listenable(id)
+    }
+
+    /// Synced, or syncing with part of it transcribed: what is synced can be listened to.
+    fn listenable(&self, id: &str) -> bool {
+        let state = lock(&self.syncing);
+        state.live.get(id).is_some_and(|live| {
+            live.stage == SyncStage::Ready || (live.stage.listenable() && live.transcribed_ms > 0)
+        })
+    }
+
+    /// The recording being listened to while it syncs has more synced (or is done): playback
+    /// follows the new map. `force` refreshes even when nobody is waiting on the sync.
+    fn follow_sync(&self, id: &str, force: bool) {
+        let book = match lock(&self.session).as_ref() {
+            Some(session)
+                if session.target.book.id == id
+                    && session.recording().is_some()
+                    && (force
+                        || session.waiting_for_sync()
+                        || session.followed.elapsed() >= FOLLOW_EVERY) =>
+            {
+                Arc::clone(&session.target.book)
+            }
+            _ => return,
+        };
+        let target = match self.build_recording_target(book) {
+            Ok(target) => target,
+            Err(error) => return eprintln!("aoide: following the sync of {id}: {error}"),
+        };
+        let skipped = match lock(&self.session).as_mut() {
+            Some(session) if session.target.book.id == id => session.follow(target),
+            _ => return,
+        };
+        let mut player = lock(&self.player);
+        for index in skipped {
+            player.finish(index);
+        }
     }
 
     // ------------------------------------------------------------ models
@@ -1544,28 +1584,33 @@ impl Core {
     // ------------------------------------------------------------ playback
 
     /// The playlist target for a book played from its recording.
+    /// The book's recording as a playback target. Once synced it follows the stored sync map;
+    /// while it syncs, the transcript so far is matched here, and the sentences the sync has not
+    /// safely reached are left without audio for playback to wait on.
     pub(super) fn build_recording_target(&self, book: Arc<BookModel>) -> Result<Target, String> {
         let book_id = BookId(book.id.clone());
         let (row, stored) = self.stored_recording(&book.id)?;
-        let (map, blocks) = {
-            let library = lock(&self.library);
-            (
-                library
-                    .sync_map(&book_id)
-                    .map_err(|e| e.to_string())?
-                    .ok_or("the recording is not matched yet")?,
-                library
-                    .transcript_blocks(&book_id)
-                    .map_err(|e| e.to_string())?,
-            )
+        let blocks = lock(&self.library)
+            .transcript_blocks(&book_id)
+            .map_err(|e| e.to_string())?;
+        let (map, edge) = if self.recording_stage(&book.id) == Some(SyncStage::Ready) {
+            let map = lock(&self.library)
+                .sync_map(&book_id)
+                .map_err(|e| e.to_string())?
+                .ok_or("the recording is not matched yet")?;
+            if map.text_hash != text_hash(&book) {
+                self.sync_event(&book.id, SyncEvent::TextChanged, None);
+                self.wake_sync();
+                return Err("the book's text changed: its recording is being matched again".into());
+            }
+            let chapters = decode_chapters(&map.map).ok_or("the stored sync map is damaged")?;
+            let report: Report = serde_json::from_str(&map.report).map_err(|e| e.to_string())?;
+            (SyncMap { chapters, report }, None)
+        } else {
+            let texts: Vec<&str> = book.chapters.iter().map(|c| c.text.as_str()).collect();
+            let edge = blocks.last().map_or(0, |b| b.end_ms);
+            (match_book(&texts, &self.heard_words(&book.id)?), Some(edge))
         };
-        if map.text_hash != text_hash(&book) {
-            self.sync_event(&book.id, SyncEvent::TextChanged, None);
-            self.wake_sync();
-            return Err("the book's text changed: its recording is being matched again".into());
-        }
-        let chapters = decode_chapters(&map.map).ok_or("the stored sync map is damaged")?;
-        let report: Report = serde_json::from_str(&map.report).map_err(|e| e.to_string())?;
         let mut levels = Vec::new();
         for block in blocks {
             levels.extend(block.levels);
@@ -1586,19 +1631,23 @@ impl Core {
                 })
             })
             .collect();
-        let clips = clips(
-            &SyncMap { chapters, report },
-            &units,
-            row.total_ms,
-            Some(&loudness),
-        );
+        let clips = clips(&map, &units, edge.unwrap_or(row.total_ms), Some(&loudness));
+        // While it syncs: the units after the last one that ends safely before the sync's edge
+        // wait for it (the matcher may still move what lies near the edge).
+        let synced = edge.map_or(clips.len(), |edge| {
+            let safe = edge.saturating_sub(SYNC_MARGIN_MS);
+            clips
+                .iter()
+                .rposition(|clip| !clip.audio.is_empty() && clip.audio.end <= safe)
+                .map_or(0, |last| last + 1)
+        });
         let items = clips
             .iter()
             .enumerate()
             .map(|(index, clip)| aoide_generation::PlanItem {
                 key: format!("clip:{index}"),
-                speakable: !clip.audio.is_empty(),
-                cached: true,
+                speakable: index >= synced || !clip.audio.is_empty(),
+                cached: index < synced,
                 duration_ms: (clip.audio.end - clip.audio.start) as u32,
             })
             .collect::<Vec<_>>();

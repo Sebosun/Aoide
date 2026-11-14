@@ -6,6 +6,7 @@ import type { ModelDownloadView } from "../../api/types";
 import { useRecordingsStore } from "../../stores/recordings";
 import { useLibraryStore } from "../../stores/library";
 import { useUiStore } from "../../stores/ui";
+import { usePlayerStore } from "../../stores/player";
 import { formatBytes } from "../../bytes";
 import { RECORDING_ACTION_ICONS, RECORDING_ACTION_LABELS, describeFiles, recordingStatus, type RecordingAction } from "../../recording";
 
@@ -38,6 +39,7 @@ async function act(action: RecordingAction) {
   const id = props.bookId;
   try {
     if (action === "report") recordings.openReport(id);
+    else if (action === "listen") { await recordings.setNarration(id, "recording"); await usePlayerStore().play(id, null, null); }
     else if (action === "download") await downloadModel();
     else if (action === "remove") {
       const ok = await ui.confirm({ title: `Remove the recording from ${title.value}?`, body: "Aoide forgets the recording and its sync. The audio files stay where they are.", confirmLabel: "Remove", danger: true });

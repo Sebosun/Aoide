@@ -134,9 +134,13 @@ impl Stage {
         }
     }
 
-    /// Whether the recording can be listened to.
-    pub fn playable(self) -> bool {
-        self == Stage::Ready
+    /// Whether what has been synced so far can be listened to: once synced, or while the sync
+    /// is under way (the part not reached yet waits for it).
+    pub fn listenable(self) -> bool {
+        matches!(
+            self,
+            Stage::Ready | Stage::Waiting | Stage::Transcribing | Stage::Paused | Stage::Matching
+        )
     }
 }
 
@@ -238,9 +242,10 @@ mod tests {
     }
 
     #[test]
-    fn only_a_ready_recording_plays() {
+    fn a_recording_can_be_listened_to_once_synced_or_while_it_syncs() {
         for stage in ALL {
-            assert_eq!(stage.playable(), stage == Ready, "{stage:?}");
+            let listenable = matches!(stage, Ready | Waiting | Transcribing | Paused | Matching);
+            assert_eq!(stage.listenable(), listenable, "{stage:?}");
         }
     }
 }

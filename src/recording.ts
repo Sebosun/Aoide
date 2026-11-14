@@ -1,10 +1,10 @@
 import type { Component } from "vue";
-import { Check, Download, FileText, Pause, Play, RotateCcw, Trash2 } from "@lucide/vue";
+import { Check, Download, FileText, Headphones, Pause, Play, RotateCcw, Trash2 } from "@lucide/vue";
 import type { RecordingView, SyncStage } from "./api/types";
 import { formatDuration } from "./estimate";
 
 /** What a person can do about a book's recording. */
-export type RecordingAction = "pause" | "resume" | "retry" | "accept" | "resync" | "download" | "report" | "remove";
+export type RecordingAction = "listen" | "pause" | "resume" | "retry" | "accept" | "resync" | "download" | "report" | "remove";
 
 /** How a recording's sync reads and what it offers, for every view that shows it. The stage is
  *  decided in the core (core/syncing.rs); this only presents it. */
@@ -15,8 +15,10 @@ export interface RecordingStatus {
   /** Share transcribed, while that is the work being done. */
   percent: number | null;
   actions: RecordingAction[];
-  /** It can be listened to. */
+  /** It is synced. */
   playable: boolean;
+  /** What is synced so far can be listened to (all of it once synced). */
+  listenable: boolean;
   /** Something is going on (shown with a moving bar). */
   working: boolean;
 }
@@ -33,11 +35,11 @@ const ACTIONS: Record<SyncStage, RecordingAction[]> = {
   paused: ["resume", "remove"], missing: ["remove"], failed: ["retry", "remove"],
 };
 export const RECORDING_ACTION_LABELS: Record<RecordingAction, string> = {
-  pause: "Pause syncing", resume: "Resume syncing", retry: "Try again", accept: "Use it anyway", resync: "Sync again",
+  listen: "Listen now", pause: "Pause syncing", resume: "Resume syncing", retry: "Try again", accept: "Use it anyway", resync: "Sync again",
   download: "Download the model", report: "See the report", remove: "Remove recording",
 };
 export const RECORDING_ACTION_ICONS: Record<RecordingAction, Component> = {
-  pause: Pause, resume: Play, retry: RotateCcw, accept: Check, resync: RotateCcw, download: Download, report: FileText, remove: Trash2,
+  listen: Headphones, pause: Pause, resume: Play, retry: RotateCcw, accept: Check, resync: RotateCcw, download: Download, report: FileText, remove: Trash2,
 };
 
 const share = (part: number, whole: number) => Math.floor((part / Math.max(1, whole)) * 100);
@@ -59,9 +61,11 @@ export function recordingStatus(recording: RecordingView): RecordingStatus {
     missing: "The audio files were moved, renamed or changed. Put them back, or pair the book again.",
     failed: recording.error,
   };
+  // While it syncs, what is synced so far can be listened to (the core waits at the edge).
+  const syncing = ["waiting", "transcribing", "paused", "matching"].includes(stage) && transcribedMs > 0;
   return {
-    stage, label: LABELS[stage], detail: detail[stage], percent, actions: ACTIONS[stage],
-    playable: stage === "ready", working: ["checking", "transcribing", "matching"].includes(stage),
+    stage, label: LABELS[stage], detail: detail[stage], percent, actions: syncing && stage !== "matching" ? ["listen", ...ACTIONS[stage]] : ACTIONS[stage],
+    playable: stage === "ready", listenable: stage === "ready" || syncing, working: ["checking", "transcribing", "matching"].includes(stage),
   };
 }
 

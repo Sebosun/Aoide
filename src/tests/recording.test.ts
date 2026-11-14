@@ -19,12 +19,13 @@ const view = (stage: SyncStage, more: Partial<RecordingView> = {}): RecordingVie
 it("words each stage and offers only what applies to it", () => {
   expect(recordingStatus(view("checking"))).toMatchObject({ label: "Checking the audio", actions: ["remove"], playable: false });
   expect(recordingStatus(view("waiting", { position: 2 }))).toMatchObject({ label: "Waiting to sync", detail: "2 recordings ahead", actions: ["pause", "remove"] });
-  expect(recordingStatus(view("transcribing", { transcribedMs: 2.5 * 3_600_000, remainingMs: 17 * 60_000 }))).toMatchObject({ label: "Syncing", detail: "25% · about 17 min left", percent: 25, actions: ["pause", "remove"] });
+  expect(recordingStatus(view("transcribing", { transcribedMs: 2.5 * 3_600_000, remainingMs: 17 * 60_000 }))).toMatchObject({ label: "Syncing", detail: "25% · about 17 min left", percent: 25, actions: ["listen", "pause", "remove"], listenable: true });
   expect(recordingStatus(view("needsModel"))).toMatchObject({ actions: ["download", "remove"] });
   expect(recordingStatus(view("ready", { summary: { words: 1000, matchedWords: 940, timedWords: 995 } }))).toMatchObject({ label: "Synced", detail: "94% of the text found in the recording", actions: ["report", "resync", "remove"], playable: true });
   expect(recordingStatus(view("poorMatch", { summary: { words: 1000, matchedWords: 500, timedWords: 600 } }))).toMatchObject({ label: "Needs review", actions: ["report", "accept", "remove"] });
   expect(recordingStatus(view("sampleMismatch")).actions).toEqual(["accept", "remove"]);
-  expect(recordingStatus(view("paused", { transcribedMs: 3_600_000 }))).toMatchObject({ percent: 10, actions: ["resume", "remove"] });
+  expect(recordingStatus(view("paused", { transcribedMs: 3_600_000 }))).toMatchObject({ percent: 10, actions: ["listen", "resume", "remove"] });
+  expect(recordingStatus(view("transcribing", { transcribedMs: 0 }))).toMatchObject({ actions: ["pause", "remove"], listenable: false });
   expect(recordingStatus(view("failed", { error: "no audio" }))).toMatchObject({ detail: "no audio", actions: ["retry", "remove"] });
   expect(recordingStatus(view("missing")).actions).toEqual(["remove"]);
 });

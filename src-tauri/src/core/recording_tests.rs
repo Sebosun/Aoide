@@ -482,3 +482,61 @@ async fn sentences_the_recording_lacks_are_marked_in_the_chapter() {
     assert!(!speakable.is_empty());
     assert_eq!(second.not_narrated, Some(speakable));
 }
+
+#[tokio::test]
+async fn the_synced_part_plays_while_the_rest_is_still_syncing() {
+    let f = fixture().await;
+    put_model(&f.root);
+    let texts = texts(&f.core, &f.id);
+    // The first chapter is read early on, the second only after the first block of recognition
+    // (about five minutes) ends. (The test chapters are too short to be found among other
+    // narration, so there is silence in between.)
+    let mut words = read(&texts[..1], 2_000);
+    words.extend(read(&texts[1..], 400_000));
+    let total = words.last().unwrap().1 + 1_000;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    // Check, promote, quick check (the samples are silence), then one block.
+    for _ in 0..3 {
+        assert!(f.core.sync_step());
+    }
+    f.core
+        .sync_action(&f.id, super::SyncAction::Accept)
+        .unwrap();
+    while f.core.recording(&f.id).unwrap().transcribed_ms == 0 {
+        assert!(f.core.sync_step());
+    }
+    let partial = f.core.recording(&f.id).unwrap();
+    assert_eq!(partial.stage, Stage::Transcribing);
+    assert!(partial.transcribed_ms < 400_000, "{partial:?}");
+
+    f.core
+        .set_narration(&f.id, Narration::Recording)
+        .await
+        .expect("a recording can be listened to while it syncs");
+    f.core.play(&f.id, Some(0), None).await.unwrap();
+    until("the synced first chapter to play", || {
+        let state = f.core.player_state();
+        state.source == Narration::Recording && state.word_index.is_some()
+    })
+    .await;
+    f.core.play(&f.id, Some(1), None).await.unwrap();
+    until(
+        "playback to wait for the sync to reach the second chapter",
+        || f.core.player_state().waiting_for_sync,
+    )
+    .await;
+
+    sync(&f.core);
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Ready));
+    until("the second chapter to play once synced", || {
+        let state = f.core.player_state();
+        state.chapter == 1 && !state.waiting_for_sync && state.word_index.is_some()
+    })
+    .await;
+    assert!(f.engine.calls().is_empty(), "{:?}", f.engine.calls());
+    f.core.stop();
+}

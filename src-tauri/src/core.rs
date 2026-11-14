@@ -192,6 +192,9 @@ pub struct PlayerStateView {
     /// Listening time left in the chapter at this speed, when it is known exactly (a
     /// recording); otherwise the interface estimates it from the words left.
     pub chapter_left_ms: Option<u64>,
+    /// The recording is being listened to while it syncs, and the sync has not reached the
+    /// playhead yet: playback waits for it.
+    pub waiting_for_sync: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -1717,12 +1720,16 @@ impl Core {
         let preparation = lock(&self.preparation);
         let planned = preparation.planned_books();
         let playhead = lock(&self.player).position().index;
-        let listening = session.as_ref().map(|s| Listening {
-            book: &s.target.book.id,
-            items: &s.target.plan.items,
-            playhead,
-            lookahead_ms: LOOKAHEAD_MS,
-        });
+        // A recording is not made by the speech engine (what it lacks waits for its sync).
+        let listening = session
+            .as_ref()
+            .filter(|s| s.recording().is_none())
+            .map(|s| Listening {
+                book: &s.target.book.id,
+                items: &s.target.plan.items,
+                playhead,
+                lookahead_ms: LOOKAHEAD_MS,
+            });
         let preparing: Vec<Preparing<'_>> = planned
             .iter()
             .map(|(book, plan)| Preparing {
@@ -2175,6 +2182,7 @@ impl Core {
                 source: Narration::Speech,
                 off_text: false,
                 chapter_left_ms: None,
+                waiting_for_sync: false,
             };
         };
         let book = &session.target.book;
@@ -2206,23 +2214,27 @@ impl Core {
                 Narration::Speech
             },
             off_text,
-            chapter_left_ms: session.recording().map(|_| {
+            chapter_left_ms: session.recording().and_then(|_| {
                 let entries = book
                     .chapters
                     .get(chapter)
                     .map_or(index..index, |c| index..c.first_entry + c.segments.len());
-                let audio: u64 = session
+                let items = session.target.plan.items.get(entries).unwrap_or_default();
+                // Not known while part of the chapter waits for the sync.
+                if items.iter().any(|item| item.speakable && !item.cached) {
+                    return None;
+                }
+                let audio: u64 = items.iter().map(|item| u64::from(item.duration_ms)).sum();
+                let left = audio.saturating_sub(u64::from(position.offset_ms));
+                Some((left as f64 / f64::from(speed.max(0.1))) as u64)
+            }),
+            waiting_for_sync: session.recording().is_some()
+                && session
                     .target
                     .plan
                     .items
-                    .get(entries)
-                    .unwrap_or_default()
-                    .iter()
-                    .map(|item| u64::from(item.duration_ms))
-                    .sum();
-                let left = audio.saturating_sub(u64::from(position.offset_ms));
-                (left as f64 / f64::from(speed.max(0.1))) as u64
-            }),
+                    .get(index)
+                    .is_some_and(|item| item.speakable && !item.cached),
         }
     }
 

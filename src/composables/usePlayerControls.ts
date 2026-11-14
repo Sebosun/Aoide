@@ -66,7 +66,7 @@ export function usePlayerControls() {
     try { await api.addBookmark(id, ""); ui.toast("Bookmarked"); } catch (e) { ui.toast(String(e), "error"); }
   }
   /** Shown under the scrubber only while it matters. */
-  const status = computed(() => (player.state.status === "buffering" ? "Buffering…" : player.state.offText ? "Not in the text" : ""));
+  const status = computed(() => (player.state.waitingForSync ? "Waiting for the sync to reach here" : player.state.status === "buffering" ? "Buffering…" : player.state.offText ? "Not in the text" : ""));
   /** The book's recording is playing, not a speech engine. */
   const recording = computed(() => Boolean(player.state.bookId) && player.state.source === "recording");
   /** The buffer and preparation numbers, for the scrubber's tooltip. */

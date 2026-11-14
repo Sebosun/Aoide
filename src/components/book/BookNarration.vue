@@ -7,15 +7,16 @@ import BookVoice from "./BookVoice.vue";
 import RecordingPanel from "../recording/RecordingPanel.vue";
 import { useRecordingsStore } from "../../stores/recordings";
 import { useReaderStore } from "../../stores/reader";
+import { recordingStatus } from "../../recording";
 
-/** Who reads the book: its paired recording (once synced) or a speech engine, with each one's
+/** Who reads the book: its paired recording (synced, or while it syncs) or a speech engine, with each one's
  *  settings. Switching restarts playback at the current sentence. */
 const props = defineProps<{ bookId: string }>();
 const recordings = useRecordingsStore(), reader = useReaderStore();
 const narration = ref<Narration>("speech"), error = ref("");
 const recording = computed(() => recordings.byBook[props.bookId] ?? null);
-const ready = computed(() => recording.value?.stage === "ready");
-/** What actually plays: the recording only when chosen and synced. */
+const ready = computed(() => Boolean(recording.value && recordingStatus(recording.value).listenable));
+/** What actually plays: the recording only when chosen and (partly) synced. */
 const playing = computed<Narration>(() => narration.value === "recording" && ready.value ? "recording" : "speech");
 onMounted(async () => {
   try { narration.value = (await api.bookSettings(props.bookId)).narration ?? "speech"; } catch (e) { error.value = String(e); }
@@ -38,7 +39,7 @@ async function choose(next: Narration) {
 <template>
   <div class="book-narration">
     <div v-if="recording" class="book-narration__switch" role="radiogroup" aria-label="Narration">
-      <button type="button" role="radio" class="book-narration__option" :class="{ 'book-narration__option--on': playing === 'recording' }" :aria-checked="playing === 'recording'" :disabled="!ready" :title="ready ? 'The paired recording' : 'Available once the recording is synced'" @click="choose('recording')"><Headphones :size="15" aria-hidden="true" /> Recording</button>
+      <button type="button" role="radio" class="book-narration__option" :class="{ 'book-narration__option--on': playing === 'recording' }" :aria-checked="playing === 'recording'" :disabled="!ready" :title="ready ? 'The paired recording' : 'Available once part of the recording is synced'" @click="choose('recording')"><Headphones :size="15" aria-hidden="true" /> Recording</button>
       <button type="button" role="radio" class="book-narration__option" :class="{ 'book-narration__option--on': playing === 'speech' }" :aria-checked="playing === 'speech'" @click="choose('speech')"><AudioLines :size="15" aria-hidden="true" /> Speech engine</button>
     </div>
     <p v-if="error" class="book-narration__error" role="alert">{{ error }}</p>
