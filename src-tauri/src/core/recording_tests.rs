@@ -231,6 +231,16 @@ async fn a_recording_syncs_and_then_plays_in_place_of_the_speech_engine() {
         "the speech engine is not used: {:?}",
         f.engine.calls()
     );
+    let generation = f.core.generation_state();
+    assert_eq!(
+        (
+            generation.book_id,
+            generation.buffered_ahead_ms,
+            generation.pending
+        ),
+        (None, 0, 0),
+        "nothing is being made for a recording"
+    );
     f.core.stop();
 }
 

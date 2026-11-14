@@ -1758,11 +1758,12 @@ impl Core {
             .collect();
         {
             let mut generation = lock(&self.generation);
-            generation.book_id = session.as_ref().map(|s| s.target.book.id.clone());
+            // Only speech is made; a recording has nothing to report here.
+            let speech = session.as_ref().filter(|s| s.recording().is_none());
+            generation.book_id = speech.map(|s| s.target.book.id.clone());
             generation.pending = pending;
-            generation.buffered_ahead_ms = session
-                .as_ref()
-                .map_or(0, |s| buffered_ahead_ms(&s.target.plan.items, playhead));
+            generation.buffered_ahead_ms =
+                speech.map_or(0, |s| buffered_ahead_ms(&s.target.plan.items, playhead));
         }
         let worker = lock(&self.worker);
         if jump {
