@@ -15,7 +15,7 @@ use aoide_sync::{
     clips, decode_chapters, encode_chapters, found_in_text, match_book, Clip, HeardWord, Loudness,
     Report, SyncMap, Unit,
 };
-use aoide_transcribe::models::{self, ModelInfo, ModelSize};
+use aoide_transcribe::models::{self, lateness_ms, ModelInfo, ModelSize};
 use aoide_transcribe::{quietest_cut, Request, Transcriber, SAMPLE_RATE};
 use serde::Deserialize;
 
@@ -439,10 +439,60 @@ pub(super) struct SyncState {
     wake: Option<std::sync::mpsc::Sender<()>>,
     /// The loaded transcriber, and what it was loaded with.
     transcriber: Option<(TranscriberChoice, Arc<dyn Transcriber>)>,
-    /// The reader of the recording being transcribed.
-    reader: Option<(String, Reader)>,
+    /// The recording being transcribed, with the audio decoded ahead of it.
+    reader: Option<(String, Decoded)>,
     /// Models being downloaded.
     downloading: HashSet<String>,
+}
+
+/// A recording's reader and the 16 kHz audio decoded so far, from `from_ms` on. While one block
+/// is being recognised the next one is decoded beside it, so recognition does not wait on it.
+pub(super) struct Decoded {
+    reader: Reader,
+    from_ms: u64,
+    samples: Vec<f32>,
+}
+
+const PER_MS: usize = SAMPLE_RATE as usize / 1_000;
+
+impl Decoded {
+    fn new(reader: Reader) -> Self {
+        Self {
+            reader,
+            from_ms: 0,
+            samples: Vec::new(),
+        }
+    }
+
+    fn to_ms(&self) -> u64 {
+        self.from_ms + (self.samples.len() / PER_MS) as u64
+    }
+
+    /// Holds `range`: what is before it is dropped and what is missing is read.
+    fn cover(&mut self, range: Range<u64>) -> Result<(), String> {
+        if range.start < self.from_ms || range.start > self.to_ms() {
+            self.from_ms = range.start;
+            self.samples.clear();
+        } else {
+            self.samples
+                .drain(..(range.start - self.from_ms) as usize * PER_MS);
+            self.from_ms = range.start;
+        }
+        if self.to_ms() < range.end {
+            let more = self
+                .reader
+                .read(self.to_ms()..range.end, SAMPLE_RATE)
+                .map_err(|e| e.to_string())?;
+            self.samples.extend(more);
+        }
+        Ok(())
+    }
+
+    /// `range`, which must be covered.
+    fn samples(&self, range: Range<u64>) -> &[f32] {
+        let at = |ms: u64| (ms - self.from_ms) as usize * PER_MS;
+        &self.samples[at(range.start)..at(range.end)]
+    }
 }
 
 enum Work {
@@ -789,9 +839,11 @@ impl Core {
                 live.sample_checked,
             )
         };
-        let mut reader = match lock(&self.syncing).reader.take() {
-            Some((reading, reader)) if reading == id => reader,
-            _ => Reader::new(stored.files.iter().map(StoredFile::audio).collect()),
+        let mut decoded = match lock(&self.syncing).reader.take() {
+            Some((reading, decoded)) if reading == id => decoded,
+            _ => Decoded::new(Reader::new(
+                stored.files.iter().map(StoredFile::audio).collect(),
+            )),
         };
         let total = row.total_ms;
         let hear = |samples: &[f32]| {
@@ -809,7 +861,8 @@ impl Core {
             for at in SAMPLE_AT {
                 let from = ((total as f64 * at) as u64).min(total.saturating_sub(SAMPLE_MS));
                 let to = (from + SAMPLE_MS).min(total);
-                let samples = reader
+                let samples = decoded
+                    .reader
                     .read(from..to, SAMPLE_RATE)
                     .map_err(|e| e.to_string())?;
                 let words = match hear(&samples) {
@@ -840,20 +893,38 @@ impl Core {
 
         let target = (done + BLOCK_MS).min(total);
         let read_to = (target + CUT_SLACK_MS).min(total);
-        let samples = reader
-            .read(done..read_to, SAMPLE_RATE)
-            .map_err(|e| e.to_string())?;
+        decoded.cover(done..read_to)?;
         let per_frame = (SAMPLE_RATE * FRAME_MS / 1_000) as usize;
         let cut = if read_to == total {
-            samples.len()
+            decoded.samples(done..read_to).len()
         } else {
+            let samples = decoded.samples(done..read_to);
             let from = (target - done).saturating_sub(CUT_SLACK_MS).max(1_000);
             let window = from as usize * per_frame / FRAME_MS as usize..samples.len();
-            (quietest_cut(&samples, SAMPLE_RATE, window) / per_frame * per_frame).max(per_frame)
+            (quietest_cut(samples, SAMPLE_RATE, window) / per_frame * per_frame).max(per_frame)
         };
-        let words = match hear(&samples[..cut]) {
+        // The next block starts at this one's cut, at most CUT_SLACK_MS before `read_to`, so
+        // reading this far covers all of it. It is decoded while this block is recognised.
+        let ahead = (read_to + BLOCK_MS + CUT_SLACK_MS).min(total);
+        let (heard, more) = std::thread::scope(|scope| {
+            let Decoded {
+                reader, samples, ..
+            } = &mut decoded;
+            let reading = (ahead > read_to)
+                .then(|| scope.spawn(move || reader.read(read_to..ahead, SAMPLE_RATE)));
+            let heard = hear(&samples[..cut]);
+            (heard, reading.and_then(|r| r.join().ok()))
+        });
+        // A failed read ahead is read again, and its error reported, with the next block.
+        if let Some(Ok(more)) = more {
+            decoded.samples.extend(more);
+        }
+        let words = match heard {
             Ok(words) => words,
-            Err(aoide_transcribe::Error::Aborted) => return Ok(()),
+            Err(aoide_transcribe::Error::Aborted) => {
+                lock(&self.syncing).reader = Some((id.to_owned(), decoded));
+                return Ok(());
+            }
             Err(error) => return Err(error.to_string()),
         };
         let end = if read_to == total {
@@ -865,6 +936,7 @@ impl Core {
             .into_iter()
             .map(|w| (done + w.start_ms, done + w.end_ms, w.text))
             .collect();
+        let levels = Loudness::measure(decoded.samples(done..end), SAMPLE_RATE, FRAME_MS).levels;
         lock(&self.library)
             .add_transcript_block(
                 &BookId(id.into()),
@@ -873,7 +945,7 @@ impl Core {
                     end_ms: end,
                     transcriber: transcriber.id().to_owned(),
                     words: serde_json::to_string(&words_json).map_err(|e| e.to_string())?,
-                    levels: Loudness::measure(&samples[..cut], SAMPLE_RATE, FRAME_MS).levels,
+                    levels,
                 },
             )
             .map_err(|e| e.to_string())?;
@@ -883,7 +955,7 @@ impl Core {
                 live.transcribed_ms = end;
             }
             if end < total {
-                state.reader = Some((id.to_owned(), reader));
+                state.reader = Some((id.to_owned(), decoded));
             }
         }
         if end >= total {
@@ -902,10 +974,12 @@ impl Core {
         for block in blocks {
             let words: Vec<(u64, u64, String)> =
                 serde_json::from_str(&block.words).map_err(|e| e.to_string())?;
+            // Transcripts are stored as heard; the model's lateness is taken off here.
+            let late = lateness_ms(&block.transcriber);
             heard.extend(words.into_iter().map(|(start_ms, end_ms, text)| HeardWord {
                 text,
-                start_ms,
-                end_ms,
+                start_ms: start_ms.saturating_sub(late),
+                end_ms: end_ms.saturating_sub(late),
             }));
         }
         Ok(heard)

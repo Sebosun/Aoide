@@ -564,9 +564,12 @@ Conclusions:
   are looser, and timing is what the highlight shows. A missed word still gets an estimated time.
 - **The GPU is decode-bound.** Decoding and resampling to 16 kHz runs at about 175× real time and
   currently alternates with Whisper. A feeder thread that decodes the next block while Whisper works
-  should bring base.en on the GPU to about 140×. Worth doing in phase 1.
+  should bring base.en on the GPU to about 140×. Done: the app's sync job decodes the next block
+  on a second thread while the current one is recognised.
 - **A constant timing correction of about −60 ms** (Whisper's DTW times are late) would centre the
-  sentence-start error. Apply it per model when building the sync map.
+  sentence-start error. Done: `ModelInfo::late_ms` (60 ms for tiny and base, 110 ms for small)
+  is taken off the stored transcript's times when it is matched, so it can be retuned without
+  listening again.
 - **Seeking:** symphonia seeks every track of an MP4. An M4B's chapter-title track ends where its
   last chapter starts, so a seek past that point fails (here, the last 140 s). The reader now
   bisects once for the latest point that seeks and decodes forward from it (tested with a synthetic

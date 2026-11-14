@@ -129,6 +129,7 @@ struct Fixture {
     events: Arc<super::tests::Recorder>,
     engine: Arc<FakeEngine>,
     script: Script,
+    heard: Arc<Mutex<Vec<u64>>>,
     audio: PathBuf,
 }
 
@@ -137,7 +138,7 @@ async fn fixture() -> Fixture {
     let root = dir.path().to_owned();
     let id = library_folder(&root, "");
     let engine = FakeEngine::new();
-    let (factory, script, _) = scripted();
+    let (factory, script, heard) = scripted();
     let (core, events) = start_with(&root, &engine, factory);
     until("the library scan", || {
         core.list_books().is_ok_and(|b| b.len() == 1)
@@ -152,6 +153,7 @@ async fn fixture() -> Fixture {
         events,
         engine,
         script,
+        heard,
     }
 }
 
@@ -382,4 +384,46 @@ async fn a_stretch_of_the_recording_plays_from_its_time() {
     assert_eq!(state.chapter, 1, "{state:?}");
     assert_eq!(state.source, Narration::Recording);
     f.core.stop();
+}
+
+#[tokio::test]
+async fn a_long_recording_is_heard_block_after_block_without_gaps_or_overlaps() {
+    let f = fixture().await;
+    put_model(&f.root);
+    // The book is read after twelve minutes of other narration: three blocks of recognition.
+    let mut words: Vec<(u64, u64, String)> = (0..1_440)
+        .map(|n| (n * 500, n * 500 + 300, format!("w{n}")))
+        .collect();
+    words.extend(read(&texts(&f.core, &f.id), 720_000));
+    let total = words.last().unwrap().1 + 1_000;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    for _ in 0..3 {
+        assert!(f.core.sync_step());
+    }
+    f.core
+        .sync_action(&f.id, super::SyncAction::Accept)
+        .unwrap();
+    f.heard.lock().unwrap().clear();
+
+    let mut boundaries = vec![0];
+    while boundaries.last() != Some(&total) {
+        assert!(f.core.sync_step());
+        let done = f.core.recording(&f.id).unwrap().transcribed_ms;
+        if boundaries.last() != Some(&done) {
+            boundaries.push(done);
+        }
+    }
+    assert!(boundaries.len() >= 4, "{boundaries:?}");
+    assert_eq!(
+        *f.heard.lock().unwrap(),
+        boundaries[..boundaries.len() - 1],
+        "each block starts exactly where the last one ended"
+    );
+    sync(&f.core);
+    let summary = f.core.recording(&f.id).unwrap().summary.unwrap();
+    assert_eq!(summary.matched_words, summary.words, "{summary:?}");
 }

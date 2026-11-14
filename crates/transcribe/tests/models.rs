@@ -17,3 +17,13 @@ fn every_model_has_a_pinned_checksum_and_a_known_name() {
         assert!(m.url().ends_with(&format!("ggml-{}.bin", m.id)));
     }
 }
+
+#[test]
+fn word_times_from_a_known_model_are_moved_earlier_by_its_measured_lateness() {
+    use aoide_transcribe::models::lateness_ms;
+    assert_eq!(lateness_ms("whisper.cpp:ggml-base.en.bin"), 60);
+    assert_eq!(lateness_ms("whisper.cpp:ggml-small.en.bin"), 110);
+    assert_eq!(lateness_ms("whisper.cpp:ggml-tiny.bin"), 60);
+    assert_eq!(lateness_ms("whisper.cpp:my-own-model.bin"), 0);
+    assert_eq!(lateness_ms("scripted"), 0);
+}
