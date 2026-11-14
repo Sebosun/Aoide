@@ -138,10 +138,10 @@ impl Core {
 
     /// Bookmarks the playhead when `id` is playing, else the book's saved position.
     pub fn add_bookmark(&self, id: &str, note: &str) -> Result<Bookmark, String> {
-        let playing_index = lock(&self.session)
-            .as_ref()
-            .filter(|s| s.target.book.id == id)
-            .map(|_| lock(&self.player).position().index);
+        let playing_index = self
+            .playback
+            .is_book(id)
+            .then(|| self.playback.position().index);
         let book = self.load_book(id)?;
         let index = match playing_index {
             Some(index) => index.min(book.total_entries().saturating_sub(1)),
@@ -323,9 +323,7 @@ impl Core {
         let Some(limit) = self.app_settings().cache_limit_bytes else {
             return;
         };
-        let playing = lock(&self.session)
-            .as_ref()
-            .map(|s| BookId(s.target.book.id.clone()));
+        let playing = self.playback.book().map(|b| BookId(b.id.clone()));
         let mut protected: HashSet<String> = lock(&self.preparation).queued().into_iter().collect();
         protected.extend(lock(&self.extras).exporting.clone());
         let mut evicted_books = HashSet::new();
@@ -370,9 +368,7 @@ impl Core {
         if evicted_keys.is_empty() {
             return;
         }
-        if let Some(session) = lock(&self.session).as_mut() {
-            session.audio_lost(&evicted_keys);
-        }
+        self.playback.audio_lost(&evicted_keys);
         lock(&self.worker).forget(evicted_keys.iter().cloned());
         {
             let mut preparation = lock(&self.preparation);

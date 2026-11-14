@@ -18,16 +18,8 @@ impl Core {
     /// Recording clips just given to the player: word times aligned earlier in this run apply
     /// at once; the rest are queued for the aligner.
     pub(super) fn align_recording_clips(&self) {
-        let (book, plan, fresh) = {
-            let mut session = lock(&self.session);
-            let Some(session) = session.as_mut() else {
-                return;
-            };
-            let fresh = session.take_to_align();
-            let Some(plan) = session.recording().cloned() else {
-                return;
-            };
-            (session.target.book.id.clone(), plan, fresh)
+        let Some((book, plan, fresh)) = self.playback.take_clips_to_align() else {
+            return;
         };
         if fresh.is_empty() {
             return;
@@ -47,13 +39,9 @@ impl Core {
                 })
                 .partition(|(_, _, timings)| timings.is_some())
         };
-        if let Some(session) = lock(&self.session)
-            .as_mut()
-            .filter(|s| s.target.book.id == book)
-        {
-            for (index, _, timings) in known {
-                session.aligned(index, timings.unwrap_or_default());
-            }
+        for (index, _, timings) in known {
+            self.playback
+                .aligned(&book, index, timings.unwrap_or_default());
         }
         if self.app_settings().aligner.is_some() {
             for (index, key, _) in unknown {
@@ -177,12 +165,7 @@ impl Core {
         lock(&self.library)
             .record_segment(&cached)
             .map_err(|e| other(e.to_string()))?;
-        if let Some(session) = lock(&self.session)
-            .as_mut()
-            .filter(|s| s.target.book.id == book_id)
-        {
-            session.aligned(index, timings);
-        }
+        self.playback.aligned(book_id, index, timings);
         Ok(())
     }
 
@@ -196,10 +179,7 @@ impl Core {
         key: &str,
     ) -> Result<(), aoide_aligner::Error> {
         let other = |m: String| aoide_aligner::Error::InvalidInput(m);
-        let plan = lock(&self.session)
-            .as_ref()
-            .filter(|s| s.target.book.id == book_id)
-            .and_then(|s| s.recording().cloned());
+        let plan = self.playback.recording_of(book_id);
         // Listening moved on, or the sync map changed under it.
         let Some(plan) = plan.filter(|p| p.align_key(book_id, index).as_deref() == Some(key))
         else {
@@ -246,12 +226,7 @@ impl Core {
         lock(&self.extras)
             .recording_aligned
             .insert(key.to_owned(), timings.clone());
-        if let Some(session) = lock(&self.session)
-            .as_mut()
-            .filter(|s| s.target.book.id == book_id)
-        {
-            session.aligned(index, timings);
-        }
+        self.playback.aligned(book_id, index, timings);
         Ok(())
     }
 

@@ -8,10 +8,10 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aoide_audio::output::{OutputCommand, PipeOutput};
-use aoide_audio::{codec, Pcm, PlayerCore, Status};
+use aoide_audio::{codec, Pcm, PlayerCore};
 use aoide_generation::{
-    buffered_ahead_ms, estimate_ms, plan, Job, Listening, PlanItem, Preparing, SegmentStore,
-    WorkItem, Worker, WorkerEvent, WorkerOptions,
+    buffered_ahead_ms, estimate_ms, plan, Job, Listening, PlanItem, Preparing, Reason,
+    SegmentStore, WorkItem, Worker, WorkerEvent, WorkerOptions,
 };
 use aoide_library::{
     content_hash, scan_folder, BookId, BookRecord, BookStatus, CachedSegment, Library, NewBook,
@@ -39,6 +39,7 @@ mod extras;
 mod feeder;
 mod metadata;
 mod narration;
+mod playback;
 mod preparation;
 mod read_along;
 mod recording;
@@ -50,7 +51,6 @@ pub use recording::{
 pub use syncing::Stage as SyncStage;
 mod session;
 mod voicing;
-use session::Session;
 use voicing::{fallback_voice, Voicing};
 #[cfg(test)]
 mod contract;
@@ -458,10 +458,8 @@ pub struct Core {
     pub paths: Paths,
     library: Arc<Mutex<Library>>,
     books: Mutex<HashMap<String, Arc<BookModel>>>,
-    player: Arc<Mutex<PlayerCore>>,
+    playback: playback::Playback,
     output: Mutex<Option<PipeOutput>>,
-    output_latency_ms: Mutex<u32>,
-    session: Mutex<Option<Session>>,
     engine: Mutex<ActiveEngine>,
     worker: Mutex<Worker>,
     worker_events: tokio::sync::mpsc::UnboundedSender<WorkerEvent>,
@@ -472,7 +470,6 @@ pub struct Core {
     generation: Mutex<GenerationStateView>,
     last_player_state: Mutex<Option<PlayerStateView>>,
     last_engine_status: Mutex<Option<EngineStatusView>>,
-    player_error: Mutex<Option<String>>,
     sleep: Mutex<Option<SleepTimer>>,
     media: Mutex<Option<std::sync::mpsc::Sender<crate::media::MediaUpdate>>>,
     extras: Mutex<extras::ExtrasState>,
@@ -508,6 +505,26 @@ fn default_profile() -> EngineProfile {
         voice_id: None,
         params: Default::default(),
         launch: None,
+    }
+}
+
+/// Made speech, read from the library's audio files.
+struct LibraryAudio<'a>(&'a Core);
+
+impl playback::SpeechAudio for LibraryAudio<'_> {
+    fn read(&self, key: &str) -> Result<Option<playback::MadeSpeech>, String> {
+        let segment = lock(&self.0.library)
+            .segment(key)
+            .map_err(|e| e.to_string())?;
+        let Some(segment) = segment else {
+            return Ok(None);
+        };
+        let bytes =
+            std::fs::read(self.0.paths.audio_dir.join(&segment.file)).map_err(|e| e.to_string())?;
+        Ok(Some(playback::MadeSpeech {
+            pcm: codec::decode(&bytes).map_err(|e| e.to_string())?,
+            timings: segment.word_timings,
+        }))
     }
 }
 
@@ -613,10 +630,8 @@ impl Core {
             paths,
             library,
             books: Mutex::new(HashMap::new()),
-            player: Arc::new(Mutex::new(player)),
+            playback: playback::Playback::new(player),
             output: Mutex::new(None),
-            output_latency_ms: Mutex::new(0),
-            session: Mutex::new(None),
             engine: Mutex::new(ActiveEngine {
                 voice: profile.voice_id.clone(),
                 voices: VoiceList::Unchecked,
@@ -633,7 +648,6 @@ impl Core {
             generation: Mutex::new(GenerationStateView::default()),
             last_player_state: Mutex::new(None),
             last_engine_status: Mutex::new(None),
-            player_error: Mutex::new(None),
             sleep: Mutex::new(None),
             media: Mutex::new(None),
             extras: Mutex::new(Default::default()),
@@ -923,10 +937,7 @@ impl Core {
     }
 
     pub fn remove_book(&self, id: &str) -> Result<(), String> {
-        if lock(&self.session)
-            .as_ref()
-            .is_some_and(|s| s.target.book.id == id)
-        {
+        if self.playback.is_book(id) {
             self.stop();
         }
         {
@@ -1060,10 +1071,8 @@ impl Core {
         let book = Arc::new(BookModel::parse(id, &bytes, read_notes)?);
         let mut books = lock(&self.books);
         if books.len() >= 3 {
-            let session_book = lock(&self.session)
-                .as_ref()
-                .map(|s| s.target.book.id.clone());
-            books.retain(|k, _| Some(k) == session_book.as_ref());
+            let playing = self.playback.book().map(|b| b.id.clone());
+            books.retain(|k, _| Some(k) == playing.as_ref());
         }
         books.insert(id.into(), Arc::clone(&book));
         Ok(book)
@@ -1216,9 +1225,9 @@ impl Core {
         if output.as_ref().is_some_and(PipeOutput::is_running) {
             return Ok(());
         }
-        let started =
-            PipeOutput::start(Arc::clone(&self.player), &self.audio).map_err(|e| e.to_string())?;
-        *lock(&self.output_latency_ms) = started.latency_ms();
+        let started = PipeOutput::start(Arc::clone(self.playback.player()), &self.audio)
+            .map_err(|e| e.to_string())?;
+        self.playback.set_latency(started.latency_ms());
         *output = Some(started);
         Ok(())
     }
@@ -1230,9 +1239,7 @@ impl Core {
         segment_id: Option<String>,
     ) -> Result<(), String> {
         let book = self.load_book(book_id)?;
-        let same_book = lock(&self.session)
-            .as_ref()
-            .is_some_and(|s| s.target.book.id == book_id);
+        let same_book = self.playback.is_book(book_id);
         let start = segment_id
             .as_deref()
             .and_then(|id| book.index_of(id))
@@ -1241,7 +1248,7 @@ impl Core {
             if let Some(index) = start {
                 self.seek(index);
             }
-            lock(&self.player).play();
+            self.playback.play();
             return self.ensure_output();
         }
         let recording = self.plays_recording(book_id, &self.book_settings(book_id));
@@ -1281,19 +1288,7 @@ impl Core {
                 }
             }
         };
-        let entries = target.narration.player_entries(&book);
-        let offset = target
-            .narration
-            .recording_plan()
-            .map_or(0, |plan| plan.start_offset(start));
-        {
-            let mut player = lock(&self.player);
-            player.load(entries, start);
-            player.seek_to(start, offset);
-            player.play();
-        }
-        *lock(&self.session) = Some(Session::new(target, start, OUTPUT_RATE));
-        *lock(&self.player_error) = None;
+        self.playback.start(target, start);
         self.replan(true);
         self.ensure_output()
     }
@@ -1321,10 +1316,7 @@ impl Core {
             .map_err(|e| e.to_string())?;
         // Footnote narration changes segmentation: reparse.
         lock(&self.books).remove(id);
-        let playing = lock(&self.session)
-            .as_ref()
-            .is_some_and(|s| s.target.book.id == id);
-        if playing {
+        if self.playback.is_book(id) {
             self.restart_session().await?;
         }
         lock(&self.preparation).drop_plans(Some(id));
@@ -1420,7 +1412,7 @@ impl Core {
         }
         *lock(&self.last_engine_status) = None;
         lock(&self.generation).generating_segment_id = None;
-        if lock(&self.session).is_some() {
+        if self.playback.book().is_some() {
             self.restart_session().await?;
         }
         lock(&self.preparation).drop_plans(None);
@@ -1431,25 +1423,17 @@ impl Core {
     /// Rebuilds the listening session's requests and cache state (voice/engine/settings
     /// changed), keeping the playhead.
     async fn restart_session(&self) -> Result<(), String> {
-        let (id, index, playing) = {
-            let session = lock(&self.session);
-            let Some(session) = session.as_ref() else {
-                return Ok(());
-            };
-            let position = lock(&self.player).position();
-            (
-                session.target.book.id.clone(),
-                position.index,
-                matches!(position.status, Status::Playing | Status::Buffering),
-            )
+        let Some(book) = self.playback.book() else {
+            return Ok(());
         };
-        let segment = lock(&self.session)
-            .as_ref()
-            .and_then(|s| s.target.book.segment(index).map(|seg| seg.id.clone()));
-        *lock(&self.session) = None;
-        self.play(&id, None, segment).await?;
+        let playing = self.playback.is_playing();
+        let segment = book
+            .segment(self.playback.position().index)
+            .map(|seg| seg.id.clone());
+        self.playback.stop();
+        self.play(&book.id, None, segment).await?;
         if !playing {
-            lock(&self.player).pause();
+            self.playback.pause();
         }
         Ok(())
     }
@@ -1475,10 +1459,7 @@ impl Core {
             );
             preparation.drop_plans(Some(id));
         }
-        let playing = lock(&self.session)
-            .as_ref()
-            .is_some_and(|s| s.target.book.id == id);
-        if playing {
+        if self.playback.is_book(id) {
             self.restart_session().await?;
         }
         self.replan(true);
@@ -1676,25 +1657,7 @@ impl Core {
     /// Moves the playhead `offset_ms` into entry `index`; `None` starts where the entry's text
     /// does (for a recording, just before its first word).
     fn seek_at(&self, index: usize, offset_ms: Option<u32>) {
-        let (offset, released) = match lock(&self.session).as_mut() {
-            Some(session) => {
-                session.last_index = index;
-                let offset = offset_ms.unwrap_or_else(|| {
-                    session
-                        .recording()
-                        .map_or(0, |plan| plan.start_offset(index))
-                });
-                (offset, session.restart_feed())
-            }
-            None => (0, Vec::new()),
-        };
-        {
-            let mut player = lock(&self.player);
-            for entry in released {
-                player.release(entry);
-            }
-            player.seek_to(index, offset);
-        }
+        self.playback.seek(index, offset_ms);
         self.save_progress(true);
         self.replan(true);
     }
@@ -1702,59 +1665,61 @@ impl Core {
     /// Recomputes the generation plan from the playhead and the prepare queue. `jump` debounces.
     fn replan(&self, jump: bool) {
         self.plan_waiting_books();
-        let session = lock(&self.session);
-        let preparation = lock(&self.preparation);
-        let planned = preparation.planned_books();
-        let playhead = lock(&self.player).position().index;
-        // A recording is not made by the speech engine, only the text it lacks when asked to
-        // speak that (the rest waits for its sync).
-        let speech = session.as_ref().filter(|s| s.speaks());
-        let speech_items = speech.map(|s| s.target.narration.speech_items());
-        let listening = speech
-            .zip(speech_items.as_ref())
-            .map(|(s, items)| Listening {
-                book: &s.target.book.id,
-                items,
-                playhead,
-                lookahead_ms: LOOKAHEAD_MS,
-            });
-        let preparing: Vec<Preparing<'_>> = planned
-            .iter()
-            .map(|(book, plan)| Preparing {
-                book,
-                items: &plan.items,
-            })
-            .collect();
-        let jobs = plan(listening.as_ref(), &preparing);
-        let pending = jobs.len();
-        let work = jobs
-            .into_iter()
-            .filter_map(|job| {
-                let request = match session.as_ref() {
-                    Some(s) if s.target.book.id == job.book => {
-                        s.target.narration.request(job.index)
-                    }
-                    _ => planned
-                        .iter()
-                        .find(|(book, _)| *book == job.book)?
-                        .1
-                        .requests
-                        .get(job.index)?
-                        .as_ref(),
-                }?
-                .clone();
-                Some(WorkItem { job, request })
-            })
-            .collect();
-        {
+        let playhead = self.playback.position().index;
+        let planned = |listening: Option<(&str, &narration::NarrationPlan)>| {
+            let preparation = lock(&self.preparation);
+            let planned = preparation.planned_books();
+            // A recording is not made by the speech engine, only the text it lacks when asked
+            // to say that.
+            let speech = listening.filter(|(_, narration)| narration.speaks());
+            let speech_items = speech.map(|(_, narration)| narration.speech_items());
+            let listening = speech
+                .zip(speech_items.as_ref())
+                .map(|((book, _), items)| Listening {
+                    book,
+                    items,
+                    playhead,
+                    lookahead_ms: LOOKAHEAD_MS,
+                });
+            let preparing: Vec<Preparing<'_>> = planned
+                .iter()
+                .map(|(book, plan)| Preparing {
+                    book,
+                    items: &plan.items,
+                })
+                .collect();
+            let jobs = plan(listening.as_ref(), &preparing);
+            let pending = jobs.len();
+            let work: Vec<WorkItem> = jobs
+                .into_iter()
+                .filter_map(|job| {
+                    let request = match (job.reason, speech) {
+                        (Reason::Playhead, Some((_, narration))) => narration.request(job.index),
+                        _ => planned
+                            .iter()
+                            .find(|(book, _)| *book == job.book)?
+                            .1
+                            .requests
+                            .get(job.index)?
+                            .as_ref(),
+                    }?
+                    .clone();
+                    Some(WorkItem { job, request })
+                })
+                .collect();
             let mut generation = lock(&self.generation);
-            // Only speech is made; a recording that speaks nothing has nothing to report here.
-            generation.book_id = speech.map(|s| s.target.book.id.clone());
+            // Only speech is made; a recording that says nothing has nothing to report here.
+            generation.book_id = speech.map(|(book, _)| book.to_owned());
             generation.pending = pending;
             generation.buffered_ahead_ms = speech_items
                 .as_ref()
                 .map_or(0, |items| buffered_ahead_ms(items, playhead));
-        }
+            work
+        };
+        let work = self
+            .playback
+            .with_narration(|book, narration| planned(Some((book, narration))))
+            .unwrap_or_else(|| planned(None));
         let worker = lock(&self.worker);
         if jump {
             worker.set_plan(work);
@@ -1764,27 +1729,25 @@ impl Core {
     }
 
     pub fn pause(&self) {
-        lock(&self.player).pause();
+        self.playback.pause();
         self.save_progress(true);
     }
 
     pub fn resume(&self) -> Result<(), String> {
-        lock(&self.player).play();
+        self.playback.play();
         self.ensure_output()
     }
 
     pub fn stop(&self) {
         self.save_progress(true);
-        lock(&self.player).load(Vec::new(), 0);
-        *lock(&self.session) = None;
+        self.playback.stop();
         *lock(&self.output) = None;
         *lock(&self.generation) = GenerationStateView::default();
         self.replan(true);
     }
 
     pub fn toggle(&self) {
-        let status = lock(&self.player).position().status;
-        if matches!(status, Status::Playing | Status::Buffering) {
+        if self.playback.is_playing() {
             self.pause();
         } else {
             let _ = self.resume();
@@ -1793,29 +1756,21 @@ impl Core {
 
     /// Plays from the start of the chapter `delta` chapters away from the current one.
     pub async fn skip_chapter(&self, delta: i64) -> Result<(), String> {
-        let (id, target) = {
-            let session = lock(&self.session);
-            let session = session.as_ref().ok_or("nothing is playing")?;
-            let index = lock(&self.player).position().index;
-            let (chapter, _) = session.target.book.locate(index).unwrap_or((0, 0));
-            let last = session.target.book.chapters.len().saturating_sub(1) as i64;
-            (
-                session.target.book.id.clone(),
-                (chapter as i64 + delta).clamp(0, last) as usize,
-            )
-        };
-        self.play(&id, Some(target), None).await
+        let book = self.playback.book().ok_or("nothing is playing")?;
+        let (chapter, _) = book
+            .locate(self.playback.position().index)
+            .unwrap_or((0, 0));
+        let last = book.chapters.len().saturating_sub(1) as i64;
+        let target = (chapter as i64 + delta).clamp(0, last) as usize;
+        self.play(&book.id, Some(target), None).await
     }
 
     /// `minutes`: pause after that long; `end_of_chapter`: pause when the chapter ends.
     /// Neither cancels the timer.
     pub fn set_sleep_timer(&self, minutes: Option<u32>, end_of_chapter: bool) {
         let timer = if end_of_chapter {
-            lock(&self.session).as_ref().and_then(|s| {
-                let index = lock(&self.player).position().index;
-                s.target
-                    .book
-                    .locate(index)
+            self.playback.book().and_then(|book| {
+                book.locate(self.playback.position().index)
                     .map(|(c, _)| SleepTimer::EndOfChapter(c))
             })
         } else {
@@ -1858,8 +1813,7 @@ impl Core {
     }
 
     fn send_now_playing(&self, chapter: usize) {
-        let Some((id, title, authors, chapter_title)) = lock(&self.session).as_ref().map(|s| {
-            let book = &s.target.book;
+        let Some((id, title, authors, chapter_title)) = self.playback.book().map(|book| {
             (
                 book.id.clone(),
                 book.title.clone(),
@@ -1893,22 +1847,19 @@ impl Core {
     }
 
     pub fn set_speed(&self, speed: f32) {
-        lock(&self.player).set_speed(speed);
+        self.playback.set_speed(speed);
         self.save_player_settings();
     }
 
     pub fn set_volume(&self, volume: f32) {
-        lock(&self.player).set_volume(volume);
+        self.playback.set_volume(volume);
         self.save_player_settings();
     }
 
     fn save_player_settings(&self) {
-        let settings = {
-            let player = lock(&self.player);
-            config::PlayerSettings {
-                speed: player.speed(),
-                volume: player.volume(),
-            }
+        let settings = config::PlayerSettings {
+            speed: self.playback.speed(),
+            volume: self.playback.volume(),
         };
         let saved = lock(&self.config).update(|file| file.set_section(config::PLAYER, &settings));
         if let Err(error) = saved {
@@ -1917,22 +1868,14 @@ impl Core {
     }
 
     fn save_progress(&self, force: bool) {
-        let mut session = lock(&self.session);
-        let Some(session) = session.as_mut() else {
+        let Some(playback::Place { book, index }) = self.playback.place_to_save(force) else {
             return;
         };
-        if !force && session.last_saved.elapsed() < Duration::from_secs(3) {
-            return;
-        }
-        let index = lock(&self.player)
-            .position()
-            .index
-            .min(session.target.book.total_entries().saturating_sub(1));
-        let Some((chapter, local)) = session.target.book.locate(index) else {
+        let Some((chapter, local)) = book.locate(index) else {
             return;
         };
-        let segment = &session.target.book.chapters[chapter].segments[local];
-        let id = BookId(session.target.book.id.clone());
+        let segment = &book.chapters[chapter].segments[local];
+        let id = BookId(book.id.clone());
         let library = lock(&self.library);
         let _ = library.save_progress(
             &id,
@@ -1945,9 +1888,8 @@ impl Core {
         );
         let _ = library.set_setting(
             &format!("progress.fraction.{}", id.0),
-            &session.target.book.fraction(index).to_string(),
+            &book.fraction(index).to_string(),
         );
-        session.last_saved = Instant::now();
     }
 
     // ------------------------------------------------------------ background loops
@@ -1969,9 +1911,7 @@ impl Core {
                 }
                 WorkerEvent::Finished { job, duration_ms } => {
                     // Keys are content hashes, so mark every plan that shares them.
-                    if let Some(session) = lock(&self.session).as_mut() {
-                        session.segment_made(&job.key, duration_ms);
-                    }
+                    self.playback.segment_made(&job.key, duration_ms);
                     let finished = {
                         let mut preparation = lock(&self.preparation);
                         preparation.segment_made(&lock(&self.library), &job.key, duration_ms)
@@ -1999,11 +1939,8 @@ impl Core {
     }
 
     fn segment_id_for(&self, job: &Job) -> Option<String> {
-        if let Some(session) = lock(&self.session)
-            .as_ref()
-            .filter(|s| s.target.book.id == job.book)
-        {
-            return session.target.book.segment(job.index).map(|s| s.id.clone());
+        if let Some(book) = self.playback.book().filter(|b| b.id == job.book) {
+            return book.segment(job.index).map(|s| s.id.clone());
         }
         self.load_book(&job.book)
             .ok()?
@@ -2026,20 +1963,12 @@ impl Core {
 
     async fn tick_loop(self: Arc<Self>) {
         let mut interval = tokio::time::interval(TICK);
-        let mut last_index = usize::MAX;
         loop {
             interval.tick().await;
-            let index = self.provide_audio();
-            if let Some(index) = index {
-                if index != last_index {
-                    if let Some(session) = lock(&self.session).as_mut() {
-                        session.last_index = index;
-                    }
-                    self.replan(false);
-                    self.save_progress(false);
-                    self.emit_generation();
-                    last_index = index;
-                }
+            if self.provide_audio() {
+                self.replan(false);
+                self.save_progress(false);
+                self.emit_generation();
             }
             self.keep_output_alive();
             let state = self.player_state();
@@ -2065,154 +1994,36 @@ impl Core {
 
     /// Restarts the audio output if its player process died while playing.
     fn keep_output_alive(&self) {
-        let playing = matches!(
-            lock(&self.player).position().status,
-            Status::Playing | Status::Buffering
-        );
+        let playing = self.playback.is_playing();
         let dead = lock(&self.output)
             .as_ref()
             .is_some_and(|output| !output.is_running());
         if playing && dead {
             if let Err(error) = self.ensure_output() {
-                lock(&self.player).pause();
-                *lock(&self.player_error) = Some(format!("Audio output failed: {error}"));
+                self.playback.fail(format!("Audio output failed: {error}"));
             }
         }
     }
 
-    /// Gives the player decoded audio for made entries near the playhead, and lets it release
-    /// audio far behind. Returns the playhead.
-    fn provide_audio(&self) -> Option<usize> {
-        let index = lock(&self.player).position().index;
-        let recording = lock(&self.session).as_ref()?.recording().is_some();
-        if recording {
-            self.provide_recording(index);
-        }
-        let wanted = lock(&self.session).as_ref()?.wanted_speech(index);
-        let mut align = Vec::new();
-        for (i, key) in wanted {
-            let segment = lock(&self.library).segment(&key).ok().flatten();
-            let Some(segment) = segment else { continue };
-            let pcm = std::fs::read(self.paths.audio_dir.join(&segment.file))
-                .map_err(|e| e.to_string())
-                .and_then(|bytes| codec::decode(&bytes).map_err(|e| e.to_string()));
-            match pcm {
-                Ok(pcm) => {
-                    lock(&self.player).provide(i, &pcm);
-                    if let Some(session) = lock(&self.session).as_mut() {
-                        if session.provided(i, segment.word_timings.as_deref(), &pcm) {
-                            align.push((session.target.book.id.clone(), i, key.clone()));
-                        }
-                    }
-                }
-                Err(error) => eprintln!("aoide: cannot read cached audio {key}: {error}"),
-            }
-        }
-        if !align.is_empty() && self.app_settings().aligner.is_some() {
-            for (book, i, key) in align {
-                self.queue_alignment(&book, i, &key);
-            }
-        }
-        let release = lock(&self.session).as_mut()?.release_behind(index);
-        if let Some(before) = release {
-            lock(&self.player).release_before(before);
-        }
-        Some(index)
-    }
-
-    /// Gives the player the recording's clips near the playhead as the feeder decodes them, and
-    /// asks the aligner (when there is one) for their exact word times.
-    fn provide_recording(&self, index: usize) {
-        let Some(pieces) = lock(&self.session).as_mut().map(|s| s.feed(index)) else {
-            return;
+    /// Gives the player the audio near the playhead it does not have yet, and asks for exact
+    /// word times for it. Returns whether the playhead moved to another entry.
+    fn provide_audio(&self) -> bool {
+        let Some(tick) = self.playback.tick(&LibraryAudio(self)) else {
+            return false;
         };
         self.align_recording_clips();
-        if !pieces.is_empty() {
-            let mut player = lock(&self.player);
-            for piece in pieces {
-                player.append(
-                    piece.index,
-                    &Pcm {
-                        sample_rate: OUTPUT_RATE,
-                        samples: piece.samples,
-                    },
-                );
-                if piece.last {
-                    player.finish(piece.index);
-                }
+        if !tick.to_align.is_empty() && self.app_settings().aligner.is_some() {
+            for (book, index, key) in tick.to_align {
+                self.queue_alignment(&book, index, &key);
             }
         }
+        tick.moved
     }
 
     pub(crate) fn player_state(&self) -> PlayerStateView {
-        let (position, speed, volume) = {
-            let player = lock(&self.player);
-            (player.position(), player.speed(), player.volume())
-        };
-        let session = lock(&self.session);
-        let status = match position.status {
-            Status::Stopped | Status::Finished => PlaybackStatus::Stopped,
-            Status::Paused => PlaybackStatus::Paused,
-            Status::Playing => PlaybackStatus::Playing,
-            Status::Buffering => PlaybackStatus::Buffering,
-        };
-        let Some(session) = session.as_ref() else {
-            return PlayerStateView {
-                book_id: None,
-                status: PlaybackStatus::Stopped,
-                chapter: 0,
-                segment_id: None,
-                word_index: None,
-                speed,
-                volume,
-                chapter_fraction: 0.0,
-                error: lock(&self.player_error).clone(),
-                sleep: None,
-                source: Narration::Speech,
-                off_text: false,
-                chapter_left_ms: None,
-                waiting_for_sync: false,
-            };
-        };
-        let book = &session.target.book;
-        let index = position.index.min(book.total_entries().saturating_sub(1));
-        let (chapter, _) = book.locate(index).unwrap_or((0, 0));
-        let segment = book.segment(index);
-        let latency = (*lock(&self.output_latency_ms) as f32 * speed) as u32;
-        let heard_at = position.offset_ms.saturating_sub(latency);
-        let off_text = session
-            .recording()
-            .is_some_and(|plan| plan.off_text(index, heard_at));
-        let word = (position.status == Status::Playing && !off_text)
-            .then(|| session.word_at(index, heard_at))
-            .flatten();
         PlayerStateView {
-            book_id: Some(book.id.clone()),
-            status,
-            chapter,
-            segment_id: segment.map(|s| s.id.clone()),
-            word_index: word,
-            speed,
-            volume,
-            chapter_fraction: book.chapter_fraction(index),
-            error: lock(&self.player_error).clone(),
             sleep: self.sleep_view(),
-            source: if session.recording().is_some() {
-                Narration::Recording
-            } else {
-                Narration::Speech
-            },
-            off_text,
-            chapter_left_ms: session.recording().and_then(|_| {
-                let entries = book
-                    .chapters
-                    .get(chapter)
-                    .map_or(index..index, |c| index..c.first_entry + c.segments.len());
-                let audio = session.target.narration.playing_ms(entries)?;
-                let left = audio.saturating_sub(u64::from(position.offset_ms));
-                Some((left as f64 / f64::from(speed.max(0.1))) as u64)
-            }),
-            waiting_for_sync: session.target.narration.waits_for_sync(index),
+            ..self.playback.state()
         }
     }
 

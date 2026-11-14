@@ -36,8 +36,6 @@ const SAMPLE_AT: [f64; 3] = [0.2, 0.5, 0.8];
 const SAMPLE_FOUND: f32 = 0.3;
 /// While a recording syncs, only what ends this long before the sync's edge is played.
 const SYNC_MARGIN_MS: u64 = 30_000;
-/// How often playback picks up the sync's progress when it is not waiting for it.
-const FOLLOW_EVERY: Duration = Duration::from_secs(60);
 /// Below this share of the text matched, a sync needs the user's review.
 const POOR_BELOW: f64 = 0.75;
 /// Changes when matching changes, so stored maps are made again.
@@ -1481,20 +1479,13 @@ impl Core {
         if !self.plays_recording(id, &self.book_settings(id)) {
             return Err("choose the recording as the book's narration to listen to it".into());
         }
-        let playing = lock(&self.session)
-            .as_ref()
-            .is_some_and(|s| s.target.book.id == id && s.recording().is_some());
-        if !playing {
+        if self.playback.recording_of(id).is_none() {
             self.play(id, None, None).await?;
         }
-        let found = lock(&self.session).as_ref().and_then(|s| {
-            let clips = &s.recording()?.clips;
-            let index = clips.iter().position(|c| c.audio.contains(&at_ms))?;
-            Some((index, (at_ms - clips[index].audio.start) as u32))
-        });
-        let (index, offset) = found.ok_or("that time is not in the recording")?;
-        self.seek_at(index, Some(offset));
-        lock(&self.player).play();
+        self.playback.seek_recording(id, at_ms)?;
+        self.save_progress(true);
+        self.replan(true);
+        self.playback.play();
         self.ensure_output()
     }
 
@@ -1506,11 +1497,7 @@ impl Core {
         }
         let model = book.chapters.get(chapter)?;
         let entries = model.first_entry..model.first_entry + model.segments.len();
-        let playing = lock(&self.session).as_ref().and_then(|session| {
-            (session.target.book.id == book.id && session.recording().is_some())
-                .then(|| session.target.narration.unrecorded(entries.clone()))
-        });
-        let unrecorded = match playing {
+        let unrecorded = match self.playback.unrecorded(&book.id, entries.clone()) {
             Some(unrecorded) => unrecorded,
             None => self
                 .build_recording_target(Arc::clone(&book))
@@ -1544,33 +1531,14 @@ impl Core {
     /// The recording being listened to while it syncs has more synced (or is done): playback
     /// follows the new map. `force` refreshes even when nobody is waiting on the sync.
     fn follow_sync(&self, id: &str, force: bool) {
-        let book = match lock(&self.session).as_ref() {
-            Some(session)
-                if session.target.book.id == id
-                    && session.recording().is_some()
-                    && (force
-                        || session.waiting_for_sync()
-                        || session.followed.elapsed() >= FOLLOW_EVERY) =>
-            {
-                Arc::clone(&session.target.book)
-            }
-            _ => return,
+        let Some(book) = self.playback.should_follow(id, force) else {
+            return;
         };
         let target = match self.build_recording_target(book) {
             Ok(target) => target,
             Err(error) => return eprintln!("aoide: following the sync of {id}: {error}"),
         };
-        let followed = match lock(&self.session).as_mut() {
-            Some(session) if session.target.book.id == id => session.follow(target),
-            _ => return,
-        };
-        {
-            let mut player = lock(&self.player);
-            for index in followed.passed_over {
-                player.finish(index);
-            }
-        }
-        if followed.speech_changed {
+        if self.playback.follow(id, target) == Some(true) {
             self.replan(false);
             self.emit_generation();
         }

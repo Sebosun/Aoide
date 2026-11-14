@@ -11,7 +11,7 @@ use aoide_tts::testing::FakeEngine;
 use super::recording::{Narration, RecognitionEngine, TranscriberChoice};
 use super::syncing::Stage;
 use super::tests::{epub, epub_with, library_folder, start_with, until};
-use super::{lock, Core, CoreEvent, TranscriberFactory};
+use super::{Core, CoreEvent, TranscriberFactory};
 
 /// Sample value per millisecond of the recording.
 const SCALE: f32 = 100_000.0;
@@ -874,15 +874,15 @@ async fn a_recording_gets_exact_word_times_from_the_aligner() {
         .await
         .unwrap();
     until("the aligner's word times to arrive", || {
-        lock(&f.core.session).as_ref().is_some_and(|session| {
-            let starts: Vec<u32> = session
-                .timings_of(index)
-                .unwrap_or_default()
-                .iter()
-                .map(|t| t.start_ms)
-                .collect();
-            starts.len() > 1 && starts.windows(2).all(|w| w[1] == w[0] + 50)
-        })
+        let starts: Vec<u32> = f
+            .core
+            .playback
+            .timings_of(index)
+            .unwrap_or_default()
+            .iter()
+            .map(|t| t.start_ms)
+            .collect();
+        starts.len() > 1 && starts.windows(2).all(|w| w[1] == w[0] + 50)
     })
     .await;
     f.core.stop();

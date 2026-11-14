@@ -248,9 +248,8 @@ impl Core {
             )
         };
         if let Some(player) = player {
-            let mut core = lock(&self.player);
-            core.set_speed(player.speed);
-            core.set_volume(player.volume);
+            self.playback.set_speed(player.speed);
+            self.playback.set_volume(player.volume);
         }
         let Some(profile) = profile else { return };
         if profile == lock(&self.engine).profile {

@@ -214,9 +214,7 @@ impl Core {
 
     /// Whether the book is playing, being prepared or being exported.
     fn audio_in_use(&self, id: &BookId) -> bool {
-        lock(&self.session)
-            .as_ref()
-            .is_some_and(|s| s.target.book.id == id.0)
+        self.playback.is_book(&id.0)
             || lock(&self.preparation).contains(&id.0)
             || lock(&self.extras).exporting.as_deref() == Some(id.0.as_str())
     }

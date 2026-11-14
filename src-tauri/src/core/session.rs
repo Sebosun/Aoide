@@ -30,7 +30,8 @@ pub struct Session {
     timings: HashMap<usize, Vec<WordEstimate>>,
     /// For a recording: clips given to the player that exact word times may be asked for.
     to_align: Vec<usize>,
-    pub last_index: usize,
+    /// The playhead at the last tick of playback; `None` before the first.
+    pub ticked: Option<usize>,
     pub last_saved: Instant,
     /// When a recording being synced last took up the sync's progress.
     pub followed: Instant,
@@ -46,7 +47,7 @@ struct Feed {
 
 impl Session {
     /// A recording's session decodes its clips at `rate` on a feeder thread.
-    pub fn new(target: Target, start: usize, rate: u32) -> Self {
+    pub fn new(target: Target, rate: u32) -> Self {
         let feed = target.narration.recording_plan().map(|plan| Feed {
             feeder: Feeder::spawn(plan.files.clone(), rate),
             generation: 0,
@@ -58,7 +59,7 @@ impl Session {
             provided: HashSet::new(),
             timings: HashMap::new(),
             to_align: Vec::new(),
-            last_index: start,
+            ticked: None,
             last_saved: Instant::now(),
             followed: Instant::now(),
         }
@@ -126,16 +127,6 @@ impl Session {
     #[cfg(test)]
     pub fn timings_of(&self, index: usize) -> Option<Vec<WordEstimate>> {
         self.timings.get(&index).cloned()
-    }
-
-    /// The playhead's entry waits for the recording's sync to reach it.
-    pub fn waiting_for_sync(&self) -> bool {
-        self.target.narration.waits_for_sync(self.last_index)
-    }
-
-    /// Whether the speech engine says any of this session's entries.
-    pub fn speaks(&self) -> bool {
-        self.target.narration.speaks()
     }
 
     /// The recording's sync went further: plays by `target` from now on. Audio already given to
@@ -261,7 +252,6 @@ mod tests {
                 narration: NarrationPlan::speech(&book, Plan { items, requests }),
                 book,
             },
-            0,
             48_000,
         )
     }
