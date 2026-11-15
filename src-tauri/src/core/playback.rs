@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use aoide_audio::{codec, Pcm, PlayerCore, Position, Status};
-use aoide_library::{Library, WordTiming};
+use aoide_library::{BookId, BookKey, Library, Progress, WordTiming};
 use aoide_text::WordEstimate;
 
 use super::align::Alignable;
@@ -49,6 +49,35 @@ pub struct Tick {
 pub struct Place {
     pub book: Arc<BookModel>,
     pub index: usize,
+}
+
+impl Place {
+    /// Saves this place as the book's progress.
+    pub fn save(self, library: &Mutex<Library>) -> Result<(), String> {
+        let Place { book, index } = self;
+        let Some((chapter, local)) = book.locate(index) else {
+            return Ok(());
+        };
+        let segment = &book.chapters[chapter].segments[local];
+        let id = BookId(book.id.clone());
+        let saved = {
+            let library = lock(library);
+            library
+                .save_progress(
+                    &id,
+                    &Progress {
+                        chapter: chapter as u32,
+                        char_offset: segment.range.start as u32,
+                        segment_id: Some(segment.id.clone()),
+                        updated_at: super::now_ms(),
+                    },
+                )
+                .and_then(|()| {
+                    library.set_book_value(&id, BookKey::ProgressFraction, &book.fraction(index))
+                })
+        };
+        saved.map_err(|e| e.to_string())
+    }
 }
 
 pub struct Playback {
@@ -465,6 +494,97 @@ impl SpeechAudio for LibraryAudio<'_> {
             pcm: codec::decode(&bytes).map_err(|e| e.to_string())?,
             timings: segment.word_timings,
         }))
+    }
+}
+
+impl super::Core {
+    /// Saves the listener's place; the one way it is saved.
+    pub(super) fn save_place(&self, place: Option<Place>) {
+        if let Some(Err(error)) = place.map(|place| place.save(&self.library)) {
+            self.report("progress.save", "Could not save your place", error);
+        }
+    }
+
+    pub(super) fn seek(&self, index: usize) {
+        self.seek_at(index, None);
+    }
+
+    /// Moves the playhead `offset_ms` into entry `index`; `None` starts where the entry's text
+    /// does (for a recording, just before its first word).
+    pub(super) fn seek_at(&self, index: usize, offset_ms: Option<u32>) {
+        self.save_place(self.playback.seek(index, offset_ms));
+        self.plan(super::PlanEvent::ListeningChanged { jump: true });
+    }
+
+    pub fn pause(&self) {
+        self.save_place(self.playback.pause());
+    }
+
+    pub fn resume(&self) -> Result<(), String> {
+        self.playback.play();
+        self.ensure_output()
+    }
+
+    pub fn stop(&self) {
+        self.save_place(self.playback.stop());
+        self.output.close();
+        self.plan(super::PlanEvent::ListeningStopped);
+    }
+
+    pub fn toggle(&self) {
+        if self.playback.is_playing() {
+            self.pause();
+        } else {
+            let _ = self.resume();
+        }
+    }
+
+    /// Plays from the start of the chapter `delta` chapters away from the current one.
+    pub async fn skip_chapter(&self, delta: i64) -> Result<(), String> {
+        let book = self.playback.book().ok_or("nothing is playing")?;
+        let (chapter, _) = book
+            .locate(self.playback.position().index)
+            .unwrap_or((0, 0));
+        let last = book.chapters.len().saturating_sub(1) as i64;
+        let target = (chapter as i64 + delta).clamp(0, last) as usize;
+        self.play(&book.id, Some(target), None).await
+    }
+
+    pub fn set_speed(&self, speed: f32) {
+        self.playback.set_speed(speed);
+        self.save_player_settings();
+    }
+
+    pub fn set_volume(&self, volume: f32) {
+        self.playback.set_volume(volume);
+        self.save_player_settings();
+    }
+
+    pub(super) fn save_player_settings(&self) {
+        let settings = super::config::PlayerSettings {
+            speed: self.playback.speed(),
+            volume: self.playback.volume(),
+        };
+        let saved = self.settings.save(super::config::PLAYER, &settings);
+        if let Err(error) = saved {
+            self.report("config.save", "Could not save the player settings", error);
+        }
+    }
+
+    pub(crate) fn player_state(&self) -> super::PlayerStateView {
+        super::PlayerStateView {
+            sleep: self.controls.sleep_view(),
+            ..self.playback.state()
+        }
+    }
+
+    /// Case-insensitive search of the book's text; at most 200 hits in reading order.
+    pub fn search_book(
+        &self,
+        id: &str,
+        query: &str,
+    ) -> Result<Vec<crate::book::SearchHit>, String> {
+        Ok(self.load_book(id)?.search(query, 200))
     }
 }
 

@@ -22,6 +22,22 @@ pub struct NowPlaying {
     pub cover: Option<String>,
 }
 
+impl NowPlaying {
+    /// What shows while `chapter` of `book` plays, with the book's `cover`.
+    pub fn of(book: &crate::book::BookModel, chapter: usize, cover: Option<String>) -> Self {
+        Self {
+            title: book
+                .chapters
+                .get(chapter)
+                .map(|c| c.title.clone())
+                .unwrap_or_default(),
+            album: book.title.clone(),
+            artist: book.authors.join(", "),
+            cover,
+        }
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Controls {
     sleep: Mutex<Option<SleepTimer>>,
@@ -121,6 +137,18 @@ impl Controls {
         if let Some(tx) = lock(&self.media).as_ref() {
             let _ = tx.send(update);
         }
+    }
+}
+
+impl super::Core {
+    /// `minutes`: pause after that long; `end_of_chapter`: pause when the chapter ends.
+    /// Neither cancels the timer.
+    pub fn set_sleep_timer(&self, minutes: Option<u32>, end_of_chapter: bool) {
+        let chapter = self.playback.book().and_then(|book| {
+            book.locate(self.playback.position().index)
+                .map(|(chapter, _)| chapter)
+        });
+        self.controls.set_sleep(minutes, end_of_chapter, chapter);
     }
 }
 

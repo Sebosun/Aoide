@@ -253,6 +253,24 @@ impl Storage {
         Ok(result)
     }
 
+    /// Deletes book `id`'s made audio; it is made again when needed.
+    pub fn delete_book_audio(&self, id: &str) -> Result<(), String> {
+        let files = lock(&self.library)
+            .delete_book_segments(&BookId(id.into()))
+            .map_err(|e| e.to_string())?;
+        self.delete_audio(id, files);
+        Ok(())
+    }
+
+    /// Deletes audio `files` (relative to the audio folder) and book `id`'s folder if that
+    /// leaves it empty.
+    pub fn delete_audio(&self, id: &str, files: Vec<PathBuf>) {
+        for file in files {
+            let _ = std::fs::remove_file(self.audio_dir.join(file));
+        }
+        let _ = std::fs::remove_dir(self.audio_dir.join(id));
+    }
+
     /// Lets the next [`Storage::evict`] run at once (the limit changed).
     pub fn limit_changed(&self) {
         *lock(&self.last_eviction) = None;
@@ -365,6 +383,27 @@ impl StorageHost for Core {
 /// Cache-size checks run at most this often.
 const EVICTION_INTERVAL: Duration = Duration::from_secs(20);
 const EVICTION_BATCH: usize = 400;
+
+impl super::Core {
+    /// Deletes a book's generated audio; it will be regenerated on demand.
+    pub async fn regenerate_book(&self, id: &str) -> Result<(), String> {
+        let keys = self
+            .load_book(id)
+            .and_then(|book| self.speech_plan(&book))
+            .map(|plan| plan.items.into_iter().map(|item| item.key).collect())
+            .unwrap_or_default();
+        self.storage.delete_book_audio(id)?;
+        self.plan(super::PlanEvent::BookAudioDeleted {
+            book: id.into(),
+            keys,
+        });
+        if self.playback.is_book(id) {
+            self.restart_session().await?;
+        }
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {

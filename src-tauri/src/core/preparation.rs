@@ -80,6 +80,21 @@ pub struct Plan {
 }
 
 impl Plan {
+    /// How much of each chapter of `book` (which this plan reads) is made.
+    pub fn chapter_audio(&self, book: &crate::book::BookModel) -> Vec<super::ChapterAudioView> {
+        let mut chapters = vec![super::ChapterAudioView { done: 0, total: 0 }; book.chapters.len()];
+        for (index, item) in self.items.iter().enumerate() {
+            let Some((chapter, _)) = book.locate(index) else {
+                continue;
+            };
+            if item.speakable {
+                chapters[chapter].total += 1;
+                chapters[chapter].done += usize::from(item.cached);
+            }
+        }
+        chapters
+    }
+
     pub fn mark_cached(&mut self, key: &str, duration_ms: u32) {
         for item in self.items.iter_mut().filter(|i| i.key == key) {
             item.cached = true;

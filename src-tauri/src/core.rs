@@ -11,13 +11,10 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use aoide_audio::output::{OutputCommand, PipeOutput};
 use aoide_audio::{codec, PlayerCore};
-use aoide_generation::{estimate_ms, Job, PlanItem, WorkerEvent};
-use aoide_library::{
-    content_hash, BookId, BookKey, BookStatus, CachedSegment, Library, NewBook, Progress,
-};
-use aoide_tts::{cache_key, EngineProfile, LaunchCommand, NetworkScope};
+use aoide_generation::{Job, WorkerEvent};
+use aoide_library::{content_hash, BookId, BookKey, BookStatus, CachedSegment, Library, NewBook};
+use aoide_tts::{EngineProfile, LaunchCommand, NetworkScope};
 use serde::Serialize;
 
 /// Spoken by voice previews: original text, long enough to hear the voice's pace and tone.
@@ -29,6 +26,7 @@ pub use config::PreferencesView;
 mod discovery;
 mod engine;
 mod environment;
+mod output;
 use environment::{default_profile, OUTPUT_RATE};
 pub use environment::{Environment, Events, Paths, ShowInFolder};
 mod error;
@@ -77,7 +75,7 @@ use preparation::Plan;
 pub use preparation::{PrepareView, Stage as PrepareStage};
 pub use settings::{AlignerSettings, AppSettings, AppSettingsPatch};
 
-use crate::book::{BookModel, ChapterSummary, ChapterView, ExcludedView, SearchHit};
+use crate::book::{BookModel, ChapterSummary, ChapterView, ExcludedView};
 
 const TICK: Duration = Duration::from_millis(33);
 
@@ -135,7 +133,6 @@ pub struct Core {
     events: Arc<dyn Events>,
     /// Tells the user about failures Aoide carried on from.
     reporter: error::Reporter,
-    audio: Vec<OutputCommand>,
     show_in_folder: ShowInFolder,
     pub paths: Paths,
     library: Arc<Mutex<Library>>,
@@ -146,7 +143,7 @@ pub struct Core {
     storage: storage::Storage,
     exports: export::Exports,
     playback: playback::Playback,
-    output: Mutex<Option<PipeOutput>>,
+    output: output::Output,
     /// The speech engine in use.
     engine: engine::Engine,
     /// What the speech engine is asked to make.
@@ -232,7 +229,6 @@ impl Core {
         let core = Arc::new(Self {
             events,
             reporter,
-            audio,
             show_in_folder,
             paths,
             library,
@@ -243,7 +239,7 @@ impl Core {
             storage,
             exports,
             playback: playback::Playback::new(player),
-            output: Mutex::new(None),
+            output: output::Output::new(audio),
             engine: engine_component,
             generation,
             controls: Default::default(),
@@ -325,20 +321,6 @@ impl Core {
 
     // ------------------------------------------------------------ library
 
-    pub fn remove_book(&self, id: &str) -> Result<(), String> {
-        if self.playback.is_book(id) {
-            self.stop();
-        }
-        self.plan(PlanEvent::BookForgotten(id.into()));
-        self.forget_recording(id);
-        for file in self.shelf.remove(id)? {
-            let _ = std::fs::remove_file(self.paths.audio_dir.join(file));
-        }
-        let _ = std::fs::remove_dir(self.paths.audio_dir.join(id));
-        self.emit(CoreEvent::LibraryChanged);
-        Ok(())
-    }
-
     // ------------------------------------------------------------ books
 
     pub fn open_book(&self, id: &str) -> Result<BookView, String> {
@@ -375,27 +357,6 @@ impl Core {
     }
 
     // ------------------------------------------------------------ playback
-
-    fn ensure_output(&self) -> Result<(), String> {
-        let mut output = lock(&self.output);
-        if output.as_ref().is_some_and(PipeOutput::is_running) {
-            return Ok(());
-        }
-        let started = PipeOutput::start(Arc::clone(self.playback.player()), &self.audio)
-            .map_err(|e| {
-                tracing::error!(event = "output.start", outcome = "failed", error = %e, "Cannot start the audio output");
-                e.to_string()
-            })?;
-        tracing::info!(
-            event = "output.start",
-            outcome = "ok",
-            latency_ms = started.latency_ms(),
-            "Started the audio output"
-        );
-        self.playback.set_latency(started.latency_ms());
-        *output = Some(started);
-        Ok(())
-    }
 
     pub async fn play(
         &self,
@@ -463,36 +424,6 @@ impl Core {
 
     // ------------------------------------------------------------ settings
 
-    pub fn book_settings(&self, id: &str) -> BookSettings {
-        let stored = lock(&self.library).book_value(&BookId(id.into()), BookKey::Settings);
-        stored
-            .unwrap_or_else(|error| {
-                self.report(
-                    "book.read",
-                    "Could not read the book's voice settings",
-                    error,
-                );
-                None
-            })
-            .unwrap_or_default()
-    }
-
-    pub async fn save_book_settings(&self, id: &str, settings: BookSettings) -> Result<(), String> {
-        self.engine.check_params(&settings.params)?;
-        lock(&self.library)
-            .set_book_value(&BookId(id.into()), BookKey::Settings, &settings)
-            .map_err(|e| e.to_string())?;
-        // Footnote narration changes segmentation: reparse.
-        self.shelf.unload(id);
-        // Whether its recording narrates it may have changed.
-        self.emit_recording(id);
-        if self.playback.is_book(id) {
-            self.restart_session().await?;
-        }
-        self.plan(PlanEvent::BookSettingsChanged(id.into()));
-        Ok(())
-    }
-
     /// Rebuilds the listening session's requests and cache state (voice/engine/settings
     /// changed), keeping the playhead.
     async fn restart_session(&self) -> Result<(), String> {
@@ -512,232 +443,7 @@ impl Core {
         Ok(())
     }
 
-    /// Deletes a book's generated audio; it will be regenerated on demand.
-    pub async fn regenerate_book(&self, id: &str) -> Result<(), String> {
-        let keys = self
-            .load_book(id)
-            .and_then(|book| self.speech_plan(&book))
-            .map(|plan| plan.items.into_iter().map(|item| item.key).collect())
-            .unwrap_or_default();
-        let files = lock(&self.library)
-            .delete_book_segments(&BookId(id.into()))
-            .map_err(|e| e.to_string())?;
-        for file in files {
-            let _ = std::fs::remove_file(self.paths.audio_dir.join(file));
-        }
-        self.plan(PlanEvent::BookAudioDeleted {
-            book: id.into(),
-            keys,
-        });
-        if self.playback.is_book(id) {
-            self.restart_session().await?;
-        }
-        self.emit(CoreEvent::LibraryChanged);
-        Ok(())
-    }
-
     // ------------------------------------------------------------ preparation
-
-    /// How much of each chapter's audio is made, in the voice and settings it would be read in.
-    pub async fn chapter_audio(&self, id: &str) -> Result<Vec<ChapterAudioView>, String> {
-        let book = self.load_book(id)?;
-        let _ = self.ensure_voice().await; // Without a voice nothing can be cached yet.
-        let plan = self.speech_plan(&book)?;
-        let mut chapters = vec![ChapterAudioView { done: 0, total: 0 }; book.chapters.len()];
-        for (index, item) in plan.items.iter().enumerate() {
-            let Some((chapter, _)) = book.locate(index) else {
-                continue;
-            };
-            if item.speakable {
-                chapters[chapter].total += 1;
-                chapters[chapter].done += usize::from(item.cached);
-            }
-        }
-        Ok(chapters)
-    }
-
-    /// The speech engine's plan for reading all of `book` in its voice and settings.
-    fn speech_plan(&self, book: &BookModel) -> Result<Plan, String> {
-        let settings = self.book_settings(&book.id);
-        let engine::Speech {
-            voicing,
-            descriptor,
-            model,
-        } = self.engine.speech(&settings, book.language.as_deref())?;
-        let mut requests = Vec::with_capacity(book.total_entries());
-        let mut keys = Vec::new();
-        for index in 0..book.total_entries() {
-            let segment = book.segment(index).expect("index in range");
-            if segment.speech.is_empty() {
-                requests.push(None);
-                continue;
-            }
-            let request = voicing.request(segment.speech.clone());
-            keys.push(cache_key(&descriptor, model.as_deref(), &request));
-            requests.push(Some(request));
-        }
-        let library = lock(&self.library);
-        let mut keys = keys.into_iter();
-        let items = requests
-            .iter()
-            .enumerate()
-            .map(|(index, request)| match request {
-                None => PlanItem {
-                    key: format!("silent:{index}"),
-                    speakable: false,
-                    cached: false,
-                    duration_ms: book.segment(index).map_or(0, |s| s.pause_after_ms),
-                },
-                Some(request) => {
-                    let key = keys.next().expect("one key per request");
-                    let cached = library.segment(&key).ok().flatten();
-                    PlanItem {
-                        duration_ms: cached.as_ref().map_or_else(
-                            || estimate_ms(request.text.chars().count()),
-                            |c| c.duration_ms as u32,
-                        ),
-                        cached: cached.is_some(),
-                        speakable: true,
-                        key,
-                    }
-                }
-            })
-            .collect();
-        Ok(Plan { items, requests })
-    }
-
-    fn seek(&self, index: usize) {
-        self.seek_at(index, None);
-    }
-
-    /// Moves the playhead `offset_ms` into entry `index`; `None` starts where the entry's text
-    /// does (for a recording, just before its first word).
-    fn seek_at(&self, index: usize, offset_ms: Option<u32>) {
-        self.save_place(self.playback.seek(index, offset_ms));
-        self.plan(PlanEvent::ListeningChanged { jump: true });
-    }
-
-    pub fn pause(&self) {
-        self.save_place(self.playback.pause());
-    }
-
-    pub fn resume(&self) -> Result<(), String> {
-        self.playback.play();
-        self.ensure_output()
-    }
-
-    pub fn stop(&self) {
-        self.save_place(self.playback.stop());
-        *lock(&self.output) = None;
-        self.plan(PlanEvent::ListeningStopped);
-    }
-
-    pub fn toggle(&self) {
-        if self.playback.is_playing() {
-            self.pause();
-        } else {
-            let _ = self.resume();
-        }
-    }
-
-    /// Plays from the start of the chapter `delta` chapters away from the current one.
-    pub async fn skip_chapter(&self, delta: i64) -> Result<(), String> {
-        let book = self.playback.book().ok_or("nothing is playing")?;
-        let (chapter, _) = book
-            .locate(self.playback.position().index)
-            .unwrap_or((0, 0));
-        let last = book.chapters.len().saturating_sub(1) as i64;
-        let target = (chapter as i64 + delta).clamp(0, last) as usize;
-        self.play(&book.id, Some(target), None).await
-    }
-
-    /// `minutes`: pause after that long; `end_of_chapter`: pause when the chapter ends.
-    /// Neither cancels the timer.
-    pub fn set_sleep_timer(&self, minutes: Option<u32>, end_of_chapter: bool) {
-        let chapter = self.playback.book().and_then(|book| {
-            book.locate(self.playback.position().index)
-                .map(|(chapter, _)| chapter)
-        });
-        self.controls.set_sleep(minutes, end_of_chapter, chapter);
-    }
-
-    /// Case-insensitive search of the book's text; at most 200 hits in reading order.
-    pub fn search_book(&self, id: &str, query: &str) -> Result<Vec<SearchHit>, String> {
-        Ok(self.load_book(id)?.search(query, 200))
-    }
-
-    /// What the now-playing panel shows for `chapter` of the book playing.
-    fn now_playing(&self, chapter: usize) -> Option<controls::NowPlaying> {
-        let book = self.playback.book()?;
-        let cover = lock(&self.library)
-            .book(&BookId(book.id.clone()))
-            .ok()
-            .flatten()
-            .and_then(|r| r.cover_path)
-            .map(|p| p.to_string_lossy().into_owned());
-        Some(controls::NowPlaying {
-            title: book
-                .chapters
-                .get(chapter)
-                .map(|c| c.title.clone())
-                .unwrap_or_default(),
-            album: book.title.clone(),
-            artist: book.authors.join(", "),
-            cover,
-        })
-    }
-
-    pub fn set_speed(&self, speed: f32) {
-        self.playback.set_speed(speed);
-        self.save_player_settings();
-    }
-
-    pub fn set_volume(&self, volume: f32) {
-        self.playback.set_volume(volume);
-        self.save_player_settings();
-    }
-
-    fn save_player_settings(&self) {
-        let settings = config::PlayerSettings {
-            speed: self.playback.speed(),
-            volume: self.playback.volume(),
-        };
-        let saved = self.settings.save(config::PLAYER, &settings);
-        if let Err(error) = saved {
-            self.report("config.save", "Could not save the player settings", error);
-        }
-    }
-
-    /// Saves the listener's place; the one way it is saved.
-    fn save_place(&self, place: Option<playback::Place>) {
-        let Some(playback::Place { book, index }) = place else {
-            return;
-        };
-        let Some((chapter, local)) = book.locate(index) else {
-            return;
-        };
-        let segment = &book.chapters[chapter].segments[local];
-        let id = BookId(book.id.clone());
-        let saved = {
-            let library = lock(&self.library);
-            library
-                .save_progress(
-                    &id,
-                    &Progress {
-                        chapter: chapter as u32,
-                        char_offset: segment.range.start as u32,
-                        segment_id: Some(segment.id.clone()),
-                        updated_at: now_ms(),
-                    },
-                )
-                .and_then(|()| {
-                    library.set_book_value(&id, BookKey::ProgressFraction, &book.fraction(index))
-                })
-        };
-        if let Err(error) = saved {
-            self.report("progress.save", "Could not save your place", error);
-        }
-    }
 
     // ------------------------------------------------------------ background loops
 
@@ -786,34 +492,22 @@ impl Core {
                 self.plan(PlanEvent::ListeningChanged { jump: false });
                 self.save_place(self.playback.place_to_save(false));
             }
-            self.keep_output_alive();
+            self.output.keep_alive(&self.playback);
             let state = self.player_state();
             if self.controls.sleep_due(state.chapter) {
                 self.pause();
             }
             self.listening.track(&state);
-            if let Some(state) = self
-                .controls
-                .observe(state, &|chapter| self.now_playing(chapter))
-            {
+            let now_playing = |chapter| {
+                let book = self.playback.book()?;
+                Some(controls::NowPlaying::of(
+                    &book,
+                    chapter,
+                    self.shelf.cover(&book.id),
+                ))
+            };
+            if let Some(state) = self.controls.observe(state, &now_playing) {
                 self.emit(CoreEvent::PlayerState(state));
-            }
-        }
-    }
-
-    /// Restarts the audio output if its player process died while playing.
-    fn keep_output_alive(&self) {
-        let playing = self.playback.is_playing();
-        let dead = lock(&self.output)
-            .as_ref()
-            .is_some_and(|output| !output.is_running());
-        if playing && dead {
-            tracing::warn!(
-                event = "output.restart",
-                "The audio output stopped during playback; restarting it"
-            );
-            if let Err(error) = self.ensure_output() {
-                self.playback.fail(format!("Audio output failed: {error}"));
             }
         }
     }
@@ -829,13 +523,6 @@ impl Core {
         };
         self.align(tick.to_align);
         tick.moved
-    }
-
-    pub(crate) fn player_state(&self) -> PlayerStateView {
-        PlayerStateView {
-            sleep: self.controls.sleep_view(),
-            ..self.playback.state()
-        }
     }
 
     async fn engine_loop(self: Arc<Self>) {
@@ -861,7 +548,7 @@ impl Core {
     /// Stops processes Aoide started and saves progress.
     pub fn shutdown(&self) {
         self.save_place(self.playback.place_to_save(true));
-        *lock(&self.output) = None;
+        self.output.close();
         self.engine.shutdown();
         self.stop_aligner();
     }

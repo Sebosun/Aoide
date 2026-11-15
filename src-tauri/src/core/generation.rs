@@ -12,13 +12,16 @@ use std::sync::{Arc, Mutex};
 
 use aoide_audio::{codec, Pcm};
 use aoide_generation::{
-    buffered_ahead_ms, plan, Job, Listening, Preparing, Reason, SegmentStore, WorkItem, Worker,
-    WorkerEvent, WorkerOptions,
+    buffered_ahead_ms, estimate_ms, plan, Job, Listening, PlanItem, Preparing, Reason,
+    SegmentStore, WorkItem, Worker, WorkerEvent, WorkerOptions,
 };
 use aoide_library::{BookId, CachedSegment, Library};
-use aoide_tts::{BoxFuture, SpeechEngine, Synthesis};
+use aoide_tts::{cache_key, BoxFuture, SpeechEngine, Synthesis};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
+use crate::book::BookModel;
+
+use super::engine::Speech;
 use super::error::Reporter;
 use super::narration::NarrationPlan;
 use super::preparation::{Plan, Preparation, PrepareView};
@@ -138,6 +141,56 @@ impl Generation {
             events,
         };
         (generation, receiver)
+    }
+
+    /// The speech engine's plan for reading all of `book` in its voice and settings.
+    /// The speech that reads `book` with `speech`, and which of it is made already.
+    pub fn speech_plan(&self, book: &BookModel, speech: Speech) -> Plan {
+        let Speech {
+            voicing,
+            descriptor,
+            model,
+        } = speech;
+        let mut requests = Vec::with_capacity(book.total_entries());
+        let mut keys = Vec::new();
+        for index in 0..book.total_entries() {
+            let segment = book.segment(index).expect("index in range");
+            if segment.speech.is_empty() {
+                requests.push(None);
+                continue;
+            }
+            let request = voicing.request(segment.speech.clone());
+            keys.push(cache_key(&descriptor, model.as_deref(), &request));
+            requests.push(Some(request));
+        }
+        let library = lock(&self.library);
+        let mut keys = keys.into_iter();
+        let items = requests
+            .iter()
+            .enumerate()
+            .map(|(index, request)| match request {
+                None => PlanItem {
+                    key: format!("silent:{index}"),
+                    speakable: false,
+                    cached: false,
+                    duration_ms: book.segment(index).map_or(0, |s| s.pause_after_ms),
+                },
+                Some(request) => {
+                    let key = keys.next().expect("one key per request");
+                    let cached = library.segment(&key).ok().flatten();
+                    PlanItem {
+                        duration_ms: cached.as_ref().map_or_else(
+                            || estimate_ms(request.text.chars().count()),
+                            |c| c.duration_ms as u32,
+                        ),
+                        cached: cached.is_some(),
+                        speakable: true,
+                        key,
+                    }
+                }
+            })
+            .collect();
+        Plan { items, requests }
     }
 
     /// Makes the change `event` stands for, plans the work again and sends the view if it
@@ -531,6 +584,22 @@ impl super::Core {
     /// Tells generation what changed; see [`generation::Generation::apply`].
     pub(super) fn plan(&self, event: PlanEvent) {
         self.generation.apply(event, self);
+    }
+}
+
+impl super::Core {
+    /// The speech that reads `book`, in its voice settings.
+    pub(super) fn speech_plan(&self, book: &BookModel) -> Result<Plan, String> {
+        let settings = self.book_settings(&book.id);
+        let speech = self.engine.speech(&settings, book.language.as_deref())?;
+        Ok(self.generation.speech_plan(book, speech))
+    }
+
+    /// How much of each chapter's speech is made.
+    pub async fn chapter_audio(&self, id: &str) -> Result<Vec<super::ChapterAudioView>, String> {
+        let book = self.load_book(id)?;
+        let _ = self.ensure_voice().await; // Without a voice nothing can be cached yet.
+        Ok(self.speech_plan(&book)?.chapter_audio(&book))
     }
 }
 

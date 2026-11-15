@@ -421,6 +421,41 @@ impl Shelf {
         Ok(record.path)
     }
 
+    /// Book `id`'s cover image, if it has one.
+    pub fn cover(&self, id: &str) -> Option<String> {
+        lock(&self.library)
+            .book(&BookId(id.into()))
+            .ok()
+            .flatten()
+            .and_then(|r| r.cover_path)
+            .map(|p| p.to_string_lossy().into_owned())
+    }
+
+    /// Book `id`'s voice settings.
+    pub fn settings(&self, id: &str) -> super::BookSettings {
+        let stored = lock(&self.library).book_value(&BookId(id.into()), BookKey::Settings);
+        stored
+            .unwrap_or_else(|error| {
+                self.reporter.report(
+                    "book.read",
+                    "Could not read the book's voice settings",
+                    error,
+                );
+                None
+            })
+            .unwrap_or_default()
+    }
+
+    /// Saves book `id`'s voice settings; it is read again when next loaded (footnote
+    /// narration changes how it is split).
+    pub fn save_settings(&self, id: &str, settings: &super::BookSettings) -> Result<(), String> {
+        lock(&self.library)
+            .set_book_value(&BookId(id.into()), BookKey::Settings, settings)
+            .map_err(|e| e.to_string())?;
+        self.unload(id);
+        Ok(())
+    }
+
     /// Notes that book `id` was opened now.
     pub fn opened(&self, id: &str) {
         if let Err(error) = lock(&self.library).set_last_opened(&BookId(id.into()), now_ms()) {
@@ -531,6 +566,40 @@ impl super::Core {
     pub fn set_book_collections(&self, book_id: &str, ids: &[i64]) -> Result<(), String> {
         self.shelf
             .shelve(|library| library.set_book_collections(&BookId(book_id.into()), ids))?;
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+}
+
+impl super::Core {
+    pub fn book_settings(&self, id: &str) -> super::BookSettings {
+        self.shelf.settings(id)
+    }
+
+    pub async fn save_book_settings(
+        &self,
+        id: &str,
+        settings: super::BookSettings,
+    ) -> Result<(), String> {
+        self.engine.check_params(&settings.params)?;
+        self.shelf.save_settings(id, &settings)?;
+        // Whether its recording narrates it may have changed.
+        self.emit_recording(id);
+        if self.playback.is_book(id) {
+            self.restart_session().await?;
+        }
+        self.plan(super::PlanEvent::BookSettingsChanged(id.into()));
+        Ok(())
+    }
+
+    pub fn remove_book(&self, id: &str) -> Result<(), String> {
+        if self.playback.is_book(id) {
+            self.stop();
+        }
+        self.plan(super::PlanEvent::BookForgotten(id.into()));
+        self.forget_recording(id);
+        let files = self.shelf.remove(id)?;
+        self.storage.delete_audio(id, files);
         self.emit(CoreEvent::LibraryChanged);
         Ok(())
     }
