@@ -888,6 +888,21 @@ async fn choose_opml(app: tauri::AppHandle) -> Option<String> {
     rx.await.ok().flatten()
 }
 
+/// The system's file chooser for the Chrome or Chromium program to fetch with; `None` when
+/// cancelled.
+#[tauri::command]
+async fn choose_browser(app: tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("Choose the Chrome or Chromium to fetch articles with")
+        .pick_file(move |picked| {
+            let _ = tx.send(picked.map(|p| p.to_string()));
+        });
+    rx.await.ok().flatten()
+}
+
 /// The system's save dialog for exporting the subscription list; `None` when cancelled.
 #[tauri::command]
 async fn choose_opml_target(app: tauri::AppHandle) -> Option<String> {
@@ -1142,6 +1157,7 @@ pub fn run() {
             sign_out_site,
             forget_site,
             clear_browser_data,
+            choose_browser,
             start_sign_in,
             sign_in,
             finish_sign_in,

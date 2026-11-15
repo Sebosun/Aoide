@@ -146,6 +146,7 @@ export const tauriApi: AoideApi = {
   signOutSite: (host) => call("sign_out_site", { host }),
   forgetSite: (host) => call("forget_site", { host }),
   clearBrowserData: () => call("clear_browser_data"),
+  chooseBrowser: () => call("choose_browser"),
   startSignIn: (bookId) => call("start_sign_in", { bookId }),
   signIn: () => call("sign_in"),
   finishSignIn: () => call("finish_sign_in"),

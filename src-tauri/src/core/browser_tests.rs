@@ -249,6 +249,7 @@ async fn a_site_that_needs_the_user_is_listed_with_its_rule_and_can_be_signed_ou
             ..
         }
     ));
+    assert_eq!(sites[1].waiting_article.as_deref(), Some(id.as_str()));
 
     // A rule set in Settings is written to the file, keeping what was written by hand.
     s.core

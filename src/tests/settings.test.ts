@@ -53,6 +53,7 @@ it("opens settings from the gear as a modal with a tab per section, and Escape c
     "Recordings",
     "Library",
     "Feeds",
+    "Sites",
     "Word highlighting",
     "Storage",
     "About",
@@ -313,4 +314,106 @@ it("imports a subscription list and says what was added and skipped, and exports
   await flushPromises();
   expect(wrapper.get(".feed-settings__result").text()).toBe(`Exported ${before + 2} feeds.`);
   wrapper.unmount();
+});
+
+/** Settings on the Sites tab, with the mock's browser `browser` (off, missing or ready). */
+async function sitesTab(browser = "off") {
+  mock.dispose();
+  mock = createMockApi(`?browser=${browser}`);
+  backend.api = mock;
+  useNavigationStore().openSettings("sites");
+  const wrapper = mount(SettingsDialog, { attachTo: document.body });
+  await flushPromises();
+  return wrapper;
+}
+const browserRow = (wrapper: ReturnType<typeof mount>) => wrapper.get('[aria-label="Browser for fetching"]');
+const button = (root: { findAll: ReturnType<typeof mount>["findAll"] }, text: string) =>
+  root.findAll("button").find((b) => b.text() === text);
+
+it("is off by default, with the browser and sites shown but not usable, until turned on", async () => {
+  const wrapper = await sitesTab("off");
+  expect(selected(wrapper).text()).toBe("Sites");
+  expect(wrapper.get('[aria-label="Use a browser for articles"]').text()).toBe("Off");
+  // Found, but not run while off: no version.
+  expect(browserRow(wrapper).text()).toContain("/usr/bin/chromium");
+  expect(browserRow(wrapper).text()).not.toContain("154.0");
+  expect(button(browserRow(wrapper), "Change…")!.attributes("disabled")).toBeDefined();
+  expect(wrapper.get('[aria-label="Sign out of harbour.example"]').attributes("disabled")).toBeDefined();
+
+  await choose(
+    wrapper,
+    "Use a browser for articles",
+    "When plain fetching failsA page that comes back cut short or behind a check is opened in a browser on this computer",
+  );
+  expect((await mock.appSettings()).browser.use).toBe("fallback");
+  expect(browserRow(wrapper).text()).toContain("Chromium 154.0.8037.97");
+  expect(wrapper.get('[aria-label="Sign out of harbour.example"]').attributes("disabled")).toBeUndefined();
+  wrapper.unmount();
+});
+
+it("downloads Chrome when none is found, showing progress, and removes it after confirming", async () => {
+  const host = mount(UiHost, { attachTo: document.body });
+  const wrapper = await sitesTab("missing");
+  expect(browserRow(wrapper).text()).toContain("No Chrome or Chromium was found.");
+  expect(browserRow(wrapper).text()).toContain("Chrome for Testing 157.0.8103.78 from Google");
+  vi.useFakeTimers();
+  await button(browserRow(wrapper), "Download Chrome")!.trigger("click");
+  await vi.advanceTimersByTimeAsync(200);
+  expect(browserRow(wrapper).text()).toContain("Downloading Chrome 157.0.8103.78");
+  expect(button(browserRow(wrapper), "Cancel download")).toBeDefined();
+  await vi.advanceTimersByTimeAsync(800);
+  vi.useRealTimers();
+  await flushPromises();
+  expect(browserRow(wrapper).text()).toContain("Chrome, downloaded by Aoide · 157.0.8103.78");
+
+  await flushPromises();
+  // A native click: after the fake timers, `trigger` does not reach this button.
+  (button(browserRow(wrapper), "Remove downloaded browser")!.element as HTMLButtonElement).click();
+  await flushPromises();
+  await host.get('[data-confirm="yes"]').trigger("click");
+  await flushPromises();
+  expect(browserRow(wrapper).text()).toContain("No Chrome or Chromium was found.");
+  wrapper.unmount();
+  host.unmount();
+});
+
+it("edits a site's data policy and route, signs out, forgets and removes all site data", async () => {
+  const host = mount(UiHost, { attachTo: document.body });
+  const wrapper = await sitesTab("ready");
+  const setRule = vi.spyOn(mock, "setSiteRule");
+  const rows = () => wrapper.findAll('[aria-label="Sites"] tbody tr').map((r) => r.text());
+  expect(rows()[0]).toContain("harbour.example");
+  expect(rows()[0]).toMatch(/Signed in/);
+  expect(rows()[1]).toContain("Asked for a subscription");
+
+  await choose(wrapper, "Site data for harbour.example", "Clear before each fetch");
+  expect(setRule).toHaveBeenLastCalledWith("harbour.example", null, "clear_before_fetch");
+  await choose(wrapper, "How harbour.example is fetched", "Browser");
+  expect(setRule).toHaveBeenLastCalledWith("harbour.example", "browser", "clear_before_fetch");
+  await choose(wrapper, "How harbour.example is fetched", "Automatic");
+  expect(setRule).toHaveBeenLastCalledWith("harbour.example", null, "clear_before_fetch");
+
+  await wrapper.get('[aria-label="Sign out of harbour.example"]').trigger("click");
+  await flushPromises();
+  expect(rows()[0]).toContain("No sign-in");
+  await wrapper.get('[aria-label="Forget lantern.example"]').trigger("click");
+  await flushPromises();
+  await host.get('[data-confirm="yes"]').trigger("click");
+  await flushPromises();
+  expect(rows().some((r) => r.includes("lantern.example"))).toBe(false);
+
+  const clear = vi.spyOn(mock, "clearBrowserData");
+  await button(wrapper, "Remove all site data")!.trigger("click");
+  await flushPromises();
+  await host.get('[data-confirm="no"]').trigger("click");
+  await flushPromises();
+  expect(clear).not.toHaveBeenCalled();
+  await button(wrapper, "Remove all site data")!.trigger("click");
+  await flushPromises();
+  await host.get('[data-confirm="yes"]').trigger("click");
+  await flushPromises();
+  expect(clear).toHaveBeenCalled();
+  expect(useUiStore().toasts.map((t) => t.text)).toContain("Removed all site data.");
+  wrapper.unmount();
+  host.unmount();
 });

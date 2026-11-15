@@ -283,6 +283,8 @@ export interface AoideApi {
   signOutSite(host: string): Promise<void>;
   /** Signs out of the site and drops its row and rule. */
   forgetSite(host: string): Promise<void>;
+  /** The system's file chooser for the browser's program; null when cancelled. */
+  chooseBrowser(): Promise<string | null>;
   /** Removes the browser's profile: every sign-in and all site data. */
   clearBrowserData(): Promise<void>;
   /** Opens a browser window on the article's page to sign in or pass a check; the article is

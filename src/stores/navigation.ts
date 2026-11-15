@@ -6,7 +6,7 @@ import { ref, watch } from "vue";
 export type View = "home" | "library" | "feeds" | "activity" | "item" | "reader" | "find" | "audiobooks";
 export type ToolsTab = "bookmarks" | "search" | "voice" | "details";
 export type SettingsTab =
-  "appearance" | "engine" | "recordings" | "library" | "feeds" | "highlighting" | "storage" | "about";
+  "appearance" | "engine" | "recordings" | "library" | "feeds" | "sites" | "highlighting" | "storage" | "about";
 /** The names the sidebar and the reader's back button give each screen. */
 export const VIEW_NAMES: Record<View, string> = {
   home: "Home",

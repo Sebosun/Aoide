@@ -37,6 +37,8 @@ pub struct SiteView {
     /// `None`: follows the global choice.
     pub fetch: Option<SiteFetch>,
     pub site_data: SiteData,
+    /// An article from this site waiting for the user, to sign in with.
+    pub waiting_article: Option<String>,
 }
 
 /// What a site's row says of its session: a sign-in or passed check (the later one), else the
@@ -64,6 +66,7 @@ pub(super) fn site_views(
     rows: &[SiteRow],
     rule_hosts: &[String],
     rule_for: impl Fn(&str) -> Option<SiteRule>,
+    waiting: &[(String, String)],
 ) -> Vec<SiteView> {
     let mut hosts: Vec<&str> = rows.iter().map(|r| r.host.as_str()).collect();
     hosts.extend(rule_hosts.iter().map(String::as_str));
@@ -78,6 +81,10 @@ pub(super) fn site_views(
                 session: session(rows.iter().find(|r| r.host == host)),
                 fetch: rule.fetch,
                 site_data: rule.site_data,
+                waiting_article: waiting
+                    .iter()
+                    .find(|(site, _)| site == host)
+                    .map(|(_, id)| id.clone()),
             }
         })
         .collect()
@@ -85,11 +92,24 @@ pub(super) fn site_views(
 
 impl super::Core {
     pub fn sites(&self) -> Result<Vec<SiteView>, String> {
-        let rows = lock(&self.library).sites().map_err(|e| e.to_string())?;
+        let (rows, articles) = {
+            let library = lock(&self.library);
+            let rows = library.sites().map_err(|e| e.to_string())?;
+            (rows, library.articles().map_err(|e| e.to_string())?)
+        };
+        // Articles waiting for the user, by site.
+        let waiting: Vec<(String, String)> = articles
+            .into_iter()
+            .filter(|a| a.stage == "needs_you")
+            .filter_map(|a| Some((super::articles::site_of(&a.canonical_url)?, a.book_id.0)))
+            .collect();
         let browsing = &self.browsing;
-        Ok(site_views(&rows, &browsing.rule_hosts(), |host| {
-            browsing.rule_for(host)
-        }))
+        Ok(site_views(
+            &rows,
+            &browsing.rule_hosts(),
+            |host| browsing.rule_for(host),
+            &waiting,
+        ))
     }
 
     /// Sets how `host` is fetched and whether its data is kept, in `site-rules.toml`.
@@ -186,6 +206,7 @@ mod tests {
             &rows,
             &["lantern.example".into(), "quay.example".into()],
             |host| (host == "lantern.example").then(|| browser.clone()),
+            &[("quay.example".into(), "article-1".into())],
         );
         let summary: Vec<_> = views
             .iter()
@@ -212,5 +233,7 @@ mod tests {
             ]
         );
         assert_eq!(views[2].site_data, SiteData::ClearBeforeFetch);
+        assert_eq!(views[3].waiting_article.as_deref(), Some("article-1"));
+        assert_eq!(views[0].waiting_article, None);
     }
 }

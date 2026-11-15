@@ -275,7 +275,12 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       : systemChromium
         ? { kind: "found", path: "/usr/bin/chromium", version: on ? "Chromium 154.0.8037.97" : null, downloaded: false }
         : browserDownloaded
-          ? { kind: "found", path: "~/.local/share/aoide/browser/chrome/chrome-linux64/chrome", version: BROWSER_VERSION, downloaded: true }
+          ? {
+              kind: "found",
+              path: "~/.local/share/aoide/browser/chrome/chrome-linux64/chrome",
+              version: BROWSER_VERSION,
+              downloaded: true,
+            }
           : { kind: "missing" };
     return {
       use: appSettings.browser.use,
@@ -287,10 +292,32 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   };
   /** Sites, as the core lists them (core/sites.rs): rows joined with rules, by host. */
   const sites = new Map<string, SiteView>([
-    ["harbour.example", { host: "harbour.example", session: { kind: "signedIn", at: Date.parse("2026-11-02T09:00:00Z") }, fetch: null, siteData: "keep" }],
-    ["quay.example", { host: "quay.example", session: { kind: "askedFor", reason: "paywall", at: Date.parse("2026-11-14T18:30:00Z") }, fetch: "browser", siteData: "keep" }],
+    [
+      "harbour.example",
+      {
+        host: "harbour.example",
+        session: { kind: "signedIn", at: Date.parse("2026-11-02T09:00:00Z") },
+        fetch: null,
+        siteData: "keep",
+        waitingArticle: null,
+      },
+    ],
+    [
+      "lantern.example",
+      {
+        host: "lantern.example",
+        session: { kind: "askedFor", reason: "paywall", at: Date.parse("2026-11-14T18:30:00Z") },
+        fetch: "browser",
+        siteData: "clear_before_fetch",
+        waitingArticle: null,
+      },
+    ],
   ]);
-  const siteHost = (host: string) => host.trim().toLowerCase().replace(/^www\./, "");
+  const siteHost = (host: string) =>
+    host
+      .trim()
+      .toLowerCase()
+      .replace(/^www\./, "");
   const browserOff = () => {
     if (appSettings.browser.use === "off") throw new Error("The browser is off. Turn it on in Settings › Sites.");
   };
@@ -647,7 +674,14 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
           : ({ kind: "signedIn", at } as const)
         : ({ kind: "none" } as const);
       const site = sites.get(flow.site);
-      sites.set(flow.site, { host: flow.site, fetch: null, siteData: "keep", ...site, session: kept });
+      sites.set(flow.site, {
+        host: flow.site,
+        fetch: null,
+        siteData: "keep",
+        ...site,
+        session: kept,
+        waitingArticle: null,
+      });
       tellSignIn({ stage: { kind: "done" }, result: { kind: "ready" } });
     }, 400);
   };
@@ -1955,12 +1989,32 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     onModelDownload: (h) => subscribe(downloadHandlers, h),
     onBrowserDownload: (h) => subscribe(browserDownloadHandlers, h),
     async sites() {
+      // As the core does: a site with an article waiting for the user is listed with it.
+      for (const [id, article] of articles)
+        if (article.stage.kind === "needsYou") {
+          const host = siteHost(new URL(article.canonicalUrl).hostname);
+          sites.set(host, {
+            host,
+            fetch: null,
+            siteData: "keep",
+            ...sites.get(host),
+            session:
+              sites.get(host)?.session.kind === "signedIn"
+                ? sites.get(host)!.session
+                : { kind: "askedFor", reason: article.stage.reason, at: Date.now() },
+            waitingArticle: id,
+          });
+        }
       return [...sites.values()].sort((a, b) => a.host.localeCompare(b.host)).map((s) => structuredClone(s));
     },
     async setSiteRule(host, fetch, siteData) {
       const key = siteHost(host);
       if (!key) throw new Error("No site was named.");
-      sites.set(key, { ...(sites.get(key) ?? { host: key, session: { kind: "none" } }), fetch, siteData });
+      sites.set(key, {
+        ...(sites.get(key) ?? { host: key, session: { kind: "none" }, waitingArticle: null }),
+        fetch,
+        siteData,
+      });
     },
     async signOutSite(host) {
       browserOff();
@@ -1998,6 +2052,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       tellSignIn({ staySignedIn: stay });
     },
     onSignInState: (h) => subscribe(signInHandlers, h),
+    async chooseBrowser() {
+      return "/opt/chromium/chrome";
+    },
     async clearBrowserData() {
       for (const site of sites.values())
         if (site.session.kind === "signedIn" || site.session.kind === "checkPassed") site.session = { kind: "none" };
@@ -2011,7 +2068,13 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (browserDownload && ["downloading", "checking", "unpacking"].includes(browserDownload.stage)) return;
       const from = browserDownload?.stage === "cancelled" ? browserDownload.doneBytes : 0;
       cancelBrowser = false;
-      browserDownload = { stage: "downloading", version: BROWSER_VERSION, doneBytes: from, totalBytes: BROWSER_BYTES, error: null };
+      browserDownload = {
+        stage: "downloading",
+        version: BROWSER_VERSION,
+        doneBytes: from,
+        totalBytes: BROWSER_BYTES,
+        error: null,
+      };
       tellBrowserDownload({});
       for (const share of [0.3, 0.65, 1]) {
         await new Promise((resolve) => setTimeout(resolve, 150));

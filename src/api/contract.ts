@@ -878,7 +878,11 @@ export type SiteView = { host: string, session: SiteSession,
 /**
  * `None`: follows the global choice.
  */
-fetch: SiteFetch | null, siteData: SiteData, };
+fetch: SiteFetch | null, siteData: SiteData, 
+/**
+ * An article from this site waiting for the user, to sign in with.
+ */
+waitingArticle: string | null, };
 
 export type SignInStage = { "kind": "opening" } | { "kind": "waiting" } | { "kind": "fetching" } | { "kind": "done" } | { "kind": "cancelled" } | { "kind": "failed", error: string, };
 
@@ -1043,6 +1047,7 @@ export type Commands = {
   "play_recording_at": { args: { bookId: string; atMs: number }; result: void };
   "choose_books": { args: Record<string, never>; result: string[] | null };
   "choose_opml": { args: Record<string, never>; result: string | null };
+  "choose_browser": { args: Record<string, never>; result: string | null };
   "choose_opml_target": { args: Record<string, never>; result: string | null };
   "import_opml": { args: { path: string }; result: OpmlImport };
   "export_opml": { args: { path: string }; result: number };
