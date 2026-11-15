@@ -1290,6 +1290,8 @@ export function createMockApi() {
     narration: "speech" | "recording" | null = stage === "ready" ? "recording" : null,
   ) => {
     settings.set(id, { ...settingsOf(id), narration });
+    // As the core would report it: a ready recording chosen as the narration is what plays.
+    if (narration === "recording" && stage === "ready") getBook(id).audio = "recording";
     emitSync(recordingIn(id, stage));
     changed();
   };

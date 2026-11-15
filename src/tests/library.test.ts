@@ -2,6 +2,7 @@ import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "../api/mock";
+import App from "../App.vue";
 import LibraryView from "../views/LibraryView.vue";
 import MiniPlayer from "../components/player/MiniPlayer.vue";
 import UiHost from "../components/ui/UiHost.vue";
@@ -58,21 +59,41 @@ it("keeps missing books greyed in the grid and lists books that failed to import
   wrapper.unmount();
 });
 
-it("filters by in progress, ready offline and preparing", async () => {
+it("filters by unread, in progress, can listen and preparing, from the core's fields", async () => {
   const wrapper = await library();
   const chip = (name: string) => wrapper.get(`[role="group"][aria-label="Filter books"] [aria-label^="${name}"]`);
   expect(chip("All").text()).toContain("4");
+  await chip("Unread").trigger("click");
+  expect(titles(wrapper)).toEqual(["An Unfinished Atlas", "The Absent Orchard", "A Map of Quiet Places"]);
   await chip("In progress").trigger("click");
   expect(titles(wrapper)).toEqual(["The Lantern Keeper"]);
   expect(chip("In progress").attributes("aria-pressed")).toBe("true");
-  await chip("Ready offline").trigger("click");
-  expect(titles(wrapper)).toEqual([]);
-  expect(wrapper.text()).toContain("No books here yet");
+  mock.setAudioSourceForTest("book-3", "recording");
+  await flushPromises();
+  await chip("Can listen").trigger("click");
+  expect(titles(wrapper)).toEqual(["The Lantern Keeper", "An Unfinished Atlas"]);
+  expect(wrapper.find('[aria-label^="Preparing"]').exists()).toBe(false);
   await mock.prepareBook("book-1");
   await flushPromises();
   await chip("Preparing").trigger("click");
   expect(titles(wrapper)).toEqual(["A Map of Quiet Places"]);
   expect(wrapper.text()).toContain("Preparing · 3 / 120");
+  wrapper.unmount();
+});
+
+it("says on each card what it has and how far along it is", async () => {
+  const wrapper = await library();
+  const line = (title: string) =>
+    wrapper
+      .findAll(".book-card")
+      .find((card) => card.text().includes(title))!
+      .get(".book-card__status")
+      .text();
+  expect(line("The Lantern Keeper")).toBe("Text + voice · 12%");
+  expect(line("A Map of Quiet Places")).toBe("Text · unread");
+  mock.setAudioSourceForTest("book-3", "recording");
+  await flushPromises();
+  expect(line("An Unfinished Atlas")).toBe("Text + recording · unread");
   wrapper.unmount();
 });
 
@@ -237,26 +258,35 @@ it("offers only removal for a book whose file is missing", async () => {
   wrapper.unmount();
 });
 
-const chip = (wrapper: ReturnType<typeof mount>, name: string) =>
-  wrapper.get(`[role="group"][aria-label="Filter books"] [aria-label^="${name}"]`);
 async function answerPrompt(host: ReturnType<typeof mount>, text: string) {
   const dialog = host.get('[role="dialog"]');
   await dialog.get("input").setValue(text);
   await dialog.get("form").trigger("submit");
   await flushPromises();
 }
+/** The app on Library, with the sidebar's collections. */
+async function app() {
+  useNavigationStore().view = "library";
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  return wrapper;
+}
+const sidebar = (wrapper: ReturnType<typeof mount>) => wrapper.get('[aria-labelledby="sidebar-collections"]');
+const shelf = (wrapper: ReturnType<typeof mount>, name: string) =>
+  sidebar(wrapper)
+    .findAll(".sidebar__collection")
+    .find((b) => b.find(".sidebar__collection-name").text() === name)!;
 
-it("creates a collection, puts a book on it from the card menu, and filters by it", async () => {
+it("creates a collection in the sidebar, puts a book on it from the card menu, and opens it", async () => {
   const create = vi.spyOn(mock, "createCollection"),
     shelve = vi.spyOn(mock, "setBookCollections");
-  const wrapper = await library();
-  const host = mount(UiHost, { attachTo: document.body });
-  await chip(wrapper, "New collection").trigger("click");
+  const wrapper = await app();
+  expect(wrapper.find('[aria-label="Filter books"]').text()).not.toContain("collection");
+  await sidebar(wrapper).get('[aria-label="New collection"]').trigger("click");
   await flushPromises();
-  expect(host.get('[role="dialog"]').text()).toContain("New collection");
-  await answerPrompt(host, "Night reading");
+  await answerPrompt(wrapper, "Night reading");
   expect(create).toHaveBeenCalledWith("Night reading");
-  expect(chip(wrapper, "Night reading").text()).toContain("0");
+  expect(shelf(wrapper, "Night reading").text()).toContain("0");
 
   await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
   const item = document.body.querySelector<HTMLElement>('[role="menuitemcheckbox"][aria-label="Night reading"]')!;
@@ -264,68 +294,51 @@ it("creates a collection, puts a book on it from the card menu, and filters by i
   item.click();
   await flushPromises();
   expect(shelve).toHaveBeenCalledWith("book-0", [expect.any(Number)]);
-  expect(chip(wrapper, "Night reading").text()).toContain("1");
+  expect(shelf(wrapper, "Night reading").text()).toContain("1");
 
-  await chip(wrapper, "Night reading").trigger("click");
+  await shelf(wrapper, "Night reading").trigger("click");
+  await flushPromises();
+  expect(wrapper.get(".library__title").text()).toBe("Night reading");
   expect(titles(wrapper)).toEqual(["The Lantern Keeper"]);
-  await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
-  expect(
-    document.body.querySelector('[role="menuitemcheckbox"][aria-label="Night reading"]')!.getAttribute("aria-checked"),
-  ).toBe("true");
   wrapper.unmount();
-  host.unmount();
 });
 
 it("adds a book to a new collection straight from its card menu", async () => {
-  const wrapper = await library();
-  const host = mount(UiHost, { attachTo: document.body });
+  const wrapper = await app();
   await wrapper.get('[aria-label="More for A Map of Quiet Places"]').trigger("click");
   [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')]
     .find((m) => m.textContent?.trim() === "New collection…")!
     .click();
   await flushPromises();
-  await answerPrompt(host, "Maps");
-  expect(chip(wrapper, "Maps").text()).toContain("1");
+  await answerPrompt(wrapper, "Maps");
+  expect(shelf(wrapper, "Maps").text()).toContain("1");
   wrapper.unmount();
-  host.unmount();
 });
 
-it("renames and deletes the selected collection", async () => {
+it("renames and deletes a collection from the sidebar", async () => {
   const rename = vi.spyOn(mock, "renameCollection"),
     remove = vi.spyOn(mock, "deleteCollection");
   const id = await mock.createCollection("Shelf");
   await mock.setBookCollections("book-1", [id]);
-  const wrapper = await library();
-  const host = mount(UiHost, { attachTo: document.body });
-  await chip(wrapper, "Shelf").trigger("click");
-  await wrapper.get('[aria-label="Rename collection"]').trigger("click");
+  const wrapper = await app();
+  await shelf(wrapper, "Shelf").trigger("click");
   await flushPromises();
-  expect((host.get('[role="dialog"] input').element as HTMLInputElement).value).toBe("Shelf");
-  await answerPrompt(host, "Favourites");
+  await sidebar(wrapper).get('[aria-label="More for Shelf"]').trigger("click");
+  await pickMenuItem("Rename…");
+  expect((wrapper.get('[role="dialog"] input').element as HTMLInputElement).value).toBe("Shelf");
+  await answerPrompt(wrapper, "Favourites");
   expect(rename).toHaveBeenCalledWith(id, "Favourites");
-  expect(chip(wrapper, "Favourites").attributes("aria-pressed")).toBe("true");
+  expect(shelf(wrapper, "Favourites").attributes("aria-current")).toBe("page");
 
-  await wrapper.get('[aria-label="Delete collection"]').trigger("click");
-  await flushPromises();
-  expect(host.get('[role="alertdialog"]').text()).toContain("The books stay in your library");
-  await host.get('[data-confirm="yes"]').trigger("click");
+  await sidebar(wrapper).get('[aria-label="More for Favourites"]').trigger("click");
+  await pickMenuItem("Delete…");
+  expect(wrapper.get('[role="alertdialog"]').text()).toContain("The books stay in your library");
+  await wrapper.get('[data-confirm="yes"]').trigger("click");
   await flushPromises();
   expect(remove).toHaveBeenCalledWith(id);
-  expect(wrapper.find('[aria-label^="Favourites"]').exists()).toBe(false);
-  expect(chip(wrapper, "All").attributes("aria-pressed")).toBe("true");
+  expect(sidebar(wrapper).text()).not.toContain("Favourites");
+  expect(wrapper.get(".library__title").text()).toBe("Library");
   expect(titles(wrapper)).toHaveLength(4);
-  wrapper.unmount();
-  host.unmount();
-});
-
-it("writes the size of a book's audio the way Storage does", async () => {
-  const wrapper = await library();
-  expect(
-    wrapper
-      .findAll(".book-card")
-      .find((card) => card.text().includes("The Lantern Keeper"))!
-      .text(),
-  ).toContain("12% · 2.3 MB");
   wrapper.unmount();
 });
 

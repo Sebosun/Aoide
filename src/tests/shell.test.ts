@@ -94,7 +94,7 @@ it("opens Library filtered to a collection from the sidebar", async () => {
   const night = await library.createCollection("Night reading");
   await library.setBookCollections("book-1", [night]);
   await flushPromises();
-  const link = wrapper.get('nav[aria-label="Main"] [aria-labelledby="sidebar-collections"] button');
+  const link = wrapper.get('nav[aria-label="Main"] [aria-labelledby="sidebar-collections"] .sidebar__collection');
   expect(link.text()).toBe("Night reading1");
   await link.trigger("click");
   await flushPromises();

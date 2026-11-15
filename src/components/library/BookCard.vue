@@ -38,17 +38,18 @@ const RECORDING: Record<SyncStage, string> = {
   missing: "recording missing",
   failed: "recording sync failed",
 };
+/** What the book has, then how far along it is: "Text + voice · 38%", "Text · unread". While it
+ *  is being prepared, or its recording syncs, that progress is shown instead. */
+const HAS = { none: "Text", speech: "Text + voice", recording: "Text + recording" } as const;
 const status = computed(() => {
-  const { prepare, audioBytes, progress, recording } = props.book;
-  // Listening progress only once started, so it is not read as the sync's.
-  if (recording)
+  const { prepare, progress, recording, audio } = props.book;
+  const along = progress ? `${percent.value}%` : "unread";
+  if (prepare && prepare.state !== "done") return describePreparation(preparationStatus(prepare));
+  if (recording && recording !== "ready")
     return progress?.fraction
       ? `${percent.value}% · ${RECORDING[recording]}`
       : RECORDING[recording].replace(/^./, (c) => c.toUpperCase());
-  if (prepare?.state === "done") return `${percent.value}% · ready offline`;
-  if (prepare) return describePreparation(preparationStatus(prepare));
-  if (audioBytes) return `${percent.value}% · ${formatBytes(audioBytes)}`;
-  return progress?.fraction ? `${percent.value}%` : "Not started";
+  return `${HAS[audio]} · ${along}`;
 });
 const ui = useUiStore(),
   library = useLibraryStore(),
@@ -182,8 +183,10 @@ const items = computed<MenuEntry[]>(() => {
       ><span class="book-card__badge book-card__badge--error">Can't open this EPUB</span
       ><span class="book-card__reason" :title="book.status.message">{{ book.status.message }}</span></template
     >
-    <span v-else class="book-card__line"
-      ><Headphones v-if="book.recording" class="book-card__mark" :size="12" aria-hidden="true" />{{ status }}</span
+    <span v-else class="book-card__line book-card__status"
+      ><Headphones v-if="book.audio !== 'none'" class="book-card__mark" :size="12" aria-hidden="true" />{{
+        status
+      }}</span
     >
     <UiMenu
       v-slot="{ toggle, trigger }"

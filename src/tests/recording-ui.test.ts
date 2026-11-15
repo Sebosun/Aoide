@@ -205,7 +205,7 @@ it("tells a book's listening progress apart from its recording's sync on the car
       .at(-1)!
       .text();
   expect(card("A Map of Quiet Places")).toBe("Syncing recording");
-  expect(card("The Lantern Keeper")).toBe("12% · narrated recording");
+  expect(card("The Lantern Keeper")).toBe("Text + recording · 12%");
   wrapper.unmount();
 });
 

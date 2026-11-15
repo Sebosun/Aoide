@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { BookOpen, Library, Pencil, Plus, Search, Trash2, TriangleAlert } from "@lucide/vue";
-import { useCollections } from "../composables/useCollections";
+import { BookOpen, Search, Trash2, TriangleAlert } from "@lucide/vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import UiSkeleton from "../components/ui/UiSkeleton.vue";
 import AddBooksMenu from "../components/library/AddBooksMenu.vue";
 import BookCard from "../components/library/BookCard.vue";
-import { useLibraryStore, type LibraryFilter } from "../stores/library";
+import { useLibraryStore, type BuiltInFilter } from "../stores/library";
 import { usePlayerStore } from "../stores/player";
 import { useReaderStore } from "../stores/reader";
 import { useNavigationStore } from "../stores/navigation";
@@ -16,13 +15,17 @@ const library = useLibraryStore(),
   reader = useReaderStore(),
   player = usePlayerStore(),
   navigation = useNavigationStore();
-const filters: { value: LibraryFilter; label: string }[] = [
+const FILTERS: { value: BuiltInFilter; label: string }[] = [
   { value: "all", label: "All" },
+  { value: "unread", label: "Unread" },
   { value: "progress", label: "In progress" },
-  { value: "offline", label: "Ready offline" },
+  { value: "listen", label: "Can listen" },
   { value: "preparing", label: "Preparing" },
 ];
-const shelves = useCollections();
+/** Preparing is offered only while something is being prepared (or it is the filter). */
+const filters = computed(() =>
+  FILTERS.filter((f) => f.value !== "preparing" || library.counts.preparing > 0 || library.filter === "preparing"),
+);
 const plural = (n: number) => `${n} ${n === 1 ? "book" : "books"}`;
 const importErrors = computed(() => library.imports.filter((r) => r.error));
 /** An unstarted book opens on its page. A started one opens in the reader, and if another book
@@ -76,46 +79,11 @@ const SORTS: { value: LibrarySort; label: string }[] = [
     </section>
 
     <div class="library__head">
-      <h2 class="library__title">Your books</h2>
-      <div v-if="library.books.length" class="library__chips" role="group" aria-label="Filter books">
-        <button
-          v-for="f in filters"
-          :key="f.value"
-          type="button"
-          class="library__chip"
-          :class="{ 'library__chip--on': library.filter === f.value }"
-          :aria-label="f.label"
-          :aria-pressed="library.filter === f.value"
-          @click="library.filter = f.value"
-        >
-          {{ f.label }}<span v-if="f.value === 'all'" class="library__count">{{ library.counts.all }}</span>
-        </button>
-        <button
-          v-for="c in library.collections"
-          :key="c.id"
-          type="button"
-          class="library__chip library__chip--shelf"
-          :class="{ 'library__chip--on': library.filter === `collection:${c.id}` }"
-          :aria-label="`${c.name}, ${plural(c.books)}`"
-          :aria-pressed="library.filter === `collection:${c.id}`"
-          @click="library.filter = `collection:${c.id}`"
-        >
-          {{ c.name }}<span class="library__count">{{ c.books }}</span>
-        </button>
-        <button
-          type="button"
-          class="library__chip library__chip--new"
-          aria-label="New collection"
-          title="Make a collection of books"
-          @click="shelves.create()"
-        >
-          <Plus :size="13" /> New collection
-        </button>
-      </div>
+      <h1 class="library__title">{{ library.collection?.name ?? "Library" }}</h1>
       <span class="library__spacer" />
       <template v-if="library.books.length">
         <label class="library__search"
-          ><Search :size="15" /><input
+          ><Search :size="16" /><input
             v-model="library.query"
             type="search"
             aria-label="Search library"
@@ -133,28 +101,22 @@ const SORTS: { value: LibrarySort; label: string }[] = [
       <AddBooksMenu />
     </div>
     <div
-      v-if="library.collection"
-      class="library__shelf"
-      role="toolbar"
-      :aria-label="`Collection ${library.collection.name}`"
+      v-if="library.books.length && !library.collection"
+      class="library__chips"
+      role="group"
+      aria-label="Filter books"
     >
-      <Library :size="16" aria-hidden="true" /><b>{{ library.collection.name }}</b
-      ><span>{{ plural(library.collection.books) }}</span>
       <button
+        v-for="f in filters"
+        :key="f.value"
         type="button"
-        class="library__shelf-button"
-        aria-label="Rename collection"
-        @click="shelves.rename(library.collection!)"
+        class="library__chip"
+        :class="{ 'library__chip--on': library.filter === f.value }"
+        :aria-label="f.label"
+        :aria-pressed="library.filter === f.value"
+        @click="library.filter = f.value"
       >
-        <Pencil :size="13" /> Rename
-      </button>
-      <button
-        type="button"
-        class="library__shelf-button library__shelf-button--danger"
-        aria-label="Delete collection"
-        @click="shelves.remove(library.collection!)"
-      >
-        <Trash2 :size="13" /> Delete
+        {{ f.label }}<span v-if="f.value === 'all'" class="library__count">{{ library.counts.all }}</span>
       </button>
     </div>
     <ul v-if="!library.ready" class="library__grid" aria-hidden="true">
@@ -194,7 +156,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   align-content: start;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 8px 28px 0;
+  padding: 8px 36px 0;
 }
 .library__alert {
   margin: 0;
@@ -266,86 +228,40 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 .library__title {
-  margin-right: 10px;
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  margin: 0 10px 0 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
-/* Filters (and the collections after them) get their own row under the title and tools. */
 .library__chips {
-  order: 3;
-  flex-basis: 100%;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 6px;
+  margin-top: -8px;
 }
 .library__chip {
-  padding: 6px 13px;
-  border-radius: 999px;
-  background: var(--glass);
-  font-size: 12.5px;
-  font-weight: 600;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 20px;
+  background: var(--page);
+  font-weight: 500;
   color: var(--dim);
+}
+.library__chip:hover:not(.library__chip--on) {
+  color: var(--ink);
 }
 .library__chip--on {
   background: var(--ink);
   color: var(--ground);
+  font-weight: 600;
 }
 .library__count {
-  margin-left: 5px;
+  margin-left: 6px;
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
-}
-.library__chip--new {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: none;
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.library__chip--new:hover {
-  color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--faint);
-}
-.library__shelf {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
-  margin: 0 0 16px;
-  padding: 10px 14px;
-  border-radius: 14px;
-  background: var(--glass);
-  font-size: 13px;
-}
-.library__shelf b {
-  font-weight: 800;
-}
-.library__shelf span {
-  color: var(--dim);
-  margin-right: auto;
-}
-.library__shelf-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 12.5px;
-  color: var(--dim);
-}
-.library__shelf-button:hover {
-  background: var(--wash);
-  color: var(--ink);
-}
-.library__shelf-button--danger:hover {
-  color: var(--accent);
 }
 .library__spacer {
   flex: 1;
@@ -353,19 +269,18 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 .library__search {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: var(--glass);
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 22px;
+  background: var(--page);
   color: var(--dim);
 }
 .library__search input {
-  width: 150px;
+  width: 180px;
   padding: 0;
   border: 0;
   background: none;
-  font-size: 13px;
   color: var(--ink);
 }
 .library__search input:focus {
@@ -376,9 +291,10 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   outline-offset: 3px;
 }
 .library__sort {
-  height: 36px;
-  padding: 0 12px 0 14px;
+  height: 44px;
+  padding: 0 16px;
   font-weight: 600;
+  background: var(--page);
 }
 .library__note {
   color: var(--dim);

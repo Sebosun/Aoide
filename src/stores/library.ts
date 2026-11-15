@@ -4,13 +4,15 @@ import { api } from "../api";
 import { useNavigationStore } from "./navigation";
 import type { BookSummary, Collection, ImportResult, LibrarySort } from "../api/types";
 
-export type BuiltInFilter = "all" | "progress" | "offline" | "preparing";
+export type BuiltInFilter = "all" | "unread" | "progress" | "listen" | "preparing";
 /** A built-in filter, or one collection. */
 export type LibraryFilter = BuiltInFilter | `collection:${number}`;
+/** Each filter reads one field the core sends; none works out state of its own. */
 const filters: Record<BuiltInFilter, (book: BookSummary) => boolean> = {
   all: () => true,
-  progress: (book) => (book.progress?.fraction ?? 0) > 0 && (book.progress?.fraction ?? 0) < 1,
-  offline: (book) => book.prepare?.state === "done",
+  unread: (book) => !book.progress,
+  progress: (book) => Boolean(book.progress) && (book.progress?.fraction ?? 0) < 1,
+  listen: (book) => book.audio !== "none",
   preparing: (book) => Boolean(book.prepare && book.prepare.state !== "done"),
 };
 
