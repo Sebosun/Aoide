@@ -514,6 +514,7 @@ fn encode_aac(from: &Path, to: &Path) -> Result<(), String> {
     } else {
         let detail = String::from_utf8_lossy(&output.stderr);
         let detail: String = detail.trim().chars().take(400).collect();
+        tracing::warn!(event = "proc.exit", program = "ffmpeg", code = output.status.code(), stderr_tail = %detail, "ffmpeg failed");
         Err(format!("ffmpeg could not re-encode the audio: {detail}"))
     }
 }

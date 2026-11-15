@@ -115,7 +115,7 @@ impl Config {
             file.set_section(ENGINE, &profile)
         });
         if let Err(error) = result {
-            eprintln!("aoide: cannot write settings: {error}");
+            tracing::error!(event = "config.save", section = "engine", outcome = "failed", %error, "Cannot save the engine settings");
         }
     }
 
@@ -212,19 +212,19 @@ impl Core {
         use notify::{RecursiveMode, Watcher};
         let dir = lock(&self.config).dir().to_path_buf();
         if let Err(error) = std::fs::create_dir_all(dir.join(aoide_config::THEMES_DIR)) {
-            eprintln!("aoide: cannot create {}: {error}", dir.display());
+            tracing::warn!(event = "config.watch", %error, "Cannot create the themes folder");
             return;
         }
         let (tx, rx) = std::sync::mpsc::channel();
         let mut watcher = match notify::recommended_watcher(tx) {
             Ok(w) => w,
             Err(error) => {
-                eprintln!("aoide: cannot watch the config folder: {error}");
+                tracing::warn!(event = "config.watch", %error, "Cannot watch the settings folder");
                 return;
             }
         };
         if let Err(error) = watcher.watch(&dir, RecursiveMode::Recursive) {
-            eprintln!("aoide: cannot watch the config folder: {error}");
+            tracing::warn!(event = "config.watch", %error, "Cannot watch the settings folder");
             return;
         }
         while rx.recv().is_ok() {

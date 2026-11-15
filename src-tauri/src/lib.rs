@@ -1,5 +1,6 @@
 mod book;
 mod core;
+mod logging;
 mod media;
 mod rename;
 #[cfg(debug_assertions)]
@@ -16,6 +17,12 @@ use crate::core::{
 };
 
 type CoreState<'a> = State<'a, Arc<Core>>;
+
+/// Writes a line from the window to Aoide's log.
+#[tauri::command]
+fn log_ui(entry: logging::UiLog) {
+    logging::ui(entry);
+}
 
 #[tauri::command]
 fn app_info(core: CoreState<'_>) -> AppInfo {
@@ -367,13 +374,38 @@ async fn apply_metadata(
 #[tauri::command]
 async fn export_book(core: CoreState<'_>, book_id: String) -> Result<String, String> {
     let core = Arc::clone(&core);
-    core.export_book(&book_id).await
+    let started = std::time::Instant::now();
+    let result = core.export_book(&book_id).await;
+    log_export("m4b", &book_id, started, &result);
+    result
+}
+
+/// Logs how an export ended.
+fn log_export(
+    kind: &str,
+    book_id: &str,
+    started: std::time::Instant,
+    result: &Result<String, String>,
+) {
+    let book = logging::book(book_id);
+    let took_ms = logging::took(started);
+    match result {
+        Ok(path) => {
+            tracing::info!(event = "export.done", kind, book, took_ms, file = %logging::file(std::path::Path::new(path)), outcome = "ok", "Exported a book")
+        }
+        Err(error) => {
+            tracing::warn!(event = "export.done", kind, book, took_ms, outcome = "failed", %error, "Export failed")
+        }
+    }
 }
 
 #[tauri::command]
 async fn export_read_along(core: CoreState<'_>, book_id: String) -> Result<String, String> {
     let core = Arc::clone(&core);
-    core.export_read_along(&book_id).await
+    let started = std::time::Instant::now();
+    let result = core.export_read_along(&book_id).await;
+    log_export("read-along", &book_id, started, &result);
+    result
 }
 
 #[tauri::command]
@@ -609,6 +641,26 @@ pub fn run() {
             };
             let smoke_home =
                 cfg!(debug_assertions) && std::env::var_os("AOIDE_SMOKE_HOME").is_some();
+            let logs = match std::env::var_os("AOIDE_SMOKE_HOME") {
+                Some(home) if smoke_home => smoke::paths(std::path::Path::new(&home))
+                    .db_path
+                    .with_file_name("logs"),
+                _ => data.join("logs"),
+            };
+            logging::init(&logs);
+            tracing::info!(
+                event = "app.start",
+                version = env!("CARGO_PKG_VERSION"),
+                profile = if cfg!(debug_assertions) {
+                    "debug"
+                } else {
+                    "release"
+                },
+                gpu = aoide_transcribe::models::GPU_BUILD,
+                os = std::env::consts::OS,
+                smoke = smoke_home,
+                "Aoide started"
+            );
             if !smoke_home {
                 // First start after the rename from Folio: bring its folders along.
                 let cache = path.app_cache_dir()?;
@@ -625,7 +677,7 @@ pub fn run() {
                     moves.push((documents.with_file_name(rename::OLD_DOCUMENTS), documents));
                 }
                 for line in rename::move_folders(&moves, &paths.db_path) {
-                    eprintln!("aoide: {line}");
+                    tracing::info!(event = "app.migrate", "{line}");
                 }
             }
             // Debug builds can run against a throwaway folder instead of the real library.
@@ -657,6 +709,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            log_ui,
             app_info,
             list_books,
             import_files,
@@ -741,6 +794,8 @@ pub fn run() {
                 if let Some(core) = app.try_state::<Arc<Core>>() {
                     core.shutdown();
                 }
+                tracing::info!(event = "app.exit", "Aoide stopped");
+                logging::flush();
             }
         });
 }

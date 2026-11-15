@@ -239,7 +239,9 @@ impl Preparation {
             }
             return;
         }
-        let stage = next(self.stage(library, id), Event::Enqueue);
+        let before = self.stage(library, id);
+        let stage = next(before, Event::Enqueue);
+        logged(id, Event::Enqueue, before, stage);
         clear_done(library, id);
         self.queue.push(Entry {
             id: id.into(),
@@ -263,7 +265,9 @@ impl Preparation {
             }
             return;
         }
-        let stage = next(self.stage(library, id), Event::Enqueue);
+        let before = self.stage(library, id);
+        let stage = next(before, Event::Enqueue);
+        logged(id, Event::Enqueue, before, stage);
         self.queue.push(Entry {
             id: id.into(),
             scope: Scope::Chapters(BTreeSet::from([chapter])),
@@ -280,10 +284,9 @@ impl Preparation {
 
     pub fn cancel(&mut self, library: &Library, id: &str) {
         if let Some(position) = self.position(id) {
-            debug_assert_eq!(
-                next(self.queue[position].stage, Event::Cancel),
-                Stage::NotPrepared
-            );
+            let before = self.queue[position].stage;
+            debug_assert_eq!(next(before, Event::Cancel), Stage::NotPrepared);
+            logged(id, Event::Cancel, before, Stage::NotPrepared);
             self.queue.remove(position);
             self.settle();
             self.save(library);
@@ -459,7 +462,7 @@ impl Preparation {
         ] {
             if let Ok(json) = value {
                 if let Err(error) = library.set_setting(key, &json) {
-                    eprintln!("aoide: cannot save the preparation queue: {error}");
+                    tracing::error!(event = "prep.save", %error, "Cannot save the preparation queue");
                 }
             }
         }
@@ -468,9 +471,25 @@ impl Preparation {
 
 /// Applies one event; a plan is kept exactly while the book is queued or being prepared.
 fn apply(entry: &mut Entry, event: Event) {
-    entry.stage = next(entry.stage, event);
+    let before = entry.stage;
+    entry.stage = next(before, event);
+    logged(&entry.id, event, before, entry.stage);
     if !matches!(entry.stage, Stage::Queued | Stage::Preparing) {
         entry.plan = None;
+    }
+}
+
+/// Logs a book's change of stage, if it changed.
+fn logged(id: &str, cause: Event, from: Stage, to: Stage) {
+    if from != to {
+        tracing::info!(
+            event = "prep.stage",
+            book = crate::logging::book(id),
+            cause = ?cause,
+            from = crate::logging::name(from),
+            to = crate::logging::name(to),
+            "Preparation stage changed"
+        );
     }
 }
 

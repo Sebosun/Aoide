@@ -31,6 +31,22 @@ export type ImportResult = { path: string, bookId: string | null, error: string 
 
 export type AppInfo = { libraryFolder: string, };
 
+export type UiLevel = "info" | "warn" | "error";
+
+export type UiLog = { level: UiLevel, 
+/**
+ * A dotted name like Core's own (`ipc.error`, `ui.error`).
+ */
+event: string, msg: string, 
+/**
+ * The command that failed or was slow.
+ */
+command?: string, tookMs?: number, 
+/**
+ * The view on screen.
+ */
+view?: string, };
+
 export type PrepareState = "waiting" | "queued" | "preparing" | "paused" | "done";
 
 export type PrepareView = { state: PrepareState, done: number, total: number, 
@@ -596,6 +612,7 @@ export type CoreEvents = {
 
 /** Every command Core answers, by name, with its arguments and result. */
 export type Commands = {
+  "log_ui": { args: { entry: UiLog }; result: void };
   "app_info": { args: Record<string, never>; result: AppInfo };
   "list_books": { args: Record<string, never>; result: BookSummary[] };
   "import_files": { args: { paths: string[] }; result: ImportResult[] };

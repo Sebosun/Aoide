@@ -51,6 +51,10 @@ souvlaki = { version = "0.8.3", default-features = false, features = ["use_zbus"
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["registry", "fmt", "ansi", "env-filter", "tracing-log", "std", "smallvec"] }
+tracing-log = "0.2"
 
 [dev-dependencies]
 aoide-tts = { path = "../crates/tts", features = ["testing", "ts"] }

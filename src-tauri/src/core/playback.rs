@@ -262,7 +262,7 @@ impl Playback {
                 Ok(Some(read)) => read,
                 Ok(None) => continue,
                 Err(error) => {
-                    eprintln!("aoide: cannot read cached audio {key}: {error}");
+                    tracing::warn!(event = "playback.cache", %key, %error, "Cannot read cached audio");
                     continue;
                 }
             };

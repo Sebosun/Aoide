@@ -8,7 +8,7 @@ description = "Speech recognition with word times for Aoide (whisper.cpp built i
 
 [features]
 # Builds whisper.cpp (needs CMake, a C++ compiler and libclang). Off for `npm test`.
-whisper = ["dep:whisper-rs"]
+whisper = ["dep:whisper-rs", "whisper-rs/tracing_backend"]
 whisper-cuda = ["whisper", "whisper-rs/cuda"]
 whisper-vulkan = ["whisper", "whisper-rs/vulkan"]
 

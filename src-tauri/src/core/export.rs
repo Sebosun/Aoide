@@ -343,6 +343,7 @@ impl Core {
             let _ = std::fs::remove_file(&partial);
             let detail = String::from_utf8_lossy(&finished.stderr);
             let detail: String = detail.trim().chars().take(400).collect();
+            tracing::warn!(event = "proc.exit", program = "ffmpeg", code = finished.status.code(), stderr_tail = %detail, "ffmpeg failed");
             return Err(format!("ffmpeg failed: {detail}"));
         }
         std::fs::rename(&partial, &output).map_err(|e| e.to_string())?;

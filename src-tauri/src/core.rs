@@ -614,7 +614,7 @@ impl Core {
         let library = Library::open(&paths.db_path).map_err(|e| e.to_string())?;
         let config = config::Config::open(&paths.config_dir, &library);
         for problem in config.problems() {
-            eprintln!("aoide: {problem}");
+            tracing::warn!(event = "config.problem", error = %problem, "Problem in the settings");
         }
         let profile = config
             .get::<EngineProfile>(config::ENGINE)
@@ -690,7 +690,7 @@ impl Core {
             tokio::spawn(async move {
                 tokio::time::sleep(Duration::from_secs(8)).await;
                 if let Err(error) = scanner.scan_for_books().await {
-                    eprintln!("aoide: startup scan failed: {error}");
+                    tracing::warn!(event = "discovery.scan", outcome = "failed", %error, "Startup scan for books failed");
                 }
             });
         }
@@ -702,7 +702,7 @@ impl Core {
         let runtime = tokio::runtime::Handle::current();
         tokio::task::spawn_blocking(move || {
             if let Err(error) = scanner.rescan() {
-                eprintln!("aoide: initial scan failed: {error}");
+                tracing::error!(event = "library.scan", outcome = "failed", %error, "First library scan failed");
             }
             // Resume books left queued for preparation in an earlier run, unless turned off.
             if scanner.app_settings().resume_prepare {
@@ -730,7 +730,9 @@ impl Core {
         let name = event.name();
         match event.payload() {
             Ok(value) => self.events.emit(name, value),
-            Err(error) => eprintln!("aoide: cannot send {name}: {error}"),
+            Err(error) => {
+                tracing::error!(event = "app.emit", name, %error, "Cannot send an event to the window")
+            }
         }
     }
 
@@ -759,7 +761,9 @@ impl Core {
 
     /// Scans the library folder, importing new books and marking vanished ones missing.
     pub fn rescan(&self) -> Result<(), String> {
+        let started = Instant::now();
         let files = scan_folder(&self.paths.library_dir).map_err(|e| e.to_string())?;
+        let (mut new, mut read) = (0usize, 0usize);
         let ignored = self.ignored();
         let mut present = Vec::new();
         for file in files {
@@ -780,7 +784,13 @@ impl Core {
                     cover_path: record.cover_path,
                     error: None,
                 },
-                _ => self.describe(&file.path, &file.id),
+                existing => {
+                    if existing.is_none() {
+                        new += 1;
+                    }
+                    read += 1;
+                    self.describe(&file.path, &file.id)
+                }
             };
             lock(&self.library)
                 .upsert_book(&book, now_ms())
@@ -789,6 +799,15 @@ impl Core {
         lock(&self.library)
             .mark_missing_except(&present)
             .map_err(|e| e.to_string())?;
+        tracing::info!(
+            event = "library.scan",
+            outcome = "ok",
+            books = present.len(),
+            new,
+            read,
+            took_ms = crate::logging::took(started),
+            "Scanned the library folder"
+        );
         self.emit(CoreEvent::LibraryChanged);
         Ok(())
     }
@@ -851,19 +870,19 @@ impl Core {
         let mut watcher = match notify::recommended_watcher(tx) {
             Ok(w) => w,
             Err(error) => {
-                eprintln!("aoide: cannot watch library folder: {error}");
+                tracing::warn!(event = "library.watch", %error, "Cannot watch the library folder");
                 return;
             }
         };
         if let Err(error) = watcher.watch(&self.paths.library_dir, RecursiveMode::Recursive) {
-            eprintln!("aoide: cannot watch library folder: {error}");
+            tracing::warn!(event = "library.watch", %error, "Cannot watch the library folder");
             return;
         }
         while rx.recv().is_ok() {
             // Debounce bursts (copies emit many events).
             while rx.recv_timeout(Duration::from_millis(1200)).is_ok() {}
             if let Err(error) = self.rescan() {
-                eprintln!("aoide: rescan failed: {error}");
+                tracing::warn!(event = "library.scan", outcome = "failed", %error, "Library rescan failed");
             }
         }
         drop(watcher);
@@ -919,11 +938,11 @@ impl Core {
             .collect();
         self.set_ignored(&ignored);
         if let Err(error) = self.rescan() {
-            eprintln!("aoide: rescan after import failed: {error}");
+            tracing::warn!(event = "library.scan", outcome = "failed", %error, "Library rescan after an import failed");
         }
         // A copied file the parser could not read is a failed import, not a book.
         let library = lock(&self.library);
-        results
+        let results: Vec<ImportResult> = results
             .into_iter()
             .map(|result| {
                 let failed = result.book_id.as_ref().and_then(|id| {
@@ -941,7 +960,25 @@ impl Core {
                     None => result,
                 }
             })
-            .collect()
+            .collect();
+        drop(library);
+        let failed = results.iter().filter(|r| r.error.is_some()).count();
+        tracing::info!(
+            event = "library.import",
+            ok = results.len() - failed,
+            failed,
+            "Added EPUB files"
+        );
+        for result in results.iter().filter(|r| r.error.is_some()) {
+            tracing::warn!(
+                event = "library.import",
+                file = %crate::logging::file(Path::new(&result.path)),
+                outcome = "failed",
+                error = result.error.as_deref().unwrap_or_default(),
+                "Could not add an EPUB file"
+            );
+        }
+        results
     }
 
     /// Opens the file manager on the book's folder with its EPUB selected.
@@ -1213,9 +1250,11 @@ impl Core {
                     .filter(|v| !v.trim().is_empty());
                 let offered = named.clone().filter(|v| voices.iter().any(|o| &o.id == v));
                 if let (Some(voice), None) = (&named, &offered) {
-                    eprintln!(
-                        "aoide: {} has no voice {voice}; using its default",
-                        state.profile.name
+                    tracing::warn!(
+                        event = "engine.voice",
+                        engine = %state.profile.name,
+                        %voice,
+                        "The engine has no such voice; using its default"
                     );
                 }
                 state.voice = offered.or_else(|| fallback_voice(&voices));
@@ -1249,7 +1288,16 @@ impl Core {
             return Ok(());
         }
         let started = PipeOutput::start(Arc::clone(self.playback.player()), &self.audio)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                tracing::error!(event = "output.start", outcome = "failed", error = %e, "Cannot start the audio output");
+                e.to_string()
+            })?;
+        tracing::info!(
+            event = "output.start",
+            outcome = "ok",
+            latency_ms = started.latency_ms(),
+            "Started the audio output"
+        );
         self.playback.set_latency(started.latency_ms());
         *output = Some(started);
         Ok(())
@@ -1289,13 +1337,15 @@ impl Core {
         if recording && settings.speak_missing {
             // The speech engine speaks what the recording lacks; without it, that is passed over.
             if let Err(error) = self.ensure_voice().await {
-                eprintln!("aoide: {error}");
+                tracing::warn!(event = "engine.voice", %error, "No voice for what the recording lacks");
             }
             self.ensure_model().await;
         }
         let recorded = if recording {
             self.build_recording_target(Arc::clone(&book), &settings)
-                .map_err(|error| eprintln!("aoide: {error}; reading with the speech engine"))
+                .map_err(|error| {
+                    tracing::warn!(event = "narration.fallback", %error, "Reading with the speech engine instead of the recording")
+                })
                 .ok()
         } else {
             None
@@ -1499,7 +1549,7 @@ impl Core {
     /// not offer: make them again now that the list is known.
     async fn replan_with_voices(&self) {
         if let Err(error) = self.restart_session().await {
-            eprintln!("aoide: {error}");
+            tracing::warn!(event = "engine.session", %error, "Could not restart playback with the engine's voices");
         }
         let planned = !lock(&self.preparation).planned_books().is_empty();
         if planned {
@@ -1566,7 +1616,7 @@ impl Core {
                     preparation.planned(&library, &id, plan)
                 }
                 Err(error) => {
-                    eprintln!("aoide: cannot prepare {id}: {error}");
+                    tracing::warn!(event = "prep.plan", book = crate::logging::book(&id), %error, "Cannot plan the book's preparation");
                     preparation.cancel(&library, &id);
                 }
             }
@@ -1889,7 +1939,7 @@ impl Core {
         };
         let saved = lock(&self.config).update(|file| file.set_section(config::PLAYER, &settings));
         if let Err(error) = saved {
-            eprintln!("aoide: {error}");
+            tracing::error!(event = "config.save", section = "player", outcome = "failed", %error, "Cannot save the player settings");
         }
     }
 
@@ -1954,7 +2004,7 @@ impl Core {
                     self.replan(false);
                 }
                 WorkerEvent::Failed { job, error } => {
-                    eprintln!("aoide: generation failed for {}: {error}", job.key);
+                    tracing::warn!(event = "gen.failed", key = %job.key, %error, "Making audio failed");
                     let mut generation = lock(&self.generation);
                     generation.generating_segment_id = None;
                     generation.error = Some(error);
@@ -2003,6 +2053,16 @@ impl Core {
             let mut last = lock(&self.last_player_state);
             let previous = last.as_ref();
             if previous.map(|p| p.status) != Some(state.status) {
+                tracing::info!(
+                    event = "player.status",
+                    book = state.book_id.as_deref().map(crate::logging::book),
+                    from = crate::logging::name(previous.map(|p| p.status)),
+                    to = crate::logging::name(state.status),
+                    chapter = state.chapter,
+                    source = crate::logging::name(state.source),
+                    error = state.error.as_deref(),
+                    "Player status changed"
+                );
                 self.send_media(crate::media::MediaUpdate::Playback(state.status));
             }
             if state.book_id.is_some()
@@ -2025,6 +2085,10 @@ impl Core {
             .as_ref()
             .is_some_and(|output| !output.is_running());
         if playing && dead {
+            tracing::warn!(
+                event = "output.restart",
+                "The audio output stopped during playback; restarting it"
+            );
             if let Err(error) = self.ensure_output() {
                 self.playback.fail(format!("Audio output failed: {error}"));
             }
@@ -2108,13 +2172,35 @@ impl Core {
             command.current_dir(dir);
         }
         match command.spawn() {
-            Ok(child) => lock(&self.engine).launched = Some(child),
-            Err(error) => eprintln!("aoide: could not launch engine: {error}"),
+            Ok(child) => {
+                tracing::info!(
+                    event = "proc.spawn",
+                    program = "engine",
+                    pid = child.id(),
+                    outcome = "ok",
+                    "Launched the speech engine"
+                );
+                lock(&self.engine).launched = Some(child)
+            }
+            Err(error) => {
+                tracing::error!(event = "proc.spawn", program = "engine", outcome = "failed", %error, "Could not launch the speech engine")
+            }
         }
     }
 
     fn emit_engine_status(&self, status: EngineStatusView) {
         let mut last = lock(&self.last_engine_status);
+        let before = last.as_ref().map(|s| s.state);
+        if before != Some(status.state) {
+            tracing::info!(
+                event = "engine.state",
+                engine = %status.profile_name,
+                from = crate::logging::name(before),
+                to = crate::logging::name(status.state),
+                detail = status.detail.as_deref(),
+                "Speech engine state changed"
+            );
+        }
         if last.as_ref() != Some(&status) {
             self.emit(CoreEvent::EngineStatus(status.clone()));
             *last = Some(status);

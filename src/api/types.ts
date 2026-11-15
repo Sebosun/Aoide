@@ -69,6 +69,7 @@ import type {
   SleepView,
   StorageReport,
   Theme,
+  UiLog,
   Voice,
   ChapterMatchView,
   DownloadStage,
@@ -102,6 +103,8 @@ export type Candidate = Omit<Wire.Candidate, "coverPath"> & { coverUrl: string |
 
 /** Everything the UI can ask of the core. Implemented over Tauri IPC and by a browser mock. */
 export interface AoideApi {
+  /** Writes a line to Aoide's log (a failure the window saw). */
+  logUi(entry: UiLog): Promise<void>;
   appInfo(): Promise<AppInfo>;
   listBooks(): Promise<BookSummary[]>;
   /** Copies dropped EPUB files into the library folder and imports them. */

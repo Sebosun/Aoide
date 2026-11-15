@@ -38,6 +38,9 @@ fn contract() -> String {
         super::BookSummary,
         super::ImportResult,
         super::AppInfo,
+        // Logging
+        crate::logging::UiLevel,
+        crate::logging::UiLog,
         // Preparation
         super::preparation::Stage,
         super::preparation::PrepareView,

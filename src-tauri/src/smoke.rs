@@ -72,7 +72,7 @@ pub fn spawn(app: tauri::AppHandle, core: Arc<Core>, seconds: u64) {
         tokio::time::sleep(Duration::from_secs(2)).await;
         let result = run(&core, Scenario::from_env(), seconds).await;
         if let Err(error) = &result {
-            eprintln!("smoke: {error}");
+            tracing::error!(event = "smoke", %error, "Smoke run failed");
         }
         app.exit(if result.is_ok() { 0 } else { 1 });
     });
@@ -86,8 +86,9 @@ async fn run(core: &Arc<Core>, scenario: Scenario, seconds: u64) -> Result<(), S
             network: Default::default(),
             launch: None,
         });
-        eprintln!(
-            "smoke: aligner settings: {:?}",
+        tracing::info!(
+            event = "smoke",
+            "aligner settings: {:?}",
             core.save_app_settings(settings)
         );
     }
@@ -104,7 +105,11 @@ async fn run(core: &Arc<Core>, scenario: Scenario, seconds: u64) -> Result<(), S
         Scenario::Export => {
             let started = Instant::now();
             let result = core.export_book(&id).await;
-            eprintln!("smoke: export after {:?}: {result:?}", started.elapsed());
+            tracing::info!(
+                event = "smoke",
+                "export after {:?}: {result:?}",
+                started.elapsed()
+            );
             result.map(drop)
         }
         Scenario::ReadAlong => read_along(core, &id).await,
@@ -118,7 +123,7 @@ fn book(core: &Arc<Core>) -> Result<String, String> {
         .unwrap_or_default()
         .to_lowercase();
     let books = core.list_books()?;
-    eprintln!("smoke: {} books", books.len());
+    tracing::info!(event = "smoke", "{} books", books.len());
     let book = books
         .iter()
         .find(|b| {
@@ -127,8 +132,9 @@ fn book(core: &Arc<Core>) -> Result<String, String> {
         })
         .ok_or("no matching book")?;
     let view = core.open_book(&book.id);
-    eprintln!(
-        "smoke: opened {:?}: {:?}",
+    tracing::info!(
+        event = "smoke",
+        "opened {:?}: {:?}",
         book.title,
         view.as_ref().map(|v| v.chapters.len())
     );
@@ -140,12 +146,13 @@ fn book(core: &Arc<Core>) -> Result<String, String> {
 async fn attach(core: &Arc<Core>, id: &str, paths: Vec<String>) -> Result<(), String> {
     let started = Instant::now();
     let view = core.attach_recording(id, paths)?;
-    eprintln!("smoke: attached: {:?}", view.stage);
+    tracing::info!(event = "smoke", "attached: {:?}", view.stage);
     loop {
         tokio::time::sleep(Duration::from_secs(10)).await;
         let view = core.recording(id).ok_or("the recording is gone")?;
-        eprintln!(
-            "smoke: {:?} {:?} {} / {} ms",
+        tracing::info!(
+            event = "smoke",
+            "{:?} {:?} {} / {} ms",
             started.elapsed().as_secs(),
             view.stage,
             view.transcribed_ms,
@@ -163,7 +170,7 @@ async fn attach(core: &Arc<Core>, id: &str, paths: Vec<String>) -> Result<(), St
         }
     }
     if let Ok(report) = core.sync_report(id) {
-        eprintln!("smoke: summary {:?}", report.summary);
+        tracing::info!(event = "smoke", "summary {:?}", report.summary);
     }
     Ok(())
 }
@@ -172,10 +179,11 @@ async fn discover(core: &Arc<Core>, details: bool) -> Result<(), String> {
     for round in 1..=2 {
         let started = Instant::now();
         let found = core.scan_for_books().await?;
-        eprintln!("smoke: scan {round} took {:?}", started.elapsed());
+        tracing::info!(event = "smoke", "scan {round} took {:?}", started.elapsed());
         for c in &found {
-            eprintln!(
-                "smoke:   {:10?} {:?} by {:?} x{} cover={} err={:?}",
+            tracing::info!(
+                event = "smoke",
+                "  {:10?} {:?} by {:?} x{} cover={} err={:?}",
                 c.status,
                 c.title,
                 c.authors,
@@ -194,13 +202,15 @@ async fn discover(core: &Arc<Core>, details: bool) -> Result<(), String> {
     };
     if details {
         let ids = new().into_iter().map(|c| c.id).collect();
-        eprintln!(
-            "smoke: details: {:?}",
+        tracing::info!(
+            event = "smoke",
+            "details: {:?}",
             core.fetch_discovered_details(ids).await
         );
         for c in new() {
-            eprintln!(
-                "smoke:   suggestion for {:?}: {:?}",
+            tracing::info!(
+                event = "smoke",
+                "  suggestion for {:?}: {:?}",
                 c.title,
                 c.suggestion.as_ref().map(|m| (&m.title, &m.key))
             );
@@ -214,16 +224,25 @@ async fn discover(core: &Arc<Core>, details: bool) -> Result<(), String> {
             pair_audiobook: false,
         })
         .collect();
-    eprintln!("smoke: import: {:?}", core.import_discovered(choices).await);
+    tracing::info!(
+        event = "smoke",
+        "import: {:?}",
+        core.import_discovered(choices).await
+    );
     let titles: Vec<String> = core
         .list_books()
         .unwrap_or_default()
         .into_iter()
         .map(|b| b.title)
         .collect();
-    eprintln!("smoke: library now: {titles:?}");
+    tracing::info!(event = "smoke", "library now: {titles:?}");
     for c in core.discovered_books().unwrap_or_default() {
-        eprintln!("smoke:   after import {:10?} {:?}", c.status, c.title);
+        tracing::info!(
+            event = "smoke",
+            "  after import {:10?} {:?}",
+            c.status,
+            c.title
+        );
     }
     Ok(())
 }
@@ -233,9 +252,12 @@ async fn prepare(core: &Arc<Core>, id: &str, seconds: u64) -> Result<(), String>
     for t in 0..seconds {
         tokio::time::sleep(Duration::from_secs(1)).await;
         let g = core.generation_state();
-        eprintln!(
-            "smoke: t={t:>2}s preparing={:?} gen={:?} err={:?}",
-            g.preparing, g.generating_segment_id, g.error
+        tracing::info!(
+            event = "smoke",
+            "t={t:>2}s preparing={:?} gen={:?} err={:?}",
+            g.preparing,
+            g.generating_segment_id,
+            g.error
         );
     }
     core.cancel_prepare(id);
@@ -252,8 +274,9 @@ async fn read_along(core: &Arc<Core>, id: &str) -> Result<(), String> {
     }
     let started = Instant::now();
     let result = core.export_read_along(id).await;
-    eprintln!(
-        "smoke: read-along export after {:?}: {result:?}",
+    tracing::info!(
+        event = "smoke",
+        "read-along export after {:?}: {result:?}",
         started.elapsed()
     );
     result.map(drop)
@@ -266,34 +289,38 @@ async fn play(
     seconds: u64,
 ) -> Result<(), String> {
     if let Err(error) = core.play(id, chapter, None).await {
-        eprintln!("smoke: play failed: {error}");
+        tracing::warn!(event = "smoke", "play failed: {error}");
     }
     let started = Instant::now();
     while started.elapsed().as_secs() < seconds {
         tokio::time::sleep(Duration::from_millis(1000)).await;
         let p = core.player_state();
         let g = core.generation_state();
-        eprintln!(
-            "smoke: t={:>2}s {:?} seg={:?} word={:?} frac={:.3} | gen={:?} buffered={}ms pending={} err={:?}",
+        tracing::info!(event = "smoke", "t={:>2}s {:?} seg={:?} word={:?} frac={:.3} | gen={:?} buffered={}ms pending={} err={:?}",
             started.elapsed().as_secs(), p.status, p.segment_id, p.word_index, p.chapter_fraction,
             g.generating_segment_id, g.buffered_ahead_ms, g.pending, g.error
         );
     }
     match core.add_bookmark(id, "smoke note") {
-        Ok(mark) => eprintln!(
-            "smoke: bookmark {:?} at {:?}: {:?}",
-            mark.id, mark.segment_id, mark.excerpt
+        Ok(mark) => tracing::info!(
+            event = "smoke",
+            "bookmark {:?} at {:?}: {:?}",
+            mark.id,
+            mark.segment_id,
+            mark.excerpt
         ),
-        Err(error) => eprintln!("smoke: bookmark failed: {error}"),
+        Err(error) => tracing::warn!(event = "smoke", "bookmark failed: {error}"),
     }
     core.stop();
     tokio::time::sleep(Duration::from_millis(200)).await;
     match core.listening_stats() {
-        Ok(stats) => eprintln!(
-            "smoke: listened total {} ms, days {:?}",
-            stats.total_ms, stats.by_day
+        Ok(stats) => tracing::info!(
+            event = "smoke",
+            "listened total {} ms, days {:?}",
+            stats.total_ms,
+            stats.by_day
         ),
-        Err(error) => eprintln!("smoke: stats failed: {error}"),
+        Err(error) => tracing::warn!(event = "smoke", "stats failed: {error}"),
     }
     Ok(())
 }

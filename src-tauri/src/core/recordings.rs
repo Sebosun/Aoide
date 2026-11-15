@@ -381,6 +381,18 @@ impl Recordings {
         let Some(work) = lock(&self.state).next_work() else {
             return false;
         };
+        let (kind, book) = match &work {
+            Work::Check(id) => ("check", id),
+            Work::Match(id) => ("match", id),
+            Work::Transcribe(id) => ("transcribe", id),
+            Work::Promote(id) => ("promote", id),
+        };
+        tracing::debug!(
+            event = "sync.work",
+            kind,
+            book = crate::logging::book(book),
+            "Sync work picked"
+        );
         let (id, result) = match work {
             Work::Check(id) => {
                 let result = self.check_recording(host, &id);
@@ -400,7 +412,7 @@ impl Recordings {
             }
         };
         if let Err(error) = result {
-            eprintln!("aoide: syncing {id}: {error}");
+            tracing::warn!(event = "sync.error", book = crate::logging::book(&id), %error, "Sync work failed");
             lock(&self.state).reader = None;
             if self.sync_event(host, &id, SyncEvent::Fail, Some(&error)) == SyncStage::Failed {
                 host.checked(&id, false);
@@ -431,6 +443,16 @@ impl Recordings {
             }
             (before, live.stage)
         };
+        if before != after {
+            tracing::info!(
+                event = "sync.stage",
+                book = crate::logging::book(id),
+                cause = ?event,
+                from = before.name(),
+                to = after.name(),
+                "Sync stage changed"
+            );
+        }
         if before != after || error.is_some() {
             let error = (after == SyncStage::Failed).then_some(error).flatten();
             let _ =
@@ -553,7 +575,30 @@ impl Recordings {
             }
         }
         lock(&self.state).transcriber = None;
+        let started = Instant::now();
         let transcriber: Arc<dyn Transcriber> = Arc::from((self.transcribers)(&choice)?);
+        match &choice {
+            TranscriberChoice::Whisper {
+                model,
+                use_gpu,
+                threads,
+            } => tracing::info!(
+                event = "sync.transcriber",
+                engine = "whisper",
+                model = %crate::logging::file(model),
+                gpu = use_gpu,
+                threads,
+                took_ms = crate::logging::took(started),
+                "Loaded the speech recognition"
+            ),
+            TranscriberChoice::Server { model, .. } => tracing::info!(
+                event = "sync.transcriber",
+                engine = "server",
+                %model,
+                took_ms = crate::logging::took(started),
+                "Using a recognition server"
+            ),
+        }
         lock(&self.state).transcriber = Some((choice, Arc::clone(&transcriber)));
         Ok(transcriber)
     }
@@ -607,7 +652,14 @@ impl Recordings {
                     .map_err(|e| e.to_string())?;
                 let words = match hear(&samples) {
                     Ok(words) => words,
-                    Err(aoide_transcribe::Error::Aborted) => return Ok(()),
+                    Err(aoide_transcribe::Error::Aborted) => {
+                        tracing::info!(
+                            event = "sync.abort",
+                            book = crate::logging::book(id),
+                            "Stopped during the quick check"
+                        );
+                        return Ok(());
+                    }
                     Err(error) => return Err(error.to_string()),
                 };
                 let heard: Vec<HeardWord> = words
@@ -622,6 +674,14 @@ impl Recordings {
                     found += 1;
                 }
             }
+            tracing::info!(
+                event = "sync.check",
+                book = crate::logging::book(id),
+                found,
+                of = SAMPLE_AT.len(),
+                passed = found >= 2,
+                "Quick check heard the samples"
+            );
             if found < 2 {
                 self.sync_event(host, id, SyncEvent::SampleFailed, None);
                 host.checked(id, false);
@@ -633,6 +693,7 @@ impl Recordings {
             host.checked(id, true);
         }
 
+        let block_started = Instant::now();
         let target = (done + BLOCK_MS).min(total);
         let read_to = (target + CUT_SLACK_MS).min(total);
         decoded.cover(done..read_to)?;
@@ -666,6 +727,12 @@ impl Recordings {
         let words = match heard {
             Ok(words) => words,
             Err(aoide_transcribe::Error::Aborted) => {
+                tracing::info!(
+                    event = "sync.abort",
+                    book = crate::logging::book(id),
+                    from_ms = done,
+                    "Stopped during a block"
+                );
                 lock(&self.state).reader = Some((id.to_owned(), decoded));
                 return Ok(());
             }
@@ -693,6 +760,18 @@ impl Recordings {
                 },
             )
             .map_err(|e| e.to_string())?;
+        let took_ms = crate::logging::took(block_started);
+        tracing::info!(
+            event = "sync.block",
+            book = crate::logging::book(id),
+            from_ms = done,
+            to_ms = end,
+            of_ms = total,
+            words = words_json.len(),
+            took_ms,
+            rtf = (end - done) as f64 / took_ms.max(1) as f64,
+            "Transcribed a block"
+        );
         {
             let mut state = lock(&self.state);
             if let Some(live) = state.live.get_mut(id) {
@@ -737,8 +816,18 @@ impl Recordings {
         let book = host.load_book(id)?;
         let texts: Vec<&str> = book.chapters.iter().map(|c| c.text.as_str()).collect();
         let heard = self.heard_words(id)?;
+        let started = Instant::now();
         let SyncMap { chapters, report } = match_book(&texts, &heard);
         let review = poor(&report) && !row.accepted;
+        tracing::info!(
+            event = "sync.match",
+            book = crate::logging::book(id),
+            words = report.words,
+            matched_pct = report.matched_words * 100 / report.words.max(1),
+            review,
+            took_ms = crate::logging::took(started),
+            "Matched the transcript to the text"
+        );
         lock(&self.library)
             .save_sync_map(
                 &BookId(id.into()),
@@ -1152,8 +1241,22 @@ impl Recordings {
         if !lock(&self.state).downloading.insert(id.to_owned()) {
             return Ok(());
         }
+        let started = Instant::now();
         let result = self.fetch_model(host, model, &model.url()).await;
         lock(&self.state).downloading.remove(id);
+        match &result {
+            Ok(()) => tracing::info!(
+                event = "model.download",
+                model = id,
+                bytes = model.bytes,
+                took_ms = crate::logging::took(started),
+                outcome = "ok",
+                "Downloaded a recognition model"
+            ),
+            Err(error) => {
+                tracing::warn!(event = "model.download", model = id, took_ms = crate::logging::took(started), outcome = "failed", %error, "Downloading a recognition model failed")
+            }
+        }
         let (stage, error) = match &result {
             Ok(()) => (DownloadStage::Done, None),
             Err(error) => (DownloadStage::Failed, Some(error.clone())),

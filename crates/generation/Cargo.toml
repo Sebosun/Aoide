@@ -9,6 +9,7 @@ description = "Playhead-first generation planning and the serial TTS worker"
 [dependencies]
 aoide-tts = { path = "../tts" }
 tokio = { version = "1", features = ["sync", "time", "rt", "macros"] }
+tracing = "0.1"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["sync", "time", "rt", "macros", "test-util", "rt-multi-thread"] }

@@ -2,17 +2,37 @@ import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type * as Wire from "./contract";
 import type { Commands, CoreEvents } from "./contract";
-import type { AoideApi, Candidate } from "./types";
+import type { AoideApi, Candidate, UiLog } from "./types";
+import { report } from "../log";
 
 const candidates = (list: Wire.Candidate[]): Candidate[] => list.map(({ coverPath, ...c }) => ({ ...c, coverUrl: coverPath ? convertFileSrc(coverPath) : null }));
-/** Calls one of Core's commands; its name, arguments and result come from the contract. */
-const call = <K extends keyof Commands>(name: K, ...args: Commands[K]["args"] extends Record<string, never> ? [] : [Commands[K]["args"]]) =>
-  invoke<Commands[K]["result"]>(name, ...args);
+/** Jobs that log their own time in Core, or wait for the user (a file chooser). */
+const LONG = new Set<keyof Commands>(["import_files", "rescan_library", "export_book", "export_read_along", "scan_for_books", "scan_for_audiobooks", "import_discovered", "download_model", "choose_books", "choose_audio"]);
+/** Answers slower than this go to the log. */
+const SLOW_MS = 2_000;
+const writeLog = (entry: UiLog) => invoke<void>("log_ui", { entry });
+
+/** Calls one of Core's commands; its name, arguments and result come from the contract.
+ *  A failure (other than a cancelled scan) or a slow answer goes to Aoide's log too. */
+async function call<K extends keyof Commands>(name: K, ...args: Commands[K]["args"] extends Record<string, never> ? [] : [Commands[K]["args"]]): Promise<Commands[K]["result"]> {
+  if (name === "log_ui") return invoke(name, ...args);
+  const start = Date.now();
+  try {
+    const result = await invoke<Commands[K]["result"]>(name, ...args);
+    const tookMs = Date.now() - start;
+    if (tookMs > SLOW_MS && !LONG.has(name)) report({ level: "info", event: "ipc.slow", msg: "Core answered slowly", command: name, tookMs }, writeLog);
+    return result;
+  } catch (error) {
+    if (!String(error).includes("cancelled")) report({ level: "warn", event: "ipc.error", msg: String(error), command: name, tookMs: Date.now() - start }, writeLog);
+    throw error;
+  }
+}
 /** Subscribes to one of Core's events; the name and payload type come from the contract. */
 const on = <K extends keyof CoreEvents>(name: K, handler: (payload: CoreEvents[K]) => void) =>
   listen<CoreEvents[K]>(name, event => handler(event.payload));
 
 export const tauriApi: AoideApi = {
+  logUi: entry => call("log_ui", { entry }),
   appInfo: () => call("app_info"),
   listBooks: async () => (await call("list_books")).map(({ coverPath, ...book }) => ({ ...book, coverUrl: coverPath ? convertFileSrc(coverPath) : null })),
   importFiles: paths => call("import_files", { paths }),

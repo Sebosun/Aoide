@@ -136,10 +136,11 @@ impl Core {
             }) {
                 Ok(aligner) => aligner,
                 Err(error) => {
-                    eprintln!("aoide: aligner settings: {error}");
+                    tracing::warn!(event = "align.settings", %error, "Aligner settings are not usable");
                     continue;
                 }
             };
+            let started = Instant::now();
             let aligned = match &item {
                 Alignable::Speech { book, index, key } => {
                     self.align_speech(&aligner, book, *index, key).await
@@ -150,9 +151,11 @@ impl Core {
             };
             match aligned {
                 Ok(()) => {
+                    tracing::debug!(event = "align.request", %key, took_ms = crate::logging::took(started), outcome = "ok", "Aligned words");
                     lock(&self.aligning).done.insert(key);
                 }
                 Err(aoide_aligner::Error::Unavailable(_) | aoide_aligner::Error::Timeout) => {
+                    tracing::info!(event = "align.offline", %key, "The aligner is not answering; trying again later");
                     // Try again later; start the service if Aoide may.
                     lock(&self.aligning).queue.push_front((key, item));
                     offline_until = Some(Instant::now() + RETRY);
@@ -161,7 +164,7 @@ impl Core {
                     }
                 }
                 Err(error) => {
-                    eprintln!("aoide: alignment failed for {key}: {error}");
+                    tracing::warn!(event = "align.error", %key, %error, "Alignment failed");
                     lock(&self.aligning).done.insert(key);
                 }
             }
@@ -285,8 +288,19 @@ impl Core {
             command.current_dir(dir);
         }
         match command.spawn() {
-            Ok(child) => aligning.child = Some(child),
-            Err(error) => eprintln!("aoide: could not launch the aligner: {error}"),
+            Ok(child) => {
+                tracing::info!(
+                    event = "proc.spawn",
+                    program = "aligner",
+                    pid = child.id(),
+                    outcome = "ok",
+                    "Launched the aligner"
+                );
+                aligning.child = Some(child)
+            }
+            Err(error) => {
+                tracing::error!(event = "proc.spawn", program = "aligner", outcome = "failed", %error, "Could not launch the aligner")
+            }
         }
     }
 

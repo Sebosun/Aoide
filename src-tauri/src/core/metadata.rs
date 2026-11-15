@@ -70,7 +70,23 @@ impl Core {
                 }
             }
         }
-        let matches = client()?.search(query).await.map_err(|e| e.to_string())?;
+        let started = std::time::Instant::now();
+        let searched = client()?.search(query).await;
+        match &searched {
+            Ok(found) => tracing::debug!(
+                event = "http",
+                service = "openlibrary",
+                op = "search",
+                found = found.len(),
+                took_ms = crate::logging::took(started),
+                outcome = "ok",
+                "Searched Open Library"
+            ),
+            Err(error) => {
+                tracing::warn!(event = "http", service = "openlibrary", op = "search", took_ms = crate::logging::took(started), outcome = "failed", %error, "Open Library search failed")
+            }
+        }
+        let matches = searched.map_err(|e| e.to_string())?;
         if let Ok(json) = serde_json::to_string(&matches) {
             let _ = lock(&self.library).store_lookup(&cache_key, &json, now_ms());
         }

@@ -296,6 +296,7 @@ impl Core {
         let recognition_changed = before.recognition != settings.recognition;
         let verify_turned_on = settings.verify_audiobooks && !before.verify_audiobooks;
         lock(&self.config).update(|file| file.set_section(super::config::APP, &settings))?;
+        tracing::info!(event = "config.saved", section = "app", changed = %changed_keys(&before, &settings), "Saved the app settings");
         if recognition_changed {
             // Another model size or a recognition server may be what a waiting sync needs.
             self.models_changed();
@@ -371,6 +372,12 @@ impl Core {
         if evicted_keys.is_empty() {
             return;
         }
+        tracing::info!(
+            event = "cache.evict",
+            segments = evicted_keys.len(),
+            books = evicted_books.len(),
+            "Deleted the oldest made audio to keep the cache within its limit"
+        );
         self.playback.audio_lost(&evicted_keys);
         lock(&self.worker).forget(evicted_keys.iter().cloned());
         {
@@ -379,6 +386,21 @@ impl Core {
         }
         self.emit(CoreEvent::LibraryChanged);
     }
+}
+
+/// The names of the settings that differ between `before` and `after` (never their values).
+fn changed_keys(before: &impl Serialize, after: &impl Serialize) -> String {
+    let (Ok(serde_json::Value::Object(before)), Ok(serde_json::Value::Object(after))) =
+        (serde_json::to_value(before), serde_json::to_value(after))
+    else {
+        return String::new();
+    };
+    after
+        .iter()
+        .filter(|(key, value)| before.get(*key) != Some(value))
+        .map(|(key, _)| key.as_str())
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 #[cfg(test)]

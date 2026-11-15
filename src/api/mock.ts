@@ -230,6 +230,7 @@ export function createMockApi() {
   const run = () => { halt(); timer = setInterval(tick, 320 / state.speed); };
   const subscribe = async <T>(set: Set<(s: T) => void>, handler: (s: T) => void) => { set.add(handler); return () => { set.delete(handler); }; };
   const api: AoideApi = {
+    async logUi() {},
     async appInfo() { return { libraryFolder: "~/Documents/Aoide/Books" }; },
     async listBooks() { return structuredClone(books); },
     async importFiles(paths) { return paths.map(path => ({ path, bookId: null, error: "Browser preview cannot read local paths. Add EPUBs in the desktop app." })); },

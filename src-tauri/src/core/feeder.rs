@@ -99,7 +99,7 @@ fn run(shared: Arc<(Mutex<Queue>, Condvar)>, mut reader: Reader, rate: u32) {
         loop {
             let to = (from + CHUNK_MS).min(audio.end);
             let samples = reader.read(from..to, rate).unwrap_or_else(|error| {
-                eprintln!("aoide: cannot read the recording: {error}");
+                tracing::warn!(event = "feeder.read", %error, "Cannot read the recording");
                 Vec::new()
             });
             let last = to >= audio.end;

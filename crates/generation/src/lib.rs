@@ -334,12 +334,45 @@ async fn run(
         }
         let item = next.expect("checked above");
         let _ = events.send(WorkerEvent::Started(item.job.clone()));
+        let started = Instant::now();
         let outcome = match engine.synthesize(&item.request).await {
             Ok(synthesis) => store.store(&item.job, synthesis).await,
             Err(error) => Err(error.to_string()),
         };
+        let took_ms = started.elapsed().as_millis() as u64;
+        let book = item.job.book.get(..12).unwrap_or(&item.job.book);
+        match &outcome {
+            Ok(audio_ms) => tracing::debug!(
+                event = "gen.request",
+                book,
+                index = item.job.index,
+                reason = ?item.job.reason,
+                chars = item.request.text.chars().count(),
+                audio_ms,
+                took_ms,
+                outcome = "ok",
+                "Made audio"
+            ),
+            Err(error) => tracing::warn!(
+                event = "gen.request",
+                book,
+                index = item.job.index,
+                reason = ?item.job.reason,
+                took_ms,
+                outcome = "failed",
+                %error,
+                "Making audio failed"
+            ),
+        }
         match outcome {
             Ok(duration_ms) => {
+                if backoff != Backoff::Working {
+                    tracing::info!(
+                        event = "gen.backoff",
+                        to = "working",
+                        "The speech engine answers again"
+                    );
+                }
                 backoff = backoff.next(BackoffEvent::Succeeded, &options);
                 done.insert(item.job.key.clone());
                 let _ = events.send(WorkerEvent::Finished {
@@ -350,6 +383,15 @@ async fn run(
             Err(error) => {
                 let at = Instant::now();
                 backoff = backoff.next(BackoffEvent::Failed { at }, &options);
+                if let Backoff::Waiting { streak, until } = backoff {
+                    tracing::info!(
+                        event = "gen.backoff",
+                        to = "waiting",
+                        streak,
+                        wait_ms = until.saturating_duration_since(at).as_millis() as u64,
+                        "Waiting before asking the speech engine again"
+                    );
+                }
                 failed.insert(item.job.key.clone(), at + options.max_failure_backoff);
                 let _ = events.send(WorkerEvent::Failed {
                     job: item.job,

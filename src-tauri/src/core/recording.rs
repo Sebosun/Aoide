@@ -556,7 +556,7 @@ impl Core {
                 }
             });
         if let Err(error) = spawned {
-            eprintln!("aoide: cannot start syncing: {error}");
+            tracing::error!(event = "sync.runner", %error, "Cannot start the sync job");
         }
     }
 
@@ -664,7 +664,9 @@ impl Core {
         let settings = self.book_settings(id);
         let target = match self.build_recording_target(book, &settings) {
             Ok(target) => target,
-            Err(error) => return eprintln!("aoide: following the sync of {id}: {error}"),
+            Err(error) => {
+                return tracing::warn!(event = "sync.follow", book = crate::logging::book(id), %error, "Cannot follow the sync")
+            }
         };
         if self.playback.follow(id, target) == Some(true) {
             self.replan(false);
@@ -683,19 +685,23 @@ impl Core {
         settings: &BookSettings,
     ) -> Result<Target, String> {
         let (recording, synced) = self.recordings.playable(self, &book)?;
-        let narration =
-            super::narration::NarrationPlan::recording(&book, recording, synced, || {
+        let narration = super::narration::NarrationPlan::recording(
+            &book,
+            recording,
+            synced,
+            || {
                 settings
                     .speak_missing
                     .then(|| {
                         self.speech_plan(&book)
                             .map_err(|e| {
-                                eprintln!("aoide: cannot speak what the recording lacks: {e}")
+                                tracing::warn!(event = "narration.speak_missing", error = %e, "Cannot speak what the recording lacks")
                             })
                             .ok()
                     })
                     .flatten()
-            });
+            },
+        );
         Ok(Target { book, narration })
     }
 }

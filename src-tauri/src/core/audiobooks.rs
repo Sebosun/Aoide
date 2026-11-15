@@ -188,6 +188,7 @@ impl Core {
                     .find(|m| m.book_id == choice.book_id)
                     .and_then(|m| m.candidates.get(choice.candidate))
                     .map(|c| c.paths.clone());
+                let book = crate::logging::book(&choice.book_id).to_owned();
                 let error = match paths {
                     None => Some("no such audiobook match".to_owned()),
                     Some(paths) => match self.attach_recording(&choice.book_id, paths) {
@@ -198,6 +199,10 @@ impl Core {
                         Err(error) => Some(error),
                     },
                 };
+                match &error {
+                    None => tracing::info!(event = "audiobooks.pair", %book, candidate = choice.candidate, outcome = "ok", "Paired a found audiobook"),
+                    Some(error) => tracing::warn!(event = "audiobooks.pair", %book, candidate = choice.candidate, outcome = "failed", %error, "Could not pair a found audiobook"),
+                }
                 PairOutcome {
                     book_id: choice.book_id,
                     error,
@@ -254,6 +259,16 @@ impl Core {
         };
         let before = found.stage;
         found.stage = next(before, event, found.candidates.len());
+        if found.stage != before {
+            tracing::info!(
+                event = "match.stage",
+                book = crate::logging::book(id),
+                cause = ?event,
+                from = crate::logging::name(before),
+                to = crate::logging::name(found.stage),
+                "Audiobook match changed"
+            );
+        }
         found.stage != before
     }
 
@@ -287,7 +302,7 @@ impl Core {
                 Then::Attach(paths) => match self.attach_recording(id, paths) {
                     Ok(_) => return,
                     Err(error) => {
-                        eprintln!("aoide: pairing a found audiobook with {id}: {error}");
+                        tracing::warn!(event = "audiobooks.pair", book = crate::logging::book(id), outcome = "failed", %error, "Could not pair a found audiobook; trying the next");
                         self.match_event(id, MatchEvent::CheckFailed);
                     }
                 },
@@ -362,8 +377,11 @@ impl Core {
 
     fn search_blocking(&self, ids: Option<Vec<String>>, cancel: &AtomicBool) -> Result<(), String> {
         let options = self.audiobook_scan_options();
+        let started = Instant::now();
         let last_emit = Mutex::new(Instant::now());
+        let seen = Mutex::new(aoide_discovery::Progress::default());
         let folder = aoide_discovery::AudiobookFolder::scan(&options, cancel, &|p| {
+            *lock(&seen) = p;
             let mut last = lock(&last_emit);
             if last.elapsed() >= Duration::from_millis(150) {
                 *last = Instant::now();
@@ -378,7 +396,14 @@ impl Core {
                 }));
             }
         });
+        let seen = *lock(&seen);
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            tracing::info!(
+                event = "audiobooks.scan",
+                outcome = "cancelled",
+                took_ms = crate::logging::took(started),
+                "Search for audiobooks cancelled"
+            );
             return Err("cancelled".into());
         }
         // Audio already paired with a book is not offered again.
@@ -438,6 +463,18 @@ impl Core {
             })
             .collect();
         found.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+        tracing::info!(
+            event = "audiobooks.scan",
+            outcome = "ok",
+            roots = options.roots.len(),
+            only_added = ids.is_some(),
+            dirs = seen.dirs,
+            files = seen.files,
+            audio = seen.found,
+            matches = found.len(),
+            took_ms = crate::logging::took(started),
+            "Searched for audiobooks"
+        );
         let mut matches = lock(&self.audiobooks);
         let searched = |id: &str| ids.as_ref().map_or(true, |ids| ids.iter().any(|i| i == id));
         // Matches already under way stay as they are; the ones waiting for the user are

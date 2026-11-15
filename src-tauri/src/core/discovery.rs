@@ -285,6 +285,7 @@ impl Core {
 
     fn scan_blocking(&self, cancel: &AtomicBool) -> Result<(), String> {
         let options = self.scan_options();
+        let started = Instant::now();
         let last_emit = Mutex::new(Instant::now());
         let found = aoide_discovery::find_epubs(&options, cancel, &|p| {
             let mut last = lock(&last_emit);
@@ -365,6 +366,15 @@ impl Core {
         let _ = library.forget_discovered_before(scan_started);
         drop(library);
         let found = (unchanged.len() + records.len()) as u64;
+        tracing::info!(
+            event = "discovery.scan",
+            outcome = "ok",
+            roots = options.roots.len(),
+            epubs = found,
+            read = total,
+            took_ms = crate::logging::took(started),
+            "Searched for EPUBs"
+        );
         self.emit_scan(ScanProgress {
             stage: ScanStage::Done,
             dirs: 0,
@@ -436,7 +446,9 @@ impl Core {
             }
             match self.lookup_query(&query_for(candidate), false).await {
                 Ok(_) => {}
-                Err(error) => eprintln!("aoide: lookup for {id} failed: {error}"),
+                Err(error) => {
+                    tracing::warn!(event = "metadata.lookup", book = crate::logging::book(&id), outcome = "failed", %error, "Online details lookup failed")
+                }
             }
             self.emit(CoreEvent::DiscoveryDetails(id.clone()));
             tokio::time::sleep(LOOKUP_GAP).await;
@@ -514,9 +526,11 @@ impl Core {
         for (candidate, choice) in imported {
             if let (true, Some(suggestion)) = (choice.apply_suggestion, candidate.suggestion) {
                 if let Err(error) = self.apply_metadata(&candidate.id, suggestion).await {
-                    eprintln!(
-                        "aoide: could not apply details to {}: {error}",
-                        candidate.id
+                    tracing::warn!(
+                        event = "metadata.apply",
+                        book = crate::logging::book(&candidate.id),
+                        %error,
+                        "Could not apply online details"
                     );
                 }
             }
@@ -526,6 +540,12 @@ impl Core {
             total,
             current: None,
         }));
+        tracing::info!(
+            event = "discovery.import",
+            chosen = total,
+            failed = results.iter().filter(|r| r.error.is_some()).count(),
+            "Imported found books"
+        );
         Ok(results)
     }
 
