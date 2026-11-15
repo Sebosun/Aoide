@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "../api/mock";
 import LibraryView from "../views/LibraryView.vue";
-import BookDetailsView from "../views/BookDetailsView.vue";
+import ItemView from "../views/ItemView.vue";
 import StatsView from "../views/StatsView.vue";
 import { useLibraryStore } from "../stores/library";
 
@@ -70,7 +70,7 @@ it("says the library is empty once it has loaded with no books", async () => {
 it("shows the book's title at once and placeholders for its details until they load", async () => {
   await useLibraryStore().start();
   const release = hold("bookOverview");
-  const wrapper = mount(BookDetailsView, { props: { bookId: "book-1" }, attachTo: document.body });
+  const wrapper = mount(ItemView, { props: { bookId: "book-1" }, attachTo: document.body });
   await flushPromises();
   expect(wrapper.get("h1").text()).toBe("A Map of Quiet Places");
   expect(placeholder(wrapper, "Loading book details").exists()).toBe(true);

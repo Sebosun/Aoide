@@ -10,7 +10,7 @@ import ReaderView from "./views/ReaderView.vue";
 import StatsView from "./views/StatsView.vue";
 import FindBooksView from "./views/FindBooksView.vue";
 import FindAudiobooksView from "./views/FindAudiobooksView.vue";
-import BookDetailsView from "./views/BookDetailsView.vue";
+import ItemView from "./views/ItemView.vue";
 import UiHost from "./components/ui/UiHost.vue";
 import SettingsDialog from "./components/settings/SettingsDialog.vue";
 import PairRecordingDialog from "./components/recording/PairRecordingDialog.vue";
@@ -153,7 +153,7 @@ function browserDrop(event: DragEvent) {
         <StatsView v-else-if="navigation.view === 'activity'" />
         <FindBooksView v-else-if="navigation.view === 'find'" />
         <FindAudiobooksView v-else-if="navigation.view === 'audiobooks'" />
-        <BookDetailsView
+        <ItemView
           v-else-if="navigation.view === 'item' && navigation.bookId"
           :key="navigation.bookId"
           :book-id="navigation.bookId"

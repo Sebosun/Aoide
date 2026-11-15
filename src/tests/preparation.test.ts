@@ -2,7 +2,7 @@ import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "../api/mock";
-import BookDetailsView from "../views/BookDetailsView.vue";
+import ItemView from "../views/ItemView.vue";
 import { describePreparation, preparationStatus, runPrepareAction } from "../preparation";
 import { useUiStore } from "../stores/ui";
 import { useLibraryStore } from "../stores/library";
@@ -94,7 +94,7 @@ it("shows a queued book as queued on its page, not as preparing", async () => {
   await mock.prepareBook("book-1");
   await mock.prepareBook("book-0");
   await useLibraryStore().start(); // App.vue starts it.
-  const wrapper = mount(BookDetailsView, { props: { bookId: "book-0" }, attachTo: document.body });
+  const wrapper = mount(ItemView, { props: { bookId: "book-0" }, attachTo: document.body });
   await flushPromises();
   expect(wrapper.text()).toContain("Queued · 3 / 120");
   expect(wrapper.text()).not.toContain("Preparing");
@@ -114,7 +114,7 @@ it("names the chapters of a chapter-only preparation and still offers the whole 
 it("prepares one chapter from its row in the contents and shows each chapter's audio", async () => {
   const prepare = vi.spyOn(mock, "prepareChapter");
   await useLibraryStore().start();
-  const wrapper = mount(BookDetailsView, { props: { bookId: "book-0" }, attachTo: document.body });
+  const wrapper = mount(ItemView, { props: { bookId: "book-0" }, attachTo: document.body });
   await flushPromises();
   const rows = wrapper.findAll('[aria-label="Contents"] li');
   expect(rows[0].text()).toContain("Ready");

@@ -84,9 +84,10 @@ async function open() {
 .continue-card--hero {
   background: var(--hero);
 }
-.continue-card__cover {
-  flex: 0 0 106px;
-  max-width: 106px;
+.continue-card .continue-card__cover {
+  flex: none;
+  width: 106px;
+  padding: 10px;
   align-self: flex-start;
   border-radius: 8px;
   box-shadow: 0 10px 22px -6px var(--shadow);
