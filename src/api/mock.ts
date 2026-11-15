@@ -1,5 +1,8 @@
 import type {
   ArticleView,
+  EntryView,
+  FeedView,
+  SubscribeResult,
   ProblemView,
   AudiobookMatch,
   AudiobookSuggestion,
@@ -40,6 +43,7 @@ import fixtureRecording from "../tests/fixtures/recording.json";
 import fixtureHome from "../tests/fixtures/home.json";
 import fixtureAudiobook from "../tests/fixtures/audiobook.json";
 import fixtureArticle from "../tests/fixtures/article.json";
+import fixtureFeeds from "../tests/fixtures/feeds.json";
 
 /** The views the core made for the preview's books (see src-tauri/src/core/fixtures.rs), with
  *  covers as the window sees them. */
@@ -559,6 +563,54 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     } as Record<string, ArticleView["stage"]>
   )[query.get("article") ?? ""];
   if (previewArticle) addArticle(previewArticle);
+  /** Feeds, like the app (core/feeds.rs): the subscriptions and entries the core made for the
+   *  preview (`feeds.json`, times relative to now). `?feeds=empty` has none; `?feeds=failing`
+   *  adds one that stopped answering. Every entry opens as the preview's article (book-6),
+   *  which stays off the library's lists (on the feed shelf) until it is saved. */
+  const feedHandlers = new Set<() => void>();
+  const feedsChanged = () => feedHandlers.forEach((h) => h());
+  const feedsParam = query.get("feeds");
+  const loaded = Date.now();
+  const failingFeeds = new Set(
+    (fixtureFeeds.feeds as FeedView[]).filter((f) => f.stage.kind === "failing").map((f) => f.id),
+  );
+  let feeds: FeedView[] =
+    feedsParam === "empty"
+      ? []
+      : (structuredClone(fixtureFeeds.feeds) as FeedView[])
+          .filter((f) => feedsParam === "failing" || !failingFeeds.has(f.id))
+          .map((f) => ({
+            ...f,
+            lastOkAt: f.lastOkAt === null ? null : loaded + f.lastOkAt,
+            stage: f.stage.kind === "failing" ? { kind: "failing", sinceMs: loaded + f.stage.sinceMs } : f.stage,
+          }));
+  let entries: EntryView[] = (structuredClone(fixtureFeeds.entries) as EntryView[])
+    .filter((e) => feeds.some((f) => f.id === e.feedId))
+    .map((e) => ({ ...e, at: loaded + e.at }));
+  /** Items opened from a feed and not saved. */
+  const feedShelf = new Set<string>();
+  const inLibrary = (id: string | null) => id !== null && books.some((b) => b.id === id) && !feedShelf.has(id);
+  const feedViews = () =>
+    feeds.map((f) => ({ ...f, unread: entries.filter((e) => e.feedId === f.id && !e.read).length }));
+  const entryViews = () => entries.map((e) => ({ ...e, inLibrary: inLibrary(e.bookId) }));
+  const getEntry = (id: number) => {
+    const entry = entries.find((e) => e.id === id);
+    if (!entry) throw new Error("No such entry.");
+    return entry;
+  };
+  /** The entry's item, made on the feed shelf the first time. */
+  const entryItem = (entry: EntryView) => {
+    if (entry.bookId && books.some((b) => b.id === entry.bookId)) return entry.bookId;
+    let id = fixtureArticle.summary.id;
+    if (!books.some((b) => b.id === id)) {
+      id = addArticle({ kind: "ready" });
+      feedShelf.add(id);
+      home.upNextIds = home.upNextIds.filter((other) => other !== id);
+      home.recentIds = home.recentIds.filter((other) => other !== id);
+    }
+    entry.bookId = id;
+    return id;
+  };
   /** Whole-book preparation, like the app (core/preparation.rs): each queued book has an explicit
    *  stage; the mock plans a book as soon as it is queued (books from `queueWaitingForTest` wait). */
   type PrepareEvent = "planned" | "pause" | "resume" | "promote" | "demote";
@@ -733,7 +785,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       return { libraryFolder: "~/Documents/Aoide/Books" };
     },
     async listBooks() {
-      return structuredClone(books);
+      return structuredClone(books.filter((b) => !feedShelf.has(b.id)));
     },
     async home() {
       return structuredClone(home);
@@ -800,6 +852,13 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       changed();
     },
     async removeBook(id) {
+      // As the core does: an item an entry still opens goes back to the feed shelf.
+      if (entries.some((e) => e.bookId === id) && !feedShelf.has(id)) {
+        feedShelf.add(id);
+        changed();
+        feedsChanged();
+        return;
+      }
       if (state.bookId === id) await api.stop();
       const index = books.findIndex((b) => b.id === id);
       if (index >= 0) books.splice(index, 1);
@@ -1468,6 +1527,77 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (!view) throw new Error("Not an article.");
       return structuredClone(view);
     },
+    async feeds() {
+      return feedViews();
+    },
+    /** As the core does: a known address is the feed already subscribed; any other address
+     *  ending in a feed's usual name subscribes to a new, empty feed; anything else is no feed. */
+    async subscribe(url): Promise<SubscribeResult> {
+      const link = parseLink(url).href;
+      const known = feedViews().find((f) => f.url === link);
+      if (known) return { kind: "subscribed", value: known };
+      if (!/(feed|rss|atom)(\.xml|\.json)?\/?$/i.test(link)) return { kind: "notAFeed" };
+      const feed: FeedView = {
+        id: Math.max(0, ...feeds.map((f) => f.id)) + 1,
+        title: new URL(link).hostname,
+        url: link,
+        siteUrl: new URL("/", link).href,
+        unread: 0,
+        stage: { kind: "idle" },
+        error: null,
+        lastOkAt: Date.now(),
+      };
+      feeds = [...feeds, feed].sort((a, b) => (a.title ?? a.url).localeCompare(b.title ?? b.url));
+      feedsChanged();
+      return { kind: "subscribed", value: feed };
+    },
+    async unsubscribe(feedId) {
+      feeds = feeds.filter((f) => f.id !== feedId);
+      entries = entries.filter((e) => e.feedId !== feedId || inLibrary(e.bookId));
+      feedsChanged();
+    },
+    async feedEntries(feedId, filter, before, limit) {
+      const all = entryViews().filter(
+        (e) =>
+          (feedId === null || e.feedId === feedId) &&
+          (filter === "all" || (filter === "unread" ? !e.read : e.inLibrary)),
+      );
+      const start = before === null ? 0 : all.findIndex((e) => e.id === before) + 1;
+      return structuredClone(all.slice(start, start + Math.min(limit ?? 50, 200)));
+    },
+    async openFeedEntry(entryId) {
+      const entry = getEntry(entryId);
+      const id = entryItem(entry);
+      entry.read = true;
+      feedsChanged();
+      return id;
+    },
+    async saveFeedEntry(entryId) {
+      const id = entryItem(getEntry(entryId));
+      feedShelf.delete(id);
+      changed();
+      feedsChanged();
+      return id;
+    },
+    async markEntryRead(entryId, read) {
+      getEntry(entryId).read = read;
+      feedsChanged();
+    },
+    async markAllRead(feedId) {
+      for (const entry of entries) if (feedId === null || entry.feedId === feedId) entry.read = true;
+      feedsChanged();
+    },
+    /** Feeds that answer were just checked; a failing one still fails. */
+    async checkFeeds() {
+      const now = Date.now();
+      feeds = feeds.map((f) => (f.stage.kind === "failing" ? f : { ...f, lastOkAt: now }));
+      feedsChanged();
+    },
+    /** The preview opens nothing. */
+    async openFeedSite(feedId) {
+      if (!feeds.some((f) => f.id === feedId)) throw new Error("No such feed.");
+    },
+    onFeedsChanged: (h) => subscribe(feedHandlers, h),
     /** The preview opens nothing. */
     async openOriginal(id) {
       if (!articles.has(id)) throw new Error("Not an article.");
@@ -1685,7 +1815,23 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     getBook(id).audio = audio;
     changed();
   };
+  /** `count` older entries, read, from the first feed (to page through). */
+  const addFeedEntriesForTest = (count: number) => {
+    const oldest = Math.min(...entries.map((e) => e.at));
+    const first = Math.max(...entries.map((e) => e.id));
+    for (let i = 1; i <= count; i++)
+      entries.push({
+        ...entries[0],
+        id: first + i,
+        title: `Older notice ${i}`,
+        at: oldest - i * 3_600_000,
+        read: true,
+        bookId: null,
+      });
+    feedsChanged();
+  };
   return Object.assign(api, {
+    addFeedEntriesForTest,
     setHomeForTest,
     setAudioSourceForTest,
     setRecordingForTest,

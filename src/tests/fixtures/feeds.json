@@ -1,0 +1,153 @@
+{
+  "entries": [
+    {
+      "at": -7200000,
+      "bookId": null,
+      "feedId": 1,
+      "feedTitle": "Tidewatch",
+      "hasFullText": true,
+      "id": 1,
+      "inLibrary": false,
+      "read": false,
+      "summary": "There is no fixed departure. The skipper reads the water at the slip each morning and chalks a time on the board.",
+      "title": "The ferry that runs on the tide table",
+      "url": "https://tidewatch.example/0",
+      "words": 302
+    },
+    {
+      "at": -18000000,
+      "bookId": null,
+      "feedId": 2,
+      "feedTitle": "Small Cities",
+      "hasFullText": false,
+      "id": 4,
+      "inLibrary": false,
+      "read": false,
+      "summary": "A committee of four, a spreadsheet from 2011, and a rule about sight lines.",
+      "title": "Who decides where the bus shelter goes",
+      "url": "https://smallcities.example/0",
+      "words": null
+    },
+    {
+      "at": -25200000,
+      "bookId": null,
+      "feedId": 3,
+      "feedTitle": "Field Notes",
+      "hasFullText": true,
+      "id": 6,
+      "inLibrary": false,
+      "read": false,
+      "summary": "Sleeper carriages are back on the coast line, and they are full.",
+      "title": "The quiet return of the night train",
+      "url": "https://fieldnotes.example/0",
+      "words": 292
+    },
+    {
+      "at": -93600000,
+      "bookId": null,
+      "feedId": 1,
+      "feedTitle": "Tidewatch",
+      "hasFullText": true,
+      "id": 2,
+      "inLibrary": false,
+      "read": true,
+      "summary": "Before the telegraph reached the headland, the keeper set the clock by the mail boat.",
+      "title": "How lighthouses kept their own time",
+      "url": "https://tidewatch.example/1",
+      "words": 295
+    },
+    {
+      "at": -100800000,
+      "bookId": null,
+      "feedId": 2,
+      "feedTitle": "Small Cities",
+      "hasFullText": false,
+      "id": 5,
+      "inLibrary": false,
+      "read": false,
+      "summary": "It has been four minutes slow for a decade, and the council has voted twice to leave it alone.",
+      "title": "The last public clock in town",
+      "url": "https://smallcities.example/1",
+      "words": null
+    },
+    {
+      "at": -180000000,
+      "bookId": null,
+      "feedId": 1,
+      "feedTitle": "Tidewatch",
+      "hasFullText": true,
+      "id": 3,
+      "inLibrary": false,
+      "read": false,
+      "summary": "Every sandbank in the estuary has a name, and most of them have two.",
+      "title": "Charts drawn by the harbour pilots",
+      "url": "https://tidewatch.example/2",
+      "words": 294
+    },
+    {
+      "at": -288000000,
+      "bookId": null,
+      "feedId": 4,
+      "feedTitle": "Harbour Letters",
+      "hasFullText": false,
+      "id": 7,
+      "inLibrary": false,
+      "read": true,
+      "summary": "A reader writes about the winter storms.",
+      "title": "Letters from the breakwater",
+      "url": "https://harbourletters.example/0",
+      "words": null
+    }
+  ],
+  "feeds": [
+    {
+      "error": null,
+      "id": 3,
+      "lastOkAt": -1200000,
+      "siteUrl": "https://fieldnotes.example/",
+      "stage": {
+        "kind": "idle"
+      },
+      "title": "Field Notes",
+      "unread": 1,
+      "url": "https://fieldnotes.example/feed.xml"
+    },
+    {
+      "error": "The site answered with status 503.",
+      "id": 4,
+      "lastOkAt": -259200000,
+      "siteUrl": "https://harbourletters.example/",
+      "stage": {
+        "kind": "failing",
+        "sinceMs": -172800000
+      },
+      "title": "Harbour Letters",
+      "unread": 0,
+      "url": "https://harbourletters.example/feed.xml"
+    },
+    {
+      "error": null,
+      "id": 2,
+      "lastOkAt": -1200000,
+      "siteUrl": "https://smallcities.example/",
+      "stage": {
+        "kind": "idle"
+      },
+      "title": "Small Cities",
+      "unread": 2,
+      "url": "https://smallcities.example/rss"
+    },
+    {
+      "error": null,
+      "id": 1,
+      "lastOkAt": -1200000,
+      "siteUrl": "https://tidewatch.example/",
+      "stage": {
+        "kind": "idle"
+      },
+      "title": "Tidewatch",
+      "unread": 2,
+      "url": "https://tidewatch.example/feed.xml"
+    }
+  ]
+}

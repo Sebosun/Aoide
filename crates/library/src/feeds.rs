@@ -114,11 +114,11 @@ impl Library {
             .query_row("SELECT id FROM feeds WHERE url = ?1", [url], |r| r.get(0))?)
     }
 
-    /// Every feed, oldest subscription first.
+    /// Every feed, by title (its address while it has none).
     pub fn feeds(&self) -> Result<Vec<FeedRow>> {
         let mut stmt = self
             .conn
-            .prepare("SELECT * FROM feeds ORDER BY added_at, id")?;
+            .prepare("SELECT * FROM feeds ORDER BY COALESCE(title, url) COLLATE NOCASE, id")?;
         let feeds = stmt.query_map([], read_feed)?;
         Ok(feeds.collect::<rusqlite::Result<_>>()?)
     }

@@ -219,7 +219,8 @@ pub struct EntryView {
     /// Plain text.
     pub summary: Option<String>,
     pub url: Option<String>,
-    pub published_at: Option<i64>,
+    /// When it was published, else when a check first found it; the list is newest first by it.
+    pub at: i64,
     pub read: bool,
     /// Of the text the feed carried, when it carried any.
     pub words: Option<u32>,
@@ -349,7 +350,7 @@ impl Feeds {
                     title: e.title,
                     summary: e.summary,
                     url: e.url,
-                    published_at: e.published_at,
+                    at: e.published_at.unwrap_or(e.seen_at),
                     read: e.read_at.is_some(),
                     words: e.words,
                     book_id: e.book_id.map(|b| b.0),
@@ -812,6 +813,17 @@ impl super::Core {
 
     pub fn unsubscribe(&self, id: i64) -> Result<(), String> {
         self.feeds.unsubscribe(self, id)
+    }
+
+    /// Opens a feed's site (its own address when it names none) in the system's browser.
+    pub fn open_feed_site(&self, id: i64) -> Result<(), String> {
+        let feed = self.feeds.view_of(id)?;
+        let url =
+            Url::parse(feed.site_url.as_deref().unwrap_or(&feed.url)).map_err(|e| e.to_string())?;
+        if !matches!(url.scheme(), "http" | "https") {
+            return Err("That is not a web address.".into());
+        }
+        (self.open_link)(url.as_str())
     }
 
     /// Deletes old entries and the items no entry needs (the worker does this daily).

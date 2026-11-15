@@ -12,6 +12,10 @@ import type {
   Appearance,
   ArticleSource,
   ArticleView,
+  EntryFilter,
+  EntryView,
+  FeedView,
+  SubscribeResult,
   AppearanceMode,
   BlockKind,
   BlockView,
@@ -256,6 +260,33 @@ export interface AoideApi {
   article(bookId: string): Promise<ArticleView>;
   /** Opens an article's page, as it was kept, in the system's browser. */
   openOriginal(bookId: string): Promise<void>;
+  /** Subscriptions, by title, with their unread counts and health. */
+  feeds(): Promise<FeedView[]>;
+  /** Subscribes to a feed address, or to the one feed a page links to; a page with several
+   *  feeds offers them to choose from. Subscribing again finds the same feed. */
+  subscribe(url: string): Promise<SubscribeResult>;
+  /** Removes a feed and its entries that were not saved. */
+  unsubscribe(feedId: number): Promise<void>;
+  /** Entries newest first, from one feed or all; the next page starts `before` an entry id. */
+  feedEntries(
+    feedId: number | null,
+    filter: EntryFilter,
+    before: number | null,
+    limit: number | null,
+  ): Promise<EntryView[]>;
+  /** The item to read an entry as (made on the feed shelf when needed); marks it read. */
+  openFeedEntry(entryId: number): Promise<string>;
+  /** Keeps an entry's item in the library; returns its id. */
+  saveFeedEntry(entryId: number): Promise<string>;
+  markEntryRead(entryId: number, read: boolean): Promise<void>;
+  /** Marks one feed's entries read, or every feed's. */
+  markAllRead(feedId: number | null): Promise<void>;
+  /** Opens a feed's site (its own address when it names none) in the system's browser. */
+  openFeedSite(feedId: number): Promise<void>;
+  /** Checks every feed now ("feeds://changed" reports what changed). */
+  checkFeeds(): Promise<void>;
+  /** Fires when feeds or their entries change (a check, reading, saving, cleanup). */
+  onFeedsChanged(handler: () => void): Promise<() => void>;
   cancelAudiobookScan(): Promise<void>;
   /** After books were added: how many have audiobooks waiting for the user (0 when looking on
    *  adding is off or Aoide verifies them). */

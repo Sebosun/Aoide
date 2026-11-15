@@ -5,7 +5,7 @@ import { useLibraryStore } from "./stores/library";
 import { api } from "./api";
 import { useRecordingsStore } from "./stores/recordings";
 
-/** Browser preview only: `?view=home|library|activity|item|reader|find|audiobooks&book=book-0&play=1500&theme=dark&mode=lines&zoom=1.25` opens a
+/** Browser preview only: `?view=home|library|feeds|activity|item|reader|find|audiobooks&book=book-0&play=1500&theme=dark&mode=lines&zoom=1.25` opens a
  *  screen in a known state (used for screenshots). `play` plays for that many ms, then pauses;
  *  `tools=voice` opens book tools on that tab; `settings=engine` opens settings on that tab; `click=<selector>|<selector>` clicks those
  *  elements in turn once the screen is up (to show an open menu or dialog). `zoom=1.25` sets the
@@ -14,7 +14,7 @@ import { useRecordingsStore } from "./stores/recordings";
  *  `recording=syncing|ready|review|missing|model|mismatch|failed` gives book-0 a recording in that
  *  stage (see api/mock); `pair=~/a.m4b,~/b.aax` opens the pairing dialog on those paths and
  *  `report=book-0` that book's sync report; `audiobook=1` adds the preview's audiobook on its own
- *  (book-5) */
+ *  (book-5); `feeds=empty|failing` has no subscriptions, or one that stopped answering */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
   const view = query.get("view") as View | null,

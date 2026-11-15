@@ -10,6 +10,7 @@ import WeekCard from "../components/library/WeekCard.vue";
 import HomeContinueCard from "../components/home/HomeContinueCard.vue";
 import { useLibraryStore } from "../stores/library";
 import { useNavigationStore } from "../stores/navigation";
+import { dayName } from "../days";
 
 /** Home: what to continue, what is next, this week, and what was added recently. The core
  *  chooses the items (`home`); this screen looks them up in the library it already has. */
@@ -35,15 +36,7 @@ const recent = computed(() => pick(home.value?.recentIds));
 const empty = computed(
   () => home.value !== null && !continuing.value.length && !upNext.value.length && !recent.value.length,
 );
-/** "today", "yesterday", a weekday within the week, else the date. */
-function added(at: number) {
-  const day = (ms: number) => Math.floor((ms - new Date(ms).getTimezoneOffset() * 60_000) / 86_400_000);
-  const ago = day(Date.now()) - day(at);
-  if (ago <= 0) return "today";
-  if (ago === 1) return "yesterday";
-  if (ago < 7) return new Date(at).toLocaleDateString(undefined, { weekday: "long" });
-  return new Date(at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-}
+const added = (at: number) => dayName(at);
 </script>
 
 <template>

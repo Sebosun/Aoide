@@ -362,3 +362,129 @@ async fn an_article_for_the_ui_mock() {
         &renames,
     );
 }
+
+/// Subscriptions and their entries, which the mock serves on its Feeds screen: three feeds
+/// that answer (one carrying whole articles, one summaries only) and one that stopped. Times
+/// are written relative to now (the mock adds its own now).
+#[tokio::test]
+async fn feeds_for_the_ui_mock() {
+    use super::article_tests::Pages;
+    use super::feeds::{EntryFilter, EntryQuery, FeedStage};
+    const HOUR: i64 = 60 * 60 * 1000;
+    if !wanted() {
+        return;
+    }
+    let now = super::now_ms() / 1000 * 1000;
+    let date = |hours: i64| {
+        chrono::DateTime::from_timestamp_millis(now - hours * HOUR)
+            .unwrap()
+            .to_rfc2822()
+    };
+    let long = |opening: &str| {
+        let more = "The tide sets the hour here, and the harbour keeps the record of it. ";
+        format!("<p>{opening}</p><p>{}</p>", more.repeat(20))
+    };
+    // (feed address, title, site, entries: (title, hours ago, summary, whole text))
+    type Item<'a> = (&'a str, i64, &'a str, bool);
+    let feeds: [(&str, &str, &str, &[Item]); 4] = [
+        (
+            "https://tidewatch.example/feed.xml",
+            "Tidewatch",
+            "https://tidewatch.example/",
+            &[
+                ("The ferry that runs on the tide table", 2, "There is no fixed departure. The skipper reads the water at the slip each morning and chalks a time on the board.", true),
+                ("How lighthouses kept their own time", 26, "Before the telegraph reached the headland, the keeper set the clock by the mail boat.", true),
+                ("Charts drawn by the harbour pilots", 50, "Every sandbank in the estuary has a name, and most of them have two.", true),
+            ],
+        ),
+        (
+            "https://smallcities.example/rss",
+            "Small Cities",
+            "https://smallcities.example/",
+            &[
+                ("Who decides where the bus shelter goes", 5, "A committee of four, a spreadsheet from 2011, and a rule about sight lines.", false),
+                ("The last public clock in town", 28, "It has been four minutes slow for a decade, and the council has voted twice to leave it alone.", false),
+            ],
+        ),
+        (
+            "https://fieldnotes.example/feed.xml",
+            "Field Notes",
+            "https://fieldnotes.example/",
+            &[("The quiet return of the night train", 7, "Sleeper carriages are back on the coast line, and they are full.", true)],
+        ),
+        (
+            "https://harbourletters.example/feed.xml",
+            "Harbour Letters",
+            "https://harbourletters.example/",
+            &[("Letters from the breakwater", 80, "A reader writes about the winter storms.", false)],
+        ),
+    ];
+    let pages = Pages::with(&[]);
+    for (url, title, site, items) in feeds {
+        let mut xml = format!(
+            "<?xml version=\"1.0\"?><rss version=\"2.0\" \
+             xmlns:content=\"http://purl.org/rss/1.0/modules/content/\"><channel>\
+             <title>{title}</title><link>{site}</link>"
+        );
+        for (i, (headline, hours, summary, whole)) in items.iter().enumerate() {
+            let content = if *whole {
+                format!(
+                    "<content:encoded><![CDATA[{}]]></content:encoded>",
+                    long(summary)
+                )
+            } else {
+                String::new()
+            };
+            xml.push_str(&format!(
+                "<item><title>{headline}</title><guid>{site}{i}</guid><link>{site}{i}</link>\
+                 <pubDate>{}</pubDate><description>{summary}</description>{content}</item>",
+                date(*hours)
+            ));
+        }
+        xml.push_str("</channel></rss>");
+        pages.feed(url, &xml, "v1");
+    }
+    let dir = tempfile::tempdir().unwrap();
+    super::tests::library_folder(dir.path(), "");
+    let (core, _) = super::tests::start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+    for (url, ..) in feeds {
+        core.subscribe(url).await.unwrap();
+    }
+    pages.feed_fails(feeds[3].0, aoide_fetch::FetchError::Status(503));
+    core.check_feeds().await;
+    let all = |core: &Core| {
+        core.feed_entries(&EntryQuery {
+            filter: EntryFilter::All,
+            ..EntryQuery::default()
+        })
+        .unwrap()
+    };
+    let lighthouses = all(&core)
+        .into_iter()
+        .find(|e| e.title.as_deref() == Some("How lighthouses kept their own time"))
+        .unwrap();
+    core.mark_entry_read(lighthouses.id, true).unwrap();
+    let old = all(&core).into_iter().find(|e| e.feed_id == 4).unwrap();
+    core.mark_entry_read(old.id, true).unwrap();
+
+    let mut views = core.feeds().unwrap();
+    for view in &mut views {
+        view.last_ok_at = Some(if view.id == 4 {
+            -3 * 24 * HOUR
+        } else {
+            -20 * 60_000
+        });
+        if let FeedStage::Failing { since_ms } = &mut view.stage {
+            *since_ms = -2 * 24 * HOUR;
+        }
+    }
+    let mut entries = all(&core);
+    for entry in &mut entries {
+        entry.at -= now;
+    }
+    write(
+        "feeds",
+        &serde_json::json!({ "feeds": views, "entries": entries }),
+        &[],
+    );
+}

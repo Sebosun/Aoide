@@ -540,6 +540,24 @@ mod through_core {
     }
 
     #[tokio::test]
+    async fn a_feed_opens_its_site_in_the_browser() {
+        let pages = Pages::with(&[]);
+        pages.feed(HARBOUR, &feed(), "v1");
+        let dir = tempfile::tempdir().unwrap();
+        library_folder(dir.path(), "");
+        let (core, events) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+        let feed = match core.subscribe(HARBOUR).await.unwrap() {
+            super::SubscribeResult::Subscribed(feed) => feed,
+            other => panic!("{other:?}"),
+        };
+        core.open_feed_site(feed.id).unwrap();
+        assert_eq!(
+            events.payloads("test://opened-link"),
+            [serde_json::json!("https://harbour.example/")]
+        );
+    }
+
+    #[tokio::test]
     async fn an_entry_for_an_article_already_saved_opens_that_article() {
         let pages = Pages::with(&[(LIGHTS_URL, LIGHTS)]);
         pages.feed(HARBOUR, &feed(), "v1");

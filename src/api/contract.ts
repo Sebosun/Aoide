@@ -643,7 +643,11 @@ export type EntryView = { id: number, feedId: number, feedTitle: string | null, 
 /**
  * Plain text.
  */
-summary: string | null, url: string | null, publishedAt: number | null, read: boolean, 
+summary: string | null, url: string | null, 
+/**
+ * When it was published, else when a check first found it; the list is newest first by it.
+ */
+at: number, read: boolean, 
 /**
  * Of the text the feed carried, when it carried any.
  */
@@ -899,6 +903,7 @@ export type Commands = {
   "save_feed_entry": { args: { entryId: number }; result: string };
   "mark_entry_read": { args: { entryId: number; read: boolean }; result: void };
   "mark_all_read": { args: { feedId: number | null }; result: void };
+  "open_feed_site": { args: { feedId: number }; result: void };
   "check_feeds": { args: Record<string, never>; result: void };
   "unmatched_audiobooks": { args: Record<string, never>; result: AudiobookSuggestion[] };
   "cancel_audiobook_scan": { args: Record<string, never>; result: void };

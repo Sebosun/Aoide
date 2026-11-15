@@ -1,22 +1,26 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { ChartNoAxesColumn, Ellipsis, House, Library, Pencil, Plus, Settings, Trash2 } from "@lucide/vue";
+import { computed, onMounted } from "vue";
+import { ChartNoAxesColumn, Ellipsis, House, Library, Pencil, Plus, Rss, Settings, Trash2 } from "@lucide/vue";
 import type { Collection } from "../../api/types";
 import UiMenu from "../ui/UiMenu.vue";
 import type { MenuEntry } from "../ui/types";
 import { useCollections } from "../../composables/useCollections";
 import EngineCard from "./EngineCard.vue";
 import MiniPlayer from "../player/MiniPlayer.vue";
+import { useFeedsStore } from "../../stores/feeds";
 import { useLibraryStore } from "../../stores/library";
 import { useNavigationStore, type View } from "../../stores/navigation";
 
 /** The app's left column: wordmark, Add, the main screens, collections, and at the bottom what
  *  is playing and Settings. Below 720 px it stacks above the screen. */
 const navigation = useNavigationStore(),
-  library = useLibraryStore();
+  library = useLibraryStore(),
+  feeds = useFeedsStore();
+onMounted(() => void feeds.start());
 const links: { view: View; label: string; icon: typeof House }[] = [
   { view: "home", label: "Home", icon: House },
   { view: "library", label: "Library", icon: Library },
+  { view: "feeds", label: "Feeds", icon: Rss },
   { view: "activity", label: "Activity", icon: ChartNoAxesColumn },
 ];
 /** Library stays marked while one of its books or its finders is open, unless a collection is. */
@@ -69,7 +73,8 @@ const actions = (collection: Collection): MenuEntry[] => [
         :aria-current="current(link.view) ? 'page' : undefined"
         @click="go(link.view)"
       >
-        <component :is="link.icon" :size="18" aria-hidden="true" />{{ link.label }}
+        <component :is="link.icon" :size="18" aria-hidden="true" />{{ link.label
+        }}<span v-if="link.view === 'feeds' && feeds.unread" class="sidebar__badge">{{ feeds.unread }}</span>
       </button>
     </div>
     <section class="sidebar__collections" aria-labelledby="sidebar-collections">
@@ -200,6 +205,15 @@ const actions = (collection: Collection): MenuEntry[] => [
   background: var(--page);
   color: var(--ink);
   font-weight: 700;
+}
+.sidebar__badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--wash);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 .sidebar__heading-row {
   display: flex;

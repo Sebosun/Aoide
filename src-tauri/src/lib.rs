@@ -609,6 +609,11 @@ fn mark_all_read(core: CoreState<'_>, feed_id: Option<i64>) -> Result<(), CoreEr
 }
 
 #[tauri::command]
+fn open_feed_site(core: CoreState<'_>, feed_id: i64) -> Result<(), CoreError> {
+    Ok(core.open_feed_site(feed_id)?)
+}
+
+#[tauri::command]
 async fn check_feeds(core: CoreState<'_>) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     core.check_feeds().await;
@@ -987,6 +992,7 @@ pub fn run() {
             subscribe,
             unsubscribe,
             check_feeds,
+            open_feed_site,
             feed_entries,
             open_feed_entry,
             save_feed_entry,

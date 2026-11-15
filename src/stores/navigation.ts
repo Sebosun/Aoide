@@ -3,13 +3,14 @@ import { ref, watch } from "vue";
 
 /** The screens. "reader" is the reader, which takes the whole window; "item" is one item's page
  *  (`bookId`); "find" and "audiobooks" find books and audiobooks on this computer. */
-export type View = "home" | "library" | "activity" | "item" | "reader" | "find" | "audiobooks";
+export type View = "home" | "library" | "feeds" | "activity" | "item" | "reader" | "find" | "audiobooks";
 export type ToolsTab = "bookmarks" | "search" | "voice" | "details";
 export type SettingsTab = "appearance" | "engine" | "recordings" | "library" | "highlighting" | "storage" | "about";
 /** The names the sidebar and the reader's back button give each screen. */
 export const VIEW_NAMES: Record<View, string> = {
   home: "Home",
   library: "Library",
+  feeds: "Feeds",
   activity: "Activity",
   item: "Details",
   reader: "Reader",
