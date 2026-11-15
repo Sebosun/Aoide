@@ -148,6 +148,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aoide-browser"
+version = "0.1.0"
+dependencies = [
+ "aoide-fetch",
+ "tempfile",
+ "url",
+]
+
+[[package]]
 name = "aoide-chatterbox"
 version = "0.1.0"
 dependencies = [
