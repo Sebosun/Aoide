@@ -42,7 +42,7 @@ fn a_version_7_library_keeps_its_books_progress_and_listening() {
     }
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch(
-        "DROP TABLE IF EXISTS articles; ALTER TABLE books DROP COLUMN kind; ALTER TABLE progress DROP COLUMN position_ms; ALTER TABLE bookmarks DROP COLUMN position_ms;
+        "DROP TABLE IF EXISTS feed_entries; DROP TABLE IF EXISTS feeds; ALTER TABLE books DROP COLUMN shelf; DROP TABLE IF EXISTS articles; ALTER TABLE books DROP COLUMN kind; ALTER TABLE progress DROP COLUMN position_ms; ALTER TABLE bookmarks DROP COLUMN position_ms;
          DROP TABLE reading;
          ALTER TABLE books DROP COLUMN finished_at;
          ALTER TABLE books DROP COLUMN word_count;

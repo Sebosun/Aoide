@@ -43,7 +43,7 @@ fn a_version_8_library_opens_with_every_item_a_book() {
     }
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch(
-        "DROP TABLE IF EXISTS articles; ALTER TABLE books DROP COLUMN kind;
+        "DROP TABLE IF EXISTS feed_entries; DROP TABLE IF EXISTS feeds; ALTER TABLE books DROP COLUMN shelf; DROP TABLE IF EXISTS articles; ALTER TABLE books DROP COLUMN kind;
          ALTER TABLE progress DROP COLUMN position_ms;
          ALTER TABLE bookmarks DROP COLUMN position_ms;
          PRAGMA user_version = 8;",

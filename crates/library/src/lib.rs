@@ -10,11 +10,13 @@ use sha2::{Digest, Sha256};
 
 mod activity;
 mod articles;
+mod feeds;
 mod merge;
 mod recordings;
 mod store;
 pub use activity::{ActivityStats, BookActivity, DayActivity};
 pub use articles::ArticleRow;
+pub use feeds::{EntryRow, FeedRow, NewEntry};
 pub use recordings::{RecordingRow, StoredSyncMap, TranscriptBlock};
 
 /// Lower-case hex SHA-256 of the EPUB file bytes.
@@ -65,6 +67,8 @@ pub struct BookRecord {
     /// Its length in words, once it has been parsed.
     pub word_count: Option<u32>,
     pub kind: ItemKind,
+    /// `library`, or `feed` for an entry opened from a feed and not saved.
+    pub shelf: String,
 }
 
 /// What a library item is.
@@ -231,16 +235,36 @@ impl Library {
     }
 
     /// All books, most recently opened first, then most recently added.
+    /// The items in the library: not those on the feed shelf.
     pub fn books(&self) -> Result<Vec<BookRecord>> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT * FROM books ORDER BY last_opened_at DESC, added_at DESC, id ASC")?;
-        let mut rows = stmt.query([])?;
+        self.books_on("library")
+    }
+
+    /// Entries opened from feeds and not saved.
+    pub fn feed_shelf_books(&self) -> Result<Vec<BookRecord>> {
+        self.books_on("feed")
+    }
+
+    fn books_on(&self, shelf: &str) -> Result<Vec<BookRecord>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM books WHERE shelf = ?1
+             ORDER BY last_opened_at DESC, added_at DESC, id ASC",
+        )?;
+        let mut rows = stmt.query([shelf])?;
         let mut books = Vec::new();
         while let Some(row) = rows.next()? {
             books.push(store::read_book(row)?);
         }
         Ok(books)
+    }
+
+    /// Puts item `id` on `shelf` (`library` or `feed`).
+    pub fn set_shelf(&self, id: &BookId, shelf: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE books SET shelf = ?2 WHERE id = ?1",
+            rusqlite::params![id.0, shelf],
+        )?;
+        Ok(())
     }
 
     pub fn book(&self, id: &BookId) -> Result<Option<BookRecord>> {

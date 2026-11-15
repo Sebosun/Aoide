@@ -9,7 +9,7 @@ impl Library {
         conn.pragma_update(None, "foreign_keys", true)?;
         let tx = conn.transaction()?;
         let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if !(0..=10).contains(&version) {
+        if !(0..=11).contains(&version) {
             return Err(LibraryError::Corrupt(format!(
                 "unsupported schema version {version}"
             )));
@@ -223,6 +223,45 @@ impl Library {
             )?;
             tx.pragma_update(None, "user_version", 10)?;
         }
+        if version <= 10 {
+            // Feeds and their entries; an entry opened without being saved is an item on the
+            // feed shelf, out of the library's lists.
+            tx.execute_batch(
+                "ALTER TABLE books ADD COLUMN shelf TEXT NOT NULL DEFAULT 'library'
+                    CHECK(shelf IN ('library', 'feed'));
+                CREATE TABLE feeds (
+                    id INTEGER PRIMARY KEY,
+                    url TEXT NOT NULL UNIQUE,
+                    title TEXT,
+                    site_url TEXT,
+                    added_at INTEGER NOT NULL,
+                    last_checked_at INTEGER,
+                    last_ok_at INTEGER,
+                    etag TEXT,
+                    last_modified TEXT,
+                    error TEXT,
+                    failures INTEGER NOT NULL DEFAULT 0 CHECK(failures >= 0)
+                );
+                CREATE TABLE feed_entries (
+                    id INTEGER PRIMARY KEY,
+                    feed_id INTEGER NOT NULL REFERENCES feeds(id) ON DELETE CASCADE,
+                    guid TEXT NOT NULL,
+                    url TEXT,
+                    title TEXT,
+                    author TEXT,
+                    published_at INTEGER,
+                    seen_at INTEGER NOT NULL,
+                    summary TEXT,
+                    content_html TEXT,
+                    words INTEGER CHECK(words >= 0),
+                    read_at INTEGER,
+                    book_id TEXT REFERENCES books(id) ON DELETE SET NULL,
+                    UNIQUE(feed_id, guid)
+                );
+                CREATE INDEX feed_entries_feed ON feed_entries(feed_id, published_at);",
+            )?;
+            tx.pragma_update(None, "user_version", 11)?;
+        }
         tx.commit()?;
         Ok(Self { conn })
     }
@@ -266,6 +305,7 @@ pub(super) fn read_book(row: &Row<'_>) -> Result<BookRecord> {
         finished_at: row.get("finished_at")?,
         word_count: row.get("word_count")?,
         kind: ItemKind::from_column(&row.get::<_, String>("kind")?)?,
+        shelf: row.get("shelf")?,
     })
 }
 
