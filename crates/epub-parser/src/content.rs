@@ -293,7 +293,7 @@ fn section_kind(element: &scraper::node::Element) -> Option<Option<ExclusionReas
             if matches!(token, "bodymatter" | "chapter" | "doc-chapter") {
                 Some(None)
             } else {
-                ExclusionReason::from_token(token).map(Some)
+                crate::model::exclusion_from_token(token).map(Some)
             }
         })
 }

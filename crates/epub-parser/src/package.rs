@@ -91,7 +91,7 @@ pub(crate) fn read(archive: &mut Archive<'_>) -> Result<Package, ParseError> {
     let mut guide = Vec::new();
     for node in doc.descendants().filter(|n| n.has_tag_name("reference")) {
         let token = node.attribute("type").unwrap_or("");
-        let kind = crate::ExclusionReason::from_token(token);
+        let kind = crate::model::exclusion_from_token(token);
         if kind.is_none() && token != "text" {
             continue;
         }

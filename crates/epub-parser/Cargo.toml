@@ -8,10 +8,10 @@ publish = false
 
 [features]
 # TypeScript declarations for the UI contract (src/api/contract.ts).
-ts = ["dep:ts-rs"]
+ts = ["aoide-document/ts"]
 
 [dependencies]
-ts-rs = { version = "12.0.1", optional = true }
+aoide-document = { path = "../document" }
 roxmltree = "0.21"
 scraper = "0.24"
 ego-tree = "0.10"

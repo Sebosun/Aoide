@@ -163,15 +163,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "aoide-document"
+version = "0.1.0"
+dependencies = [
+ "ts-rs",
+]
+
+[[package]]
 name = "aoide-epub"
 version = "0.1.0"
 dependencies = [
+ "aoide-document",
  "ego-tree",
  "percent-encoding",
  "roxmltree",
  "scraper",
  "thiserror 2.0.21",
- "ts-rs",
  "zip",
 ]
 

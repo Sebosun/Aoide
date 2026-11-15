@@ -98,7 +98,7 @@ fn read_html(source: &str, path: &str) -> Result<Vec<Entry>, ParseError> {
             let tokens = link.value().attr("epub:type").unwrap_or("");
             let kind = tokens
                 .split_whitespace()
-                .find_map(ExclusionReason::from_token);
+                .find_map(crate::model::exclusion_from_token);
             if is_landmark
                 && kind.is_none()
                 && !tokens.split_whitespace().any(|s| s == "bodymatter")

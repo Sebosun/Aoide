@@ -1,0 +1,14 @@
+[package]
+name = "aoide-document"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "The parsed-text model that books and articles are read from"
+publish = false
+
+[features]
+# TypeScript declarations for the UI contract (src/api/contract.ts).
+ts = ["dep:ts-rs"]
+
+[dependencies]
+ts-rs = { version = "12.0.1", optional = true }
