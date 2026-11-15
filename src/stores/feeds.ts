@@ -23,6 +23,10 @@ export const useFeedsStore = defineStore("feeds", () => {
   const loaded = ref(false);
   const error = ref("");
   let startup: Promise<void> | undefined, unlisten: (() => void) | undefined;
+  /** Counts the times the list was replaced: an answer for an older list is dropped. */
+  let generation = 0;
+  /** The older page being loaded. */
+  let loading: Promise<void> | undefined;
 
   const unread = computed(() => feeds.value.reduce((sum, feed) => sum + feed.unread, 0));
   /** When the feeds last answered (the newest of them). */
@@ -43,7 +47,9 @@ export const useFeedsStore = defineStore("feeds", () => {
   async function refresh() {
     try {
       const shown = Math.max(ENTRY_PAGE, entries.value.length);
+      const asked = ++generation;
       const [views, list] = await Promise.all([api.feeds(), ask(null, shown)]);
+      if (asked !== generation) return;
       feeds.value = views;
       entries.value = list;
       more.value = list.length === shown;
@@ -61,16 +67,25 @@ export const useFeedsStore = defineStore("feeds", () => {
   async function choose(next: FeedsSource) {
     source.value = next;
     entries.value = [];
+    generation++;
     await start();
     await refresh();
   }
-  /** The next page of older entries. */
-  async function loadMore() {
-    const last = entries.value.at(-1);
-    if (!more.value || !last) return;
-    const page = await ask(last.id, ENTRY_PAGE);
-    entries.value = [...entries.value, ...page];
-    more.value = page.length === ENTRY_PAGE;
+  /** The next page of older entries (once, however often it is asked for meanwhile). */
+  function loadMore() {
+    return (loading ??= (async () => {
+      const last = entries.value.at(-1);
+      if (!more.value || !last) return;
+      const asked = generation;
+      try {
+        const page = await ask(last.id, ENTRY_PAGE);
+        if (asked !== generation) return;
+        entries.value = [...entries.value, ...page];
+        more.value = page.length === ENTRY_PAGE;
+      } catch (e) {
+        error.value = String(e);
+      }
+    })().finally(() => (loading = undefined)));
   }
   /** Reads an entry (made into an item when needed); it is read after. An entry the feed
    *  gave only a summary of opens once its page is fetched. */

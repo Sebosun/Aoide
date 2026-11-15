@@ -5,6 +5,7 @@ import { createMockApi } from "../api/mock";
 import App from "../App.vue";
 import { useNavigationStore } from "../stores/navigation";
 import { useReaderStore } from "../stores/reader";
+import { useFeedsStore } from "../stores/feeds";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("../api", () => ({
@@ -125,6 +126,25 @@ it("loads older entries at the end of the list", async () => {
   await flushPromises();
   expect(titles(wrapper)).toHaveLength(66);
   expect(wrapper.find(".feeds__more").exists()).toBe(false);
+});
+
+it("loads each older page once, and never into another source's list", async () => {
+  mock.addFeedEntriesForTest(60);
+  const wrapper = await openFeeds();
+  const feeds = useFeedsStore();
+  // The end of the list seen and the button pressed together.
+  await Promise.all([feeds.loadMore(), feeds.loadMore()]);
+  await flushPromises();
+  expect(titles(wrapper)).toHaveLength(66);
+  expect(new Set(feeds.entries.map((e) => e.id)).size).toBe(66);
+
+  // A page still loading when another source is chosen is dropped.
+  await feeds.choose({ kind: "all" });
+  const older = feeds.loadMore();
+  await feeds.choose({ kind: "saved" });
+  await older;
+  await flushPromises();
+  expect(feeds.entries.every((e) => e.inLibrary)).toBe(true);
 });
 
 it("invites a first subscription when there is none", async () => {

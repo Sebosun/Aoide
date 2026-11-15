@@ -1521,6 +1521,12 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         addArticle({ kind: "queued" }, url.trim());
         fetchArticle(id, { kind: "ready" });
       } else if (known.stage.kind !== "ready") fetchArticle(id, { kind: "ready" });
+      // As the core does: an item opened from a feed is kept once its link is added.
+      if (feedShelf.delete(id)) {
+        setArticle(id, { inLibrary: true });
+        changed();
+        feedsChanged();
+      }
       return id;
     },
     async refetchArticle(id, source) {
@@ -1572,9 +1578,15 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       feedsChanged();
       return { kind: "subscribed", value: feed };
     },
+    /** As the core does: the feed's entries go, and the items only they opened. */
     async unsubscribe(feedId) {
       feeds = feeds.filter((f) => f.id !== feedId);
-      entries = entries.filter((e) => e.feedId !== feedId || inLibrary(e.bookId));
+      entries = entries.filter((e) => e.feedId !== feedId);
+      for (const id of [...feedShelf]) {
+        if (entries.some((e) => e.bookId === id)) continue;
+        feedShelf.delete(id);
+        await api.removeBook(id);
+      }
       feedsChanged();
     },
     async feedEntries(feedId, filter, before, limit) {
