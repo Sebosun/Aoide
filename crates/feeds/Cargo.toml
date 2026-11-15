@@ -1,0 +1,14 @@
+[package]
+name = "aoide-feeds"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Parses RSS, Atom and JSON feeds and OPML subscription lists; no network"
+publish = false
+
+[dependencies]
+# 2.4 is the last line on edition 2021, within the workspace's Rust 1.77.2.
+feed-rs = "2.4"
+html-escape = "0.2"
+sha2 = "0.10"
+url = "2"

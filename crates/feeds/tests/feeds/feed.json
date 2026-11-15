@@ -1,0 +1,17 @@
+{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "Tide Tables",
+  "home_page_url": "https://tides.example/",
+  "feed_url": "https://tides.example/feed.json",
+  "items": [
+    {
+      "id": "tides-may",
+      "url": "https://tides.example/may",
+      "title": "Tides for May",
+      "content_html": "<p>High water at six, low water at noon.</p>",
+      "summary": "High and low water for May.",
+      "date_published": "2026-05-01T06:00:00Z",
+      "authors": [{ "name": "Mara Quill" }]
+    }
+  ]
+}

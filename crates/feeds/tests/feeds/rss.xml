@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Harbour Notes</title>
+    <link>https://harbour.example/</link>
+    <description>Small news from a small harbour.</description>
+    <item>
+      <title>Tom &amp;amp; Jerry&amp;#8217;s new ferry</title>
+      <link>https://harbour.example/2026/ferry</link>
+      <guid isPermaLink="false">harbour-ferry-2026</guid>
+      <dc:creator>Ada Brightwater</dc:creator>
+      <pubDate>Tue, 03 Mar 2026 08:00:00 GMT</pubDate>
+      <description>&lt;p&gt;The new &lt;b&gt;ferry&lt;/b&gt; arrives in spring.&lt;/p&gt;</description>
+      <content:encoded><![CDATA[<p>The new ferry arrives in spring, painted the same blue as the old one.</p><p>Its crew of four has already practised the crossing twice.</p>]]></content:encoded>
+    </item>
+    <item>
+      <title>Lamps lit early</title>
+      <link>/2026/lamps</link>
+      <pubDate>Mon, 02 Mar 2026 18:30:00 GMT</pubDate>
+      <description>The harbour master lit the lamps an hour early because of fog.</description>
+    </item>
+    <item>
+      <title>A note without a link</title>
+      <pubDate>Sun, 01 Mar 2026 12:00:00 GMT</pubDate>
+      <description>Nothing to click here.</description>
+    </item>
+    <item>
+      <title>Undated notice</title>
+      <link>https://harbour.example/notice</link>
+      <description>The slipway is closed on Thursdays.</description>
+    </item>
+  </channel>
+</rss>
