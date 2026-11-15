@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { ChevronDown, ChevronUp, FileAudio, Headphones, ShieldAlert, X } from "@lucide/vue";
-import { api } from "../../api";
-import type { InspectionView, RecordingFileView } from "../../api/types";
-import UiDialog from "../ui/UiDialog.vue";
-import UiSelect from "../ui/UiSelect.vue";
-import { useRecordingsStore } from "../../stores/recordings";
-import { useLibraryStore } from "../../stores/library";
-import { useNavigationStore } from "../../stores/navigation";
-import { formatDuration } from "../../estimate";
-import { describeFiles } from "../../recording";
+import { api } from "@/api";
+import type { InspectionView, RecordingFileView } from "@/api/types";
+import UiDialog from "@/components/ui/UiDialog.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import { useRecordingsStore } from "@/stores/recordings";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { formatDuration } from "@/estimate";
+import { describeFiles } from "@/recording";
 
 /** Pairing dropped or chosen audio with a book: what the files are, which book they read, and
  *  any that cannot be used. "Check and sync" attaches them; the sync runs in the background.

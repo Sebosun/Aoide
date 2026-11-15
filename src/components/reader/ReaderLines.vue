@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUpdate, ref, watch } from "vue";
-import type { SegmentView } from "../../api/types";
-import CoverArt from "../CoverArt.vue";
-import ChapterMenu from "./ChapterMenu.vue";
-import PlayerTransport from "../player/PlayerTransport.vue";
-import { usePlayerStore } from "../../stores/player";
-import { useLibraryStore } from "../../stores/library";
-import { useReaderStore } from "../../stores/reader";
-import { useNavigationStore } from "../../stores/navigation";
-import { prepareChapter } from "../../preparation";
+import type { SegmentView } from "@/api/types";
+import CoverArt from "@/components/CoverArt.vue";
+import ChapterMenu from "@/components/reader/ChapterMenu.vue";
+import PlayerTransport from "@/components/player/PlayerTransport.vue";
+import { usePlayerStore } from "@/stores/player";
+import { useLibraryStore } from "@/stores/library";
+import { useReaderStore } from "@/stores/reader";
+import { useNavigationStore } from "@/stores/navigation";
+import { prepareChapter } from "@/preparation";
 
 /** Lines mode, for listening from across the room: the spoken sentence large, filling word by
  *  word, with the sentences around it at reading size. */

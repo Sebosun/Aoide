@@ -1,4 +1,4 @@
-import type { GenerationState, PlayerState } from "./types";
+import type { GenerationState, PlayerState } from "@/api/types";
 
 /** What the player shows before the core has said anything: stopped, no book. */
 export const initialPlayer = (): PlayerState => ({

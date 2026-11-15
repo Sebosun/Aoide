@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { BookOpen, Search, Trash2, TriangleAlert } from "@lucide/vue";
-import UiSelect from "../components/ui/UiSelect.vue";
-import UiSkeleton from "../components/ui/UiSkeleton.vue";
-import BookCard from "../components/library/BookCard.vue";
-import { useLibraryStore, type BuiltInFilter } from "../stores/library";
-import { usePlayerStore } from "../stores/player";
-import { useReaderStore } from "../stores/reader";
-import { useNavigationStore } from "../stores/navigation";
-import type { BookSummary, ItemKind, LibrarySort } from "../api/types";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import UiSkeleton from "@/components/ui/UiSkeleton.vue";
+import BookCard from "@/components/library/BookCard.vue";
+import { useLibraryStore, type BuiltInFilter } from "@/stores/library";
+import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
+import { useNavigationStore } from "@/stores/navigation";
+import type { BookSummary, ItemKind, LibrarySort } from "@/api/types";
 
 const library = useLibraryStore(),
   reader = useReaderStore(),

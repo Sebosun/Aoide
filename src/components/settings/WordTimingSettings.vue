@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import { Highlighter } from "@lucide/vue";
-import type { AppSettings } from "../../api/types";
-import SettingsSection from "./SettingsSection.vue";
-import SettingsField from "./SettingsField.vue";
-import SettingsNote from "./SettingsNote.vue";
-import SettingsActions from "./SettingsActions.vue";
-import { useAppSettings } from "../../composables/useAppSettings";
+import type { AppSettings } from "@/api/types";
+import SettingsSection from "@/components/settings/SettingsSection.vue";
+import SettingsField from "@/components/settings/SettingsField.vue";
+import SettingsNote from "@/components/settings/SettingsNote.vue";
+import SettingsActions from "@/components/settings/SettingsActions.vue";
+import { useAppSettings } from "@/composables/useAppSettings";
 
 /** How the spoken word is found: Aoide's estimate, or a local forced aligner. */
 const { settings, error, message, save } = useAppSettings();

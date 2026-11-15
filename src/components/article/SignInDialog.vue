@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, useId } from "vue";
 import { Check, X } from "@lucide/vue";
-import UiDialog from "../ui/UiDialog.vue";
-import { useSignInStore } from "../../stores/signin";
-import { useLibraryStore } from "../../stores/library";
+import UiDialog from "@/components/ui/UiDialog.vue";
+import { useSignInStore } from "@/stores/signin";
+import { useLibraryStore } from "@/stores/library";
 
 /** A sign-in the core runs: three steps drawn from its stage, "Stay signed in to this site",
  *  and Cancel, Show the window, "I'm signed in, fetch again". It closes itself once the

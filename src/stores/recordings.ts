@@ -1,11 +1,11 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { api } from "../api";
-import type { Narration, RecordingView, SyncAction } from "../api/types";
-import { useReaderStore } from "./reader";
-import { useLibraryStore } from "./library";
-import { useUiStore } from "./ui";
-import { useNavigationStore } from "./navigation";
+import { api } from "@/api";
+import type { Narration, RecordingView, SyncAction } from "@/api/types";
+import { useReaderStore } from "@/stores/reader";
+import { useLibraryStore } from "@/stores/library";
+import { useUiStore } from "@/stores/ui";
+import { useNavigationStore } from "@/stores/navigation";
 
 /** Books' recordings, kept current from "sync://state", and the pairing dialog and sync report
  *  that are open over any screen. */

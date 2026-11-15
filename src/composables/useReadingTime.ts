@@ -1,6 +1,6 @@
 import { onMounted, onUnmounted } from "vue";
-import { api } from "../api";
-import { useReaderStore } from "../stores/reader";
+import { api } from "@/api";
+import { useReaderStore } from "@/stores/reader";
 
 /** How often the reader tells the core it is being read, at most. */
 export const REPORT_MS = 15_000;

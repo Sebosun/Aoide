@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { api } from "../api";
-import { initialPlayer, initialGeneration } from "../api/initial";
-import type { EngineStatusView, BookView } from "../api/types";
+import { api } from "@/api";
+import { initialPlayer, initialGeneration } from "@/api/initial";
+import type { EngineStatusView, BookView } from "@/api/types";
 
 export const usePlayerStore = defineStore("player", () => {
   const state = ref(initialPlayer()),

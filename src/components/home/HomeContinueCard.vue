@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { BookSummary } from "../../api/types";
-import CoverArt from "../CoverArt.vue";
-import { timeLeft } from "../../estimate";
-import { useLibraryStore } from "../../stores/library";
-import { usePlayerStore } from "../../stores/player";
-import { useReaderStore } from "../../stores/reader";
-import { useNavigationStore } from "../../stores/navigation";
+import type { BookSummary } from "@/api/types";
+import CoverArt from "@/components/CoverArt.vue";
+import { timeLeft } from "@/estimate";
+import { useLibraryStore } from "@/stores/library";
+import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
+import { useNavigationStore } from "@/stores/navigation";
 
 /** One item to continue, as a card that opens it in the reader. The first is the hero. */
 const props = defineProps<{ book: BookSummary; hero?: boolean }>();

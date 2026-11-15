@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { ArrowLeft, BookOpen, Folder, Headphones, Link2, Settings, X } from "@lucide/vue";
-import { api } from "../api";
-import type { AppSettings, AudiobookMatch, AudiobookSuggestion } from "../api/types";
-import { formatBytes } from "../bytes";
-import { useAudiobooksStore, type MatchGroup } from "../stores/audiobooks";
-import { useLibraryStore } from "../stores/library";
-import { useNavigationStore } from "../stores/navigation";
-import { useRecordingsStore } from "../stores/recordings";
-import { recordingStatus } from "../recording";
+import { api } from "@/api";
+import type { AppSettings, AudiobookMatch, AudiobookSuggestion } from "@/api/types";
+import { formatBytes } from "@/bytes";
+import { useAudiobooksStore, type MatchGroup } from "@/stores/audiobooks";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { useRecordingsStore } from "@/stores/recordings";
+import { recordingStatus } from "@/recording";
 
 /** Find audiobooks: audiobooks on this computer matched by name to books in the library. The
  *  user confirms which to pair, or (Settings → Recordings) lets Aoide pair and check them. */

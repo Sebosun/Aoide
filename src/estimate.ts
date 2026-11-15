@@ -1,4 +1,4 @@
-import type { BookSummary, ChapterView, SegmentView } from "./api/types";
+import type { BookSummary, ChapterView, SegmentView } from "@/api/types";
 
 /** Typical narration pace at 1×, used where real audio durations are not known yet. */
 export const WORDS_PER_MINUTE = 160;

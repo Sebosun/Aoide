@@ -1,18 +1,18 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, type Component } from "vue";
 import { AudioLines, Globe, HardDrive, Headphones, Highlighter, Info, Library, Palette, Rss, X } from "@lucide/vue";
-import UiDialog from "../ui/UiDialog.vue";
-import AppearanceSettings from "./AppearanceSettings.vue";
-import EngineSettings from "./EngineSettings.vue";
-import LibrarySettings from "./LibrarySettings.vue";
-import FeedSettings from "./FeedSettings.vue";
-import SiteSettings from "./SiteSettings.vue";
-import WordTimingSettings from "./WordTimingSettings.vue";
-import RecordingSettings from "./RecordingSettings.vue";
-import StorageSettings from "./StorageSettings.vue";
-import AboutSettings from "./AboutSettings.vue";
-import { useNavigationStore, type SettingsTab } from "../../stores/navigation";
-import { usePreferencesStore } from "../../stores/preferences";
+import UiDialog from "@/components/ui/UiDialog.vue";
+import AppearanceSettings from "@/components/settings/AppearanceSettings.vue";
+import EngineSettings from "@/components/settings/EngineSettings.vue";
+import LibrarySettings from "@/components/settings/LibrarySettings.vue";
+import FeedSettings from "@/components/settings/FeedSettings.vue";
+import SiteSettings from "@/components/settings/SiteSettings.vue";
+import WordTimingSettings from "@/components/settings/WordTimingSettings.vue";
+import RecordingSettings from "@/components/settings/RecordingSettings.vue";
+import StorageSettings from "@/components/settings/StorageSettings.vue";
+import AboutSettings from "@/components/settings/AboutSettings.vue";
+import { useNavigationStore, type SettingsTab } from "@/stores/navigation";
+import { usePreferencesStore } from "@/stores/preferences";
 
 /** Settings as a dialog over the current screen: a vertical list of tabs on the left, one
  *  section per tab on the right. Tabs keep their unsaved edits while the dialog is open. */

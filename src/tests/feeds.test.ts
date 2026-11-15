@@ -1,14 +1,14 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi } from "../api/mock";
-import App from "../App.vue";
-import { useNavigationStore } from "../stores/navigation";
-import { useReaderStore } from "../stores/reader";
-import { useFeedsStore } from "../stores/feeds";
+import { createMockApi } from "@/api/mock";
+import App from "@/App.vue";
+import { useNavigationStore } from "@/stores/navigation";
+import { useReaderStore } from "@/stores/reader";
+import { useFeedsStore } from "@/stores/feeds";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },
@@ -23,6 +23,7 @@ beforeEach(() => {
   start();
 });
 afterEach(() => {
+  vi.useRealTimers();
   mock.dispose();
   document.body.innerHTML = "";
 });
@@ -46,6 +47,10 @@ const entry = (wrapper: ReturnType<typeof mount>, title: string) =>
   wrapper.findAll(".feed-entry").find((e) => e.find(".feed-entry__title").text() === title)!;
 
 it("shows the unread count beside Feeds and lists subscriptions and entries by day", async () => {
+  // Midday, so entries from minutes ago are today whenever the test runs.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 10, 15, 12));
+  start();
   const wrapper = await openFeeds();
   expect(wrapper.get('nav[aria-label="Main"] [aria-label="Feeds"]').text()).toBe("Feeds5");
   expect(wrapper.get(".feeds__summary").text()).toBe("5 new · checked 20 minutes ago");

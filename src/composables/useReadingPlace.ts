@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
-import { api } from "../api";
-import { useLibraryStore } from "../stores/library";
-import { useReaderStore } from "../stores/reader";
+import { api } from "@/api";
+import { useLibraryStore } from "@/stores/library";
+import { useReaderStore } from "@/stores/reader";
 
 const SPOKEN = ".chapter-text__segment:not(.chapter-text__segment--quiet)";
 

@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Copy, Ellipsis, ExternalLink, Plus, TriangleAlert, Trash2 } from "@lucide/vue";
-import type { EntryView, FeedView } from "../api/types";
-import FeedEntry from "../components/feeds/FeedEntry.vue";
-import UiMenu from "../components/ui/UiMenu.vue";
-import type { MenuEntry } from "../components/ui/types";
-import { api } from "../api";
-import { age, dayName, localDay } from "../days";
-import { useFeedsStore, type FeedsSource } from "../stores/feeds";
-import { useNavigationStore } from "../stores/navigation";
-import { useUiStore } from "../stores/ui";
+import type { EntryView, FeedView } from "@/api/types";
+import FeedEntry from "@/components/feeds/FeedEntry.vue";
+import UiMenu from "@/components/ui/UiMenu.vue";
+import type { MenuEntry } from "@/components/ui/types";
+import { api } from "@/api";
+import { age, dayName, localDay } from "@/days";
+import { useFeedsStore, type FeedsSource } from "@/stores/feeds";
+import { useNavigationStore } from "@/stores/navigation";
+import { useUiStore } from "@/stores/ui";
 
 /** Subscriptions on the left, their entries by day on the right. */
 const feeds = useFeedsStore(),

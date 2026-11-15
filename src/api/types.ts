@@ -2,7 +2,7 @@
  *  `contract.ts` (generated; see src-tauri/src/core/contract.rs), commands and their argument and
  *  result types included. The Tauri adapter reshapes a few types (cover paths become webview
  *  URLs); those are defined from their wire types here. */
-import type * as Wire from "./contract";
+import type * as Wire from "@/api/contract";
 
 import type {
   AlignerSettings,
@@ -108,10 +108,10 @@ import type {
   SyncAction,
   SyncReportView,
   SyncStage,
-} from "./contract";
+} from "@/api/contract";
 
 // Every contract type, under its own name (the two reshaped above it are declared here instead).
-export type * from "./contract";
+export type * from "@/api/contract";
 
 /** A library book; the adapter turns the cover file path into a URL the webview can load. */
 export type BookSummary = Omit<Wire.BookSummary, "coverPath"> & { coverUrl: string | null };

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import ConfirmDialog from "./ConfirmDialog.vue";
-import PromptDialog from "./PromptDialog.vue";
-import ToastStack from "./ToastStack.vue";
-import { useUiStore } from "../../stores/ui";
+import ConfirmDialog from "@/components/ui/ConfirmDialog.vue";
+import PromptDialog from "@/components/ui/PromptDialog.vue";
+import ToastStack from "@/components/ui/ToastStack.vue";
+import { useUiStore } from "@/stores/ui";
 /** Renders the app-wide confirm and prompt dialogs and toasts (see stores/ui). Mounted once by App. */
 const ui = useUiStore();
 </script>

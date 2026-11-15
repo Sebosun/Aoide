@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { BookmarkCheck, BookmarkPlus } from "@lucide/vue";
-import type { EntryView } from "../../api/types";
-import { age } from "../../days";
-import { formatDuration, readingMs } from "../../estimate";
-import { NEEDS } from "../../articles";
-import { useLibraryStore } from "../../stores/library";
+import type { EntryView } from "@/api/types";
+import { age } from "@/days";
+import { formatDuration, readingMs } from "@/estimate";
+import { NEEDS } from "@/articles";
+import { useLibraryStore } from "@/stores/library";
 
 /** One feed entry: its feed, age and length, headline and summary; opening reads it, the
  *  bookmark keeps it in the library. */

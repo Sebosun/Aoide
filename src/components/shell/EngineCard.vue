@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from "vue";
-import EngineQueue from "./EngineQueue.vue";
-import { usePopover } from "../../composables/usePopover";
-import { useLibraryStore } from "../../stores/library";
-import { usePlayerStore } from "../../stores/player";
-import { useRecordingsStore } from "../../stores/recordings";
+import EngineQueue from "@/components/shell/EngineQueue.vue";
+import { usePopover } from "@/composables/usePopover";
+import { useLibraryStore } from "@/stores/library";
+import { usePlayerStore } from "@/stores/player";
+import { useRecordingsStore } from "@/stores/recordings";
 
 /** The speech engine in the sidebar, only while it matters: books are being narrated ahead,
  *  recordings are syncing, or the engine has failed after the user asked for audio (someone

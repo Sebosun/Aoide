@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { Eraser, HardDrive, Sparkle, Trash2 } from "@lucide/vue";
-import { api } from "../../api";
-import type { StorageReport } from "../../api/types";
-import SettingsSection from "./SettingsSection.vue";
-import SettingsField from "./SettingsField.vue";
-import SettingsNote from "./SettingsNote.vue";
-import SettingsActions from "./SettingsActions.vue";
-import { formatBytes } from "../../bytes";
-import { useAppSettings } from "../../composables/useAppSettings";
-import { useLibraryStore } from "../../stores/library";
-import { useUiStore } from "../../stores/ui";
+import { api } from "@/api";
+import type { StorageReport } from "@/api/types";
+import SettingsSection from "@/components/settings/SettingsSection.vue";
+import SettingsField from "@/components/settings/SettingsField.vue";
+import SettingsNote from "@/components/settings/SettingsNote.vue";
+import SettingsActions from "@/components/settings/SettingsActions.vue";
+import { formatBytes } from "@/bytes";
+import { useAppSettings } from "@/composables/useAppSettings";
+import { useLibraryStore } from "@/stores/library";
+import { useUiStore } from "@/stores/ui";
 
 /** What uses disk space, cleanup of audio nobody needs, and the cache limit. */
 const library = useLibraryStore(),

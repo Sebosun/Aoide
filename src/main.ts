@@ -1,14 +1,14 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { isTauri } from "@tauri-apps/api/core";
-import { applyPreviewParams } from "./preview";
-import { api } from "./api";
-import { report } from "./log";
-import { useNavigationStore } from "./stores/navigation";
-import App from "./App.vue";
-import "./styles/fonts.css";
-import "./styles/theme.css";
-import "./styles/base.css";
+import { applyPreviewParams } from "@/preview";
+import { api } from "@/api";
+import { report } from "@/log";
+import { useNavigationStore } from "@/stores/navigation";
+import App from "@/App.vue";
+import "@/styles/fonts.css";
+import "@/styles/theme.css";
+import "@/styles/base.css";
 
 const app = createApp(App).use(createPinia());
 /** Sends an error no view caught to Aoide's log, with the view on screen, and to the console. */

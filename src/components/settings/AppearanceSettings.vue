@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Minus, Palette, Plus } from "@lucide/vue";
-import UiSelect from "../ui/UiSelect.vue";
-import type { AppearanceMode } from "../../api/types";
-import { TEXT_SCALES } from "../../theme";
-import { ZOOM_STEPS, clampZoom, stepZoom, zoomLabel } from "../../zoom";
-import SettingsNote from "./SettingsNote.vue";
-import { usePreferencesStore } from "../../stores/preferences";
-import { useLibraryStore } from "../../stores/library";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import type { AppearanceMode } from "@/api/types";
+import { TEXT_SCALES } from "@/theme";
+import { ZOOM_STEPS, clampZoom, stepZoom, zoomLabel } from "@/zoom";
+import SettingsNote from "@/components/settings/SettingsNote.vue";
+import { usePreferencesStore } from "@/stores/preferences";
+import { useLibraryStore } from "@/stores/library";
 
 const preferences = usePreferencesStore(),
   library = useLibraryStore();

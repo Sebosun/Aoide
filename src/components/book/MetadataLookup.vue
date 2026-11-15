@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { Globe } from "@lucide/vue";
-import { api } from "../../api";
-import type { BookDetails, MetadataMatch } from "../../api/types";
-import { useLibraryStore } from "../../stores/library";
+import { api } from "@/api";
+import type { BookDetails, MetadataMatch } from "@/api/types";
+import { useLibraryStore } from "@/stores/library";
 
 /** "Find details online": searches Open Library and applies the match the person picks. */
 const props = defineProps<{ bookId: string; matched: boolean }>();

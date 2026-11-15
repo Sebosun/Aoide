@@ -1,10 +1,10 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type * as Wire from "./contract";
-import type { Commands, CoreEvents } from "./contract";
-import type { AoideApi, Candidate, UiLog } from "./types";
-import { report } from "../log";
-import { apiError } from "./errors";
+import type * as Wire from "@/api/contract";
+import type { Commands, CoreEvents } from "@/api/contract";
+import type { AoideApi, Candidate, UiLog } from "@/api/types";
+import { report } from "@/log";
+import { apiError } from "@/api/errors";
 
 const candidates = (list: Wire.Candidate[]): Candidate[] =>
   list.map(({ coverPath, ...c }) => ({ ...c, coverUrl: coverPath ? convertFileSrc(coverPath) : null }));

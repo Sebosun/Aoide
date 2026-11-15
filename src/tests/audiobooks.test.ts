@@ -1,17 +1,17 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi } from "../api/mock";
-import App from "../App.vue";
-import FindAudiobooksView from "../views/FindAudiobooksView.vue";
-import SettingsDialog from "../components/settings/SettingsDialog.vue";
-import { useLibraryStore } from "../stores/library";
-import { useNavigationStore } from "../stores/navigation";
-import { useUiStore } from "../stores/ui";
-import { pickMenuItem } from "./helpers";
+import { createMockApi } from "@/api/mock";
+import App from "@/App.vue";
+import FindAudiobooksView from "@/views/FindAudiobooksView.vue";
+import SettingsDialog from "@/components/settings/SettingsDialog.vue";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { useUiStore } from "@/stores/ui";
+import { pickMenuItem } from "@/tests/helpers";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },

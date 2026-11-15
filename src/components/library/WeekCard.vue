@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { api } from "../../api";
-import type { ActivityStats } from "../../api/types";
-import { formatDuration } from "../../estimate";
-import { lastDays, series } from "../../stats";
-import { useNavigationStore } from "../../stores/navigation";
+import { api } from "@/api";
+import type { ActivityStats } from "@/api/types";
+import { formatDuration } from "@/estimate";
+import { lastDays, series } from "@/stats";
+import { useNavigationStore } from "@/stores/navigation";
 
 /** The last seven days on Home: time read and time listened, and a bar per day with both
  *  stacked (reading dark, listening light). */

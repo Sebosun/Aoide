@@ -1,9 +1,9 @@
 import { onMounted, onUnmounted } from "vue";
-import { useNavigationStore } from "../stores/navigation";
-import { usePreferencesStore } from "../stores/preferences";
-import { useUiStore } from "../stores/ui";
-import { stepZoom, zoomLabel } from "../zoom";
-import { usePlayerControls } from "./usePlayerControls";
+import { useNavigationStore } from "@/stores/navigation";
+import { usePreferencesStore } from "@/stores/preferences";
+import { useUiStore } from "@/stores/ui";
+import { stepZoom, zoomLabel } from "@/zoom";
+import { usePlayerControls } from "@/composables/usePlayerControls";
 
 /** Pixels of Ctrl + wheel per zoom step: one notch of a mouse wheel, or a short pinch. */
 const WHEEL_STEP = 40;

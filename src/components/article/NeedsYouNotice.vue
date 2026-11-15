@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { TriangleAlert } from "@lucide/vue";
-import type { ArticleView, FetchReason } from "../../api/types";
-import { fetching, siteOf } from "../../articles";
+import type { ArticleView, FetchReason } from "@/api/types";
+import { fetching, siteOf } from "@/articles";
 
 /** Shown after an article's captured text when the fetch got only part of it: what is
  *  missing and why (`reason`, the last one the core gave), and the ways to get the rest: first

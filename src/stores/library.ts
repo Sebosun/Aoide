@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { api } from "../api";
-import { useNavigationStore } from "./navigation";
-import type { BookProgress, BookSummary, Collection, ImportResult, ItemKind, LibrarySort } from "../api/types";
+import { api } from "@/api";
+import { useNavigationStore } from "@/stores/navigation";
+import type { BookProgress, BookSummary, Collection, ImportResult, ItemKind, LibrarySort } from "@/api/types";
 
 export type BuiltInFilter = "all" | "unread" | "progress" | "finished" | "listen" | "preparing";
 /** A built-in filter, or one collection. */

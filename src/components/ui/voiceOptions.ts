@@ -1,5 +1,5 @@
-import type { Voice } from "../../api/types";
-import type { SelectOption } from "./types";
+import type { Voice } from "@/api/types";
+import type { SelectOption } from "@/components/ui/types";
 
 /** Options for a voice picker: the default first (value ""), then a saved voice the server no
  *  longer lists (so it stays visible), then the server's voices. */

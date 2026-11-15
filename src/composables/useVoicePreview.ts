@@ -1,6 +1,6 @@
 import { onUnmounted, ref } from "vue";
-import { api } from "../api";
-import type { EngineProfile, ParamValue } from "../api/types";
+import { api } from "@/api";
+import type { EngineProfile, ParamValue } from "@/api/types";
 
 export interface PreviewRequest {
   profile: EngineProfile;

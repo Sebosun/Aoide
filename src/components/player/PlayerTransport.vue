@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Bookmark, Pause, Play, SkipBack, SkipForward, SlidersHorizontal, Square } from "@lucide/vue";
-import PlayerScrubber from "./PlayerScrubber.vue";
-import SpeedPill from "./SpeedPill.vue";
-import SleepPill from "./SleepPill.vue";
-import VolumeControl from "./VolumeControl.vue";
-import { usePlayerControls } from "../../composables/usePlayerControls";
+import PlayerScrubber from "@/components/player/PlayerScrubber.vue";
+import SpeedPill from "@/components/player/SpeedPill.vue";
+import SleepPill from "@/components/player/SleepPill.vue";
+import VolumeControl from "@/components/player/VolumeControl.vue";
+import { usePlayerControls } from "@/composables/usePlayerControls";
 
 /** The full transport of Lines mode: the scrubber (buffer numbers in its tooltip, buffering and
  *  errors under it), then one row: speed, sleep and volume; previous, a 66px play button and

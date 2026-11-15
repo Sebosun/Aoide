@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
-import type { ChapterView } from "../api/types";
-import { formatDuration, speechMs, wordsLeft, segmentAt, chapterWords } from "../estimate";
+import type { ChapterView } from "@/api/types";
+import { formatDuration, speechMs, wordsLeft, segmentAt, chapterWords } from "@/estimate";
 
 const chapter: ChapterView = {
   index: 0,

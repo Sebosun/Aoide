@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted } from "vue";
 import { ChartNoAxesColumn, Ellipsis, House, Library, Pencil, Plus, Rss, Settings, Trash2 } from "@lucide/vue";
-import type { Collection } from "../../api/types";
-import UiMenu from "../ui/UiMenu.vue";
-import type { MenuEntry } from "../ui/types";
-import { useCollections } from "../../composables/useCollections";
-import EngineCard from "./EngineCard.vue";
-import MiniPlayer from "../player/MiniPlayer.vue";
-import { useFeedsStore } from "../../stores/feeds";
-import { useLibraryStore } from "../../stores/library";
-import { useNavigationStore, type View } from "../../stores/navigation";
+import type { Collection } from "@/api/types";
+import UiMenu from "@/components/ui/UiMenu.vue";
+import type { MenuEntry } from "@/components/ui/types";
+import { useCollections } from "@/composables/useCollections";
+import EngineCard from "@/components/shell/EngineCard.vue";
+import MiniPlayer from "@/components/player/MiniPlayer.vue";
+import { useFeedsStore } from "@/stores/feeds";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore, type View } from "@/stores/navigation";
 
 /** The app's left column: wordmark, Add, the main screens, collections, and at the bottom what
  *  is playing and Settings. Below 720 px it stacks above the screen. */

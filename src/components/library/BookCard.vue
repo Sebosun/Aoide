@@ -14,27 +14,21 @@ import {
   Trash2,
   TriangleAlert,
 } from "@lucide/vue";
-import { NEEDS, fetching } from "../../articles";
-import type { SyncStage } from "../../api/types";
-import { useRecordingsStore } from "../../stores/recordings";
-import { useCollections } from "../../composables/useCollections";
-import { useLibraryStore } from "../../stores/library";
-import { api } from "../../api";
-import type { BookSummary } from "../../api/types";
-import CoverArt from "../CoverArt.vue";
-import ArticleTile from "../article/ArticleTile.vue";
-import UiMenu from "../ui/UiMenu.vue";
-import type { MenuEntry } from "../ui/types";
-import { useUiStore } from "../../stores/ui";
-import { formatBytes } from "../../bytes";
-import { timeLeft } from "../../estimate";
-import {
-  ACTION_ICONS,
-  ACTION_LABELS,
-  describePreparation,
-  preparationStatus,
-  runPrepareAction,
-} from "../../preparation";
+import { NEEDS, fetching } from "@/articles";
+import type { SyncStage } from "@/api/types";
+import { useRecordingsStore } from "@/stores/recordings";
+import { useCollections } from "@/composables/useCollections";
+import { useLibraryStore } from "@/stores/library";
+import { api } from "@/api";
+import type { BookSummary } from "@/api/types";
+import CoverArt from "@/components/CoverArt.vue";
+import ArticleTile from "@/components/article/ArticleTile.vue";
+import UiMenu from "@/components/ui/UiMenu.vue";
+import type { MenuEntry } from "@/components/ui/types";
+import { useUiStore } from "@/stores/ui";
+import { formatBytes } from "@/bytes";
+import { timeLeft } from "@/estimate";
+import { ACTION_ICONS, ACTION_LABELS, describePreparation, preparationStatus, runPrepareAction } from "@/preparation";
 
 const props = defineProps<{ book: BookSummary; busy?: boolean }>();
 const emit = defineEmits<{ open: []; details: []; remove: [] }>();

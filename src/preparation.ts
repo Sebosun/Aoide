@@ -1,8 +1,8 @@
 import type { Component } from "vue";
 import { Pause, Play, Sparkles, X } from "@lucide/vue";
-import { api } from "./api";
-import type { BookSummary, PrepareState } from "./api/types";
-import { useUiStore } from "./stores/ui";
+import { api } from "@/api";
+import type { BookSummary, PrepareState } from "@/api/types";
+import { useUiStore } from "@/stores/ui";
 
 /** What a person can do about a book's whole-book preparation. */
 export type PrepareAction = "prepare" | "start" | "pause" | "resume" | "cancel";

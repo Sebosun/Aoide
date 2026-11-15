@@ -1,18 +1,18 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi } from "../api/mock";
-import { initialPlayer } from "../api/initial";
-import ReaderView from "../views/ReaderView.vue";
-import { useReaderStore } from "../stores/reader";
-import { usePlayerStore } from "../stores/player";
-import { useLibraryStore } from "../stores/library";
-import { usePreferencesStore } from "../stores/preferences";
-import { useNavigationStore } from "../stores/navigation";
-import { pickMenuItem } from "./helpers";
+import { createMockApi } from "@/api/mock";
+import { initialPlayer } from "@/api/initial";
+import ReaderView from "@/views/ReaderView.vue";
+import { useReaderStore } from "@/stores/reader";
+import { usePlayerStore } from "@/stores/player";
+import { useLibraryStore } from "@/stores/library";
+import { usePreferencesStore } from "@/stores/preferences";
+import { useNavigationStore } from "@/stores/navigation";
+import { pickMenuItem } from "@/tests/helpers";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },

@@ -17,11 +17,11 @@ vi.mock("@tauri-apps/api/event", () => ({
   }),
 }));
 
-import { ApiError } from "../api/errors";
-import { tauriApi } from "../api/tauri";
-import { useRecordingsStore } from "../stores/recordings";
-import { useUiStore } from "../stores/ui";
-import { listenForProblems } from "../problems";
+import { ApiError } from "@/api/errors";
+import { tauriApi } from "@/api/tauri";
+import { useRecordingsStore } from "@/stores/recordings";
+import { useUiStore } from "@/stores/ui";
+import { listenForProblems } from "@/problems";
 
 beforeEach(() => {
   setActivePinia(createPinia());

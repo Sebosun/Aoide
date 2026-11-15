@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { FolderOpen } from "@lucide/vue";
-import { api } from "../../api";
-import type { BookDetails } from "../../api/types";
-import MetadataLookup from "./MetadataLookup.vue";
-import { useReaderStore } from "../../stores/reader";
+import { api } from "@/api";
+import type { BookDetails } from "@/api/types";
+import MetadataLookup from "@/components/book/MetadataLookup.vue";
+import { useReaderStore } from "@/stores/reader";
 const props = withDefaults(defineProps<{ bookId: string; notesOpen?: boolean }>(), { notesOpen: false });
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 const reader = useReaderStore();

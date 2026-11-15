@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { Download, Rss, Upload } from "@lucide/vue";
-import type { FeedSettings } from "../../api/types";
-import SettingsSection from "./SettingsSection.vue";
-import SettingsField from "./SettingsField.vue";
-import SettingsNote from "./SettingsNote.vue";
-import UiSelect from "../ui/UiSelect.vue";
-import { useAppSettings } from "../../composables/useAppSettings";
-import { useFeedsStore } from "../../stores/feeds";
+import type { FeedSettings } from "@/api/types";
+import SettingsSection from "@/components/settings/SettingsSection.vue";
+import SettingsField from "@/components/settings/SettingsField.vue";
+import SettingsNote from "@/components/settings/SettingsNote.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import { useAppSettings } from "@/composables/useAppSettings";
+import { useFeedsStore } from "@/stores/feeds";
 
 /** How often feeds are checked, how long their entries stay, and subscription lists in and
  *  out. Every change saves at once. */

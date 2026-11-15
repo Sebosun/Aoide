@@ -2,13 +2,13 @@
 import { onMounted, ref } from "vue";
 import { Copy, FileCog, Keyboard } from "@lucide/vue";
 import { getVersion } from "@tauri-apps/api/app";
-import SettingsSection from "./SettingsSection.vue";
-import SettingsField from "./SettingsField.vue";
-import SettingsNote from "./SettingsNote.vue";
-import { TOKENS } from "../../theme";
-import { SHORTCUTS } from "../../shortcuts";
-import { usePreferencesStore } from "../../stores/preferences";
-import { useUiStore } from "../../stores/ui";
+import SettingsSection from "@/components/settings/SettingsSection.vue";
+import SettingsField from "@/components/settings/SettingsField.vue";
+import SettingsNote from "@/components/settings/SettingsNote.vue";
+import { TOKENS } from "@/theme";
+import { SHORTCUTS } from "@/shortcuts";
+import { usePreferencesStore } from "@/stores/preferences";
+import { useUiStore } from "@/stores/ui";
 
 /** Where settings live, how to write a theme file, the keyboard shortcuts, and the version. */
 const preferences = usePreferencesStore(),

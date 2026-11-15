@@ -1,24 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { Download, Globe, Trash2, X } from "@lucide/vue";
-import { api } from "../../api";
-import type {
-  BrowserDownloadView,
-  BrowserStatusView,
-  BrowserUse,
-  SiteData,
-  SiteFetch,
-  SiteView,
-} from "../../api/types";
-import SettingsSection from "./SettingsSection.vue";
-import SettingsField from "./SettingsField.vue";
-import SettingsNote from "./SettingsNote.vue";
-import UiSelect from "../ui/UiSelect.vue";
-import { useAppSettings } from "../../composables/useAppSettings";
-import { useUiStore } from "../../stores/ui";
-import { useSignInStore } from "../../stores/signin";
-import { formatBytes } from "../../bytes";
-import { age } from "../../days";
+import { api } from "@/api";
+import type { BrowserDownloadView, BrowserStatusView, BrowserUse, SiteData, SiteFetch, SiteView } from "@/api/types";
+import SettingsSection from "@/components/settings/SettingsSection.vue";
+import SettingsField from "@/components/settings/SettingsField.vue";
+import SettingsNote from "@/components/settings/SettingsNote.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import { useAppSettings } from "@/composables/useAppSettings";
+import { useUiStore } from "@/stores/ui";
+import { useSignInStore } from "@/stores/signin";
+import { formatBytes } from "@/bytes";
+import { age } from "@/days";
 
 /** Whether a browser fetches articles plain HTTP cannot read, which browser, and the sites
  *  that needed the user: their session, whether their data is kept between fetches, how they

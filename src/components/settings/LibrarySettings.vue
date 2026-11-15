@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { FolderSearch, Library } from "@lucide/vue";
-import SettingsSection from "./SettingsSection.vue";
-import SettingsField from "./SettingsField.vue";
-import SettingsNote from "./SettingsNote.vue";
-import { useAppSettings } from "../../composables/useAppSettings";
-import { useLibraryStore } from "../../stores/library";
-import { useNavigationStore } from "../../stores/navigation";
+import SettingsSection from "@/components/settings/SettingsSection.vue";
+import SettingsField from "@/components/settings/SettingsField.vue";
+import SettingsNote from "@/components/settings/SettingsNote.vue";
+import { useAppSettings } from "@/composables/useAppSettings";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
 
 /** Where the books live, finding more, and online details. Toggles save at once. */
 const library = useLibraryStore(),

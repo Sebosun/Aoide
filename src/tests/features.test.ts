@@ -1,23 +1,23 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi } from "../api/mock";
-import { initialPlayer } from "../api/initial";
-import SettingsDialog from "../components/settings/SettingsDialog.vue";
-import ActivityView from "../views/ActivityView.vue";
-import BookToolsSheet from "../components/book/BookToolsSheet.vue";
-import BookVoice from "../components/book/BookVoice.vue";
-import UiHost from "../components/ui/UiHost.vue";
-import LibraryView from "../views/LibraryView.vue";
-import App from "../App.vue";
-import { useReaderStore } from "../stores/reader";
-import { usePlayerStore } from "../stores/player";
-import { useLibraryStore } from "../stores/library";
-import { useNavigationStore } from "../stores/navigation";
+import { createMockApi } from "@/api/mock";
+import { initialPlayer } from "@/api/initial";
+import SettingsDialog from "@/components/settings/SettingsDialog.vue";
+import ActivityView from "@/views/ActivityView.vue";
+import BookToolsSheet from "@/components/book/BookToolsSheet.vue";
+import BookVoice from "@/components/book/BookVoice.vue";
+import UiHost from "@/components/ui/UiHost.vue";
+import LibraryView from "@/views/LibraryView.vue";
+import App from "@/App.vue";
+import { useReaderStore } from "@/stores/reader";
+import { usePlayerStore } from "@/stores/player";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
 
-import { choose } from "./helpers";
+import { choose } from "@/tests/helpers";
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },

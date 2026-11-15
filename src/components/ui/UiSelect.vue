@@ -1,8 +1,8 @@
 <script setup lang="ts" generic="T extends string | number">
 import { computed, onUnmounted, ref, useId, watch } from "vue";
 import { Check, ChevronDown } from "@lucide/vue";
-import { usePopover } from "../../composables/usePopover";
-import type { SelectOption } from "./types";
+import { usePopover } from "@/composables/usePopover";
+import type { SelectOption } from "@/components/ui/types";
 
 /** A dropdown that replaces the native <select>: a button that opens a listbox of options.
  *  Arrow keys, Home/End and Page keys move; typing jumps to a matching option; Enter or Space

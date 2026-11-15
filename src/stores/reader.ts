@@ -1,10 +1,10 @@
 import { defineStore } from "pinia";
 import { computed, ref, watch } from "vue";
-import { api } from "../api";
-import type { BookView, ChapterView, ReadingMode } from "../api/types";
-import { useLibraryStore } from "./library";
-import { useNavigationStore } from "./navigation";
-import { usePlayerStore } from "./player";
+import { api } from "@/api";
+import type { BookView, ChapterView, ReadingMode } from "@/api/types";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { usePlayerStore } from "@/stores/player";
 
 export const useReaderStore = defineStore("reader", () => {
   const book = ref<BookView | null>(null),

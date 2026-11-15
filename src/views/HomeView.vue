@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { api } from "../api";
-import type { BookSummary, HomeView } from "../api/types";
-import CoverArt from "../components/CoverArt.vue";
-import ArticleTile from "../components/article/ArticleTile.vue";
-import { formatDuration, readingMs } from "../estimate";
+import { api } from "@/api";
+import type { BookSummary, HomeView } from "@/api/types";
+import CoverArt from "@/components/CoverArt.vue";
+import ArticleTile from "@/components/article/ArticleTile.vue";
+import { formatDuration, readingMs } from "@/estimate";
 import { Plus } from "@lucide/vue";
-import WeekCard from "../components/library/WeekCard.vue";
-import HomeContinueCard from "../components/home/HomeContinueCard.vue";
-import { useLibraryStore } from "../stores/library";
-import { useNavigationStore } from "../stores/navigation";
-import { dayName } from "../days";
-import { NEEDS } from "../articles";
+import WeekCard from "@/components/library/WeekCard.vue";
+import HomeContinueCard from "@/components/home/HomeContinueCard.vue";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { dayName } from "@/days";
+import { NEEDS } from "@/articles";
 
 /** Home: what to continue, what is next, this week, and what was added recently. The core
  *  chooses the items (`home`); this screen looks them up in the library it already has. */

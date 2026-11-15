@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { FilePlus, FolderOpen, FolderSearch, Headphones, RefreshCw, Rss, X } from "@lucide/vue";
-import type { DiscoveredFeed } from "../../api/types";
-import UiDialog from "../ui/UiDialog.vue";
-import { api } from "../../api";
-import { useLibraryStore } from "../../stores/library";
-import { useNavigationStore } from "../../stores/navigation";
-import { useRecordingsStore } from "../../stores/recordings";
-import { useArticlesStore } from "../../stores/articles";
-import { asLink } from "../../articles";
+import type { DiscoveredFeed } from "@/api/types";
+import UiDialog from "@/components/ui/UiDialog.vue";
+import { api } from "@/api";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { useRecordingsStore } from "@/stores/recordings";
+import { useArticlesStore } from "@/stores/articles";
+import { asLink } from "@/articles";
 
 /** Everything that adds to the library, in one place: opened by the sidebar's Add and Ctrl N.
  *  Files can also be dropped anywhere on the window (App routes them). */

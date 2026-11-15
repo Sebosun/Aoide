@@ -1,6 +1,6 @@
 import { onMounted, ref } from "vue";
-import { api } from "../api";
-import type { AppSettings, AppSettingsPatch } from "../api/types";
+import { api } from "@/api";
+import type { AppSettings, AppSettingsPatch } from "@/api/types";
 
 /** App settings for one settings tab. `save` sends the tab's change, which the core merges into
  *  the saved settings, so tabs never overwrite each other's fields. */

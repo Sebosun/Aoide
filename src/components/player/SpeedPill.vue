@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import UiSelect from "../ui/UiSelect.vue";
-import { SPEEDS } from "../../composables/usePlayerControls";
-import { usePlayerStore } from "../../stores/player";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import { SPEEDS } from "@/composables/usePlayerControls";
+import { usePlayerStore } from "@/stores/player";
 const player = usePlayerStore();
 const options = SPEEDS.map((speed) => ({ value: speed, label: `${speed}×` }));
 </script>

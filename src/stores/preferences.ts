@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import { api } from "../api";
-import type { Appearance, Preferences, Theme } from "../api/types";
-import { applyAppearance } from "../theme";
+import { api } from "@/api";
+import type { Appearance, Preferences, Theme } from "@/api/types";
+import { applyAppearance } from "@/theme";
 
 /** Appearance settings from ~/.config/aoide, applied to the document as they change. */
 export const usePreferencesStore = defineStore("preferences", () => {

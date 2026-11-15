@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { LoaderCircle, Square, Volume2 } from "@lucide/vue";
-import { useVoicePreview, type PreviewRequest } from "../../composables/useVoicePreview";
+import { useVoicePreview, type PreviewRequest } from "@/composables/useVoicePreview";
 
 /** "Preview" next to a voice picker: speaks a sample sentence with the settings as they are on
  *  screen, saved or not. */

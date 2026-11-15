@@ -1,17 +1,17 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
-import themeSource from "../styles/theme.css?raw";
+import themeSource from "@/styles/theme.css?raw";
 import rustConfig from "../../crates/config/src/lib.rs?raw";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi } from "../api/mock";
-import { TOKENS, themeCss } from "../theme";
-import { usePreferencesStore } from "../stores/preferences";
-import { useLibraryStore } from "../stores/library";
-import SettingsDialog from "../components/settings/SettingsDialog.vue";
+import { createMockApi } from "@/api/mock";
+import { TOKENS, themeCss } from "@/theme";
+import { usePreferencesStore } from "@/stores/preferences";
+import { useLibraryStore } from "@/stores/library";
+import SettingsDialog from "@/components/settings/SettingsDialog.vue";
 
-import { choose } from "./helpers";
+import { choose } from "@/tests/helpers";
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },

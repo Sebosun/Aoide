@@ -17,25 +17,25 @@ import {
   Sparkles,
   TriangleAlert,
 } from "@lucide/vue";
-import { api } from "../api";
-import type { BookDetails, BookSettings, BookView, ChapterAudioView, DayListening } from "../api/types";
-import CoverArt from "../components/CoverArt.vue";
-import UiMenu from "../components/ui/UiMenu.vue";
-import type { MenuEntry } from "../components/ui/types";
-import UiSkeleton from "../components/ui/UiSkeleton.vue";
-import MetadataLookup from "../components/book/MetadataLookup.vue";
-import BookListening from "../components/book/BookListening.vue";
-import BookNarration from "../components/book/BookNarration.vue";
-import { useCollections } from "../composables/useCollections";
-import { useRecordingsStore } from "../stores/recordings";
-import { useArticlesStore } from "../stores/articles";
-import { fetching, NEEDS, siteOf } from "../articles";
-import { formatBytes } from "../bytes";
-import { formatClock, formatDuration, readingMs, speechMs } from "../estimate";
-import { useLibraryStore } from "../stores/library";
-import { useNavigationStore } from "../stores/navigation";
-import { usePlayerStore } from "../stores/player";
-import { useReaderStore } from "../stores/reader";
+import { api } from "@/api";
+import type { BookDetails, BookSettings, BookView, ChapterAudioView, DayListening } from "@/api/types";
+import CoverArt from "@/components/CoverArt.vue";
+import UiMenu from "@/components/ui/UiMenu.vue";
+import type { MenuEntry } from "@/components/ui/types";
+import UiSkeleton from "@/components/ui/UiSkeleton.vue";
+import MetadataLookup from "@/components/book/MetadataLookup.vue";
+import BookListening from "@/components/book/BookListening.vue";
+import BookNarration from "@/components/book/BookNarration.vue";
+import { useCollections } from "@/composables/useCollections";
+import { useRecordingsStore } from "@/stores/recordings";
+import { useArticlesStore } from "@/stores/articles";
+import { fetching, NEEDS, siteOf } from "@/articles";
+import { formatBytes } from "@/bytes";
+import { formatClock, formatDuration, readingMs, speechMs } from "@/estimate";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
 import {
   ACTION_ICONS,
   ACTION_LABELS,
@@ -43,7 +43,7 @@ import {
   prepareChapter,
   preparationStatus,
   runPrepareAction,
-} from "../preparation";
+} from "@/preparation";
 
 /** An item's page: what it is, its text, what it plays with, its contents and its details
  *  online. Nothing plays until the person asks: Read opens the text, Listen plays it. */

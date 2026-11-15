@@ -1,21 +1,21 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi } from "../api/mock";
-import App from "../App.vue";
-import LibraryView from "../views/LibraryView.vue";
-import MiniPlayer from "../components/player/MiniPlayer.vue";
-import UiHost from "../components/ui/UiHost.vue";
-import { useLibraryStore } from "../stores/library";
-import { usePlayerStore } from "../stores/player";
-import { useReaderStore } from "../stores/reader";
-import { useNavigationStore } from "../stores/navigation";
-import { useUiStore } from "../stores/ui";
-import { useRecordingsStore } from "../stores/recordings";
+import { createMockApi } from "@/api/mock";
+import App from "@/App.vue";
+import LibraryView from "@/views/LibraryView.vue";
+import MiniPlayer from "@/components/player/MiniPlayer.vue";
+import UiHost from "@/components/ui/UiHost.vue";
+import { useLibraryStore } from "@/stores/library";
+import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
+import { useNavigationStore } from "@/stores/navigation";
+import { useUiStore } from "@/stores/ui";
+import { useRecordingsStore } from "@/stores/recordings";
 
-import { choose, openMenu, pickMenuItem } from "./helpers";
+import { choose, openMenu, pickMenuItem } from "@/tests/helpers";
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },

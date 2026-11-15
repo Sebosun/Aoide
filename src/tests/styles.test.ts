@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
-import themeSource from "../styles/theme.css?raw";
+import themeSource from "@/styles/theme.css?raw";
 
-const components = import.meta.glob("../**/*.vue", { query: "?raw", import: "default", eager: true }) as Record<
+const components = import.meta.glob("@/**/*.vue", { query: "?raw", import: "default", eager: true }) as Record<
   string,
   string
 >;
@@ -21,4 +21,23 @@ it("styles components only with theme tokens", () => {
 
 it("has no leftover aliases for the old palette", () => {
   expect(themeSource).not.toMatch(/--(surface|blue|text-muted|warning-bg|highlight):/);
+});
+
+const sources = import.meta.glob(["@/**/*.ts", "@/**/*.vue"], {
+  query: "?raw",
+  import: "default",
+  eager: true,
+}) as Record<string, string>;
+
+it("imports modules by the @/ alias, never by a relative path", () => {
+  expect(Object.keys(sources).length).toBeGreaterThan(100);
+  for (const [file, source] of Object.entries(sources)) {
+    const relative = [
+      ...source.matchAll(/(?:from|import|vi\.mock|import\.meta\.glob)\s*\(?\s*["'](\.\.?\/[^"']*)["']/g),
+    ]
+      .map((m) => m[1])
+      // Rust sources read raw by contract tests sit outside src/.
+      .filter((path) => !path.includes("/crates/"));
+    expect(relative, file).toEqual([]);
+  }
 });

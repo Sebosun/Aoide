@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { ChevronDown } from "@lucide/vue";
-import type { ChapterView } from "../../api/types";
-import UiMenu from "../ui/UiMenu.vue";
-import type { MenuEntry } from "../ui/types";
+import type { ChapterView } from "@/api/types";
+import UiMenu from "@/components/ui/UiMenu.vue";
+import type { MenuEntry } from "@/components/ui/types";
 
 /** An article's headings, in the reader's header where a book has its chapters: picking one
  *  scrolls the page to it. Only the title shows when the article has no headings. */

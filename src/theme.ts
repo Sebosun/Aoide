@@ -1,5 +1,5 @@
-import type { Appearance, Theme } from "./api/types";
-import { applyZoom } from "./zoom";
+import type { Appearance, Theme } from "@/api/types";
+import { applyZoom } from "@/zoom";
 
 /** Colour tokens a theme file may override; mirrors aoide_config::TOKENS and theme.css. */
 export const TOKENS = [

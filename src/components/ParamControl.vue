@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { ParamSpec, ParamValue } from "../api/types";
-import UiSelect from "./ui/UiSelect.vue";
+import type { ParamSpec, ParamValue } from "@/api/types";
+import UiSelect from "@/components/ui/UiSelect.vue";
 const props = defineProps<{ spec: ParamSpec; modelValue: ParamValue | undefined }>();
 const emit = defineEmits<{ "update:modelValue": [value: ParamValue | undefined] }>();
 const value = computed(() => props.modelValue ?? props.spec.default);

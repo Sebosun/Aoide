@@ -1,12 +1,12 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
-import { createMockApi } from "../api/mock";
-import type { RecordingView, SyncStage } from "../api/types";
-import { recordingStatus } from "../recording";
-import { useRecordingsStore } from "../stores/recordings";
+import { createMockApi } from "@/api/mock";
+import type { RecordingView, SyncStage } from "@/api/types";
+import { recordingStatus } from "@/recording";
+import { useRecordingsStore } from "@/stores/recordings";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },

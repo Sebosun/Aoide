@@ -1,23 +1,23 @@
 import { beforeEach, afterEach, expect, it, onTestFinished, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi } from "../api/mock";
-import { initialPlayer } from "../api/initial";
-import ReaderView from "../views/ReaderView.vue";
-import ReaderTools from "../components/reader/ReaderTools.vue";
-import ListenButton from "../components/reader/ListenButton.vue";
-import ChapterMenu from "../components/reader/ChapterMenu.vue";
-import ChapterText from "../components/reader/ChapterText.vue";
-import { useReaderStore } from "../stores/reader";
-import { usePlayerStore } from "../stores/player";
-import { useLibraryStore } from "../stores/library";
-import { usePreferencesStore } from "../stores/preferences";
+import { createMockApi } from "@/api/mock";
+import { initialPlayer } from "@/api/initial";
+import ReaderView from "@/views/ReaderView.vue";
+import ReaderTools from "@/components/reader/ReaderTools.vue";
+import ListenButton from "@/components/reader/ListenButton.vue";
+import ChapterMenu from "@/components/reader/ChapterMenu.vue";
+import ChapterText from "@/components/reader/ChapterText.vue";
+import { useReaderStore } from "@/stores/reader";
+import { usePlayerStore } from "@/stores/player";
+import { useLibraryStore } from "@/stores/library";
+import { usePreferencesStore } from "@/stores/preferences";
 
-import { choose, openMenu, pickMenuItem } from "./helpers";
-import { useUiStore } from "../stores/ui";
-import { useNavigationStore } from "../stores/navigation";
+import { choose, openMenu, pickMenuItem } from "@/tests/helpers";
+import { useUiStore } from "@/stores/ui";
+import { useNavigationStore } from "@/stores/navigation";
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },

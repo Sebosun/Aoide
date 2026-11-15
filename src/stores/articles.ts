@@ -1,11 +1,11 @@
 import { defineStore } from "pinia";
 import { ref, watch } from "vue";
-import { api } from "../api";
-import type { ArticleSource, ArticleView, FeedView } from "../api/types";
-import { useFeedsStore } from "./feeds";
-import { useLibraryStore } from "./library";
-import { useNavigationStore } from "./navigation";
-import { useReaderStore } from "./reader";
+import { api } from "@/api";
+import type { ArticleSource, ArticleView, FeedView } from "@/api/types";
+import { useFeedsStore } from "@/stores/feeds";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { useReaderStore } from "@/stores/reader";
 
 /** Saved articles' sources and fetches, kept current from "article://state". */
 export const useArticlesStore = defineStore("articles", () => {

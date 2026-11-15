@@ -1,4 +1,4 @@
-import type { CoreError } from "./contract";
+import type { CoreError } from "@/api/contract";
 
 /** A command's failure, as the core reported it: `kind` tells failures apart, and the text is
  *  the core's message (so `String(error)` reads as before). */

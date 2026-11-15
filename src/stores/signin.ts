@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { api } from "../api";
-import type { SignInView } from "../api/types";
-import { useUiStore } from "./ui";
+import { api } from "@/api";
+import type { SignInView } from "@/api/types";
+import { useUiStore } from "@/stores/ui";
 
 /** The sign-in the core runs (core/signin.rs), kept current from "signin://state". The dialog
  *  shows while one is open (and after it fails, until dismissed); a finished one is reported

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Pause, Play } from "@lucide/vue";
-import CoverArt from "../CoverArt.vue";
-import { usePlayerControls } from "../../composables/usePlayerControls";
-import { useNavigationStore } from "../../stores/navigation";
-import { useReaderStore } from "../../stores/reader";
+import CoverArt from "@/components/CoverArt.vue";
+import { usePlayerControls } from "@/composables/usePlayerControls";
+import { useNavigationStore } from "@/stores/navigation";
+import { useReaderStore } from "@/stores/reader";
 
 /** What is playing, as a card at the foot of the sidebar: cover, title, a state line and
  *  play/pause. It shows while something is loaded in the player and the reader is not open;

@@ -1,7 +1,7 @@
 import type { Component } from "vue";
 import { BookDown, Check, Download, FileText, Headphones, Pause, Play, RotateCcw, Trash2 } from "@lucide/vue";
-import type { RecordingView, SyncStage } from "./api/types";
-import { formatDuration } from "./estimate";
+import type { RecordingView, SyncStage } from "@/api/types";
+import { formatDuration } from "@/estimate";
 
 /** An audiobook to pair, by name: its file or folder name, and how many files. */
 export const audiobookName = (paths: string[]) =>

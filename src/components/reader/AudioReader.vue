@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { Pause, Play, Plus } from "@lucide/vue";
-import CoverArt from "../CoverArt.vue";
-import PlayerScrubber from "../player/PlayerScrubber.vue";
-import SpeedPill from "../player/SpeedPill.vue";
-import SleepPill from "../player/SleepPill.vue";
-import { formatClock, formatDuration, partsOf } from "../../estimate";
-import { useLibraryStore } from "../../stores/library";
-import { usePlayerStore } from "../../stores/player";
-import { useReaderStore } from "../../stores/reader";
-import { useRecordingsStore } from "../../stores/recordings";
+import CoverArt from "@/components/CoverArt.vue";
+import PlayerScrubber from "@/components/player/PlayerScrubber.vue";
+import SpeedPill from "@/components/player/SpeedPill.vue";
+import SleepPill from "@/components/player/SleepPill.vue";
+import { formatClock, formatDuration, partsOf } from "@/estimate";
+import { useLibraryStore } from "@/stores/library";
+import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
+import { useRecordingsStore } from "@/stores/recordings";
 
 /** The reader for an audiobook on its own (shape `listen`): cover, a scrubber over the part
  *  playing, the transport with ±30 s, the parts to jump to, and what adding its text would

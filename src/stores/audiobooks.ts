@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { api } from "../api";
-import type { AudiobookMatch, AudiobookSuggestion, MatchStage, ScanProgress } from "../api/types";
-import { useRecordingsStore } from "./recordings";
+import { api } from "@/api";
+import type { AudiobookMatch, AudiobookSuggestion, MatchStage, ScanProgress } from "@/api/types";
+import { useRecordingsStore } from "@/stores/recordings";
 
 /** Find audiobooks' tabs: the core's match stages, as the screen groups them. */
 export type MatchGroup = "found" | "checking" | "paired" | "unverified";

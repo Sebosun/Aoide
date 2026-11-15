@@ -1,7 +1,7 @@
 import { computed, watch } from "vue";
-import { useArticlesStore } from "../stores/articles";
-import { useLibraryStore } from "../stores/library";
-import { useReaderStore } from "../stores/reader";
+import { useArticlesStore } from "@/stores/articles";
+import { useLibraryStore } from "@/stores/library";
+import { useReaderStore } from "@/stores/reader";
 
 /** The reader's item when it is an article: its source and fetch, loaded when it opens and
  *  kept current from "article://state". `isArticle` holds as soon as the library knows. */

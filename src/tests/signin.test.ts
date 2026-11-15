@@ -1,16 +1,16 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { flushPromises, mount } from "@vue/test-utils";
-import { createMockApi } from "../api/mock";
-import App from "../App.vue";
-import NeedsYouNotice from "../components/article/NeedsYouNotice.vue";
-import { useUiStore } from "../stores/ui";
-import { useNavigationStore } from "../stores/navigation";
-import type { ArticleView, FetchReason } from "../api/types";
-import fixtureArticle from "./fixtures/article.json";
+import { createMockApi } from "@/api/mock";
+import App from "@/App.vue";
+import NeedsYouNotice from "@/components/article/NeedsYouNotice.vue";
+import { useUiStore } from "@/stores/ui";
+import { useNavigationStore } from "@/stores/navigation";
+import type { ArticleView, FetchReason } from "@/api/types";
+import fixtureArticle from "@/tests/fixtures/article.json";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { ArrowLeft, BookOpen, FolderSearch, Globe, Download, Headphones, X } from "@lucide/vue";
-import { useNavigationStore } from "../stores/navigation";
-import { api } from "../api";
-import type { AppSettings, CandidateStatus } from "../api/types";
-import { formatBytes } from "../bytes";
-import { useDiscoveryStore } from "../stores/discovery";
-import { useRecordingsStore } from "../stores/recordings";
-import { audiobookName } from "../recording";
+import { useNavigationStore } from "@/stores/navigation";
+import { api } from "@/api";
+import type { AppSettings, CandidateStatus } from "@/api/types";
+import { formatBytes } from "@/bytes";
+import { useDiscoveryStore } from "@/stores/discovery";
+import { useRecordingsStore } from "@/stores/recordings";
+import { audiobookName } from "@/recording";
 const discovery = useDiscoveryStore(),
   navigation = useNavigationStore(),
   recordings = useRecordingsStore();

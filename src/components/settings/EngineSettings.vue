@@ -1,17 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { AudioLines, RefreshCw } from "@lucide/vue";
-import { api } from "../../api";
-import type { EngineDescriptor, EngineProfile, ParamValue, Voice } from "../../api/types";
-import ParamControl from "../ParamControl.vue";
-import UiSelect from "../ui/UiSelect.vue";
-import { voiceOptions } from "../ui/voiceOptions";
-import SettingsSection from "./SettingsSection.vue";
-import SettingsField from "./SettingsField.vue";
-import SettingsNote from "./SettingsNote.vue";
-import SettingsActions from "./SettingsActions.vue";
-import VoicePreview from "./VoicePreview.vue";
-import { usePlayerStore } from "../../stores/player";
+import { api } from "@/api";
+import type { EngineDescriptor, EngineProfile, ParamValue, Voice } from "@/api/types";
+import ParamControl from "@/components/ParamControl.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import { voiceOptions } from "@/components/ui/voiceOptions";
+import SettingsSection from "@/components/settings/SettingsSection.vue";
+import SettingsField from "@/components/settings/SettingsField.vue";
+import SettingsNote from "@/components/settings/SettingsNote.vue";
+import SettingsActions from "@/components/settings/SettingsActions.vue";
+import VoicePreview from "@/components/settings/VoicePreview.vue";
+import { usePlayerStore } from "@/stores/player";
 
 /** The speech engine profile. Edits stay a draft (which Preview speaks with) until saved. */
 const player = usePlayerStore();

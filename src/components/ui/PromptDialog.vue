@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import UiDialog from "./UiDialog.vue";
-import type { PromptOptions } from "../../stores/ui";
+import UiDialog from "@/components/ui/UiDialog.vue";
+import type { PromptOptions } from "@/stores/ui";
 
 /** Asks for one line of text, such as a collection name. */
 const props = defineProps<{ options: PromptOptions }>();

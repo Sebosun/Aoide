@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { AudioLines, Headphones } from "@lucide/vue";
-import { api } from "../../api";
-import type { Narration } from "../../api/types";
-import BookVoice from "./BookVoice.vue";
-import RecordingPanel from "../recording/RecordingPanel.vue";
-import { useRecordingsStore } from "../../stores/recordings";
-import { useReaderStore } from "../../stores/reader";
+import { api } from "@/api";
+import type { Narration } from "@/api/types";
+import BookVoice from "@/components/book/BookVoice.vue";
+import RecordingPanel from "@/components/recording/RecordingPanel.vue";
+import { useRecordingsStore } from "@/stores/recordings";
+import { useReaderStore } from "@/stores/reader";
 
 /** Who reads the book: its paired recording (synced, or while it syncs) or a speech engine, with each one's
  *  settings. Switching restarts playback at the current sentence. */

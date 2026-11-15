@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { BookOpen, Flame, Gauge, Headphones } from "@lucide/vue";
-import { api } from "../api";
-import type { ActivityStats } from "../api/types";
-import CoverArt from "../components/CoverArt.vue";
-import UiSkeleton from "../components/ui/UiSkeleton.vue";
-import { formatDuration } from "../estimate";
-import { dayKey, heatmap, lastDays, lastMonths, series as split, streaks, summary, weekdays } from "../stats";
-import { useLibraryStore } from "../stores/library";
-import { useNavigationStore } from "../stores/navigation";
+import { api } from "@/api";
+import type { ActivityStats } from "@/api/types";
+import CoverArt from "@/components/CoverArt.vue";
+import UiSkeleton from "@/components/ui/UiSkeleton.vue";
+import { formatDuration } from "@/estimate";
+import { dayKey, heatmap, lastDays, lastMonths, series as split, streaks, summary, weekdays } from "@/stats";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
 
 /** Reading and listening over a chosen range: a total of each, a streak, a bar per day (or
  *  month) with both stacked, a calendar of the last half year, weekdays, and time per book.

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { Minus, Plus } from "@lucide/vue";
-import type { ReaderMode } from "../../api/types";
-import { TEXT_SCALES } from "../../theme";
-import { useMenu } from "../../composables/useMenu";
-import { usePreferencesStore } from "../../stores/preferences";
+import type { ReaderMode } from "@/api/types";
+import { TEXT_SCALES } from "@/theme";
+import { useMenu } from "@/composables/useMenu";
+import { usePreferencesStore } from "@/stores/preferences";
 
 /** Text size ("Aa") and, with `lines`, the Page / Lines switch. */
 defineProps<{ lines: boolean }>();

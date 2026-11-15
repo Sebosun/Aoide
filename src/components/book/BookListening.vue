@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { DayListening } from "../../api/types";
-import { formatDuration, speechMs } from "../../estimate";
+import type { DayListening } from "@/api/types";
+import { formatDuration, speechMs } from "@/estimate";
 
 /** Time spent with one book: the total, the days it was listened on (a bar each, the latest
  *  fourteen), when that began and last happened, and roughly how much is left. */

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { BlockView, ChapterView, NoteMarker, SegmentView } from "../../api/types";
+import type { BlockView, ChapterView, NoteMarker, SegmentView } from "@/api/types";
 
 /** A chapter set as a page: headings and paragraphs, the spoken sentence washed and the
  *  current word underlined (nothing changes size, so lines never reflow). When `playable`,

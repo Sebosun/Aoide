@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Settings } from "@lucide/vue";
-import { useLibraryStore } from "../../stores/library";
-import { useNavigationStore } from "../../stores/navigation";
-import { usePlayerStore } from "../../stores/player";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { usePlayerStore } from "@/stores/player";
 import {
   ACTION_ICONS,
   ACTION_LABELS,
@@ -11,15 +11,10 @@ import {
   preparationStatus,
   runPrepareAction,
   type PrepareAction,
-} from "../../preparation";
-import { useRecordingsStore } from "../../stores/recordings";
-import {
-  RECORDING_ACTION_ICONS,
-  RECORDING_ACTION_LABELS,
-  recordingStatus,
-  type RecordingAction,
-} from "../../recording";
-import { useUiStore } from "../../stores/ui";
+} from "@/preparation";
+import { useRecordingsStore } from "@/stores/recordings";
+import { RECORDING_ACTION_ICONS, RECORDING_ACTION_LABELS, recordingStatus, type RecordingAction } from "@/recording";
+import { useUiStore } from "@/stores/ui";
 
 /** What the speech engine is working on: audio for the book playing now, then the books
  *  queued for whole-book preparation, in the order they will be made; and the recordings being

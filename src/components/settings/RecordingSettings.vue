@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { Check, Download, Headphones } from "@lucide/vue";
-import { api } from "../../api";
+import { api } from "@/api";
 import type {
   ModelDownloadView,
   ModelSizeChoice,
@@ -9,15 +9,15 @@ import type {
   RecognitionEngine,
   RecognitionOptions,
   RecognitionSettings,
-} from "../../api/types";
-import SettingsSection from "./SettingsSection.vue";
-import SettingsField from "./SettingsField.vue";
-import SettingsNote from "./SettingsNote.vue";
-import SettingsActions from "./SettingsActions.vue";
-import UiSelect from "../ui/UiSelect.vue";
-import { useAppSettings } from "../../composables/useAppSettings";
-import { useNavigationStore } from "../../stores/navigation";
-import { formatBytes } from "../../bytes";
+} from "@/api/types";
+import SettingsSection from "@/components/settings/SettingsSection.vue";
+import SettingsField from "@/components/settings/SettingsField.vue";
+import SettingsNote from "@/components/settings/SettingsNote.vue";
+import SettingsActions from "@/components/settings/SettingsActions.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import { useAppSettings } from "@/composables/useAppSettings";
+import { useNavigationStore } from "@/stores/navigation";
+import { formatBytes } from "@/bytes";
 
 /** Speech recognition for syncing recordings: built in (the model, where it runs, and the models
  *  on this computer, downloaded only when asked and checked against fixed checksums), or a

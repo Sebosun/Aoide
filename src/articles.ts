@@ -1,4 +1,4 @@
-import type { FetchReason, FetchStage } from "./api/types";
+import type { FetchReason, FetchStage } from "@/api/types";
 
 /** `text` as a link to save, or null when it is not one. The core checks again and decides
  *  (core/articles.rs `parse_link`); this only keeps a typo from becoming an item. */

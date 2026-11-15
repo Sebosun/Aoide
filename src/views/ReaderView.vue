@@ -1,22 +1,22 @@
 <script setup lang="ts">
 import { computed, onUnmounted, watch } from "vue";
 import { ArrowLeft, Bookmark, Ellipsis, Headphones } from "@lucide/vue";
-import ReaderSheet from "../components/reader/ReaderSheet.vue";
-import ReaderLines from "../components/reader/ReaderLines.vue";
-import ReaderTools from "../components/reader/ReaderTools.vue";
-import ChapterMenu from "../components/reader/ChapterMenu.vue";
-import ArticleOutline from "../components/article/ArticleOutline.vue";
-import { useOpenArticle } from "../composables/useOpenArticle";
-import ListenButton from "../components/reader/ListenButton.vue";
-import AudioReader from "../components/reader/AudioReader.vue";
-import { usePlayerControls } from "../composables/usePlayerControls";
-import { useReadingTime } from "../composables/useReadingTime";
-import { prepareChapter } from "../preparation";
-import { usePreferencesStore } from "../stores/preferences";
-import BookToolsSheet from "../components/book/BookToolsSheet.vue";
-import { useNavigationStore, VIEW_NAMES, type ToolsTab } from "../stores/navigation";
-import { useReaderStore } from "../stores/reader";
-import { usePlayerStore } from "../stores/player";
+import ReaderSheet from "@/components/reader/ReaderSheet.vue";
+import ReaderLines from "@/components/reader/ReaderLines.vue";
+import ReaderTools from "@/components/reader/ReaderTools.vue";
+import ChapterMenu from "@/components/reader/ChapterMenu.vue";
+import ArticleOutline from "@/components/article/ArticleOutline.vue";
+import { useOpenArticle } from "@/composables/useOpenArticle";
+import ListenButton from "@/components/reader/ListenButton.vue";
+import AudioReader from "@/components/reader/AudioReader.vue";
+import { usePlayerControls } from "@/composables/usePlayerControls";
+import { useReadingTime } from "@/composables/useReadingTime";
+import { prepareChapter } from "@/preparation";
+import { usePreferencesStore } from "@/stores/preferences";
+import BookToolsSheet from "@/components/book/BookToolsSheet.vue";
+import { useNavigationStore, VIEW_NAMES, type ToolsTab } from "@/stores/navigation";
+import { useReaderStore } from "@/stores/reader";
+import { usePlayerStore } from "@/stores/player";
 
 const reader = useReaderStore(),
   player = usePlayerStore(),

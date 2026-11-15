@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from "vue";
 import { Volume1, Volume2, VolumeX } from "@lucide/vue";
-import { usePlayerStore } from "../../stores/player";
-import { usePopover } from "../../composables/usePopover";
+import { usePlayerStore } from "@/stores/player";
+import { usePopover } from "@/composables/usePopover";
 
 /** A speaker button that opens a small panel: mute and a volume slider, in percent. */
 const player = usePlayerStore();

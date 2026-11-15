@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { Download, RotateCcw } from "@lucide/vue";
-import { api } from "../../api";
-import type { BookSettings, EngineDescriptor, EngineProfile, ExportProgress, ParamValue, Voice } from "../../api/types";
-import ParamControl from "../ParamControl.vue";
-import UiSelect from "../ui/UiSelect.vue";
-import { voiceOptions } from "../ui/voiceOptions";
-import VoicePreview from "../settings/VoicePreview.vue";
-import { useLibraryStore } from "../../stores/library";
-import { useReaderStore } from "../../stores/reader";
-import { useUiStore } from "../../stores/ui";
-import { formatBytes } from "../../bytes";
+import { api } from "@/api";
+import type { BookSettings, EngineDescriptor, EngineProfile, ExportProgress, ParamValue, Voice } from "@/api/types";
+import ParamControl from "@/components/ParamControl.vue";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import { voiceOptions } from "@/components/ui/voiceOptions";
+import VoicePreview from "@/components/settings/VoicePreview.vue";
+import { useLibraryStore } from "@/stores/library";
+import { useReaderStore } from "@/stores/reader";
+import { useUiStore } from "@/stores/ui";
+import { formatBytes } from "@/bytes";
 import {
   ACTION_ICONS,
   ACTION_LABELS,
@@ -18,7 +18,7 @@ import {
   preparationStatus,
   runPrepareAction,
   type PrepareAction,
-} from "../../preparation";
+} from "@/preparation";
 const props = defineProps<{ bookId: string }>();
 const library = useLibraryStore(),
   reader = useReaderStore();

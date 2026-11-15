@@ -1,25 +1,25 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { ArrowRight, LocateFixed } from "@lucide/vue";
-import ChapterText from "./ChapterText.vue";
-import BookMargin from "./BookMargin.vue";
-import PlayerDock from "../player/PlayerDock.vue";
-import ArticleHeader from "../article/ArticleHeader.vue";
-import NeedsYouNotice from "../article/NeedsYouNotice.vue";
-import { useFollow } from "../../composables/useFollow";
-import { useOpenArticle } from "../../composables/useOpenArticle";
-import { useArticlesStore } from "../../stores/articles";
-import { useReadingPlace } from "../../composables/useReadingPlace";
-import { useMediaQuery } from "../../composables/useMediaQuery";
-import { usePlayerControls } from "../../composables/usePlayerControls";
-import { formatDuration, readingMs, speechMs, wordsLeft } from "../../estimate";
-import type { FetchReason, Shape } from "../../api/types";
-import { useLibraryStore } from "../../stores/library";
-import { useReaderStore } from "../../stores/reader";
-import { useNavigationStore } from "../../stores/navigation";
-import { useSignInStore } from "../../stores/signin";
-import { api } from "../../api";
-import { prepareChapter } from "../../preparation";
+import ChapterText from "@/components/reader/ChapterText.vue";
+import BookMargin from "@/components/reader/BookMargin.vue";
+import PlayerDock from "@/components/player/PlayerDock.vue";
+import ArticleHeader from "@/components/article/ArticleHeader.vue";
+import NeedsYouNotice from "@/components/article/NeedsYouNotice.vue";
+import { useFollow } from "@/composables/useFollow";
+import { useOpenArticle } from "@/composables/useOpenArticle";
+import { useArticlesStore } from "@/stores/articles";
+import { useReadingPlace } from "@/composables/useReadingPlace";
+import { useMediaQuery } from "@/composables/useMediaQuery";
+import { usePlayerControls } from "@/composables/usePlayerControls";
+import { formatDuration, readingMs, speechMs, wordsLeft } from "@/estimate";
+import type { FetchReason, Shape } from "@/api/types";
+import { useLibraryStore } from "@/stores/library";
+import { useReaderStore } from "@/stores/reader";
+import { useNavigationStore } from "@/stores/navigation";
+import { useSignInStore } from "@/stores/signin";
+import { api } from "@/api";
+import { prepareChapter } from "@/preparation";
 
 /** Page mode: a full-width sheet with the text in a 640px column, the book in the left
  *  margin and footnotes and tools in the right margin. Listening (`readAlong`) docks the

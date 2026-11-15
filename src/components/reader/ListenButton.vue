@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Headphones, Mic, Settings2 } from "@lucide/vue";
-import UiMenu from "../ui/UiMenu.vue";
-import type { MenuEntry } from "../ui/types";
-import { api } from "../../api";
-import { useLibraryStore } from "../../stores/library";
-import { useNavigationStore } from "../../stores/navigation";
-import { usePlayerStore } from "../../stores/player";
-import { useReaderStore } from "../../stores/reader";
-import { useRecordingsStore } from "../../stores/recordings";
+import UiMenu from "@/components/ui/UiMenu.vue";
+import type { MenuEntry } from "@/components/ui/types";
+import { api } from "@/api";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
+import { useRecordingsStore } from "@/stores/recordings";
 
 /** Listen / Listening in the reader's header: turns listening to the open book on (playing
  *  from where the user is reading) and off (reading on silently). When nothing could narrate

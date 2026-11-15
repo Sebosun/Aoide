@@ -1,15 +1,15 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi } from "../api/mock";
-import App from "../App.vue";
-import SettingsDialog from "../components/settings/SettingsDialog.vue";
-import { usePreferencesStore } from "../stores/preferences";
-import { useUiStore } from "../stores/ui";
-import { stepZoom } from "../zoom";
+import { createMockApi } from "@/api/mock";
+import App from "@/App.vue";
+import SettingsDialog from "@/components/settings/SettingsDialog.vue";
+import { usePreferencesStore } from "@/stores/preferences";
+import { useUiStore } from "@/stores/ui";
+import { stepZoom } from "@/zoom";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },

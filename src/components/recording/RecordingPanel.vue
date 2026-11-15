@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { FolderOpen, Headphones, Plus } from "@lucide/vue";
-import { api } from "../../api";
-import type { ModelDownloadView } from "../../api/types";
-import { useRecordingsStore } from "../../stores/recordings";
-import { useLibraryStore } from "../../stores/library";
-import { useUiStore } from "../../stores/ui";
-import { usePlayerStore } from "../../stores/player";
-import { formatBytes } from "../../bytes";
+import { api } from "@/api";
+import type { ModelDownloadView } from "@/api/types";
+import { useRecordingsStore } from "@/stores/recordings";
+import { useLibraryStore } from "@/stores/library";
+import { useUiStore } from "@/stores/ui";
+import { usePlayerStore } from "@/stores/player";
+import { formatBytes } from "@/bytes";
 import {
   RECORDING_ACTION_ICONS,
   RECORDING_ACTION_LABELS,
   describeFiles,
   recordingStatus,
   type RecordingAction,
-} from "../../recording";
+} from "@/recording";
 
 /** A book's recording: what it is, how its sync is going and what can be done about it; or a
  *  way to add one. Used on the book page and in book tools. */

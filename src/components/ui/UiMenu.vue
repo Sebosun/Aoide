@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, shallowRef, ref } from "vue";
 import { Check } from "@lucide/vue";
-import { useMenu } from "../../composables/useMenu";
-import { usePopover } from "../../composables/usePopover";
-import type { MenuAction, MenuEntry } from "./types";
+import { useMenu } from "@/composables/useMenu";
+import { usePopover } from "@/composables/usePopover";
+import type { MenuAction, MenuEntry } from "@/components/ui/types";
 
 /** A popup menu. The default slot draws the button and gets `toggle`, `open` and the ARIA
  *  attributes to bind (`trigger`); `items` are the rows. The list is placed next to the button

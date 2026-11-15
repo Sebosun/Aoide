@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue";
-import { api } from "../../api";
-import type { SearchHit } from "../../api/types";
-import { usePlayerStore } from "../../stores/player";
+import { api } from "@/api";
+import type { SearchHit } from "@/api/types";
+import { usePlayerStore } from "@/stores/player";
 const props = defineProps<{ bookId: string }>();
 const player = usePlayerStore();
 const query = ref(""),

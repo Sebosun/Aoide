@@ -1,10 +1,10 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { api } from "../api";
-import type { EntryView, FeedView } from "../api/types";
-import { useArticlesStore } from "./articles";
-import { useLibraryStore } from "./library";
-import { useReaderStore } from "./reader";
+import { api } from "@/api";
+import type { EntryView, FeedView } from "@/api/types";
+import { useArticlesStore } from "@/stores/articles";
+import { useLibraryStore } from "@/stores/library";
+import { useReaderStore } from "@/stores/reader";
 
 /** What the Feeds screen lists: every feed's entries, the saved ones, or one feed's. */
 export type FeedsSource = { kind: "all" } | { kind: "saved" } | { kind: "feed"; id: number };

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from "vue";
 import { Bookmark, Info, Search, SlidersHorizontal, X } from "@lucide/vue";
-import BookSearch from "./BookSearch.vue";
-import BookBookmarks from "./BookBookmarks.vue";
-import BookNarration from "./BookNarration.vue";
-import BookInfo from "./BookInfo.vue";
-import UiDialog from "../ui/UiDialog.vue";
-import { useReaderStore } from "../../stores/reader";
-import { useNavigationStore, type ToolsTab } from "../../stores/navigation";
+import BookSearch from "@/components/book/BookSearch.vue";
+import BookBookmarks from "@/components/book/BookBookmarks.vue";
+import BookNarration from "@/components/book/BookNarration.vue";
+import BookInfo from "@/components/book/BookInfo.vue";
+import UiDialog from "@/components/ui/UiDialog.vue";
+import { useReaderStore } from "@/stores/reader";
+import { useNavigationStore, type ToolsTab } from "@/stores/navigation";
 
 export type { ToolsTab };
 /** Book tools as a modal bottom sheet: Bookmarks, Search, Narration (the recording, or the

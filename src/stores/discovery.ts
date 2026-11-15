@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
-import { api } from "../api";
-import type { Candidate, CandidateStatus, DiscoveryImportProgress, ScanProgress } from "../api/types";
-import { useLibraryStore } from "./library";
+import { api } from "@/api";
+import type { Candidate, CandidateStatus, DiscoveryImportProgress, ScanProgress } from "@/api/types";
+import { useLibraryStore } from "@/stores/library";
 
 export const useDiscoveryStore = defineStore("discovery", () => {
   const candidates = ref<Candidate[]>([]),

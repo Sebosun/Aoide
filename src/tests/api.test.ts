@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { createMockApi } from "../api/mock";
-import type { PlayerState } from "../api/types";
-import { tauriApi } from "../api/tauri";
+import { createMockApi } from "@/api/mock";
+import type { PlayerState } from "@/api/types";
+import { tauriApi } from "@/api/tauri";
 
 const ipc = vi.hoisted(() => ({
   invoke: vi.fn(),

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { TriangleAlert } from "@lucide/vue";
-import type { BookView } from "../../api/types";
-import CoverArt from "../CoverArt.vue";
-import ChapterMenu from "./ChapterMenu.vue";
+import type { BookView } from "@/api/types";
+import CoverArt from "@/components/CoverArt.vue";
+import ChapterMenu from "@/components/reader/ChapterMenu.vue";
 
 /** Left margin of the Sheet: cover plate, title, author, chapter and time left, a line for
  *  extraction or language warnings that opens the book's details, and one for a voice the

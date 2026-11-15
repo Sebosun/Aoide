@@ -1,9 +1,9 @@
-import { useNavigationStore, type SettingsTab, type View } from "./stores/navigation";
-import { usePlayerStore } from "./stores/player";
-import { useReaderStore } from "./stores/reader";
-import { useLibraryStore } from "./stores/library";
-import { api } from "./api";
-import { useRecordingsStore } from "./stores/recordings";
+import { useNavigationStore, type SettingsTab, type View } from "@/stores/navigation";
+import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
+import { useLibraryStore } from "@/stores/library";
+import { api } from "@/api";
+import { useRecordingsStore } from "@/stores/recordings";
 
 /** Browser preview only: `?view=home|library|feeds|activity|item|reader|find|audiobooks&book=book-0&play=1500&theme=dark&mode=lines&zoom=1.25` opens a
  *  screen in a known state (used for screenshots). `play` plays for that many ms, then pauses;

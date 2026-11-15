@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useId } from "vue";
-import UiDialog from "./UiDialog.vue";
-import type { ConfirmOptions } from "../../stores/ui";
+import UiDialog from "@/components/ui/UiDialog.vue";
+import type { ConfirmOptions } from "@/stores/ui";
 
 /** Asks one question with Cancel and a confirm button. Cancel has focus first, so Enter alone
  *  never confirms something destructive. */

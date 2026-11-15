@@ -1,19 +1,19 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi } from "../api/mock";
-import App from "../App.vue";
-import ReaderView from "../views/ReaderView.vue";
-import BookNarration from "../components/book/BookNarration.vue";
-import { useLibraryStore } from "../stores/library";
-import { useNavigationStore } from "../stores/navigation";
-import { usePlayerStore } from "../stores/player";
-import { useReaderStore } from "../stores/reader";
-import { useRecordingsStore } from "../stores/recordings";
-import { useUiStore } from "../stores/ui";
+import { createMockApi } from "@/api/mock";
+import App from "@/App.vue";
+import ReaderView from "@/views/ReaderView.vue";
+import BookNarration from "@/components/book/BookNarration.vue";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
+import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
+import { useRecordingsStore } from "@/stores/recordings";
+import { useUiStore } from "@/stores/ui";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({
+vi.mock("@/api", () => ({
   get api() {
     return backend.api;
   },
@@ -195,7 +195,7 @@ it("tells a book's listening progress apart from its recording's sync on the car
   mock.setRecordingForTest("book-0", "ready");
   await useLibraryStore().start();
   await flushPromises();
-  const { default: LibraryView } = await import("../views/LibraryView.vue");
+  const { default: LibraryView } = await import("@/views/LibraryView.vue");
   const wrapper = mount(LibraryView, { attachTo: document.body });
   await flushPromises();
   const card = (title: string) =>
@@ -256,8 +256,8 @@ it("exports a synced book as a read-along EPUB from its card and its recording p
   mock.setRecordingForTest("book-0", "ready");
   await useLibraryStore().start();
   await flushPromises();
-  const { default: LibraryView } = await import("../views/LibraryView.vue");
-  const { default: UiHost } = await import("../components/ui/UiHost.vue");
+  const { default: LibraryView } = await import("@/views/LibraryView.vue");
+  const { default: UiHost } = await import("@/components/ui/UiHost.vue");
   const host = mount(UiHost, { attachTo: document.body });
   const library = mount(LibraryView, { attachTo: document.body });
   await flushPromises();

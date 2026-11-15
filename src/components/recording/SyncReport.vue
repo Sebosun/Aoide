@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { Check, FileText, Play, Trash2, X } from "@lucide/vue";
-import { api } from "../../api";
-import type { SyncReportView } from "../../api/types";
-import UiDialog from "../ui/UiDialog.vue";
-import { useRecordingsStore } from "../../stores/recordings";
-import { useLibraryStore } from "../../stores/library";
-import { useUiStore } from "../../stores/ui";
+import { api } from "@/api";
+import type { SyncReportView } from "@/api/types";
+import UiDialog from "@/components/ui/UiDialog.vue";
+import { useRecordingsStore } from "@/stores/recordings";
+import { useLibraryStore } from "@/stores/library";
+import { useUiStore } from "@/stores/ui";
 
 /** How well a book's recording matched its text: the share found, chapter by chapter, and the
  *  narration that is not in the text, each stretch playable. */

@@ -2,12 +2,12 @@ import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { defineComponent, h, ref } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
-import UiSelect from "../components/ui/UiSelect.vue";
-import UiMenu from "../components/ui/UiMenu.vue";
-import type { MenuEntry } from "../components/ui/types";
-import UiHost from "../components/ui/UiHost.vue";
-import { useUiStore } from "../stores/ui";
-import { choose, optionLabels } from "./helpers";
+import UiSelect from "@/components/ui/UiSelect.vue";
+import UiMenu from "@/components/ui/UiMenu.vue";
+import type { MenuEntry } from "@/components/ui/types";
+import UiHost from "@/components/ui/UiHost.vue";
+import { useUiStore } from "@/stores/ui";
+import { choose, optionLabels } from "@/tests/helpers";
 
 beforeEach(() => {
   setActivePinia(createPinia());

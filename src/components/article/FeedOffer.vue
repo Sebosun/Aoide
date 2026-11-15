@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { Rss } from "@lucide/vue";
-import type { ArticleView } from "../../api/types";
-import { api } from "../../api";
-import { useArticlesStore } from "../../stores/articles";
-import { useFeedsStore } from "../../stores/feeds";
-import { useUiStore } from "../../stores/ui";
+import type { ArticleView } from "@/api/types";
+import { api } from "@/api";
+import { useArticlesStore } from "@/stores/articles";
+import { useFeedsStore } from "@/stores/feeds";
+import { useUiStore } from "@/stores/ui";
 
 /** "This site has a feed": the first feed an article's page names that is not subscribed. */
 const props = defineProps<{ article: ArticleView }>();

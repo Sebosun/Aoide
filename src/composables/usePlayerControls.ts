@@ -1,10 +1,10 @@
 import { computed, ref, watch } from "vue";
-import { api } from "../api";
-import { chapterWords, formatDuration, segmentAt, speechMs, wordsLeft } from "../estimate";
-import { useLibraryStore } from "../stores/library";
-import { usePlayerStore } from "../stores/player";
-import { useReaderStore } from "../stores/reader";
-import { useUiStore } from "../stores/ui";
+import { api } from "@/api";
+import { chapterWords, formatDuration, segmentAt, speechMs, wordsLeft } from "@/estimate";
+import { useLibraryStore } from "@/stores/library";
+import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
+import { useUiStore } from "@/stores/ui";
 
 export const SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 export const SLEEP_MINUTES = [5, 15, 30, 45, 60, 90];

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { BookmarkCheck, BookmarkPlus, ExternalLink } from "@lucide/vue";
-import type { ArticleView } from "../../api/types";
-import { formatDuration, readingMs } from "../../estimate";
-import FeedOffer from "./FeedOffer.vue";
-import { siteOf } from "../../articles";
+import type { ArticleView } from "@/api/types";
+import { formatDuration, readingMs } from "@/estimate";
+import FeedOffer from "@/components/article/FeedOffer.vue";
+import { siteOf } from "@/articles";
 
 /** The top of an article in the reader: its site, date and reading time, a way to the
  *  original page, then its title and byline. One opened from a feed offers Save to library,

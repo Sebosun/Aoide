@@ -1,6 +1,6 @@
-import type { BookSummary, Collection } from "../api/types";
-import { useLibraryStore } from "../stores/library";
-import { useUiStore } from "../stores/ui";
+import type { BookSummary, Collection } from "@/api/types";
+import { useLibraryStore } from "@/stores/library";
+import { useUiStore } from "@/stores/ui";
 
 /** Collection actions with their dialogs; failures (such as a duplicate name) become toasts. */
 export function useCollections() {

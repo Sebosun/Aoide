@@ -38,17 +38,17 @@ import type {
   ExportProgress,
   SearchHit,
   HomeView,
-} from "./types";
-import type * as Wire from "./contract";
-import fixtureLibrary from "../tests/fixtures/library.json";
-import fixtureViews from "../tests/fixtures/book-views.json";
-import fixturePlayer from "../tests/fixtures/player.json";
-import fixtureGenerationPlaying from "../tests/fixtures/generation-playing.json";
-import fixtureRecording from "../tests/fixtures/recording.json";
-import fixtureHome from "../tests/fixtures/home.json";
-import fixtureAudiobook from "../tests/fixtures/audiobook.json";
-import fixtureArticle from "../tests/fixtures/article.json";
-import fixtureFeeds from "../tests/fixtures/feeds.json";
+} from "@/api/types";
+import type * as Wire from "@/api/contract";
+import fixtureLibrary from "@/tests/fixtures/library.json";
+import fixtureViews from "@/tests/fixtures/book-views.json";
+import fixturePlayer from "@/tests/fixtures/player.json";
+import fixtureGenerationPlaying from "@/tests/fixtures/generation-playing.json";
+import fixtureRecording from "@/tests/fixtures/recording.json";
+import fixtureHome from "@/tests/fixtures/home.json";
+import fixtureAudiobook from "@/tests/fixtures/audiobook.json";
+import fixtureArticle from "@/tests/fixtures/article.json";
+import fixtureFeeds from "@/tests/fixtures/feeds.json";
 
 /** The views the core made for the preview's books (see src-tauri/src/core/fixtures.rs), with
  *  covers as the window sees them. */

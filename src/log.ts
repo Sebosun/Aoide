@@ -1,4 +1,4 @@
-import type { UiLog } from "./api/contract";
+import type { UiLog } from "@/api/contract";
 
 /** How long the same line stays out of the log after it was sent. */
 const QUIET_MS = 10_000;

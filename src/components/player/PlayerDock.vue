@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Bookmark, Headphones, Pause, Play, SkipBack, SkipForward, SlidersHorizontal, Square } from "@lucide/vue";
-import CoverArt from "../CoverArt.vue";
-import PlayerScrubber from "./PlayerScrubber.vue";
-import SpeedPill from "./SpeedPill.vue";
-import SleepPill from "./SleepPill.vue";
-import VolumeControl from "./VolumeControl.vue";
-import { usePlayerControls } from "../../composables/usePlayerControls";
+import CoverArt from "@/components/CoverArt.vue";
+import PlayerScrubber from "@/components/player/PlayerScrubber.vue";
+import SpeedPill from "@/components/player/SpeedPill.vue";
+import SleepPill from "@/components/player/SleepPill.vue";
+import VolumeControl from "@/components/player/VolumeControl.vue";
+import { usePlayerControls } from "@/composables/usePlayerControls";
 
 /** One-row transport docked under the page (Sheet reader). */
 const emit = defineEmits<{ tools: [] }>();

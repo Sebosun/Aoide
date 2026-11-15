@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { BookmarkPlus, Trash2 } from "@lucide/vue";
-import { api } from "../../api";
-import type { Bookmark } from "../../api/types";
-import { formatClock, partsOf } from "../../estimate";
-import { usePlayerStore } from "../../stores/player";
-import { useReaderStore } from "../../stores/reader";
+import { api } from "@/api";
+import type { Bookmark } from "@/api/types";
+import { formatClock, partsOf } from "@/estimate";
+import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
 const props = defineProps<{ bookId: string }>();
 const player = usePlayerStore(),
   reader = useReaderStore();

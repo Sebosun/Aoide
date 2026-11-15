@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { dayKey, heatmap, lastDays, lastMonths, streaks, summary, weekdays } from "../stats";
+import { dayKey, heatmap, lastDays, lastMonths, streaks, summary, weekdays } from "@/stats";
 
 const today = new Date("2026-11-11T15:00:00");
 const min = 60_000;

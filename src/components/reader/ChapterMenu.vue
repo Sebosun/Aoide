@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { AudioLines, ChevronDown, List, Sparkles } from "@lucide/vue";
-import type { ChapterSummary } from "../../api/types";
-import UiMenu from "../ui/UiMenu.vue";
-import type { MenuEntry } from "../ui/types";
+import type { ChapterSummary } from "@/api/types";
+import UiMenu from "@/components/ui/UiMenu.vue";
+import type { MenuEntry } from "@/components/ui/types";
 
 /** `link`: "Chapter 4 of 24 ▾" (Sheet margin); `pill`: a "Chapters" button (library hero);
  *  `chip`: "Chapter 4 · Title ▾" (Lines mode); `title`: "Book · Chapter 4, Title ▾" (reader

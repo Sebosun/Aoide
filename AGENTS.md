@@ -1,5 +1,6 @@
 # Project conventions
 
+- Imports in `src/` use the `@/` alias (`@/api`, `@/components/ui/UiDialog.vue`), never relative paths; a test enforces it.
 - Vue: use BEM class names (`block__element--modifier`) and `<style scoped>` wherever possible. Keep shared resets and theme tokens global.
 - TDD: agree the public seam, then run one failing behavior test before the smallest implementation that passes it. Repeat in vertical slices; test public results rather than private helpers.
 - EPUB parsing belongs in `crates/epub-parser`, independent of Tauri, UI, network, and speech generation. Run its Cargo tests without building the desktop app.
