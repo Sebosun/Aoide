@@ -95,6 +95,9 @@ async fn run(core: &Arc<Core>, scenario: Scenario, seconds: u64) -> Result<(), S
         return discover(core, details).await;
     }
     let id = book(core)?;
+    if let Ok(paths) = std::env::var("AOIDE_SMOKE_ATTACH") {
+        attach(core, &id, paths.split('|').map(str::to_owned).collect()).await?;
+    }
     match scenario {
         Scenario::Discover { .. } => unreachable!("handled above"),
         Scenario::Prepare => prepare(core, &id, seconds).await,
@@ -130,6 +133,39 @@ fn book(core: &Arc<Core>) -> Result<String, String> {
         view.as_ref().map(|v| v.chapters.len())
     );
     Ok(book.id.clone())
+}
+
+/// `AOIDE_SMOKE_ATTACH`: pairs these audio files (separated by `|`) with the book and waits out
+/// the sync, accepting what it asks about.
+async fn attach(core: &Arc<Core>, id: &str, paths: Vec<String>) -> Result<(), String> {
+    let started = Instant::now();
+    let view = core.attach_recording(id, paths)?;
+    eprintln!("smoke: attached: {:?}", view.stage);
+    loop {
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        let view = core.recording(id).ok_or("the recording is gone")?;
+        eprintln!(
+            "smoke: {:?} {:?} {} / {} ms",
+            started.elapsed().as_secs(),
+            view.stage,
+            view.transcribed_ms,
+            view.total_ms
+        );
+        match view.stage {
+            SyncStage::Ready => break,
+            SyncStage::PoorMatch | SyncStage::SampleMismatch => {
+                let _ = core.sync_action(id, crate::core::SyncAction::Accept);
+            }
+            SyncStage::Failed | SyncStage::NeedsModel | SyncStage::Missing => {
+                return Err(format!("sync stopped: {:?}", view.error));
+            }
+            _ => {}
+        }
+    }
+    if let Ok(report) = core.sync_report(id) {
+        eprintln!("smoke: summary {:?}", report.summary);
+    }
+    Ok(())
 }
 
 async fn discover(core: &Arc<Core>, details: bool) -> Result<(), String> {
