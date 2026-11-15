@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, expect, it, onTestFinished, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "../api/mock";
@@ -358,5 +358,79 @@ it("offers ways to give the book a voice when nothing could narrate it", async (
   expect(play).not.toHaveBeenCalled();
   await pickMenuItem("Narrate with a voice");
   expect(play).toHaveBeenCalledWith("book-1", null, null);
+  wrapper.unmount();
+});
+
+/** Lays the open chapter's sentences out `step` px apart, the first at `first`, in a reader
+ *  800 px tall (jsdom has no layout). */
+function layOut(wrapper: ReturnType<typeof mount>, first: number, step = 100) {
+  const box = wrapper.get(".sheet__scroll").element as HTMLElement;
+  box.getBoundingClientRect = () => ({ top: 0, bottom: 800, height: 800 }) as DOMRect;
+  const spoken = [...box.querySelectorAll<HTMLElement>(".chapter-text__segment:not(.chapter-text__segment--quiet)")];
+  spoken.forEach((segment, index) => {
+    segment.getBoundingClientRect = () => ({ top: first + index * step }) as DOMRect;
+  });
+  return { box, ids: spoken.map((s) => s.dataset.segmentId!) };
+}
+
+it("tells the core where the reader is, at most once a second, and listens from there", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+  try {
+    const place = vi.spyOn(mock, "setReadingPlace"),
+      play = vi.spyOn(mock, "play");
+    const wrapper = await openReader({ book: "book-1" });
+    let { box, ids } = layOut(wrapper, -50);
+    box.dispatchEvent(new Event("scroll"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(place).toHaveBeenCalledTimes(1);
+    expect(place).toHaveBeenLastCalledWith("book-1", 0, ids[1]);
+    // The same sentence at the top is not reported again.
+    box.dispatchEvent(new Event("scroll"));
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(place).toHaveBeenCalledTimes(1);
+
+    ({ box, ids } = layOut(wrapper, 50));
+    box.dispatchEvent(new Event("scroll"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(place).toHaveBeenCalledTimes(2);
+    ({ box, ids } = layOut(wrapper, -150));
+    box.dispatchEvent(new Event("scroll"));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(place).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(600);
+    expect(place).toHaveBeenLastCalledWith("book-1", 0, ids[2]);
+    await flushPromises();
+    // The core's progress shows in the library at once.
+    expect(useLibraryStore().books.find((b) => b.id === "book-1")?.progress?.segmentId).toBe(ids[2]);
+
+    await wrapper.get("button.listen-button").trigger("click");
+    await flushPromises();
+    expect(play).toHaveBeenCalledWith("book-1", 0, ids[2]);
+    wrapper.unmount();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("opens a book read silently at its saved place, and picking a chapter only shows it", async () => {
+  const play = vi.spyOn(mock, "play");
+  await mock.setReadingPlace("book-1", 1, "1:1:0");
+  const scrolled: string[] = [];
+  const original = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function (this: HTMLElement) {
+    scrolled.push(this.dataset.segmentId ?? "");
+  };
+  onTestFinished(() => {
+    Element.prototype.scrollIntoView = original;
+  });
+  const wrapper = await openReader({ book: "book-1" });
+  expect(useReaderStore().currentChapter).toBe(1);
+  expect(scrolled).toEqual(["1:1:0"]);
+
+  await wrapper.get("button.sheet__next").trigger("click");
+  await flushPromises();
+  expect(useReaderStore().currentChapter).toBe(2);
+  expect(wrapper.find("button.sheet__next").exists()).toBe(false);
+  expect(play).not.toHaveBeenCalled();
   wrapper.unmount();
 });

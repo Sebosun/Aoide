@@ -78,9 +78,11 @@ export const useReaderStore = defineStore("reader", () => {
       if (request === openRequest) loading.value = false;
     }
   }
-  /** Shows a chapter of the open book and plays it from its first spoken sentence. */
+  /** Shows a chapter of the open book; while listening, plays it from its first spoken
+   *  sentence. */
   async function startChapter(index: number) {
     await loadChapter(index);
+    if (shape.value === "read") return;
     const first = chapter.value?.blocks.flatMap((b) => b.segments).find((s) => s.speakable);
     if (first && book.value && currentChapter.value === index)
       await usePlayerStore().play(book.value.id, index, first.id);

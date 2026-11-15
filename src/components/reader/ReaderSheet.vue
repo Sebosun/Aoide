@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
-import { LocateFixed } from "@lucide/vue";
+import { ArrowRight, LocateFixed } from "@lucide/vue";
 import ChapterText from "./ChapterText.vue";
 import BookMargin from "./BookMargin.vue";
 import PlayerDock from "../player/PlayerDock.vue";
 import { useFollow } from "../../composables/useFollow";
+import { useReadingPlace } from "../../composables/useReadingPlace";
 import { useMediaQuery } from "../../composables/useMediaQuery";
 import { usePlayerControls } from "../../composables/usePlayerControls";
 import { formatDuration, readingMs, speechMs, wordsLeft } from "../../estimate";
@@ -34,6 +35,11 @@ const { following, follow, backToPlayhead, restart, listeners } = useFollow(
   scroller,
   () => playingHere.value && Boolean(player.state.segmentId),
 );
+const place = useReadingPlace(scroller, () => props.shape === "read");
+function onScroll() {
+  listeners.onScroll();
+  place.schedule();
+}
 // Another chapter of the same book (next, previous, or picked): start at its top.
 watch(
   () => [reader.book?.id, reader.currentChapter] as const,
@@ -75,6 +81,11 @@ async function play(segmentId: string) {
   if (along.value && reader.book) await player.play(reader.book.id, reader.currentChapter, segmentId);
 }
 const jump = (index: number) => reader.startChapter(index);
+/** The chapter after this one, offered at the end of the text while reading silently. */
+const next = computed(() => {
+  const chapters = reader.book?.chapters ?? [];
+  return along.value ? null : (chapters[reader.currentChapter + 1] ?? null);
+});
 </script>
 
 <template>
@@ -82,7 +93,7 @@ const jump = (index: number) => reader.startChapter(index);
     <div
       ref="scroller"
       class="sheet__scroll"
-      @scroll.passive="listeners.onScroll"
+      @scroll.passive="onScroll"
       @scrollend="listeners.onScrollend"
       @wheel.passive="listeners.onWheel"
       @touchmove.passive="listeners.onTouchmove"
@@ -114,6 +125,9 @@ const jump = (index: number) => reader.startChapter(index);
           :playable="along"
           @play="play"
         />
+        <button v-if="next && reader.chapter" type="button" class="sheet__next" @click="jump(next.index)">
+          Next: {{ next.title }}<ArrowRight :size="16" aria-hidden="true" />
+        </button>
       </div>
     </div>
     <button
@@ -206,6 +220,20 @@ const jump = (index: number) => reader.startChapter(index);
 .sheet__error ~ .sheet__text {
   margin-top: 3em;
 }
+.sheet__next {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 28px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  background: var(--glass);
+  font-weight: 600;
+}
 .sheet__foot {
   display: flex;
   flex-direction: column;
@@ -267,6 +295,10 @@ const jump = (index: number) => reader.startChapter(index);
   .sheet__text {
     grid-column: 1;
     grid-row: 3;
+  }
+  .sheet__next {
+    grid-column: 1;
+    grid-row: 4;
   }
   .sheet__back {
     bottom: 150px;
