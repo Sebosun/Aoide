@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import {
   AudioLines,
   BookOpen,
-  Check,
   CircleCheck,
   ExternalLink,
   FolderPlus,
@@ -16,11 +15,10 @@ import {
   RefreshCw,
   RotateCcw,
   Settings2,
-  Sparkles,
   TriangleAlert,
 } from "@lucide/vue";
 import { api } from "@/api";
-import type { BookDetails, BookSettings, BookView, ChapterAudioView, DayListening } from "@/api/types";
+import type { BookDetails, BookSettings, BookView, DayListening } from "@/api/types";
 import CoverArt from "@/components/CoverArt.vue";
 import UiMenu from "@/components/ui/UiMenu.vue";
 import type { MenuEntry } from "@/components/ui/types";
@@ -28,6 +26,8 @@ import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import MetadataLookup from "@/components/book/MetadataLookup.vue";
 import BookListening from "@/components/book/BookListening.vue";
 import BookNarration from "@/components/book/BookNarration.vue";
+import BookContents from "@/components/book/BookContents.vue";
+import ExtractionNotes from "@/components/book/ExtractionNotes.vue";
 import { useCollections } from "@/composables/useCollections";
 import { useRecordingsStore } from "@/stores/recordings";
 import { useArticlesStore } from "@/stores/articles";
@@ -38,14 +38,7 @@ import { useLibraryStore } from "@/stores/library";
 import { useNavigationStore } from "@/stores/navigation";
 import { usePlayerStore } from "@/stores/player";
 import { useReaderStore } from "@/stores/reader";
-import {
-  ACTION_ICONS,
-  ACTION_LABELS,
-  describePreparation,
-  prepareChapter,
-  preparationStatus,
-  runPrepareAction,
-} from "@/preparation";
+import { ACTION_ICONS, ACTION_LABELS, describePreparation, preparationStatus, runPrepareAction } from "@/preparation";
 
 /** An item's page: what it is, its text, what it plays with, its contents and its details
  *  online. Nothing plays until the person asks: Read opens the text, Listen plays it. */
@@ -62,8 +55,7 @@ const overview = ref<BookView | null>(null),
   settings = ref<BookSettings | null>(null),
   listening = ref<DayListening[]>([]),
   error = ref("");
-const expanded = ref(false),
-  notesOpen = ref(false);
+const expanded = ref(false);
 /** An article with no copy yet: it has no text, and its fetch says why. */
 const unfetched = ref(false);
 const loading = computed(() => !overview.value && !error.value && !unfetched.value);
@@ -210,48 +202,7 @@ const textFacts = computed(() => {
   if (info?.isbn) list.push(`ISBN ${info.isbn}`);
   return list;
 });
-/** Each chapter's audio, refreshed while the book is being prepared (at most every 2 s). */
-const chapterAudio = ref<ChapterAudioView[]>([]);
-async function loadChapterAudio() {
-  try {
-    chapterAudio.value = await api.chapterAudio(props.bookId);
-  } catch {
-    chapterAudio.value = [];
-  }
-}
-let refreshTimer: ReturnType<typeof setTimeout> | undefined;
-function refreshChapterAudio() {
-  refreshTimer ??= setTimeout(() => {
-    refreshTimer = undefined;
-    void loadChapterAudio();
-  }, 2000);
-}
-onMounted(loadChapterAudio);
-onUnmounted(() => clearTimeout(refreshTimer));
-watch(() => [summary.value?.prepare, player.generation.preparing?.done], refreshChapterAudio, { deep: true });
-type ChapterState = { kind: "ready" } | { kind: "queued"; label: string } | { kind: "none" } | { kind: "silent" };
-function chapterState(index: number): ChapterState {
-  const audio = chapterAudio.value[index];
-  if (audio && audio.total === 0) return { kind: "silent" };
-  if (audio && audio.done === audio.total) return { kind: "ready" };
-  const prepare = summary.value?.prepare;
-  if (prepare && prepare.state !== "done" && (!prepare.chapters || prepare.chapters.includes(index))) {
-    return {
-      kind: "queued",
-      label: [preparationStatus(prepare).label, audio ? `${audio.done} / ${audio.total}` : null]
-        .filter(Boolean)
-        .join(" · "),
-    };
-  }
-  return { kind: "none" };
-}
-async function prepareOne(index: number) {
-  await prepareChapter(props.bookId, index);
-  await library.refresh();
-  await loadChapterAudio();
-}
 const longDescription = computed(() => (details.value?.description?.length ?? 0) > 420);
-const notes = computed(() => (overview.value?.warnings.length ?? 0) + (overview.value?.excluded.length ?? 0));
 
 /** The item is listened to: Listen is the main action. */
 const listened = computed(() => (summary.value?.mode ?? overview.value?.mode) === "listen");
@@ -269,10 +220,6 @@ async function read() {
 async function listen() {
   await reader.open(props.bookId);
   await player.play(props.bookId, null, null);
-}
-async function chapter(index: number) {
-  await reader.open(props.bookId);
-  await reader.startChapter(index);
 }
 async function pair() {
   try {
@@ -400,23 +347,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
         <p v-if="article?.error && !busy" class="item-page__problem" role="alert">
           <TriangleAlert :size="15" aria-hidden="true" /> {{ article.error }}
         </p>
-        <button
-          v-if="notes"
-          type="button"
-          class="item-page__notes-link"
-          :aria-expanded="notesOpen"
-          aria-controls="item-notes"
-          @click="notesOpen = !notesOpen"
-        >
-          <TriangleAlert :size="15" aria-hidden="true" /> {{ notes }} extraction
-          {{ notes === 1 ? "note" : "notes" }}
-        </button>
-        <div v-if="notes && notesOpen" id="item-notes" class="item-page__notes">
-          <p v-for="section in overview?.excluded ?? []" :key="section.title">
-            <strong>{{ section.title }}</strong> left out: {{ section.reason }}
-          </p>
-          <p v-for="warning in overview?.warnings ?? []" :key="warning">{{ warning }}</p>
-        </div>
+        <ExtractionNotes :warnings="overview?.warnings ?? []" :excluded="overview?.excluded ?? []" />
       </UiCard>
       <UiCard v-else-if="audiobook" class="item-page__card" aria-labelledby="item-text">
         <div class="item-page__card-head">
@@ -429,9 +360,9 @@ const collectionItems = computed<MenuEntry[]>(() => {
           recording is kept.</span
         >
         <div class="item-page__row">
-          <button type="button" class="item-page__small" @click="recordings.addText(bookId)">
+          <UiButton size="sm" @click="recordings.addText(bookId)">
             <Plus :size="15" aria-hidden="true" /> Add the EPUB…
-          </button>
+          </UiButton>
         </div>
       </UiCard>
       <UiCard v-else class="item-page__card" aria-labelledby="item-text">
@@ -443,23 +374,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
           words ? `About ${formatDuration(readingMs(words, library.readingWpm))} to read` : "No readable words"
         }}</b>
         <span class="item-page__facts">{{ textFacts.join(" · ") }}</span>
-        <button
-          v-if="notes"
-          type="button"
-          class="item-page__notes-link"
-          :aria-expanded="notesOpen"
-          aria-controls="item-notes"
-          @click="notesOpen = !notesOpen"
-        >
-          <TriangleAlert :size="15" aria-hidden="true" /> {{ notes }} extraction
-          {{ notes === 1 ? "note" : "notes" }}
-        </button>
-        <div v-if="notes && notesOpen" id="item-notes" class="item-page__notes">
-          <p v-for="section in overview?.excluded ?? []" :key="section.title">
-            <strong>{{ section.title }}</strong> left out: {{ section.reason }}
-          </p>
-          <p v-for="warning in overview?.warnings ?? []" :key="warning">{{ warning }}</p>
-        </div>
+        <ExtractionNotes :warnings="overview?.warnings ?? []" :excluded="overview?.excluded ?? []" />
       </UiCard>
 
       <UiCard v-if="overview" class="item-page__card" aria-labelledby="item-audio" :data-audio="audio">
@@ -514,19 +429,18 @@ const collectionItems = computed<MenuEntry[]>(() => {
             >{{ engineLine }}</small
           >
           <div class="item-page__row">
-            <button
+            <UiButton
+              size="sm"
               v-for="action in preparation.actions"
               :key="action"
-              type="button"
-              class="item-page__small"
               :aria-label="ACTION_LABELS[action]"
               @click="runPrepareAction(bookId, action)"
             >
               <component :is="ACTION_ICONS[action]" :size="15" aria-hidden="true" /> {{ ACTION_LABELS[action] }}
-            </button>
-            <button type="button" class="item-page__small" @click="navigation.openSettings('engine')">
+            </UiButton>
+            <UiButton size="sm" @click="navigation.openSettings('engine')">
               <Settings2 :size="15" aria-hidden="true" /> Voice settings
-            </button>
+            </UiButton>
           </div>
           <button v-if="!isArticle" type="button" class="item-page__link" aria-label="Pair an audiobook" @click="pair">
             Pair an audiobook instead
@@ -552,42 +466,13 @@ const collectionItems = computed<MenuEntry[]>(() => {
 
     <UiCard v-if="overview && !isArticle" class="item-page__card" aria-labelledby="item-contents">
       <h2 id="item-contents" class="item-page__heading">Contents</h2>
-      <ol class="item-page__chapters" aria-label="Contents">
-        <li v-for="(c, i) in overview.chapters" :key="c.index">
-          <button
-            type="button"
-            class="item-page__chapter"
-            :class="{ 'item-page__chapter--current': progress?.chapter === c.index }"
-            :aria-label="`${audiobook ? 'Play part' : 'Open chapter'} ${i + 1}: ${c.title}`"
-            @click="chapter(c.index)"
-          >
-            <span class="item-page__number">{{ i + 1 }}</span><span class="item-page__chapter-title">{{ c.title }}</span
-            ><AudioLines v-if="progress?.chapter === c.index" :size="15" class="item-page__here" aria-hidden="true" />
-          </button>
-          <span v-if="c.durationMs !== null" class="item-page__chapter-audio">{{ formatClock(c.durationMs) }}</span>
-          <template v-if="!recorded">
-            <span
-              v-if="chapterState(c.index).kind === 'ready'"
-              class="item-page__chapter-audio item-page__chapter-audio--ready"
-              title="This chapter's audio is made: it plays at once, even offline"
-              ><Check :size="14" aria-hidden="true" /> Ready</span
-            >
-            <span v-else-if="chapterState(c.index).kind === 'queued'" class="item-page__chapter-audio">{{
-              (chapterState(c.index) as { label: string }).label
-            }}</span>
-            <button
-              v-else-if="chapterState(c.index).kind === 'none'"
-              type="button"
-              class="item-page__chapter-prepare"
-              :aria-label="`Prepare chapter ${i + 1}: ${c.title}`"
-              title="Prepare this chapter"
-              @click="prepareOne(c.index)"
-            >
-              <Sparkles :size="14" aria-hidden="true" />
-            </button>
-          </template>
-        </li>
-      </ol>
+      <BookContents
+        :book-id="bookId"
+        :chapters="overview.chapters"
+        :current="progress?.chapter ?? null"
+        :audiobook="audiobook"
+        :recorded="recorded"
+      />
     </UiCard>
 
     <UiCard v-if="overview && !audiobook && !isArticle" class="item-page__card" aria-labelledby="item-online">
@@ -777,22 +662,6 @@ const collectionItems = computed<MenuEntry[]>(() => {
   color: var(--warn);
   font-weight: 600;
 }
-.item-page__notes-link {
-  margin-top: auto;
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  color: var(--warn);
-  font-weight: 600;
-}
-.item-page__notes {
-  font-size: 13px;
-  color: var(--dim);
-}
-.item-page__notes p {
-  margin: 0 0 var(--space-3);
-}
 .item-page__option {
   min-height: 60px;
   display: flex;
@@ -819,20 +688,6 @@ const collectionItems = computed<MenuEntry[]>(() => {
   flex-wrap: wrap;
   gap: var(--space-4);
 }
-.item-page__small {
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: 0 var(--space-7);
-  border-radius: var(--radius-lg);
-  background: var(--ground);
-  font-weight: 600;
-  font-size: 13px;
-}
-.item-page__small:hover {
-  background: var(--wash);
-}
 .item-page__link {
   align-self: flex-start;
   font-size: 13px;
@@ -844,87 +699,6 @@ const collectionItems = computed<MenuEntry[]>(() => {
 }
 .item-page__listening {
   margin-top: var(--space-4);
-}
-.item-page__chapters {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.item-page__chapters li {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  border-bottom: 1px solid var(--wash);
-}
-.item-page__chapters li:last-child {
-  border-bottom: 0;
-}
-.item-page__chapter {
-  flex: 1;
-  min-width: 0;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-9);
-  text-align: left;
-}
-.item-page__chapter:hover .item-page__chapter-title {
-  color: var(--accent);
-}
-.item-page__chapter--current .item-page__chapter-title {
-  font-weight: 700;
-}
-.item-page__number {
-  width: 20px;
-  flex: none;
-  text-align: right;
-  color: var(--dim);
-  font-variant-numeric: tabular-nums;
-}
-.item-page__chapter-title {
-  flex: 1;
-  min-width: 0;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.item-page__here {
-  color: var(--accent);
-}
-.item-page__chapter-audio {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: 12.5px;
-  color: var(--dim);
-  white-space: nowrap;
-}
-.item-page__chapter-audio--ready {
-  color: var(--ok);
-  font-weight: 600;
-}
-.item-page__chapter-prepare {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  color: var(--dim);
-  opacity: 0;
-}
-.item-page__chapters li:hover .item-page__chapter-prepare,
-.item-page__chapter-prepare:focus-visible {
-  opacity: 1;
-}
-.item-page__chapter-prepare:hover {
-  background: var(--wash);
-  color: var(--ink);
-}
-@media (hover: none) {
-  .item-page__chapter-prepare {
-    opacity: 1;
-  }
 }
 .item-page__ghost-title {
   height: 40px;
