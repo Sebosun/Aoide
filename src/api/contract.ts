@@ -31,6 +31,14 @@ export type ImportResult = { path: string, bookId: string | null, error: string 
 
 export type AppInfo = { libraryFolder: string, };
 
+export type CoreError = { "kind": "notFound", what: string, message: string, } | { "kind": "invalid", field: string, message: string, } | { "kind": "engineUnavailable", message: string, } | { "kind": "busy", message: string, } | { "kind": "io", message: string, } | { "kind": "internal", message: string, };
+
+export type ProblemView = { 
+/**
+ * The sentence to show: what failed and why.
+ */
+message: string, error: CoreError, };
+
 export type UiLevel = "info" | "warn" | "error";
 
 export type UiLog = { level: UiLevel, 
@@ -610,6 +618,7 @@ export type CoreEvents = {
   "model://download": ModelDownloadView,
   "audiobooks://progress": ScanProgress,
   "audiobooks://matches": Array<AudiobookMatch>,
+  "core://problem": ProblemView,
 };
 
 /** Every command Core answers, by name, with its arguments and result. */

@@ -363,8 +363,15 @@ impl Core {
                 .upsert_discovered(record)
                 .map_err(|e| e.to_string())?;
         }
-        let _ = library.forget_discovered_before(scan_started);
+        let forgot = library.forget_discovered_before(scan_started);
         drop(library);
+        if let Err(error) = forgot {
+            self.report(
+                "discovery.save",
+                "Could not forget books no longer found",
+                error,
+            );
+        }
         let found = (unchanged.len() + records.len()) as u64;
         tracing::info!(
             event = "discovery.scan",

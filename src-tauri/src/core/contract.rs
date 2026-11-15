@@ -38,6 +38,9 @@ fn contract() -> String {
         super::BookSummary,
         super::ImportResult,
         super::AppInfo,
+        // Errors
+        super::error::CoreError,
+        super::error::ProblemView,
         // Logging
         crate::logging::UiLevel,
         crate::logging::UiLog,
@@ -185,6 +188,10 @@ fn contract() -> String {
         (
             CoreEvent::AUDIOBOOK_MATCHES,
             name::<Vec<super::audiobooks::AudiobookMatch>>(&config),
+        ),
+        (
+            CoreEvent::PROBLEM,
+            name::<super::error::ProblemView>(&config),
         ),
     ];
     out.push_str(

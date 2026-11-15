@@ -12,7 +12,7 @@ use tauri::{Manager, State};
 
 use crate::book::ChapterView;
 use crate::core::{
-    AppInfo, AppSettings, AppSettingsPatch, BookSettings, BookSummary, BookView, Core,
+    AppInfo, AppSettings, AppSettingsPatch, BookSettings, BookSummary, BookView, Core, CoreError,
     EngineOptions, EngineStatusView, ImportResult, ListeningStatsView, Paths, PreferencesView,
 };
 
@@ -30,7 +30,7 @@ fn app_info(core: CoreState<'_>) -> AppInfo {
 }
 
 #[tauri::command]
-async fn list_books(core: CoreState<'_>) -> Result<Vec<BookSummary>, String> {
+async fn list_books(core: CoreState<'_>) -> Result<Vec<BookSummary>, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.list_books()).await
 }
@@ -39,37 +39,37 @@ async fn list_books(core: CoreState<'_>) -> Result<Vec<BookSummary>, String> {
 async fn import_files(
     core: CoreState<'_>,
     paths: Vec<String>,
-) -> Result<Vec<ImportResult>, String> {
+) -> Result<Vec<ImportResult>, CoreError> {
     let core = Arc::clone(&core);
-    blocking(move || Ok(core.import_files(paths))).await
+    blocking(move || Ok::<_, CoreError>(core.import_files(paths))).await
 }
 
 #[tauri::command]
-async fn rescan_library(core: CoreState<'_>) -> Result<(), String> {
+async fn rescan_library(core: CoreState<'_>) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.rescan()).await
 }
 
 #[tauri::command]
-async fn remove_book(core: CoreState<'_>, book_id: String) -> Result<(), String> {
+async fn remove_book(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.remove_book(&book_id)).await
 }
 
 #[tauri::command]
-async fn show_in_folder(core: CoreState<'_>, book_id: String) -> Result<(), String> {
+async fn show_in_folder(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.show_in_folder(&book_id)).await
 }
 
 #[tauri::command]
-async fn open_book(core: CoreState<'_>, book_id: String) -> Result<BookView, String> {
+async fn open_book(core: CoreState<'_>, book_id: String) -> Result<BookView, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.open_book(&book_id)).await
 }
 
 #[tauri::command]
-async fn book_overview(core: CoreState<'_>, book_id: String) -> Result<BookView, String> {
+async fn book_overview(core: CoreState<'_>, book_id: String) -> Result<BookView, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.book_overview(&book_id)).await
 }
@@ -79,7 +79,7 @@ async fn chapter(
     core: CoreState<'_>,
     book_id: String,
     chapter: usize,
-) -> Result<ChapterView, String> {
+) -> Result<ChapterView, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.chapter(&book_id, chapter)).await
 }
@@ -90,9 +90,9 @@ async fn play(
     book_id: String,
     chapter: Option<usize>,
     segment_id: Option<String>,
-) -> Result<(), String> {
+) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.play(&book_id, chapter, segment_id).await
+    Ok(core.play(&book_id, chapter, segment_id).await?)
 }
 
 #[tauri::command]
@@ -101,8 +101,8 @@ fn pause(core: CoreState<'_>) {
 }
 
 #[tauri::command]
-fn resume(core: CoreState<'_>) -> Result<(), String> {
-    core.resume()
+fn resume(core: CoreState<'_>) -> Result<(), CoreError> {
+    Ok(core.resume()?)
 }
 
 #[tauri::command]
@@ -135,9 +135,9 @@ async fn save_book_settings(
     core: CoreState<'_>,
     book_id: String,
     settings: BookSettings,
-) -> Result<(), String> {
+) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.save_book_settings(&book_id, settings).await
+    Ok(core.save_book_settings(&book_id, settings).await?)
 }
 
 #[tauri::command]
@@ -146,44 +146,48 @@ fn engine_options(core: CoreState<'_>) -> EngineOptions {
 }
 
 #[tauri::command]
-async fn engine_voices(core: CoreState<'_>) -> Result<Vec<aoide_tts::Voice>, String> {
+async fn engine_voices(core: CoreState<'_>) -> Result<Vec<aoide_tts::Voice>, CoreError> {
     let core = Arc::clone(&core);
-    core.engine_voices().await
+    Ok(core.engine_voices().await?)
 }
 
 #[tauri::command]
-fn collections(core: CoreState<'_>) -> Result<Vec<aoide_library::Collection>, String> {
-    core.collections()
+fn collections(core: CoreState<'_>) -> Result<Vec<aoide_library::Collection>, CoreError> {
+    Ok(core.collections()?)
 }
 
 #[tauri::command]
-fn create_collection(core: CoreState<'_>, name: String) -> Result<i64, String> {
-    core.create_collection(&name)
+fn create_collection(core: CoreState<'_>, name: String) -> Result<i64, CoreError> {
+    Ok(core.create_collection(&name)?)
 }
 
 #[tauri::command]
-fn rename_collection(core: CoreState<'_>, id: i64, name: String) -> Result<(), String> {
-    core.rename_collection(id, &name)
+fn rename_collection(core: CoreState<'_>, id: i64, name: String) -> Result<(), CoreError> {
+    Ok(core.rename_collection(id, &name)?)
 }
 
 #[tauri::command]
-fn delete_collection(core: CoreState<'_>, id: i64) -> Result<(), String> {
-    core.delete_collection(id)
+fn delete_collection(core: CoreState<'_>, id: i64) -> Result<(), CoreError> {
+    Ok(core.delete_collection(id)?)
 }
 
 #[tauri::command]
-fn set_book_collections(core: CoreState<'_>, book_id: String, ids: Vec<i64>) -> Result<(), String> {
-    core.set_book_collections(&book_id, &ids)
+fn set_book_collections(
+    core: CoreState<'_>,
+    book_id: String,
+    ids: Vec<i64>,
+) -> Result<(), CoreError> {
+    Ok(core.set_book_collections(&book_id, &ids)?)
 }
 
 #[tauri::command]
-fn storage_report(core: CoreState<'_>) -> Result<crate::core::StorageReport, String> {
-    core.storage_report()
+fn storage_report(core: CoreState<'_>) -> Result<crate::core::StorageReport, CoreError> {
+    Ok(core.storage_report()?)
 }
 
 #[tauri::command]
-fn clean_unused_files(core: CoreState<'_>) -> Result<crate::core::CleanResult, String> {
-    core.clean_unused_files()
+fn clean_unused_files(core: CoreState<'_>) -> Result<crate::core::CleanResult, CoreError> {
+    Ok(core.clean_unused_files()?)
 }
 
 /// The WAV goes back as raw bytes (an ArrayBuffer in the UI), not as a JSON number array.
@@ -194,7 +198,7 @@ async fn preview_voice(
     voice_id: Option<String>,
     params: aoide_tts::Params,
     language: Option<String>,
-) -> Result<tauri::ipc::Response, String> {
+) -> Result<tauri::ipc::Response, CoreError> {
     let core = Arc::clone(&core);
     let wav = core
         .preview_voice(profile, voice_id, params, language)
@@ -206,15 +210,15 @@ async fn preview_voice(
 async fn save_engine_profile(
     core: CoreState<'_>,
     profile: aoide_tts::EngineProfile,
-) -> Result<(), String> {
+) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.save_engine_profile(profile).await
+    Ok(core.save_engine_profile(profile).await?)
 }
 
 #[tauri::command]
-async fn prepare_book(core: CoreState<'_>, book_id: String) -> Result<(), String> {
+async fn prepare_book(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.prepare_book(&book_id).await
+    Ok(core.prepare_book(&book_id).await?)
 }
 
 #[tauri::command]
@@ -222,18 +226,18 @@ async fn prepare_chapter(
     core: CoreState<'_>,
     book_id: String,
     chapter: usize,
-) -> Result<(), String> {
+) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.prepare_chapter(&book_id, chapter).await
+    Ok(core.prepare_chapter(&book_id, chapter).await?)
 }
 
 #[tauri::command]
 async fn chapter_audio(
     core: CoreState<'_>,
     book_id: String,
-) -> Result<Vec<crate::core::ChapterAudioView>, String> {
+) -> Result<Vec<crate::core::ChapterAudioView>, CoreError> {
     let core = Arc::clone(&core);
-    core.chapter_audio(&book_id).await
+    Ok(core.chapter_audio(&book_id).await?)
 }
 
 #[tauri::command]
@@ -247,9 +251,9 @@ fn cancel_prepare(core: CoreState<'_>, book_id: String) {
 }
 
 #[tauri::command]
-async fn regenerate_book(core: CoreState<'_>, book_id: String) -> Result<(), String> {
+async fn regenerate_book(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.regenerate_book(&book_id).await
+    Ok(core.regenerate_book(&book_id).await?)
 }
 
 #[tauri::command]
@@ -262,22 +266,22 @@ async fn search_book(
     core: CoreState<'_>,
     book_id: String,
     query: String,
-) -> Result<Vec<crate::book::SearchHit>, String> {
+) -> Result<Vec<crate::book::SearchHit>, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.search_book(&book_id, &query)).await
 }
 
 #[tauri::command]
-async fn skip_chapter(core: CoreState<'_>, delta: i64) -> Result<(), String> {
+async fn skip_chapter(core: CoreState<'_>, delta: i64) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.skip_chapter(delta).await
+    Ok(core.skip_chapter(delta).await?)
 }
 
 #[tauri::command]
 async fn bookmarks(
     core: CoreState<'_>,
     book_id: String,
-) -> Result<Vec<aoide_library::Bookmark>, String> {
+) -> Result<Vec<aoide_library::Bookmark>, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.bookmarks(&book_id)).await
 }
@@ -287,32 +291,32 @@ async fn add_bookmark(
     core: CoreState<'_>,
     book_id: String,
     note: String,
-) -> Result<aoide_library::Bookmark, String> {
+) -> Result<aoide_library::Bookmark, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.add_bookmark(&book_id, &note)).await
 }
 
 #[tauri::command]
-fn update_bookmark_note(core: CoreState<'_>, id: i64, note: String) -> Result<(), String> {
-    core.update_bookmark_note(id, &note)
+fn update_bookmark_note(core: CoreState<'_>, id: i64, note: String) -> Result<(), CoreError> {
+    Ok(core.update_bookmark_note(id, &note)?)
 }
 
 #[tauri::command]
-fn delete_bookmark(core: CoreState<'_>, id: i64) -> Result<(), String> {
-    core.delete_bookmark(id)
+fn delete_bookmark(core: CoreState<'_>, id: i64) -> Result<(), CoreError> {
+    Ok(core.delete_bookmark(id)?)
 }
 
 #[tauri::command]
 async fn book_listening(
     core: CoreState<'_>,
     book_id: String,
-) -> Result<Vec<aoide_library::DayListening>, String> {
+) -> Result<Vec<aoide_library::DayListening>, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.book_listening(&book_id)).await
 }
 
 #[tauri::command]
-async fn listening_stats(core: CoreState<'_>) -> Result<ListeningStatsView, String> {
+async fn listening_stats(core: CoreState<'_>) -> Result<ListeningStatsView, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.listening_stats()).await
 }
@@ -321,7 +325,7 @@ async fn listening_stats(core: CoreState<'_>) -> Result<ListeningStatsView, Stri
 async fn book_details(
     core: CoreState<'_>,
     book_id: String,
-) -> Result<aoide_library::BookDetails, String> {
+) -> Result<aoide_library::BookDetails, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.book_details(&book_id)).await
 }
@@ -336,7 +340,7 @@ fn app_settings(core: CoreState<'_>) -> AppSettings {
 async fn update_app_settings(
     core: CoreState<'_>,
     patch: AppSettingsPatch,
-) -> Result<AppSettings, String> {
+) -> Result<AppSettings, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.update_app_settings(patch)).await
 }
@@ -350,7 +354,7 @@ fn preferences(core: CoreState<'_>) -> PreferencesView {
 async fn save_appearance(
     core: CoreState<'_>,
     appearance: aoide_config::Appearance,
-) -> Result<(), String> {
+) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.save_appearance(appearance)).await
 }
@@ -360,9 +364,9 @@ async fn lookup_metadata(
     core: CoreState<'_>,
     book_id: String,
     refresh: bool,
-) -> Result<Vec<aoide_metadata::Match>, String> {
+) -> Result<Vec<aoide_metadata::Match>, CoreError> {
     let core = Arc::clone(&core);
-    core.lookup_metadata(&book_id, refresh).await
+    Ok(core.lookup_metadata(&book_id, refresh).await?)
 }
 
 #[tauri::command]
@@ -370,18 +374,18 @@ async fn apply_metadata(
     core: CoreState<'_>,
     book_id: String,
     candidate: aoide_metadata::Match,
-) -> Result<aoide_library::BookDetails, String> {
+) -> Result<aoide_library::BookDetails, CoreError> {
     let core = Arc::clone(&core);
-    core.apply_metadata(&book_id, candidate).await
+    Ok(core.apply_metadata(&book_id, candidate).await?)
 }
 
 #[tauri::command]
-async fn export_book(core: CoreState<'_>, book_id: String) -> Result<String, String> {
+async fn export_book(core: CoreState<'_>, book_id: String) -> Result<String, CoreError> {
     let core = Arc::clone(&core);
     let started = std::time::Instant::now();
     let result = core.export_book(&book_id).await;
     log_export("m4b", &book_id, started, &result);
-    result
+    Ok(result?)
 }
 
 /// Logs how an export ended.
@@ -404,18 +408,18 @@ fn log_export(
 }
 
 #[tauri::command]
-async fn export_read_along(core: CoreState<'_>, book_id: String) -> Result<String, String> {
+async fn export_read_along(core: CoreState<'_>, book_id: String) -> Result<String, CoreError> {
     let core = Arc::clone(&core);
     let started = std::time::Instant::now();
     let result = core.export_read_along(&book_id).await;
     log_export("read-along", &book_id, started, &result);
-    result
+    Ok(result?)
 }
 
 #[tauri::command]
-async fn scan_for_books(core: CoreState<'_>) -> Result<Vec<crate::core::Candidate>, String> {
+async fn scan_for_books(core: CoreState<'_>) -> Result<Vec<crate::core::Candidate>, CoreError> {
     let core = Arc::clone(&core);
-    core.scan_for_books().await
+    Ok(core.scan_for_books().await?)
 }
 
 #[tauri::command]
@@ -424,7 +428,7 @@ fn cancel_scan(core: CoreState<'_>) {
 }
 
 #[tauri::command]
-async fn discovered_books(core: CoreState<'_>) -> Result<Vec<crate::core::Candidate>, String> {
+async fn discovered_books(core: CoreState<'_>) -> Result<Vec<crate::core::Candidate>, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.discovered_books()).await
 }
@@ -432,9 +436,9 @@ async fn discovered_books(core: CoreState<'_>) -> Result<Vec<crate::core::Candid
 #[tauri::command]
 async fn scan_for_audiobooks(
     core: CoreState<'_>,
-) -> Result<Vec<crate::core::AudiobookMatch>, String> {
+) -> Result<Vec<crate::core::AudiobookMatch>, CoreError> {
     let core = Arc::clone(&core);
-    core.scan_for_audiobooks().await
+    Ok(core.scan_for_audiobooks().await?)
 }
 
 #[tauri::command]
@@ -449,42 +453,42 @@ fn cancel_audiobook_scan(core: CoreState<'_>) {
 
 /// After books were added: how many of them have audiobooks waiting for the user.
 #[tauri::command]
-async fn look_for_audiobooks(core: CoreState<'_>, ids: Vec<String>) -> Result<usize, String> {
+async fn look_for_audiobooks(core: CoreState<'_>, ids: Vec<String>) -> Result<usize, CoreError> {
     let core = Arc::clone(&core);
-    core.look_for_audiobooks(ids).await
+    Ok(core.look_for_audiobooks(ids).await?)
 }
 
 #[tauri::command]
 async fn pair_audiobooks(
     core: CoreState<'_>,
     choices: Vec<crate::core::AudiobookChoice>,
-) -> Result<Vec<crate::core::PairOutcome>, String> {
+) -> Result<Vec<crate::core::PairOutcome>, CoreError> {
     let core = Arc::clone(&core);
-    blocking(move || Ok(core.pair_audiobooks(choices))).await
+    blocking(move || Ok::<_, CoreError>(core.pair_audiobooks(choices))).await
 }
 
 #[tauri::command]
-async fn fetch_discovered_details(core: CoreState<'_>, ids: Vec<String>) -> Result<(), String> {
+async fn fetch_discovered_details(core: CoreState<'_>, ids: Vec<String>) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.fetch_discovered_details(ids).await
+    Ok(core.fetch_discovered_details(ids).await?)
 }
 
 #[tauri::command]
 async fn import_discovered(
     core: CoreState<'_>,
     choices: Vec<crate::core::ImportChoice>,
-) -> Result<Vec<ImportResult>, String> {
+) -> Result<Vec<ImportResult>, CoreError> {
     let core = Arc::clone(&core);
-    core.import_discovered(choices).await
+    Ok(core.import_discovered(choices).await?)
 }
 
 #[tauri::command]
 async fn inspect_recording(
     core: CoreState<'_>,
     paths: Vec<String>,
-) -> Result<crate::core::InspectionView, String> {
+) -> Result<crate::core::InspectionView, CoreError> {
     let core = Arc::clone(&core);
-    blocking(move || Ok(core.inspect_recording(paths))).await
+    blocking(move || Ok::<_, CoreError>(core.inspect_recording(paths))).await
 }
 
 #[tauri::command]
@@ -493,7 +497,7 @@ async fn attach_recording(
     book_id: String,
     paths: Vec<String>,
     as_listed: Option<bool>,
-) -> Result<crate::core::RecordingView, String> {
+) -> Result<crate::core::RecordingView, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || {
         if as_listed == Some(true) {
@@ -509,22 +513,22 @@ async fn attach_recording(
 async fn recording(
     core: CoreState<'_>,
     book_id: String,
-) -> Result<Option<crate::core::RecordingView>, String> {
+) -> Result<Option<crate::core::RecordingView>, CoreError> {
     let core = Arc::clone(&core);
-    blocking(move || Ok(core.recording(&book_id))).await
+    blocking(move || Ok::<_, CoreError>(core.recording(&book_id))).await
 }
 
 #[tauri::command]
-async fn recordings(core: CoreState<'_>) -> Result<Vec<crate::core::RecordingView>, String> {
+async fn recordings(core: CoreState<'_>) -> Result<Vec<crate::core::RecordingView>, CoreError> {
     let core = Arc::clone(&core);
-    blocking(move || Ok(core.recordings())).await
+    blocking(move || Ok::<_, CoreError>(core.recordings())).await
 }
 
 #[tauri::command]
 async fn sync_report(
     core: CoreState<'_>,
     book_id: String,
-) -> Result<crate::core::SyncReportView, String> {
+) -> Result<crate::core::SyncReportView, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.sync_report(&book_id)).await
 }
@@ -534,15 +538,15 @@ async fn sync_action(
     core: CoreState<'_>,
     book_id: String,
     action: crate::core::SyncAction,
-) -> Result<(), String> {
+) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.sync_action(&book_id, action)).await
 }
 
 #[tauri::command]
-async fn remove_recording(core: CoreState<'_>, book_id: String) -> Result<(), String> {
+async fn remove_recording(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.remove_recording(&book_id).await
+    Ok(core.remove_recording(&book_id).await?)
 }
 
 #[tauri::command]
@@ -550,9 +554,9 @@ async fn set_narration(
     core: CoreState<'_>,
     book_id: String,
     narration: crate::core::Narration,
-) -> Result<(), String> {
+) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.set_narration(&book_id, narration).await
+    Ok(core.set_narration(&book_id, narration).await?)
 }
 
 #[tauri::command]
@@ -561,15 +565,19 @@ fn recognition_options(core: CoreState<'_>) -> crate::core::RecognitionOptions {
 }
 
 #[tauri::command]
-async fn download_model(core: CoreState<'_>, model_id: String) -> Result<(), String> {
+async fn download_model(core: CoreState<'_>, model_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.download_model(&model_id).await
+    Ok(core.download_model(&model_id).await?)
 }
 
 #[tauri::command]
-async fn play_recording_at(core: CoreState<'_>, book_id: String, at_ms: u64) -> Result<(), String> {
+async fn play_recording_at(
+    core: CoreState<'_>,
+    book_id: String,
+    at_ms: u64,
+) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
-    core.play_recording_at(&book_id, at_ms).await
+    Ok(core.play_recording_at(&book_id, at_ms).await?)
 }
 
 /// The system's file chooser for EPUB files to add. `None` when cancelled.
@@ -615,12 +623,14 @@ async fn choose_audio(app: tauri::AppHandle, folder: bool) -> Option<Vec<String>
     rx.await.ok().flatten()
 }
 
-async fn blocking<T: Send + 'static>(
-    f: impl FnOnce() -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
+/// Runs `f` on a blocking thread; its error, whichever type, comes back as a `CoreError`.
+async fn blocking<T: Send + 'static, E: Into<CoreError> + Send + 'static>(
+    f: impl FnOnce() -> Result<T, E> + Send + 'static,
+) -> Result<T, CoreError> {
     tauri::async_runtime::spawn_blocking(f)
         .await
-        .map_err(|e| e.to_string())?
+        .map_err(CoreError::internal)?
+        .map_err(Into::into)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

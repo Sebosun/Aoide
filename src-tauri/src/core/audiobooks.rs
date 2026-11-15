@@ -345,7 +345,14 @@ impl Core {
                 Then::Nothing => return,
                 Then::Unpair => {
                     self.forget_recording(id);
-                    let _ = lock(&self.library).remove_recording(&BookId(id.into()));
+                    let removed = lock(&self.library).remove_recording(&BookId(id.into()));
+                    if let Err(error) = removed {
+                        self.report(
+                            "audiobooks.pair",
+                            "Could not unpair an audiobook none of whose files passed",
+                            error,
+                        );
+                    }
                     self.emit(CoreEvent::LibraryChanged);
                     return;
                 }

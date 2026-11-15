@@ -70,8 +70,8 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `app.migrate` | info | | `lib.rs`, moving Folio's folders |
 | `app.log` | warn | `error` | `logging.rs`, the file cannot be written |
 | `app.emit` | error | `name`, `error` | `core.rs`, an event the window did not get |
-| `config.saved` | info | `section`, `changed` (setting names) | `core/extras.rs` `save_app_settings` |
-| `config.save` | error | `section`, `outcome`, `error` | `core.rs` (player), `core/config.rs` (engine) |
+| `config.saved` | info | `section`, `changed` (setting names) | `core/extras.rs` `update_app_settings` |
+| `config.save` | warn | `kind`, `error`, `repeat` (reported); `section`, `outcome` from the first-run migration | `core.rs` (player), `core/config.rs` (migration) |
 | `config.problem` | warn | `error` | `core.rs`, a settings file Aoide cannot read |
 | `config.watch` | warn | `error` | `core/config.rs`, watching settings files |
 | **Window** | | | |
@@ -100,13 +100,13 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `sync.abort` | info | `book`, `from_ms` | Pause or Remove during a block |
 | `sync.match` | info | `book`, `words`, `matched_pct`, `review`, `took_ms` | matching words to the book |
 | `sync.error` | warn | `book`, `error` | a failed step |
-| `sync.runner` | error | `error` | `core/recording.rs`, the job's thread |
+| `sync.runner` | warn | `kind`, `error`, `repeat` (reported) | `core/recording.rs`, the job's thread |
 | `sync.follow` | warn | `book`, `error` | `core/recording.rs` |
 | `model.download` | info, warn | `model`, `bytes`, `took_ms`, `outcome`, `error` | `download_model` |
 | **Preparing and speech** | | | |
 | `prep.stage` | info | `book`, `cause`, `from`, `to` | `core/preparation.rs` `logged`, each transition |
 | `prep.plan` | warn | `book`, `error` | `core.rs` |
-| `prep.save` | error | `error` | `core/preparation.rs` |
+| `prep.save` | warn | `kind`, `error`, `repeat` (reported) | `core/preparation.rs`, the queue or a book's done mark |
 | `gen.request` | debug, warn | `book`, `index`, `reason`, `chars`, `audio_ms`, `took_ms`, `outcome`, `error` | `crates/generation` `run`, each synthesis |
 | `gen.backoff` | info | `to`, `streak`, `wait_ms` | `crates/generation`, backing off or recovering |
 | `gen.failed` | warn | `key`, `error` | `core.rs` |
@@ -131,6 +131,22 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `proc.exit` | warn | `program`, `code`, `stderr_tail` | `core/export.rs`, `core/read_along.rs` (ffmpeg) |
 | **Smoke runs** | | | |
 | `smoke` | info, warn, error | `error` | `smoke.rs`; the message names the smoke library's own books |
+
+**Reported failures.** `Core::report` (`core/error.rs` `Reporter`) logs a background failure at
+warn with `kind` (the `CoreError` kind), `error` and `repeat`, and tells the user through
+`core://problem` (an error toast). The same event is told once a minute at most; repeats are
+logged with `repeat: true`. Besides the rows above that say "reported", these events come only
+from it:
+
+| Event | What failed | Where |
+|---|---|---|
+| `progress.save` | saving the listening position | `core.rs` `save_progress` |
+| `library.save` | saving the books left out, or when a book was opened | `core.rs` |
+| `listening.save` | saving listening time | `core/extras.rs` |
+| `narration.save` | saving that a book plays its recording | `core/recording.rs` |
+| `discovery.save` | forgetting found books no longer on disk | `core/discovery.rs` |
+
+`metadata.apply` and `audiobooks.pair` are also reported when saving a cover or unpairing fails.
 
 Errors from the system (a file that cannot be read, a failed request) may name folders; the home
 folder in them is written as `~`.

@@ -1,4 +1,4 @@
-import type { AudiobookMatch, RecordingView, SyncStage, InspectionView, ModelDownloadView, SyncReportView, PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
+import type { ProblemView, AudiobookMatch, RecordingView, SyncStage, InspectionView, ModelDownloadView, SyncReportView, PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
 import { initialPlayer, initialGeneration } from "./initial";
 
 
@@ -82,6 +82,7 @@ export function createMockApi() {
   const recordings = new Map<string, RecordingView>();
   const syncHandlers = new Set<(r: RecordingView) => void>();
   const downloadHandlers = new Set<(d: ModelDownloadView) => void>();
+  const problemHandlers = new Set<(p: ProblemView) => void>();
   const downloaded = new Set<string>(["base.en"]);
   const hour = 3_600_000;
   /** What the core decides about a recording (core/recording.rs): what is synced so far can be
@@ -551,6 +552,7 @@ export function createMockApi() {
     },
     onSyncState: h => subscribe(syncHandlers, h),
     onModelDownload: h => subscribe(downloadHandlers, h),
+    onProblem: h => subscribe(problemHandlers, h),
   };
   /** Test hooks: put a book at a share of its length, or give it generated audio. */
   const setProgressForTest = (id: string, fraction: number) => { getBook(id).progress = { chapter: 0, segmentId: null, fraction }; changed(); };
@@ -563,5 +565,5 @@ export function createMockApi() {
     emitSync(recordingIn(id, stage));
     changed();
   };
-  return Object.assign(api, { setRecordingForTest, setProgressForTest, setAudioForTest, queueWaitingForTest, dispose: () => { halt(); clearInterval(syncTimer); }, emitPlayer, emitGeneration, emitConfig, emitEngine: (s: EngineStatusView) => engineHandlers.forEach(h => h({ ...s })) });
+  return Object.assign(api, { setRecordingForTest, setProgressForTest, setAudioForTest, queueWaitingForTest, dispose: () => { halt(); clearInterval(syncTimer); }, emitPlayer, emitGeneration, emitConfig, emitProblem: (p: ProblemView) => problemHandlers.forEach(h => h({ ...p })), emitEngine: (s: EngineStatusView) => engineHandlers.forEach(h => h({ ...s })) });
 }

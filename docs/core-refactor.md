@@ -66,7 +66,7 @@ the existing validation and side effects of `save_app_settings`. Return the merg
 call the new command; `save_app_settings` has no remaining UI caller and is removed from the
 contract and the mock.
 
-### - [ ] 4. One error type at the IPC boundary
+### - [x] 4. One error type at the IPC boundary
 
 About 170 signatures in `src-tauri` return `Result<_, String>`; the UI cannot tell error kinds
 apart and background failures go only to stderr.

@@ -4,6 +4,7 @@ import type * as Wire from "./contract";
 import type { Commands, CoreEvents } from "./contract";
 import type { AoideApi, Candidate, UiLog } from "./types";
 import { report } from "../log";
+import { apiError } from "./errors";
 
 const candidates = (list: Wire.Candidate[]): Candidate[] => list.map(({ coverPath, ...c }) => ({ ...c, coverUrl: coverPath ? convertFileSrc(coverPath) : null }));
 /** Jobs that log their own time in Core, or wait for the user (a file chooser). */
@@ -13,7 +14,8 @@ const SLOW_MS = 2_000;
 const writeLog = (entry: UiLog) => invoke<void>("log_ui", { entry });
 
 /** Calls one of Core's commands; its name, arguments and result come from the contract.
- *  A failure (other than a cancelled scan) or a slow answer goes to Aoide's log too. */
+ *  A failure rejects with an ApiError; it (other than a cancelled scan), or a slow answer, goes
+ *  to Aoide's log too. */
 async function call<K extends keyof Commands>(name: K, ...args: Commands[K]["args"] extends Record<string, never> ? [] : [Commands[K]["args"]]): Promise<Commands[K]["result"]> {
   if (name === "log_ui") return invoke(name, ...args);
   const start = Date.now();
@@ -22,8 +24,9 @@ async function call<K extends keyof Commands>(name: K, ...args: Commands[K]["arg
     const tookMs = Date.now() - start;
     if (tookMs > SLOW_MS && !LONG.has(name)) report({ level: "info", event: "ipc.slow", msg: "Core answered slowly", command: name, tookMs }, writeLog);
     return result;
-  } catch (error) {
-    if (!String(error).includes("cancelled")) report({ level: "warn", event: "ipc.error", msg: String(error), command: name, tookMs: Date.now() - start }, writeLog);
+  } catch (rejected) {
+    const error = apiError(rejected);
+    if (!error.message.includes("cancelled")) report({ level: "warn", event: "ipc.error", msg: error.message, command: name, tookMs: Date.now() - start }, writeLog);
     throw error;
   }
 }
@@ -118,4 +121,5 @@ export const tauriApi: AoideApi = {
   playRecordingAt: (bookId, atMs) => call("play_recording_at", { bookId, atMs }),
   onSyncState: h => on("sync://state", h),
   onModelDownload: h => on("model://download", h),
+  onProblem: h => on("core://problem", h),
 };

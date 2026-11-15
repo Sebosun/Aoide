@@ -1007,7 +1007,7 @@ async fn a_synced_recording_exports_as_a_read_along_epub() {
         .output()
         .is_err()
     {
-        eprintln!("skipped: the export needs ffmpeg to turn WAV into AAC");
+        println!("skipped: the export needs ffmpeg to turn WAV into AAC");
         return;
     }
     let f = fixture().await;

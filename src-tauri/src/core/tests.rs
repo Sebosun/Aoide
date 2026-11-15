@@ -523,3 +523,38 @@ async fn patches_to_different_app_settings_both_survive() {
         "an invalid patch changes nothing"
     );
 }
+
+#[tokio::test]
+async fn a_change_that_cannot_be_saved_in_the_background_is_reported_once() {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, events) = start(dir.path(), &engine);
+    let config = dir.path().join("config");
+    let writable = |on: bool| {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = if on { 0o755 } else { 0o555 };
+        std::fs::set_permissions(&config, std::fs::Permissions::from_mode(mode)).unwrap();
+    };
+    writable(false);
+
+    core.set_volume(0.4);
+    core.set_volume(0.5);
+    writable(true);
+
+    let problems = events.payloads(CoreEvent::PROBLEM);
+    assert_eq!(
+        problems.len(),
+        1,
+        "the same failure is told once: {problems:?}"
+    );
+    let problem = &problems[0];
+    assert!(
+        problem["message"]
+            .as_str()
+            .unwrap()
+            .starts_with("Could not save the player settings"),
+        "{problem}"
+    );
+    assert_eq!(problem["error"]["kind"], "io");
+}

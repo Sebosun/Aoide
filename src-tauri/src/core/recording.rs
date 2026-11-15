@@ -556,7 +556,11 @@ impl Core {
                 }
             });
         if let Err(error) = spawned {
-            tracing::error!(event = "sync.runner", %error, "Cannot start the sync job");
+            self.report(
+                "sync.runner",
+                "Could not start syncing recordings",
+                CoreError::internal(error),
+            );
         }
     }
 
@@ -573,10 +577,17 @@ impl Core {
             return;
         }
         settings.narration = Some(Narration::Recording);
-        if let Ok(json) = serde_json::to_string(&settings) {
-            let _ = library.set_setting(&key, &json);
-        }
+        let saved = serde_json::to_string(&settings)
+            .map_err(CoreError::internal)
+            .and_then(|json| Ok(library.set_setting(&key, &json)?));
         drop(library);
+        if let Err(error) = saved {
+            self.report(
+                "narration.save",
+                "Could not save that the book plays its recording",
+                error,
+            );
+        }
         lock(&self.books).remove(id);
         self.emit_recording(id);
     }

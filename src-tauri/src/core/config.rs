@@ -133,13 +133,16 @@ impl Config {
     pub(super) fn update(
         &mut self,
         change: impl FnOnce(&mut SettingsFile) -> Result<(), aoide_config::ConfigError>,
-    ) -> Result<(), String> {
+    ) -> Result<(), super::CoreError> {
         if let Some(error) = &self.parse_error {
-            return Err(format!("Settings were not saved: {error}"));
+            return Err(super::CoreError::invalid(
+                "settings",
+                format!("Settings were not saved: {error}"),
+            ));
         }
         let mut next = self.file.clone();
-        change(&mut next).map_err(|e| e.to_string())?;
-        next.save().map_err(|e| e.to_string())?;
+        change(&mut next)?;
+        next.save()?;
         self.text = Some(next.to_text());
         self.file = next;
         Ok(())
@@ -201,7 +204,7 @@ impl Core {
         lock(&self.config).preferences()
     }
 
-    pub fn save_appearance(&self, appearance: Appearance) -> Result<(), String> {
+    pub fn save_appearance(&self, appearance: Appearance) -> Result<(), super::CoreError> {
         lock(&self.config).update(|file| file.set_section(APPEARANCE, &appearance))
     }
 

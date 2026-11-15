@@ -11,6 +11,8 @@ use aoide_library::Library;
 use aoide_tts::SynthesisRequest;
 use serde::Serialize;
 
+use super::error::Reporter;
+
 const QUEUE_KEY: &str = "prepare.queue";
 const PAUSED_KEY: &str = "prepare.paused";
 /// Books queued for some chapters only, with those chapters; the rest are whole books.
@@ -160,11 +162,13 @@ struct Entry {
 #[derive(Default)]
 pub struct Preparation {
     queue: Vec<Entry>,
+    /// Tells the user when the queue cannot be saved.
+    reporter: Reporter,
 }
 
 impl Preparation {
     /// The queue as saved by an earlier run: paused books stay paused, the rest wait for a plan.
-    pub fn load(library: &Library) -> Self {
+    pub fn load(library: &Library, reporter: Reporter) -> Self {
         let ids: Vec<String> = read_json(library, QUEUE_KEY).unwrap_or_default();
         let paused: HashSet<String> = read_json(library, PAUSED_KEY).unwrap_or_default();
         let mut chapters: HashMap<String, BTreeSet<usize>> =
@@ -189,7 +193,7 @@ impl Preparation {
                 }
             })
             .collect();
-        Self { queue }
+        Self { queue, reporter }
     }
 
     pub fn stage(&self, library: &Library, id: &str) -> Stage {
@@ -233,7 +237,7 @@ impl Preparation {
             if entry.scope != Scope::Book {
                 entry.scope = Scope::Book;
                 apply(entry, Event::PlanDropped);
-                clear_done(library, id);
+                clear_done(library, &self.reporter, id);
                 self.settle();
                 self.save(library);
             }
@@ -242,7 +246,7 @@ impl Preparation {
         let before = self.stage(library, id);
         let stage = next(before, Event::Enqueue);
         logged(id, Event::Enqueue, before, stage);
-        clear_done(library, id);
+        clear_done(library, &self.reporter, id);
         self.queue.push(Entry {
             id: id.into(),
             scope: Scope::Book,
@@ -305,7 +309,7 @@ impl Preparation {
     /// The book is gone from the library: forget its place and its done mark.
     pub fn forget(&mut self, library: &Library, id: &str) {
         self.cancel(library, id);
-        clear_done(library, id);
+        clear_done(library, &self.reporter, id);
     }
 
     /// Every queued book, in order.
@@ -371,7 +375,7 @@ impl Preparation {
         }
         for id in books.iter().filter(|id| !self.contains(id)) {
             if next(self.stage(library, id), Event::AudioLost) == Stage::NotPrepared {
-                clear_done(library, id);
+                clear_done(library, &self.reporter, id);
             }
         }
     }
@@ -430,7 +434,15 @@ impl Preparation {
                 apply(entry, Event::Finish);
                 // Zero would read as "not prepared"; a book with nothing to say is still done.
                 if entry.scope == Scope::Book {
-                    let _ = library.set_setting(&done_key(&entry.id), &total.max(1).to_string());
+                    let saved =
+                        library.set_setting(&done_key(&entry.id), &total.max(1).to_string());
+                    if let Err(error) = saved {
+                        self.reporter.report(
+                            "prep.save",
+                            "Could not save that a book is prepared",
+                            error,
+                        );
+                    }
                 }
                 finished.push(entry.id.clone());
             }
@@ -462,7 +474,11 @@ impl Preparation {
         ] {
             if let Ok(json) = value {
                 if let Err(error) = library.set_setting(key, &json) {
-                    tracing::error!(event = "prep.save", %error, "Cannot save the preparation queue");
+                    self.reporter.report(
+                        "prep.save",
+                        "Could not save the preparation queue",
+                        error,
+                    );
                 }
             }
         }
@@ -510,8 +526,14 @@ fn done_count(library: &Library, id: &str) -> Option<usize> {
         .filter(|n| *n > 0)
 }
 
-fn clear_done(library: &Library, id: &str) {
-    let _ = library.set_setting(&done_key(id), "0");
+fn clear_done(library: &Library, reporter: &Reporter, id: &str) {
+    if let Err(error) = library.set_setting(&done_key(id), "0") {
+        reporter.report(
+            "prep.save",
+            "Could not save that a book needs preparing",
+            error,
+        );
+    }
 }
 
 #[cfg(test)]
@@ -586,7 +608,7 @@ mod tests {
         assert_eq!(stages(&p, &lib, &["a", "b"]), [Paused, Preparing]);
         assert_eq!(p.planned_books().len(), 1);
 
-        let mut restarted = Preparation::load(&lib);
+        let mut restarted = Preparation::load(&lib, Reporter::default());
         assert_eq!(stages(&restarted, &lib, &["a", "b"]), [Paused, Waiting]);
         assert_eq!(restarted.unplanned(), ["b"]);
         restarted.set_paused(&lib, "a", false);
@@ -604,7 +626,9 @@ mod tests {
         assert!(p.segment_made(&lib, "k2", 500));
         assert_eq!(p.stage(&lib, "a"), Done);
         assert!(!p.contains("a"));
-        let view = Preparation::load(&lib).view(&lib, "a").unwrap();
+        let view = Preparation::load(&lib, Reporter::default())
+            .view(&lib, "a")
+            .unwrap();
         assert_eq!(
             (view.state, view.done, view.total, view.position),
             (Done, 2, 2, None)
@@ -646,7 +670,11 @@ mod tests {
         p.forget(&lib, "b");
         // Importing the same file again (same id) must not claim its audio is ready.
         assert_eq!(
-            stages(&Preparation::load(&lib), &lib, &["a", "b"]),
+            stages(
+                &Preparation::load(&lib, Reporter::default()),
+                &lib,
+                &["a", "b"]
+            ),
             [NotPrepared, NotPrepared]
         );
     }
@@ -669,7 +697,11 @@ mod tests {
         assert_eq!(stages(&p, &lib, &["b", "c"]), [Waiting, Paused]);
         assert_eq!(p.current(), None);
         assert_eq!(
-            stages(&Preparation::load(&lib), &lib, &["a", "b", "c"]),
+            stages(
+                &Preparation::load(&lib, Reporter::default()),
+                &lib,
+                &["a", "b", "c"]
+            ),
             [NotPrepared, Waiting, Paused]
         );
     }
@@ -712,7 +744,7 @@ mod tests {
         let mut p = Preparation::default();
         p.enqueue_chapter(&lib, "a", 3);
         p.enqueue(&lib, "b");
-        let restarted = Preparation::load(&lib);
+        let restarted = Preparation::load(&lib, Reporter::default());
         assert_eq!(restarted.queued(), ["a", "b"]);
         assert_eq!(restarted.chapters("a"), Some(vec![3]));
         assert_eq!(restarted.chapters("b"), None);

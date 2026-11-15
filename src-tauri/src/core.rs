@@ -32,6 +32,7 @@ mod audiobooks;
 mod config;
 pub use config::PreferencesView;
 mod discovery;
+mod error;
 mod storage;
 pub use audiobooks::{AudiobookChoice, AudiobookMatch, PairOutcome};
 pub use discovery::{Candidate, CandidateStatus, ImportChoice};
@@ -62,6 +63,7 @@ mod recording_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(debug_assertions)]
+pub use error::CoreError;
 pub use extras::AlignerSettings;
 pub use extras::{AppSettings, AppSettingsPatch, ListeningStatsView};
 use preparation::{Plan, Preparation};
@@ -357,6 +359,8 @@ pub enum CoreEvent {
     AudiobookScan(discovery::ScanProgress),
     /// The audiobook matches changed.
     AudiobookMatches(Vec<audiobooks::AudiobookMatch>),
+    /// A failure in the background the user should know about.
+    Problem(error::ProblemView),
 }
 
 impl CoreEvent {
@@ -373,6 +377,7 @@ impl CoreEvent {
     pub const MODEL_DOWNLOAD: &'static str = "model://download";
     pub const AUDIOBOOK_SCAN: &'static str = "audiobooks://progress";
     pub const AUDIOBOOK_MATCHES: &'static str = "audiobooks://matches";
+    pub const PROBLEM: &'static str = "core://problem";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -389,6 +394,7 @@ impl CoreEvent {
             Self::ModelDownload(_) => Self::MODEL_DOWNLOAD,
             Self::AudiobookScan(_) => Self::AUDIOBOOK_SCAN,
             Self::AudiobookMatches(_) => Self::AUDIOBOOK_MATCHES,
+            Self::Problem(_) => Self::PROBLEM,
         }
     }
 
@@ -407,6 +413,7 @@ impl CoreEvent {
             Self::ModelDownload(p) => serde_json::to_value(p),
             Self::AudiobookScan(p) => serde_json::to_value(p),
             Self::AudiobookMatches(p) => serde_json::to_value(p),
+            Self::Problem(p) => serde_json::to_value(p),
         }
     }
 }
@@ -466,6 +473,8 @@ impl Environment {
 
 pub struct Core {
     events: Arc<dyn Events>,
+    /// Tells the user about failures Aoide carried on from.
+    reporter: error::Reporter,
     audio: Vec<OutputCommand>,
     show_in_folder: ShowInFolder,
     pub paths: Paths,
@@ -633,7 +642,8 @@ impl Core {
             WorkerOptions::default(),
             events_tx.clone(),
         );
-        let preparation = Preparation::load(&lock(&library));
+        let reporter = error::Reporter::new(Arc::clone(&events));
+        let preparation = Preparation::load(&lock(&library), reporter.clone());
         let mut player = PlayerCore::new(OUTPUT_RATE);
         if let Some(settings) = settings {
             player.set_speed(settings.speed);
@@ -646,6 +656,7 @@ impl Core {
         );
         let core = Arc::new(Self {
             events,
+            reporter,
             audio,
             show_in_folder,
             paths,
@@ -726,6 +737,11 @@ impl Core {
         Ok(core)
     }
 
+    /// Logs a failure Aoide carried on from and tells the user; see [`error::Reporter`].
+    fn report(&self, event: &'static str, doing: &str, error: impl Into<CoreError>) {
+        self.reporter.report(event, doing, error);
+    }
+
     fn emit(&self, event: CoreEvent) {
         let name = event.name();
         match event.payload() {
@@ -755,7 +771,9 @@ impl Core {
 
     fn set_ignored(&self, ignored: &HashSet<String>) {
         if let Ok(json) = serde_json::to_string(ignored) {
-            let _ = lock(&self.library).set_setting(IGNORED_KEY, &json);
+            if let Err(error) = lock(&self.library).set_setting(IGNORED_KEY, &json) {
+                self.report("library.save", "Could not save the books left out", error);
+            }
         }
     }
 
@@ -1181,7 +1199,13 @@ impl Core {
 
     pub fn open_book(&self, id: &str) -> Result<BookView, String> {
         let view = self.book_overview(id)?;
-        let _ = lock(&self.library).set_last_opened(&BookId(id.into()), now_ms());
+        if let Err(error) = lock(&self.library).set_last_opened(&BookId(id.into()), now_ms()) {
+            self.report(
+                "library.save",
+                "Could not save when the book was opened",
+                error,
+            );
+        }
         Ok(view)
     }
 
@@ -1939,7 +1963,7 @@ impl Core {
         };
         let saved = lock(&self.config).update(|file| file.set_section(config::PLAYER, &settings));
         if let Err(error) = saved {
-            tracing::error!(event = "config.save", section = "player", outcome = "failed", %error, "Cannot save the player settings");
+            self.report("config.save", "Could not save the player settings", error);
         }
     }
 
@@ -1952,20 +1976,28 @@ impl Core {
         };
         let segment = &book.chapters[chapter].segments[local];
         let id = BookId(book.id.clone());
-        let library = lock(&self.library);
-        let _ = library.save_progress(
-            &id,
-            &Progress {
-                chapter: chapter as u32,
-                char_offset: segment.range.start as u32,
-                segment_id: Some(segment.id.clone()),
-                updated_at: now_ms(),
-            },
-        );
-        let _ = library.set_setting(
-            &format!("progress.fraction.{}", id.0),
-            &book.fraction(index).to_string(),
-        );
+        let saved = {
+            let library = lock(&self.library);
+            library
+                .save_progress(
+                    &id,
+                    &Progress {
+                        chapter: chapter as u32,
+                        char_offset: segment.range.start as u32,
+                        segment_id: Some(segment.id.clone()),
+                        updated_at: now_ms(),
+                    },
+                )
+                .and_then(|()| {
+                    library.set_setting(
+                        &format!("progress.fraction.{}", id.0),
+                        &book.fraction(index).to_string(),
+                    )
+                })
+        };
+        if let Err(error) = saved {
+            self.report("progress.save", "Could not save your place", error);
+        }
     }
 
     // ------------------------------------------------------------ background loops

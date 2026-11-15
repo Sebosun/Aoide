@@ -145,7 +145,7 @@ impl Core {
                     };
                     let path = self.paths.covers_dir.join(format!("{id}-online.{ext}"));
                     if std::fs::write(&path, bytes).is_ok() {
-                        let _ = lock(&self.library).upsert_book(
+                        let saved = lock(&self.library).upsert_book(
                             &NewBook {
                                 id: record.id,
                                 path: record.path,
@@ -157,6 +157,13 @@ impl Core {
                             },
                             now_ms(),
                         );
+                        if let Err(error) = saved {
+                            self.report(
+                                "metadata.apply",
+                                "Could not save the cover found online",
+                                error,
+                            );
+                        }
                     }
                 }
             }

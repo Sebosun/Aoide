@@ -301,7 +301,14 @@ impl Core {
             if let Some(book) = extras.listening_book.clone() {
                 let ms = std::mem::take(&mut extras.pending_ms);
                 drop(extras);
-                let _ = lock(&self.library).record_listening(&BookId(book), &today(), ms);
+                let saved = lock(&self.library).record_listening(&BookId(book), &today(), ms);
+                if let Err(error) = saved {
+                    self.report(
+                        "listening.save",
+                        "Could not save your listening time",
+                        error,
+                    );
+                }
                 extras = lock(&self.extras);
             } else {
                 extras.pending_ms = 0;

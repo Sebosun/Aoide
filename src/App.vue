@@ -19,6 +19,8 @@ import { useLibraryStore } from "./stores/library";
 import { usePlayerStore } from "./stores/player";
 import { useNavigationStore } from "./stores/navigation";
 import { usePreferencesStore } from "./stores/preferences";
+import { listenForProblems } from "./problems";
+import { api } from "./api";
 import { useRecordingsStore } from "./stores/recordings";
 import { useReaderStore } from "./stores/reader";
 import { isAudioPath } from "./recording";
@@ -44,9 +46,10 @@ let libraryScroll = 0;
 watch(() => navigation.view, (_, from) => { if (from === "library") libraryScroll = window.scrollY; }, { flush: "sync" });
 function placeScroll() { window.scrollTo(0, navigation.view === "library" ? libraryScroll : 0); }
 const native = isTauri();
-let unlisten: (() => void) | undefined, disposed = false;
+let unlisten: (() => void) | undefined, unlistenProblems: (() => void) | undefined, disposed = false;
 onMounted(async () => {
   void library.start(); void player.start(); void preferences.start(); void recordings.start();
+  void listenForProblems(api).then(off => { if (disposed) off(); else unlistenProblems = off; });
   if (native) {
     try {
       const off = await getCurrentWebview().onDragDropEvent(event => {
@@ -59,7 +62,7 @@ onMounted(async () => {
     } catch (e) { dropError.value = `File drop unavailable: ${String(e)}`; }
   }
 });
-onUnmounted(() => { disposed = true; unlisten?.(); window.removeEventListener("blur", endDrag); void Promise.all([library.start(), player.start()]).then(() => { library.dispose(); player.dispose(); preferences.dispose(); recordings.dispose(); }); });
+onUnmounted(() => { disposed = true; unlisten?.(); unlistenProblems?.(); window.removeEventListener("blur", endDrag); void Promise.all([library.start(), player.start()]).then(() => { library.dispose(); player.dispose(); preferences.dispose(); recordings.dispose(); }); });
 // The browser path: only drags that carry files count, and nested enter/leave pairs are
 // counted so moving over child elements does not flicker or strand the overlay.
 let depth = 0;

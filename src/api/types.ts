@@ -70,6 +70,7 @@ import type {
   SleepView,
   StorageReport,
   Theme,
+  ProblemView,
   UiLog,
   Voice,
   ChapterMatchView,
@@ -251,4 +252,6 @@ export interface AoideApi {
   playRecordingAt(bookId: string, atMs: number): Promise<void>;
   onSyncState(handler: (recording: RecordingView) => void): Promise<() => void>;
   onModelDownload(handler: (download: ModelDownloadView) => void): Promise<() => void>;
+  /** A failure in the background the user should know about. */
+  onProblem(handler: (problem: ProblemView) => void): Promise<() => void>;
 }
