@@ -274,6 +274,7 @@ pub struct Core {
     listening: listening::Listening,
     metadata: metadata::Metadata,
     storage: storage::Storage,
+    exports: export::Exports,
     playback: playback::Playback,
     output: Mutex<Option<PipeOutput>>,
     /// The speech engine in use.
@@ -385,6 +386,7 @@ impl Core {
         let bookmarks = bookmarks::Bookmarks::new(Arc::clone(&library));
         let listening = listening::Listening::new(Arc::clone(&library), reporter.clone());
         let storage = storage::Storage::new(Arc::clone(&library), &paths);
+        let exports = export::Exports::new(Arc::clone(&library), &paths, Arc::clone(&events));
         let metadata = metadata::Metadata::new(
             Arc::clone(&library),
             paths.covers_dir.clone(),
@@ -402,6 +404,7 @@ impl Core {
             listening,
             metadata,
             storage,
+            exports,
             playback: playback::Playback::new(player),
             output: Mutex::new(None),
             engine: engine_component,

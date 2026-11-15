@@ -6,6 +6,8 @@ use super::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+use super::recording::RecordingPlan;
+
 /// Sample rate of the exported audio.
 const EXPORT_RATE: u32 = 24_000;
 
@@ -111,82 +113,176 @@ fn samples_for(ms: u64) -> usize {
     (ms * u64::from(EXPORT_RATE)).div_ceil(1000) as usize
 }
 
-impl Core {
-    /// Exports `id` as an M4B into the Exports folder next to the library folder.
-    pub async fn export_book(self: &Arc<Self>, id: &str) -> Result<String, String> {
-        {
-            let mut extras = lock(&self.extras);
-            if extras.exporting.is_some() {
-                return Err("another export is already running".into());
-            }
-            extras.exporting = Some(id.to_owned());
+/// What exporting asks of the rest of the app.
+pub(super) trait ExportHost: Sync {
+    /// Makes all of book `id`'s speech (resuming its preparation if paused).
+    fn prepare<'a>(&'a self, id: &'a str) -> aoide_tts::BoxFuture<'a, Result<(), String>>;
+    fn prepare_view(&self, id: &str) -> Option<PrepareView>;
+    /// Book `id` and the speech that reads it.
+    fn speech_plan(&self, id: &str) -> Result<(Arc<BookModel>, Plan), String>;
+    /// The speech engine's name, for the audiobook's credits.
+    fn engine_name(&self) -> String;
+    /// Book `id` and its synced recording.
+    fn recording_plan(&self, id: &str) -> Result<(Arc<BookModel>, Arc<RecordingPlan>), String>;
+}
+
+/// Writes export files, on a blocking thread.
+pub(super) struct Encoder {
+    pub(super) library: Arc<Mutex<Library>>,
+    library_dir: PathBuf,
+    audio_dir: PathBuf,
+    events: Arc<dyn Events>,
+}
+
+/// Exports books as audiobooks and read-along EPUBs, one at a time.
+pub(super) struct Exports {
+    encoder: Arc<Encoder>,
+    /// The book being exported.
+    exporting: Mutex<Option<String>>,
+}
+
+/// Holds the export slot; dropping it frees the slot.
+struct Slot<'a>(&'a Mutex<Option<String>>);
+
+impl Drop for Slot<'_> {
+    fn drop(&mut self) {
+        *lock(self.0) = None;
+    }
+}
+
+impl Exports {
+    pub fn new(library: Arc<Mutex<Library>>, paths: &Paths, events: Arc<dyn Events>) -> Self {
+        Self {
+            encoder: Arc::new(Encoder {
+                library,
+                library_dir: paths.library_dir.clone(),
+                audio_dir: paths.audio_dir.clone(),
+                events,
+            }),
+            exporting: Mutex::new(None),
         }
-        let result = self.export_inner(id).await;
-        lock(&self.extras).exporting = None;
-        let progress = match &result {
-            Ok(path) => ExportProgress {
-                book_id: id.into(),
-                stage: ExportStage::Done,
-                done: 1,
-                total: 1,
-                path: Some(path.clone()),
-                error: None,
-            },
-            Err(error) => ExportProgress {
-                book_id: id.into(),
-                stage: ExportStage::Error,
-                done: 0,
-                total: 0,
-                path: None,
-                error: Some(error.clone()),
-            },
+    }
+
+    /// The book being exported, if any.
+    pub fn exporting(&self) -> Option<String> {
+        lock(&self.exporting).clone()
+    }
+
+    fn claim(&self, id: &str) -> Result<Slot<'_>, String> {
+        let mut exporting = lock(&self.exporting);
+        if exporting.is_some() {
+            return Err("another export is already running".into());
+        }
+        *exporting = Some(id.to_owned());
+        Ok(Slot(&self.exporting))
+    }
+
+    /// Exports `id` as an M4B into the Exports folder next to the library folder, making its
+    /// speech first.
+    pub async fn audiobook(&self, id: &str, host: &dyn ExportHost) -> Result<String, String> {
+        let result = {
+            let _slot = self.claim(id)?;
+            self.make_audiobook(id, host).await
         };
-        self.emit(CoreEvent::ExportProgress(progress));
+        self.encoder.finished(id, &result);
         result
     }
 
-    pub(super) fn emit_export(&self, id: &str, stage: ExportStage, done: usize, total: usize) {
-        self.emit(CoreEvent::ExportProgress(ExportProgress {
+    async fn make_audiobook(&self, id: &str, host: &dyn ExportHost) -> Result<String, String> {
+        which_ffmpeg()?;
+        // Generate everything first, reusing whole-book preparation.
+        host.prepare(id).await?;
+        loop {
+            match host.prepare_view(id) {
+                Some(view) if view.state == PrepareStage::Done => break,
+                Some(view) => {
+                    self.encoder
+                        .progress(id, ExportStage::Generating, view.done, view.total)
+                }
+                None => return Err("export cancelled: preparation was stopped".into()),
+            }
+            tokio::time::sleep(Duration::from_millis(700)).await;
+        }
+        let (book, plan) = host.speech_plan(id)?;
+        if let Some(missing) = plan.items.iter().find(|i| i.speakable && !i.cached) {
+            return Err(format!("audio for {} is missing; try again", missing.key));
+        }
+        let encoder = Arc::clone(&self.encoder);
+        let engine = host.engine_name();
+        tokio::task::spawn_blocking(move || encoder.encode_m4b(&book, &plan, &engine))
+            .await
+            .map_err(|e| e.to_string())?
+    }
+
+    /// Exports `id` with its synced recording as a read-along EPUB into the Exports folder.
+    pub async fn read_along(&self, id: &str, host: &dyn ExportHost) -> Result<String, String> {
+        let result = {
+            let _slot = self.claim(id)?;
+            match host.recording_plan(id) {
+                Ok((book, plan)) => {
+                    let encoder = Arc::clone(&self.encoder);
+                    tokio::task::spawn_blocking(move || encoder.write_read_along(&book, &plan))
+                        .await
+                        .map_err(|e| e.to_string())
+                        .and_then(|r| r)
+                }
+                Err(error) => Err(error),
+            }
+        };
+        self.encoder.finished(id, &result);
+        result
+    }
+}
+
+impl Encoder {
+    /// The Exports folder, next to the library folder.
+    pub(super) fn folder(&self) -> PathBuf {
+        self.library_dir
+            .parent()
+            .unwrap_or(&self.library_dir)
+            .join("Exports")
+    }
+
+    pub(super) fn progress(&self, id: &str, stage: ExportStage, done: usize, total: usize) {
+        self.send(ExportProgress {
             book_id: id.into(),
             stage,
             done,
             total,
             path: None,
             error: None,
-        }));
+        });
     }
 
-    async fn export_inner(self: &Arc<Self>, id: &str) -> Result<String, String> {
-        which_ffmpeg()?;
-        // Generate everything first, reusing whole-book preparation.
-        if self
-            .prepare_view(id)
-            .is_some_and(|view| view.state == PrepareStage::Paused)
-        {
-            self.set_prepare_paused(id, false);
-        }
-        self.prepare_book(id).await?;
-        loop {
-            match self.prepare_view(id) {
-                Some(view) if view.state == PrepareStage::Done => break,
-                Some(view) => self.emit_export(id, ExportStage::Generating, view.done, view.total),
-                None => return Err("export cancelled: preparation was stopped".into()),
+    /// Tells the window how the export of `id` ended.
+    fn finished(&self, id: &str, result: &Result<String, String>) {
+        self.send(ExportProgress {
+            book_id: id.into(),
+            stage: if result.is_ok() {
+                ExportStage::Done
+            } else {
+                ExportStage::Error
+            },
+            done: usize::from(result.is_ok()),
+            total: usize::from(result.is_ok()),
+            path: result.as_ref().ok().cloned(),
+            error: result.as_ref().err().cloned(),
+        });
+    }
+
+    fn send(&self, progress: ExportProgress) {
+        let event = CoreEvent::ExportProgress(progress);
+        match event.payload() {
+            Ok(value) => self.events.emit(event.name(), value),
+            Err(error) => {
+                tracing::error!(event = "app.emit", name = event.name(), %error, "Cannot send an event to the window")
             }
-            tokio::time::sleep(Duration::from_millis(700)).await;
         }
-        let book = self.load_book(id)?;
-        let plan = self.speech_plan(&book)?;
-        if let Some(missing) = plan.items.iter().find(|i| i.speakable && !i.cached) {
-            return Err(format!("audio for {} is missing; try again", missing.key));
-        }
-        let core = Arc::clone(self);
-        let id = id.to_owned();
-        tokio::task::spawn_blocking(move || core.encode_m4b(&id, &book, &plan))
-            .await
-            .map_err(|e| e.to_string())?
     }
 
-    fn encode_m4b(&self, id: &str, book: &BookModel, plan: &Plan) -> Result<String, String> {
+    /// Writes `book` as an M4B from the audio `plan` lists, said by `engine`. Returns its path.
+    fn encode_m4b(&self, book: &BookModel, plan: &Plan, engine: &str) -> Result<String, String> {
+        let id = book.id.as_str();
         // Exact per-entry lengths so chapter marks match the audio.
         let segments: Vec<Option<CachedSegment>> = {
             let library = lock(&self.library);
@@ -224,25 +320,19 @@ impl Core {
             return Err("the book has no audio to export".into());
         }
 
-        let exports = self
-            .paths
-            .library_dir
-            .parent()
-            .unwrap_or(&self.paths.library_dir)
-            .join("Exports");
+        let exports = self.folder();
         std::fs::create_dir_all(&exports).map_err(|e| e.to_string())?;
         let output = exports.join(file_name(&book.title));
         let partial = output.with_extension("m4b.part");
         let work = std::env::temp_dir().join(format!("aoide-export-{id}"));
         std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
         let metadata_path = work.join("chapters.txt");
-        let profile = self.engine.profile_name();
         std::fs::write(
             &metadata_path,
             ffmetadata(
                 &book.title,
                 &book.authors,
-                &format!("Narrated by Aoide using {profile}"),
+                &format!("Narrated by Aoide using {engine}"),
                 &chapters,
             ),
         )
@@ -300,12 +390,12 @@ impl Core {
         let write_result = (|| -> Result<(), String> {
             let total = book.chapters.len();
             for (index, chapter) in book.chapters.iter().enumerate() {
-                self.emit_export(id, ExportStage::Encoding, index, total);
+                self.progress(id, ExportStage::Encoding, index, total);
                 let mut pcm: Vec<i16> = Vec::new();
                 for (local, segment) in chapter.segments.iter().enumerate() {
                     let global = chapter.first_entry + local;
                     if let Some(cached) = &segments[global] {
-                        let bytes = std::fs::read(self.paths.audio_dir.join(&cached.file))
+                        let bytes = std::fs::read(self.audio_dir.join(&cached.file))
                             .map_err(|e| format!("cannot read audio: {e}"))?;
                         let decoded = codec::decode(&bytes).map_err(|e| e.to_string())?;
                         let decoded = aoide_audio::resample(&decoded, EXPORT_RATE);
@@ -348,6 +438,56 @@ impl Core {
         }
         std::fs::rename(&partial, &output).map_err(|e| e.to_string())?;
         Ok(output.to_string_lossy().into_owned())
+    }
+}
+
+impl Core {
+    /// Exports `id` as an M4B into the Exports folder next to the library folder.
+    pub async fn export_book(&self, id: &str) -> Result<String, String> {
+        self.exports.audiobook(id, self).await
+    }
+
+    /// Exports `id` with its synced recording as a read-along EPUB into the Exports folder.
+    pub async fn export_read_along(&self, id: &str) -> Result<String, String> {
+        self.exports.read_along(id, self).await
+    }
+}
+
+impl ExportHost for Core {
+    fn prepare<'a>(&'a self, id: &'a str) -> aoide_tts::BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            if self
+                .prepare_view(id)
+                .is_some_and(|view| view.state == PrepareStage::Paused)
+            {
+                self.set_prepare_paused(id, false);
+            }
+            self.prepare_book(id).await
+        })
+    }
+
+    fn prepare_view(&self, id: &str) -> Option<PrepareView> {
+        Core::prepare_view(self, id)
+    }
+
+    fn speech_plan(&self, id: &str) -> Result<(Arc<BookModel>, Plan), String> {
+        let book = self.load_book(id)?;
+        let plan = Core::speech_plan(self, &book)?;
+        Ok((book, plan))
+    }
+
+    fn engine_name(&self) -> String {
+        self.engine.profile_name()
+    }
+
+    fn recording_plan(&self, id: &str) -> Result<(Arc<BookModel>, Arc<RecordingPlan>), String> {
+        if self.recording_stage(id) != Some(super::syncing::Stage::Ready) {
+            return Err("the recording is not synced with the book yet".into());
+        }
+        let book = self.load_book(id)?;
+        // Only the recording's clips: what it lacks stays without audio in a read-along book.
+        let (plan, _) = self.recordings.playable(self, &book)?;
+        Ok((book, plan))
     }
 }
 
@@ -406,5 +546,58 @@ mod tests {
     fn sample_counts_round_up() {
         assert_eq!(samples_for(1000), 24_000);
         assert_eq!(samples_for(1), 24);
+    }
+
+    use super::super::tests::{library_with, paths, Recorder};
+
+    struct Waiting;
+
+    impl ExportHost for Waiting {
+        fn prepare<'a>(&'a self, _: &'a str) -> aoide_tts::BoxFuture<'a, Result<(), String>> {
+            Box::pin(std::future::pending())
+        }
+        fn prepare_view(&self, _: &str) -> Option<PrepareView> {
+            None
+        }
+        fn speech_plan(&self, _: &str) -> Result<(Arc<BookModel>, Plan), String> {
+            Err("no plan".into())
+        }
+        fn engine_name(&self) -> String {
+            "Test".into()
+        }
+        fn recording_plan(&self, _: &str) -> Result<(Arc<BookModel>, Arc<RecordingPlan>), String> {
+            Err("the recording is not synced with the book yet".into())
+        }
+    }
+
+    #[tokio::test]
+    async fn one_export_runs_at_a_time_and_a_failed_one_is_reported_and_frees_the_slot() {
+        let dir = tempfile::tempdir().unwrap();
+        let events = Arc::new(Recorder::default());
+        let exports = Arc::new(Exports::new(
+            library_with(&["a", "b"]),
+            &paths(dir.path()),
+            Arc::clone(&events) as Arc<dyn Events>,
+        ));
+        let running = Arc::clone(&exports);
+        let first = tokio::spawn(async move { running.read_along("a", &Waiting).await });
+        let _ = first.await;
+        assert_eq!(exports.exporting(), None, "a failed export frees the slot");
+
+        let slot = exports.claim("a").unwrap();
+        assert_eq!(
+            exports.read_along("b", &Waiting).await.unwrap_err(),
+            "another export is already running"
+        );
+        drop(slot);
+        assert!(exports.read_along("b", &Waiting).await.is_err());
+
+        let sent = events.payloads(CoreEvent::EXPORT_PROGRESS);
+        assert_eq!(sent.len(), 2, "{sent:?}");
+        assert_eq!(sent[0]["stage"], "error");
+        assert_eq!(
+            sent[0]["error"],
+            "the recording is not synced with the book yet"
+        );
     }
 }

@@ -27,8 +27,6 @@ pub struct ListeningStatsView {
 /// What is left of the core's loose state, until each part has its component.
 #[derive(Default)]
 pub struct ExtrasState {
-    /// Book being exported, if any.
-    pub(super) exporting: Option<String>,
     /// Set while a "Find books" scan runs; storing `true` cancels it.
     pub(super) scan_cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
 }

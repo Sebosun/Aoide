@@ -11,7 +11,7 @@ use std::process::{Command, Stdio};
 use aoide_epub::BlockKind;
 use aoide_sync::Clip;
 
-use super::export::{ExportProgress, ExportStage};
+use super::export::ExportStage;
 use super::recording::RecordingPlan;
 
 /// The class reading apps put on the sentence being read.
@@ -336,46 +336,15 @@ const CONTAINER: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
 <rootfiles>\n<rootfile full-path=\"OEBPS/package.opf\" media-type=\"application/oebps-package+xml\"/>\n\
 </rootfiles>\n</container>\n";
 
-impl Core {
-    /// Exports `id` with its synced recording as a read-along EPUB into the Exports folder.
-    pub async fn export_read_along(self: &Arc<Self>, id: &str) -> Result<String, String> {
-        {
-            let mut extras = lock(&self.extras);
-            if extras.exporting.is_some() {
-                return Err("another export is already running".into());
-            }
-            extras.exporting = Some(id.to_owned());
-        }
-        let core = Arc::clone(self);
-        let owned = id.to_owned();
-        let result = tokio::task::spawn_blocking(move || core.write_read_along(&owned))
-            .await
-            .map_err(|e| e.to_string())
-            .and_then(|r| r);
-        lock(&self.extras).exporting = None;
-        self.emit(CoreEvent::ExportProgress(ExportProgress {
-            book_id: id.into(),
-            stage: if result.is_ok() {
-                ExportStage::Done
-            } else {
-                ExportStage::Error
-            },
-            done: usize::from(result.is_ok()),
-            total: usize::from(result.is_ok()),
-            path: result.as_ref().ok().cloned(),
-            error: result.as_ref().err().cloned(),
-        }));
-        result
-    }
-
-    fn write_read_along(&self, id: &str) -> Result<String, String> {
-        if self.recording_stage(id) != Some(super::syncing::Stage::Ready) {
-            return Err("the recording is not synced with the book yet".into());
-        }
-        let book = self.load_book(id)?;
-        // Only the recording's clips: what it lacks stays without audio in a read-along book.
-        let (plan, _) = self.recordings.playable(self, &book)?;
-        let plan: &RecordingPlan = &plan;
+impl super::export::Encoder {
+    /// Writes `book` with the audio of its recording, `plan`, as a read-along EPUB. Returns
+    /// its path.
+    pub(super) fn write_read_along(
+        &self,
+        book: &BookModel,
+        plan: &RecordingPlan,
+    ) -> Result<String, String> {
+        let id = book.id.as_str();
         let carried: Vec<Carry> = plan
             .files
             .iter()
@@ -424,14 +393,9 @@ impl Core {
             })
         });
         let modified = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-        let documents = read_along_documents(&book, &plan.clips, &audio, cover.as_ref(), &modified);
+        let documents = read_along_documents(book, &plan.clips, &audio, cover.as_ref(), &modified);
 
-        let exports = self
-            .paths
-            .library_dir
-            .parent()
-            .unwrap_or(&self.paths.library_dir)
-            .join("Exports");
+        let exports = self.folder();
         std::fs::create_dir_all(&exports).map_err(|e| e.to_string())?;
         let output = exports.join(file_name(&book.title));
         let partial = output.with_extension("epub.part");
@@ -463,7 +427,7 @@ impl Core {
             }
             let total = plan.files.len();
             for (index, (file, carry)) in plan.files.iter().zip(&carried).enumerate() {
-                self.emit_export(id, ExportStage::Encoding, index, total);
+                self.progress(id, ExportStage::Encoding, index, total);
                 let source = match carry {
                     Carry::Copy { .. } => file.path.clone(),
                     Carry::Encode => {

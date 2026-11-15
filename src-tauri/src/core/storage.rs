@@ -357,7 +357,7 @@ impl StorageHost for Core {
 
     fn protected(&self) -> HashSet<String> {
         let mut protected: HashSet<String> = self.generation.queued().into_iter().collect();
-        protected.extend(lock(&self.extras).exporting.clone());
+        protected.extend(self.exports.exporting());
         protected
     }
 }
