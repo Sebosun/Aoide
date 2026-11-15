@@ -82,7 +82,11 @@ it("changes appearance from Settings and saves it to the config file", async () 
   const save = vi.spyOn(mock, "saveAppearance");
   const wrapper = mount(SettingsDialog, { attachTo: document.body });
   await flushPromises();
-  await wrapper.get('[aria-label="Dark"]').trigger("click");
+  await wrapper
+    .get('[aria-label="Light or dark"]')
+    .findAll("button")
+    .find((b) => b.text() === "Dark")!
+    .trigger("click");
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "dark" }));
   expect(document.documentElement.getAttribute("data-theme")).toBe("dark");

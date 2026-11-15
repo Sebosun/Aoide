@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiSegmented from "@/components/ui/UiSegmented.vue";
 import { computed } from "vue";
 import { BookOpen, Search, Trash2, TriangleAlert } from "@lucide/vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
@@ -117,19 +118,11 @@ const SORTS: { value: LibrarySort; label: string }[] = [
       </template>
     </div>
     <div class="library__bar">
-      <div v-if="kinds.length" class="library__kinds" role="group" aria-label="Kind">
-        <button
-          v-for="k in kinds"
-          :key="k.value"
-          type="button"
-          class="library__kind"
-          :class="{ 'library__kind--on': library.kind === k.value }"
-          :aria-pressed="library.kind === k.value"
-          @click="library.kind = k.value"
-        >
-          {{ k.label }}<span class="library__count">{{ k.count }}</span>
-        </button>
-      </div>
+      <UiSegmented v-if="kinds.length" v-model="library.kind" label="Kind" tone="wash" size="md" :options="kinds">
+        <template #option="{ option }">
+          {{ option.label }}<span class="library__count">{{ kinds.find((k) => k.value === option.value)?.count }}</span>
+        </template>
+      </UiSegmented>
       <div
         v-if="library.books.length && !library.collection"
         class="library__chips"
@@ -277,26 +270,6 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 }
 .library__bar:empty {
   display: none;
-}
-.library__kinds {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  border-radius: var(--radius-xl);
-  background: var(--wash);
-}
-.library__kind {
-  height: 40px;
-  padding: 0 var(--space-8);
-  border-radius: var(--radius-lg);
-  background: transparent;
-  font-weight: 600;
-  color: var(--dim);
-}
-.library__kind--on {
-  background: var(--ink);
-  color: var(--ground);
 }
 .library__chips {
   display: flex;

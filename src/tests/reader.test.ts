@@ -265,7 +265,11 @@ it("changes the text size and the reader mode, and remembers both", async () => 
   await wrapper.get('[aria-label="Larger text"]').trigger("click");
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ textSize: 3 }));
-  await wrapper.get('[aria-label="Lines"]').trigger("click");
+  await wrapper
+    .get('[aria-label="Reader mode"]')
+    .findAll("button")
+    .find((b) => b.text() === "Lines")!
+    .trigger("click");
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ readerMode: "lines" }));
   wrapper.unmount();

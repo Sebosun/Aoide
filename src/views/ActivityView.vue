@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiSegmented from "@/components/ui/UiSegmented.vue";
 import { computed, onMounted, ref } from "vue";
 import { BookOpen, Flame, Gauge, Headphones } from "@lucide/vue";
 import { api } from "@/api";
@@ -148,19 +149,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   <section class="activity" :aria-busy="!stats && !error">
     <header class="activity__header">
       <h1 class="activity__title">Activity</h1>
-      <div class="activity__ranges" role="group" aria-label="Range">
-        <button
-          v-for="r in RANGES"
-          :key="r.id"
-          type="button"
-          class="activity__range"
-          :class="{ 'activity__range--on': range === r.id }"
-          :aria-pressed="range === r.id"
-          @click="range = r.id"
-        >
-          {{ r.label }}
-        </button>
-      </div>
+      <UiSegmented v-model="range" label="Range" :options="RANGES.map((r) => ({ value: r.id, label: r.label }))" />
     </header>
     <p v-if="error" class="activity__error" role="alert">{{ error }}</p>
 
@@ -320,24 +309,6 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   font-size: 32px;
   font-weight: 800;
   letter-spacing: -0.03em;
-}
-.activity__ranges {
-  display: flex;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-}
-.activity__range {
-  padding: var(--space-3) var(--space-7);
-  border-radius: var(--radius-pill);
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--dim);
-}
-.activity__range--on {
-  background: var(--ink);
-  color: var(--ground);
 }
 .activity__error {
   color: var(--accent);

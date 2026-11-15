@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiSegmented from "@/components/ui/UiSegmented.vue";
 import { computed, onMounted, ref } from "vue";
 import { Minus, Palette, Plus } from "@lucide/vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
@@ -51,20 +52,14 @@ const themeOptions = computed(() => [
     <h2 id="appearance-title" class="appearance__title"><Palette :size="18" /> Appearance</h2>
     <div class="appearance__row">
       <span class="appearance__label">Mode</span>
-      <div class="appearance__modes" role="group" aria-label="Light or dark">
-        <button
-          v-for="mode in modes"
-          :key="mode.value"
-          type="button"
-          class="appearance__mode"
-          :class="{ 'appearance__mode--on': preferences.appearance.mode === mode.value }"
-          :aria-label="mode.label"
-          :aria-pressed="preferences.appearance.mode === mode.value"
-          @click="preferences.update({ mode: mode.value })"
-        >
-          {{ mode.label }}
-        </button>
-      </div>
+      <UiSegmented
+        class="appearance__modes"
+        label="Light or dark"
+        tone="ground"
+        :options="modes"
+        :model-value="preferences.appearance.mode"
+        @update:model-value="preferences.update({ mode: $event })"
+      />
     </div>
     <div class="appearance__row">
       <span class="appearance__label">Colours</span>
@@ -174,23 +169,7 @@ const themeOptions = computed(() => [
   font-weight: 600;
 }
 .appearance__modes {
-  display: inline-flex;
   justify-self: start;
-  gap: var(--space-1);
-  padding: var(--space-1);
-  border-radius: var(--radius-pill);
-  background: var(--ground);
-}
-.appearance__mode {
-  padding: var(--space-3) var(--space-7);
-  border-radius: var(--radius-pill);
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--dim);
-}
-.appearance__mode--on {
-  background: var(--ink);
-  color: var(--ground);
 }
 .appearance__zoom {
   display: inline-flex;

@@ -93,7 +93,11 @@ it("has the full transport, and switches back to the page", async () => {
   await flushPromises();
   expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
   await wrapper.get('[role="dialog"]').trigger("keydown", { key: "Escape" });
-  await wrapper.get('[aria-label="Page"]').trigger("click");
+  await wrapper
+    .get('[aria-label="Reader mode"]')
+    .findAll("button")
+    .find((b) => b.text() === "Page")!
+    .trigger("click");
   await flushPromises();
   expect(wrapper.find('[aria-label="Chapter text"]').exists()).toBe(true);
   wrapper.unmount();

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { ref } from "vue";
 import { Minus, Plus } from "@lucide/vue";
@@ -71,20 +72,15 @@ const modes: { value: ReaderMode; label: string }[] = [
         </UiButton>
       </div>
     </div>
-    <div v-if="lines" class="reader-tools__mode" role="group" aria-label="Reader mode">
-      <button
-        v-for="mode in modes"
-        :key="mode.value"
-        type="button"
-        class="reader-tools__option"
-        :class="{ 'reader-tools__option--on': preferences.appearance.readerMode === mode.value }"
-        :aria-label="mode.label"
-        :aria-pressed="preferences.appearance.readerMode === mode.value"
-        @click="preferences.update({ readerMode: mode.value })"
-      >
-        {{ mode.label }}
-      </button>
-    </div>
+    <UiSegmented
+      v-if="lines"
+      label="Reader mode"
+      size="md"
+      chosen="page"
+      :options="modes"
+      :model-value="preferences.appearance.readerMode"
+      @update:model-value="preferences.update({ readerMode: $event })"
+    />
   </div>
 </template>
 
@@ -124,23 +120,5 @@ const modes: { value: ReaderMode; label: string }[] = [
 }
 .reader-tools__dot--on {
   background: var(--accent);
-}
-.reader-tools__mode {
-  display: flex;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  border-radius: var(--radius-xl);
-  background: var(--glass);
-  font-weight: 600;
-}
-.reader-tools__option {
-  height: 36px;
-  padding: 0 var(--space-7);
-  border-radius: var(--radius-lg);
-  color: var(--dim);
-}
-.reader-tools__option--on {
-  background: var(--page);
-  color: var(--ink);
 }
 </style>

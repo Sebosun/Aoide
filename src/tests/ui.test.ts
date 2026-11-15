@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from "pinia";
 import { defineComponent, h, ref } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiMenu from "@/components/ui/UiMenu.vue";
 import type { MenuEntry } from "@/components/ui/types";
@@ -289,4 +290,27 @@ it("draws a button that never submits a form, passes its attributes on, and is c
   expect(element.classes()).toEqual(
     expect.arrayContaining(["ui-button--outline", "ui-button--sm", "ui-button--icon", "ui-button--danger"]),
   );
+});
+
+it("chooses one of a row of options, saying which is chosen", async () => {
+  const chosen = ref("page");
+  const Host = defineComponent(
+    () => () =>
+      h(UiSegmented, {
+        label: "Reader mode",
+        options: [
+          { value: "page", label: "Page" },
+          { value: "lines", label: "Lines" },
+        ],
+        modelValue: chosen.value,
+        "onUpdate:modelValue": (v: string | number) => (chosen.value = String(v)),
+      }),
+  );
+  const wrapper = mount(Host);
+  const group = wrapper.get('[role="group"][aria-label="Reader mode"]');
+  const pressed = () => group.findAll("button").map((b) => b.attributes("aria-pressed"));
+  expect(pressed()).toEqual(["true", "false"]);
+  await group.findAll("button")[1].trigger("click");
+  expect(chosen.value).toBe("lines");
+  expect(pressed()).toEqual(["false", "true"]);
 });
