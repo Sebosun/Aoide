@@ -206,6 +206,7 @@ version = "0.1.0"
 dependencies = [
  "feed-rs",
  "html-escape",
+ "quick-xml 0.41.0",
  "sha2",
  "url",
 ]

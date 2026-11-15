@@ -8,6 +8,8 @@ use feed_rs::model;
 use sha2::{Digest, Sha256};
 use url::Url;
 
+pub mod opml;
+
 /// The most entries kept from one feed: the newest.
 pub const MAX_ENTRIES: usize = 500;
 
