@@ -1,0 +1,81 @@
+{
+  "book-0": {
+    "authors": [
+      "Mira Vale"
+    ],
+    "chapters": [
+      {
+        "index": 0,
+        "title": "The small light"
+      },
+      {
+        "index": 1,
+        "title": "Across the water"
+      }
+    ],
+    "excluded": [],
+    "id": "book-0",
+    "language": "en",
+    "languageWarning": null,
+    "progress": null,
+    "title": "The Lantern Keeper",
+    "voiceWarning": null,
+    "warnings": [],
+    "wordCount": 95
+  },
+  "book-1": {
+    "authors": [
+      "Ellis Reed"
+    ],
+    "chapters": [
+      {
+        "index": 0,
+        "title": "An ordinary discovery"
+      },
+      {
+        "index": 1,
+        "title": "The long way home"
+      },
+      {
+        "index": 2,
+        "title": "A place to begin"
+      }
+    ],
+    "excluded": [
+      {
+        "reason": "Copyright",
+        "title": "Copyright"
+      }
+    ],
+    "id": "book-1",
+    "language": "en",
+    "languageWarning": null,
+    "progress": null,
+    "title": "A Map of Quiet Places",
+    "voiceWarning": null,
+    "warnings": [
+      "An empty section was skipped (OPS/blank.xhtml)."
+    ],
+    "wordCount": 126
+  },
+  "book-3": {
+    "authors": [
+      "Ellis Reed"
+    ],
+    "chapters": [
+      {
+        "index": 0,
+        "title": "Blank pages"
+      }
+    ],
+    "excluded": [],
+    "id": "book-3",
+    "language": "en",
+    "languageWarning": null,
+    "progress": null,
+    "title": "An Unfinished Atlas",
+    "voiceWarning": null,
+    "warnings": [],
+    "wordCount": 15
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "bookId": null,
+  "status": "stopped",
+  "chapter": 0,
+  "segmentId": null,
+  "wordIndex": null,
+  "speed": 1.0,
+  "volume": 1.0,
+  "chapterFraction": 0.0,
+  "error": null,
+  "sleep": null,
+  "source": "speech",
+  "offText": false,
+  "chapterLeftMs": null,
+  "waitingForSync": false
+}

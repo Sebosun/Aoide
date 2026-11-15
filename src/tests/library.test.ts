@@ -77,7 +77,7 @@ it("keeps missing books greyed in the grid and lists books that failed to import
   const failed = wrapper.get('[aria-label="Books that could not be imported"]');
   expect(failed.text()).toContain("1 book could not be imported");
   expect(failed.text()).toContain("The Torn Ledger");
-  expect(failed.text()).toContain("This EPUB could not be parsed.");
+  expect(failed.text()).toContain("invalid EPUB");
   await failed.get('[aria-label="Remove The Torn Ledger"]').trigger("click");
   await flushPromises();
   expect(wrapper.find('[aria-label="Books that could not be imported"]').exists()).toBe(false);

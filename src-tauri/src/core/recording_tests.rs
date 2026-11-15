@@ -1533,3 +1533,31 @@ async fn removing_the_recording_being_synced_starts_the_next_in_line() {
     until_transcribing(&f.core, &other);
     f.core.stop();
 }
+
+/// The UI mock's recording: one the core synced, as its view shows it (see `core/fixtures.rs`).
+#[tokio::test]
+async fn fixture_of_a_synced_recording_for_the_ui_mock() {
+    if !super::fixtures::wanted() {
+        return;
+    }
+    let f = fixture().await;
+    put_model(&f.root);
+    let words = read(&texts(&f.core, &f.id), 1_000);
+    let total = words.last().unwrap().1 + 1_000;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    sync(&f.core);
+    let view = f.core.recording(&f.id).unwrap();
+    assert_eq!(view.stage, Stage::Ready, "{view:?}");
+    super::fixtures::write(
+        "recording",
+        &view,
+        &[
+            (f.id.clone(), "book-0".into()),
+            (f.root.to_string_lossy().into_owned(), "~".into()),
+        ],
+    );
+}

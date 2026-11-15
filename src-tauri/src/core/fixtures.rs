@@ -1,0 +1,257 @@
+//! Fixtures for the UI's mock: the views the core makes for the browser preview's library,
+//! written to `src/tests/fixtures/` by `AOIDE_WRITE_FIXTURES=1 cargo test -p aoide fixtures`.
+//! The core's ids become the preview's (`book-0`…) and temporary paths become `~`.
+
+use std::io::Write as _;
+use std::path::Path;
+use std::sync::Arc;
+use std::time::Duration;
+
+use aoide_tts::testing::FakeEngine;
+use serde::Serialize;
+use serde_json::Value;
+
+use super::tests::{start_with, until};
+use super::Core;
+
+/// Whether fixtures are being written.
+pub(super) fn wanted() -> bool {
+    std::env::var_os("AOIDE_WRITE_FIXTURES").is_some()
+}
+
+/// Writes `value` as `src/tests/fixtures/{name}.json`, each `(from, to)` of `renames` replaced.
+pub(super) fn write(name: &str, value: &impl Serialize, renames: &[(String, String)]) {
+    let mut text = serde_json::to_string_pretty(value).unwrap();
+    for (from, to) in renames {
+        text = text.replace(from.as_str(), to);
+    }
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/tests/fixtures");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(format!("{name}.json")), text + "\n").unwrap();
+}
+
+/// A preview book: its title, author and chapters (a heading, then paragraphs).
+struct Book {
+    title: &'static str,
+    author: &'static str,
+    chapters: &'static [&'static [&'static str]],
+    /// Adds a copyright page (left out) and an empty section (skipped), for extraction notes.
+    notes: bool,
+}
+
+/// The browser preview's books, with original text.
+const BOOKS: [Book; 4] = [
+    Book {
+        title: "The Lantern Keeper",
+        author: "Mira Vale",
+        chapters: &[
+            &[
+                "The small light",
+                "Every evening, Ada carried a lantern to the end of the pier. The sea collected its reflection and broke it into a hundred little stars.",
+                "Tonight a paper boat waited beside the steps. Inside it lay a key, warm as if someone had held it all the way across the bay.",
+            ],
+            &[
+                "Across the water",
+                "At dawn she borrowed the blue rowing boat. Each pull of the oars opened a quiet doorway in the water.",
+                "On the far shore, a gardener waved. He had been waiting for someone to bring back the light.",
+            ],
+        ],
+        notes: false,
+    },
+    Book {
+        title: "A Map of Quiet Places",
+        author: "Ellis Reed",
+        chapters: &[
+            &[
+                "An ordinary discovery",
+                "No one had marked the bench on any map. It stood between a bakery and a clock shop, where the morning smelled of bread and rain.",
+                "Ren sat down and listened. Beneath the traffic, a sparrow was rehearsing a song with no ending.",
+            ],
+            &[
+                "The long way home",
+                "Ren drew a circle where the bench should be. Then came the bridge, the cool stone steps, and the lane where the wind always rested.",
+                "The map did not make the city smaller. It made room for all the things Ren had hurried past.",
+            ],
+            &[
+                "A place to begin",
+                "The next morning, a stranger asked for directions. Ren folded the map and offered to walk beside her.",
+                "They took the long way. There was plenty of time.",
+            ],
+        ],
+        notes: true,
+    },
+    Book {
+        title: "The Absent Orchard",
+        author: "Ellis Reed",
+        chapters: &[&[
+            "The gate",
+            "The orchard had been sold twice, and neither owner had ever seen it.",
+        ]],
+        notes: false,
+    },
+    Book {
+        title: "An Unfinished Atlas",
+        author: "Ellis Reed",
+        chapters: &[&[
+            "Blank pages",
+            "Half the atlas was empty, and the cartographer liked it best that way.",
+        ]],
+        notes: false,
+    },
+];
+
+/// The preview's unreadable book.
+const BROKEN: &str = "The Torn Ledger";
+
+fn epub(book: &Book) -> Vec<u8> {
+    let xhtml = |body: String| {
+        format!(
+            r#"<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>x</title></head><body>{body}</body></html>"#
+        )
+    };
+    let mut files: Vec<(String, String)> = vec![
+        ("mimetype".into(), "application/epub+zip".into()),
+        ("META-INF/container.xml".into(), r#"<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#.into()),
+    ];
+    let mut manifest = String::from(
+        r#"<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>"#,
+    );
+    let mut spine = String::new();
+    let mut toc = String::new();
+    if book.notes {
+        manifest.push_str(
+            r#"<item id="rights" href="rights.xhtml" media-type="application/xhtml+xml"/>"#,
+        );
+        spine.push_str(r#"<itemref idref="rights"/>"#);
+        toc.push_str(r#"<li><a href="rights.xhtml">Copyright</a></li>"#);
+        files.push((
+            "OPS/rights.xhtml".into(),
+            xhtml(r#"<section epub:type="copyright-page"><h1>Copyright</h1><p>All rights kept by the preview.</p></section>"#.into()),
+        ));
+    }
+    for (index, parts) in book.chapters.iter().enumerate() {
+        let name = format!("c{index}.xhtml");
+        manifest.push_str(&format!(
+            r#"<item id="c{index}" href="{name}" media-type="application/xhtml+xml"/>"#
+        ));
+        spine.push_str(&format!(r#"<itemref idref="c{index}"/>"#));
+        toc.push_str(&format!(r#"<li><a href="{name}">{}</a></li>"#, parts[0]));
+        let body: String = std::iter::once(format!("<h2>{}</h2>", parts[0]))
+            .chain(parts[1..].iter().map(|p| format!("<p>{p}</p>")))
+            .collect();
+        files.push((format!("OPS/{name}"), xhtml(body)));
+    }
+    if book.notes {
+        manifest.push_str(
+            r#"<item id="blank" href="blank.xhtml" media-type="application/xhtml+xml"/>"#,
+        );
+        spine.push_str(r#"<itemref idref="blank"/>"#);
+        toc.push_str(r#"<li><a href="blank.xhtml">Blank</a></li>"#);
+        files.push(("OPS/blank.xhtml".into(), xhtml(String::new())));
+    }
+    files.push((
+        "OPS/nav.xhtml".into(),
+        xhtml(format!(r#"<nav epub:type="toc"><ol>{toc}</ol></nav>"#)),
+    ));
+    files.push((
+        "OPS/book.opf".into(),
+        format!(
+            r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{}</dc:title><dc:creator>{}</dc:creator><dc:language>en</dc:language></metadata><manifest>{manifest}</manifest><spine>{spine}</spine></package>"#,
+            book.title, book.author
+        ),
+    ));
+    let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+    for (name, body) in files {
+        zip.start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(body.as_bytes()).unwrap();
+    }
+    zip.finish().unwrap().into_inner()
+}
+
+/// The core over the preview's books, one of them gone missing since it was scanned and one
+/// unreadable. Returns the renames from the core's ids and folders to the preview's.
+async fn preview_library(root: &Path) -> (Arc<Core>, Vec<(String, String)>) {
+    std::fs::create_dir_all(root.join("Books")).unwrap();
+    std::fs::create_dir_all(root.join("config")).unwrap();
+    std::fs::write(
+        root.join("config/settings.toml"),
+        "[engine]\nid = \"test\"\nname = \"Local Chatterbox\"\nkind = \"fake\"\n\
+         baseUrl = \"http://127.0.0.1:9\"\nnetwork = \"loopback\"\nvoiceId = \"Emily.wav\"\n",
+    )
+    .unwrap();
+    let mut renames = Vec::new();
+    for (index, book) in BOOKS.iter().enumerate() {
+        let bytes = epub(book);
+        std::fs::write(root.join(format!("Books/{}.epub", book.title)), &bytes).unwrap();
+        renames.push((
+            aoide_library::content_hash(&bytes).0,
+            format!("book-{index}"),
+        ));
+    }
+    let broken = b"not an EPUB".to_vec();
+    std::fs::write(root.join(format!("Books/{BROKEN}.epub")), &broken).unwrap();
+    renames.push((aoide_library::content_hash(&broken).0, "book-4".into()));
+    let (core, _events) = start_with(
+        root,
+        &FakeEngine::new(),
+        Arc::new(|_| Err("no speech recognition in the preview".into())),
+    );
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 5)
+    })
+    .await;
+    std::fs::remove_file(root.join(format!("Books/{}.epub", BOOKS[2].title))).unwrap();
+    core.rescan().unwrap();
+    renames.push((root.to_string_lossy().into_owned(), "~".into()));
+    (core, renames)
+}
+
+#[tokio::test]
+async fn fixtures_for_the_ui_mock() {
+    if !wanted() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let (core, renames) = preview_library(dir.path()).await;
+    let preview = |id: &str| {
+        renames
+            .iter()
+            .find(|(from, _)| from == id)
+            .map_or_else(|| id.to_owned(), |(_, to)| to.clone())
+    };
+
+    // The library as first scanned, in the preview's order, added one after another.
+    let mut books = core.list_books().unwrap();
+    books.sort_by_key(|book| preview(&book.id));
+    let mut library = serde_json::to_value(&books).unwrap();
+    for (index, book) in library.as_array_mut().unwrap().iter_mut().enumerate() {
+        book["addedAt"] = Value::from(100 + index as i64);
+        book["lastOpenedAt"] = Value::Null;
+    }
+    write("library", &library, &renames);
+
+    let views: serde_json::Map<String, Value> = books
+        .iter()
+        .filter(|book| matches!(book.status, aoide_library::BookStatus::Present))
+        .map(|book| {
+            let view = core.book_overview(&book.id).unwrap();
+            (preview(&book.id), serde_json::to_value(view).unwrap())
+        })
+        .collect();
+    write("book-views", &views, &renames);
+
+    write("player", &core.player_state(), &renames);
+    write("generation", &core.generation_state(), &renames);
+
+    let first = &books[0].id;
+    core.play(first, Some(0), None).await.unwrap();
+    until("the speech near the playhead", || {
+        let state = core.generation_state();
+        state.book_id.is_some() && state.pending == 0
+    })
+    .await;
+    write("generation-playing", &core.generation_state(), &renames);
+    core.stop();
+    tokio::time::sleep(Duration::from_millis(50)).await;
+}

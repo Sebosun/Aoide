@@ -1,5 +1,15 @@
 import type { ProblemView, AudiobookMatch, RecordingView, SyncStage, InspectionView, ModelDownloadView, SyncReportView, PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
-import { initialPlayer, initialGeneration } from "./initial";
+import type * as Wire from "./contract";
+import fixtureLibrary from "../tests/fixtures/library.json";
+import fixtureViews from "../tests/fixtures/book-views.json";
+import fixturePlayer from "../tests/fixtures/player.json";
+import fixtureGenerationPlaying from "../tests/fixtures/generation-playing.json";
+import fixtureRecording from "../tests/fixtures/recording.json";
+
+/** The views the core made for the preview's books (see src-tauri/src/core/fixtures.rs), with
+ *  covers as the window sees them. */
+const coreBooks = (): BookSummary[] => (structuredClone(fixtureLibrary) as unknown as Wire.BookSummary[]).map(({ coverPath, ...book }) => ({ ...book, coverUrl: coverPath }));
+const coreView = (id: string): BookView | undefined => structuredClone((fixtureViews as unknown as Record<string, BookView>)[id]);
 
 
 /** The same API with every request (not the event subscriptions) taking `ms` longer. */
@@ -17,12 +27,9 @@ export function slowed<T extends AoideApi>(api: T, ms: number): T {
 /** Original, synthetic preview books. No personal books or network requests. */
 export function createMockApi() {
   const engine: EngineStatusView = { profileName: "Local Chatterbox", state: "ready", detail: "Browser preview · simulated audio" };
-  const books: BookSummary[] = ["The Lantern Keeper", "A Map of Quiet Places", "The Absent Orchard", "An Unfinished Atlas", "The Torn Ledger"].map((title, i) => ({
-    id: `book-${i}`, title, authors: [i === 0 ? "Mira Vale" : "Ellis Reed"], language: "en", coverUrl: null,
-    status: i === 2 ? { kind: "missing" } : i === 4 ? { kind: "error", message: "This EPUB could not be parsed." } : { kind: "present" },
-    progress: i === 0 ? { chapter: 0, segmentId: "0:1:0", fraction: 0.12 } : null,
-    audioBytes: i === 0 ? 2457600 : 0, prepare: null, addedAt: 100 + i, lastOpenedAt: i === 0 ? 500 : null, collections: [], recording: null,
-  }));
+  const books = coreBooks();
+  // The reader has started the first book, and some of its audio is made.
+  Object.assign(books[0], { progress: { chapter: 0, segmentId: "0:1:0", fraction: 0.12 }, audioBytes: 2457600, lastOpenedAt: 500 });
   const shelves: { id: number; name: string; createdAt: number }[] = [];
   const shelfName = (name: string, except?: number) => {
     const trimmed = name.trim();
@@ -91,17 +98,15 @@ export function createMockApi() {
     const listenable = r.stage === "ready" || (["waiting", "transcribing", "paused", "matching"].includes(r.stage) && r.transcribedMs > 0);
     return { ...r, listenable, narrates: listenable && settingsOf(r.bookId).narration === "recording" };
   };
+  /** The recording the core synced (its fixture), as it stands in `stage`. */
   const recordingIn = (bookId: string, stage: SyncStage): Omit<RecordingView, "listenable" | "narrates"> => {
-    const totalMs = 6 * hour + 1_234_000, matched = stage === "ready" || stage === "poorMatch";
+    const synced = structuredClone(fixtureRecording) as RecordingView, matched = stage === "ready" || stage === "poorMatch";
     return {
-      bookId, stage, error: stage === "failed" ? "the recording could not be read" : null,
-      files: [{ path: "~/Audiobooks/the-lantern-keeper.m4b", name: "the-lantern-keeper.m4b", durationMs: totalMs, codec: "aac" }],
-      totalMs, chapters: 12,
-      transcribedMs: matched ? totalMs : stage === "transcribing" ? Math.round(totalMs * 0.37) : 0,
+      ...synced, bookId, stage, error: stage === "failed" ? "the recording could not be read" : null,
+      transcribedMs: matched ? synced.totalMs : stage === "transcribing" ? Math.round(synced.totalMs * 0.37) : 0,
       remainingMs: stage === "transcribing" ? 14 * 60_000 : null,
       position: stage === "transcribing" || stage === "waiting" ? 0 : null,
-      summary: matched ? { words: 64_210, matchedWords: stage === "ready" ? 60_400 : 38_100, timedWords: stage === "ready" ? 63_900 : 44_000 } : null,
-      accepted: false, modelId: "base.en",
+      summary: stage === "poorMatch" ? { ...synced.summary!, matchedWords: Math.round(synced.summary!.words * 0.59) } : matched ? synced.summary : null,
     };
   };
   const emitSync = (undecided: Omit<RecordingView, "listenable" | "narrates">) => {
@@ -166,7 +171,7 @@ export function createMockApi() {
   const engineHandlers = new Set<(s: EngineStatusView) => void>();
   const generationHandlers = new Set<(s: GenerationState) => void>();
   const libraryHandlers = new Set<() => void>();
-  let state = initialPlayer();
+  let state = structuredClone(fixturePlayer) as PlayerState;
   let timer: ReturnType<typeof setInterval> | undefined;
   const emitPlayer = (next: PlayerState) => { state = { ...next }; playerHandlers.forEach(h => h({ ...state })); };
   const emitGeneration = (next: GenerationState) => generationHandlers.forEach(h => h({ ...next }));
@@ -249,12 +254,11 @@ export function createMockApi() {
     async showInFolder(id) { getBook(id); },
     async openBook(id): Promise<BookView> { const b = getBook(id); b.lastOpenedAt = Date.now(); return api.bookOverview(id); },
     async bookOverview(id): Promise<BookView> {
-      const b = getBook(id), list = chapters[Number(id.split("-")[1])];
-      const wordCount = list.flatMap(c => c.blocks).flatMap(b => b.segments).reduce((n, s) => n + s.words.length, 0);
-      const notes = id === "book-1";
+      const b = getBook(id), view = coreView(id);
+      if (!view) throw new Error("Book is unavailable.");
       const voice = settings.get(id)?.voiceId, offered = (await api.engineVoices()).map(v => v.id);
       const voiceWarning = voice && !offered.includes(voice) ? `${voice.replace(".wav", "")} is not one of Mock engine's voices, so Emily reads this book. Choose a voice in the book's settings.` : null;
-      return { ...structuredClone(b), chapters: list.map(({ index, title }) => ({ index, title })), warnings: notes ? ["A table in “The long way home” was read as plain text."] : [], excluded: notes ? [{ title: "Copyright", reason: "front matter" }] : [], languageWarning: null, voiceWarning, wordCount };
+      return { ...view, title: b.title, progress: structuredClone(b.progress), voiceWarning };
     },
     async chapter(id, chapter) { return getChapter(id, chapter); },
     async play(id, chapter, segmentId) {
@@ -263,7 +267,7 @@ export function createMockApi() {
       const segment = segments.find(s => s.id === (segmentId ?? (chapter === null ? book.progress?.segmentId : null))) ?? segments[0];
       const source = recordings.get(id)?.narrates ? "recording" : "speech";
       emitPlayer({ ...state, bookId: id, chapter: c, segmentId: segment.id, wordIndex: 0, status: "playing", chapterFraction: segments.indexOf(segment) / segments.length, error: null, source, offText: false, chapterLeftMs: null, waitingForSync: false });
-      emitGeneration({ ...initialGeneration(), bookId: id, bufferedAheadMs: 18000 }); run();
+      emitGeneration({ ...structuredClone(fixtureGenerationPlaying) as GenerationState, bookId: id }); run();
     },
     async pause() { halt(); emitPlayer({ ...state, status: "paused" }); },
     async resume() { if (state.bookId) { emitPlayer({ ...state, status: "playing" }); run(); } },
@@ -411,7 +415,7 @@ export function createMockApi() {
         const c = found.find(f => f.id === choice.id);
         if (!c || c.status === "unreadable") { results.push({ path: c?.paths[0] ?? "", bookId: null, error: "not a readable EPUB" }); continue; }
         c.status = "inLibrary";
-        books.push({ id: c.id, title: c.title, authors: c.authors, language: c.language, status: { kind: "present" }, coverUrl: null, progress: null, audioBytes: 0, prepare: null, recording: null, addedAt: 900, lastOpenedAt: null, collections: [] });
+        books.push({ ...coreBooks()[3], id: c.id, title: c.title, authors: c.authors, language: c.language, addedAt: 900 });
         changed();
         results.push({ path: c.paths[0], bookId: c.id, error: null });
         if (choice.pairAudiobook && c.audiobook.length) await api.attachRecording(c.id, c.audiobook);

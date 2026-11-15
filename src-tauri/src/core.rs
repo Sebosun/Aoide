@@ -64,6 +64,8 @@ mod contract;
 #[cfg(test)]
 mod engine_tests;
 #[cfg(test)]
+mod fixtures;
+#[cfg(test)]
 mod generation_tests;
 #[cfg(test)]
 mod recording_tests;

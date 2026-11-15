@@ -66,8 +66,9 @@ it("opens the extraction notes in Details from the warning in the margin", async
   await flushPromises();
   const sheet = wrapper.get('[role="dialog"]');
   expect(sheet.get('[role="tab"][aria-selected="true"]').text()).toBe("Details");
+  expect(sheet.text()).toContain("1 warning, 1 section left out");
   expect(sheet.text()).toContain("Copyright");
-  expect(sheet.text()).toContain("front matter");
+  expect(sheet.text()).toContain("An empty section was skipped");
   wrapper.unmount();
 });
 

@@ -1,0 +1,27 @@
+{
+  "bookId": "book-0",
+  "stage": "ready",
+  "error": null,
+  "files": [
+    {
+      "path": "~/Audio/quay-lights.wav",
+      "name": "quay-lights.wav",
+      "durationMs": 12150,
+      "codec": "pcm_f32le"
+    }
+  ],
+  "totalMs": 12150,
+  "chapters": 1,
+  "transcribedMs": 12150,
+  "remainingMs": null,
+  "position": null,
+  "summary": {
+    "words": 24,
+    "matchedWords": 24,
+    "timedWords": 24
+  },
+  "accepted": false,
+  "modelId": "base.en",
+  "listenable": true,
+  "narrates": true
+}

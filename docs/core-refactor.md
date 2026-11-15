@@ -221,7 +221,7 @@ import, rescan finding a removed file, and an ignored book staying out of a resc
 **Done when:** `core.rs` is under 600 lines and every `impl Core` block outside it contains only
 command forwarding or a host-trait implementation.
 
-### - [ ] 12. Mock fixtures generated from the core
+### - [x] 12. Mock fixtures generated from the core
 
 `src/api/mock.ts` hand-builds views and re-implements core rules, so UI tests check the mock.
 
