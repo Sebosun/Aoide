@@ -656,6 +656,7 @@ pub fn run() {
             let smoke_home =
                 cfg!(debug_assertions) && std::env::var_os("AOIDE_SMOKE_HOME").is_some();
             let logs = match std::env::var_os("AOIDE_SMOKE_HOME") {
+                #[cfg(debug_assertions)]
                 Some(home) if smoke_home => smoke::paths(std::path::Path::new(&home))
                     .db_path
                     .with_file_name("logs"),
