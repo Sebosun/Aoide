@@ -3,7 +3,6 @@ import { computed, nextTick, ref, watch } from "vue";
 import { LocateFixed } from "@lucide/vue";
 import ChapterText from "./ChapterText.vue";
 import BookMargin from "./BookMargin.vue";
-import ReaderTools from "./ReaderTools.vue";
 import PlayerDock from "../player/PlayerDock.vue";
 import { useFollow } from "../../composables/useFollow";
 import { useMediaQuery } from "../../composables/useMediaQuery";
@@ -87,7 +86,6 @@ const jump = (index: number) => reader.startChapter(index);
           @about="navigation.openItem(reader.book.id)"
           @prepare="prepareChapter(reader.book.id, $event)"
         />
-        <ReaderTools class="sheet__tools" />
         <p v-if="reader.error" class="sheet__error" role="alert">{{ reader.error }}</p>
         <ChapterText
           v-if="reader.chapter"
@@ -149,18 +147,6 @@ const jump = (index: number) => reader.startChapter(index);
   top: 0;
   padding-left: 28px;
 }
-.sheet__tools {
-  grid-column: 3;
-  grid-row: 1;
-  z-index: 2;
-  align-self: start;
-  justify-self: end;
-  position: sticky;
-  top: 0;
-  padding: 0 20px 8px 8px;
-  background: var(--page);
-  border-radius: 0 0 0 14px;
-}
 .sheet__error {
   grid-column: 2;
   grid-row: 1;
@@ -217,12 +203,6 @@ const jump = (index: number) => reader.startChapter(index);
     grid-row: 1;
     position: static;
     padding: 6px 150px 0 0;
-  }
-  .sheet__tools {
-    grid-column: 1;
-    grid-row: 1;
-    position: static;
-    padding: 0;
   }
   .sheet__error {
     grid-column: 1;

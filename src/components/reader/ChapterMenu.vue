@@ -6,15 +6,17 @@ import UiMenu from "../ui/UiMenu.vue";
 import type { MenuEntry } from "../ui/types";
 
 /** `link`: "Chapter 4 of 24 ▾" (Sheet margin); `pill`: a "Chapters" button (library hero);
- *  `chip`: "Chapter 4 · Title ▾" (Lines mode). With `prepare`, the list ends in "Prepare this
+ *  `chip`: "Chapter 4 · Title ▾" (Lines mode); `title`: "Book · Chapter 4, Title ▾" (reader
+ *  header, with `bookTitle`). With `prepare`, the list ends in "Prepare this
  *  chapter" for the current chapter. */
 const props = withDefaults(
   defineProps<{
     chapters: ChapterSummary[];
     current: number;
     playing: number | null;
-    variant?: "link" | "pill" | "chip";
+    variant?: "link" | "pill" | "chip" | "title";
     prepare?: boolean;
+    bookTitle?: string;
   }>(),
   { variant: "link", prepare: false },
 );
@@ -50,6 +52,22 @@ const position = () =>
         @click="toggle"
       >
         <List :size="17" /> Chapters
+      </button>
+      <button
+        v-else-if="variant === 'title'"
+        type="button"
+        class="chapter-menu__title-button"
+        v-bind="trigger"
+        :aria-label="`${position()}, choose a chapter`"
+        @click="toggle"
+      >
+        <span class="chapter-menu__chip-text"
+          >{{ bookTitle }} · Chapter {{ chapters.findIndex((c) => c.index === current) + 1
+          }}<template v-if="chapters.find((c) => c.index === current)?.title"
+            >, {{ chapters.find((c) => c.index === current)?.title }}</template
+          ></span
+        >
+        <ChevronDown :size="14" />
       </button>
       <button
         v-else-if="variant === 'chip'"
@@ -130,6 +148,19 @@ const position = () =>
   background: var(--glass);
   font-weight: 700;
   font-size: 13px;
+}
+.chapter-menu__title-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 22px;
+  font-weight: 600;
+}
+.chapter-menu__title-button:hover {
+  background: var(--glass);
 }
 .chapter-menu__chip-text {
   overflow: hidden;

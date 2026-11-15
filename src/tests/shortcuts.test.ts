@@ -140,3 +140,29 @@ it("opens and closes Settings with Ctrl comma, and lists the shortcuts under Abo
   expect(wrapper.find('[role="dialog"][aria-label="Settings"]').exists()).toBe(false);
   wrapper.unmount();
 });
+
+it("leaves the reader with Escape, unless Escape is closing something over it", async () => {
+  const wrapper = await app();
+  await reading(wrapper);
+  await wrapper.get('[aria-label="Search and more"]').trigger("click");
+  await flushPromises();
+  expect(wrapper.find('[role="dialog"][aria-label="Book tools"]').exists()).toBe(true);
+  press("Escape");
+  await flushPromises();
+  expect(useNavigationStore().view).toBe("reader");
+
+  useNavigationStore().closeTools();
+  await flushPromises();
+  await wrapper.get('[aria-label="Text size"]').trigger("click");
+  press("Escape");
+  await flushPromises();
+  expect(useNavigationStore().view).toBe("reader");
+
+  (document.activeElement as HTMLElement | null)?.blur();
+  await wrapper.get('[aria-label="Text size"]').trigger("click");
+  await flushPromises();
+  expect(press("Escape").defaultPrevented).toBe(true);
+  await flushPromises();
+  expect(useNavigationStore().view).toBe("library");
+  wrapper.unmount();
+});

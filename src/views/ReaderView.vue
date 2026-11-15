@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { computed, onUnmounted, watch } from "vue";
-import { ArrowLeft, Headphones } from "@lucide/vue";
+import { ArrowLeft, Bookmark, Ellipsis, Headphones } from "@lucide/vue";
 import ReaderSheet from "../components/reader/ReaderSheet.vue";
 import ReaderLines from "../components/reader/ReaderLines.vue";
+import ReaderTools from "../components/reader/ReaderTools.vue";
+import ChapterMenu from "../components/reader/ChapterMenu.vue";
+import { usePlayerControls } from "../composables/usePlayerControls";
+import { prepareChapter } from "../preparation";
 import { usePreferencesStore } from "../stores/preferences";
 import BookToolsSheet from "../components/book/BookToolsSheet.vue";
 import { useNavigationStore, VIEW_NAMES, type ToolsTab } from "../stores/navigation";
@@ -33,14 +37,50 @@ function openTools(tab: ToolsTab | undefined) {
 }
 onUnmounted(() => navigation.closeTools());
 const backLabel = computed(() => VIEW_NAMES[navigation.readerFrom]);
+const { bookmark } = usePlayerControls();
+const playingHere = computed(() => player.state.bookId === reader.book?.id);
 </script>
 
 <template>
   <div v-if="reader.book" class="reader">
     <header class="reader__header">
       <button type="button" class="reader__back" :aria-label="`Back to ${backLabel}`" @click="navigation.leaveReader()">
-        <ArrowLeft :size="18" aria-hidden="true" />{{ backLabel }}
+        <ArrowLeft :size="16" aria-hidden="true" />{{ backLabel }}
       </button>
+      <ChapterMenu
+        class="reader__chapters"
+        variant="title"
+        prepare
+        :book-title="reader.book.title"
+        :chapters="reader.book.chapters"
+        :current="reader.currentChapter"
+        :playing="playingHere ? player.state.chapter : null"
+        @pick="reader.startChapter($event)"
+        @prepare="prepareChapter(reader.book.id, $event)"
+      />
+      <div class="reader__actions">
+        <ReaderTools />
+        <button
+          type="button"
+          class="reader__round"
+          aria-label="Bookmark this place"
+          title="Bookmark this place"
+          @click="bookmark"
+        >
+          <Bookmark :size="18" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          class="reader__round"
+          aria-label="Search and more"
+          title="Bookmarks, search, narration and details"
+          aria-haspopup="dialog"
+          :aria-expanded="Boolean(navigation.tools)"
+          @click="openTools(undefined)"
+        >
+          <Ellipsis :size="18" aria-hidden="true" />
+        </button>
+      </div>
     </header>
     <ReaderLines v-if="preferences.appearance.readerMode === 'lines'" @tools="openTools(undefined)" />
     <ReaderSheet v-else @tools="openTools" />
@@ -62,25 +102,54 @@ const backLabel = computed(() => VIEW_NAMES[navigation.readerFrom]);
   padding: 0 28px;
 }
 .reader__header {
-  height: 60px;
   flex: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
   align-items: center;
+  gap: 10px;
+  padding: 14px 0;
 }
 .reader__back {
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  height: 36px;
-  padding: 0 12px 0 8px;
-  margin-left: -8px;
-  border-radius: 12px;
-  font-weight: 600;
-  color: var(--dim);
-}
-.reader__back:hover {
-  color: var(--ink);
+  height: 44px;
+  padding: 0 16px 0 12px;
+  border-radius: 22px;
   background: var(--glass);
+  font-weight: 600;
+}
+.reader__chapters {
+  justify-self: center;
+}
+.reader__actions {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.reader__round {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--glass);
+}
+.reader__round[aria-expanded="true"] {
+  background: var(--ink);
+  color: var(--ground);
+}
+@media (max-width: 900px) {
+  .reader__header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .reader__chapters {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
 }
 .reader__chip {
   position: absolute;

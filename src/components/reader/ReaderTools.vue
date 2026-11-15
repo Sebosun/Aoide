@@ -30,6 +30,7 @@ const modes: { value: ReaderMode; label: string }[] = [
         type="button"
         class="reader-tools__aa"
         aria-label="Text size"
+        title="Text size"
         :aria-expanded="open"
         aria-haspopup="true"
         @click="open = !open"
@@ -85,7 +86,7 @@ const modes: { value: ReaderMode; label: string }[] = [
 .reader-tools {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 .reader-tools__size {
   position: relative;
@@ -93,11 +94,11 @@ const modes: { value: ReaderMode; label: string }[] = [
 .reader-tools__aa {
   display: grid;
   place-items: center;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 999px;
-  background: var(--ground);
-  font: 500 15px/1 var(--font-read);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--glass);
+  font: 500 17px/1 var(--font-read);
 }
 .reader-tools__panel {
   position: absolute;
@@ -138,19 +139,19 @@ const modes: { value: ReaderMode; label: string }[] = [
 .reader-tools__mode {
   display: flex;
   gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
-  background: var(--ground);
-  font-size: 12px;
-  font-weight: 700;
+  padding: 4px;
+  border-radius: 22px;
+  background: var(--glass);
+  font-weight: 600;
 }
 .reader-tools__option {
-  padding: 5px 12px;
-  border-radius: 999px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 18px;
   color: var(--dim);
 }
 .reader-tools__option--on {
-  background: var(--ink);
-  color: var(--ground);
+  background: var(--page);
+  color: var(--ink);
 }
 </style>

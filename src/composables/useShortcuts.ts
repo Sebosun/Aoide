@@ -11,6 +11,8 @@ const TYPING = "input, textarea, select";
 /** Things that use Space themselves, when the keyboard put the focus on them. */
 const PRESSABLE =
   'button, a[href], summary, [role="button"], [role="slider"], [role="tab"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="listbox"]';
+/** Open things that Escape closes before it may leave the reader. */
+const OVERLAYS = '[aria-modal="true"], [role="dialog"], [role="menu"], [role="listbox"], [aria-expanded="true"]';
 /** Things that use the arrow keys themselves. */
 const ARROWS = '[role="slider"], [role="tablist"], [role="menu"], [role="listbox"]';
 
@@ -19,6 +21,7 @@ const ARROWS = '[role="slider"], [role="tablist"], [role="menu"], [role="listbox
  *  - Space plays or pauses and ← / → move a sentence. Both are left alone while typing, on a
  *    control that uses the key (for Space: one reached with the keyboard), under a dialog, and
  *    when a component already handled the key.
+ *  - Escape leaves the reader for the screen it was opened from, when nothing is open over it.
  *  - Ctrl F searches the open book (in the reader) or the library; Ctrl , opens Settings.
  *  - Ctrl + / Ctrl − / Ctrl 0 and Ctrl + wheel zoom, also while typing. */
 export function useShortcuts() {
@@ -68,6 +71,11 @@ export function useShortcuts() {
   function plain(event: KeyboardEvent) {
     const target = event.target instanceof Element ? event.target : null;
     if (target?.matches(TYPING) || (target as HTMLElement | null)?.isContentEditable) return false;
+    if (event.key === "Escape") {
+      if (navigation.view !== "reader" || document.querySelector(OVERLAYS)) return false;
+      navigation.leaveReader();
+      return true;
+    }
     if (document.querySelector('[aria-modal="true"]')) return false;
     const pressable = target?.closest(PRESSABLE);
     if (event.key === " " && controls.bookId.value && !(pressable && keyboardFocus)) {

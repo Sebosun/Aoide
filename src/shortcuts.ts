@@ -8,5 +8,5 @@ export const SHORTCUTS: { keys: string[][]; action: string }[] = [
   { keys: [["Ctrl", "+"]], action: "Larger interface" },
   { keys: [["Ctrl", "−"]], action: "Smaller interface" },
   { keys: [["Ctrl", "0"]], action: "Interface at 100%" },
-  { keys: [["Esc"]], action: "Close a dialog or menu" },
+  { keys: [["Esc"]], action: "Close a dialog or menu, or leave the reader" },
 ];

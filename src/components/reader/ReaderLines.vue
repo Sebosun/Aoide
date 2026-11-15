@@ -3,7 +3,6 @@ import { computed, onBeforeUpdate, ref, watch } from "vue";
 import type { SegmentView } from "../../api/types";
 import CoverArt from "../CoverArt.vue";
 import ChapterMenu from "./ChapterMenu.vue";
-import ReaderTools from "./ReaderTools.vue";
 import PlayerTransport from "../player/PlayerTransport.vue";
 import { usePlayerStore } from "../../stores/player";
 import { useLibraryStore } from "../../stores/library";
@@ -98,7 +97,6 @@ const play = (segment: SegmentView) => {
         @prepare="prepareChapter(reader.book.id, $event)"
       />
     </aside>
-    <ReaderTools class="reader-lines__tools" />
     <div
       ref="stage"
       class="reader-lines__stage"
@@ -180,16 +178,6 @@ const play = (segment: SegmentView) => {
 .reader-lines__author {
   color: var(--dim);
   font-weight: 500;
-}
-.reader-lines__tools {
-  position: absolute;
-  top: 14px;
-  right: 0;
-  z-index: 2;
-}
-.reader-lines__tools :deep(.reader-tools__aa),
-.reader-lines__tools :deep(.reader-tools__mode) {
-  background: var(--glass);
 }
 .reader-lines__stage {
   position: relative;
@@ -298,9 +286,6 @@ const play = (segment: SegmentView) => {
   .reader-lines__book {
     min-width: 0;
   }
-  .reader-lines__tools {
-    top: 6px;
-  }
   .reader-lines__stage {
     grid-column: 1;
     grid-row: 2;
@@ -312,7 +297,7 @@ const play = (segment: SegmentView) => {
 @media (max-width: 600px) {
   .reader-lines__side {
     padding-right: 0;
-    padding-top: 44px;
+    padding-top: 0;
   }
   .reader-lines__line--now {
     font-size: calc(28px * var(--read-scale));
