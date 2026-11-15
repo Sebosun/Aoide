@@ -24,12 +24,9 @@ pub struct ListeningStatsView {
     pub by_day: Vec<aoide_library::DayListening>,
 }
 
-/// Mutable bookkeeping for listening time and cache eviction.
+/// What is left of the core's loose state, until each part has its component.
 #[derive(Default)]
 pub struct ExtrasState {
-    listening_book: Option<String>,
-    last_tick: Option<Instant>,
-    pending_ms: u64,
     pub(super) last_eviction: Option<Instant>,
     /// Book being exported, if any.
     pub(super) exporting: Option<String>,
@@ -37,52 +34,75 @@ pub struct ExtrasState {
     pub(super) scan_cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
 }
 
+/// Listening time not yet saved.
+#[derive(Default)]
+struct Tally {
+    book: Option<String>,
+    last_tick: Option<Instant>,
+    pending_ms: u64,
+}
+
+/// Counts listening time and sums it for the stats.
+pub(super) struct Listening {
+    library: Arc<Mutex<Library>>,
+    reporter: error::Reporter,
+    tally: Mutex<Tally>,
+}
+
 fn today() -> String {
     chrono::Local::now().format("%Y-%m-%d").to_string()
 }
 
-impl Core {
-    /// Called every tick: accumulates real playing time and flushes it per local day.
-    pub(super) fn track_listening(&self, state: &PlayerStateView) {
+impl Listening {
+    pub fn new(library: Arc<Mutex<Library>>, reporter: error::Reporter) -> Self {
+        Self {
+            library,
+            reporter,
+            tally: Default::default(),
+        }
+    }
+
+    /// Called every tick: accumulates real playing time and saves it per local day.
+    pub fn track(&self, state: &PlayerStateView) {
         let now = Instant::now();
         let playing = state.status == PlaybackStatus::Playing;
-        let mut extras = lock(&self.extras);
-        let switched = extras.listening_book.as_deref() != state.book_id.as_deref();
-        if let (true, false, Some(last)) = (playing, switched, extras.last_tick) {
+        let mut tally = lock(&self.tally);
+        let switched = tally.book.as_deref() != state.book_id.as_deref();
+        if let (true, false, Some(last)) = (playing, switched, tally.last_tick) {
             // Cap the step so a suspended machine does not count as listening.
-            extras.pending_ms += now.duration_since(last).as_millis().min(1_000) as u64;
+            tally.pending_ms += now.duration_since(last).as_millis().min(1_000) as u64;
         }
         let flush =
-            extras.pending_ms > 0 && (switched || !playing || extras.pending_ms >= LISTEN_FLUSH_MS);
+            tally.pending_ms > 0 && (switched || !playing || tally.pending_ms >= LISTEN_FLUSH_MS);
         if flush {
-            if let Some(book) = extras.listening_book.clone() {
-                let ms = std::mem::take(&mut extras.pending_ms);
-                drop(extras);
+            if let Some(book) = tally.book.clone() {
+                let ms = std::mem::take(&mut tally.pending_ms);
+                drop(tally);
                 let saved = lock(&self.library).record_listening(&BookId(book), &today(), ms);
                 if let Err(error) = saved {
-                    self.report(
+                    self.reporter.report(
                         "listening.save",
                         "Could not save your listening time",
                         error,
                     );
                 }
-                extras = lock(&self.extras);
+                tally = lock(&self.tally);
             } else {
-                extras.pending_ms = 0;
+                tally.pending_ms = 0;
             }
         }
-        extras.listening_book = state.book_id.clone();
-        extras.last_tick = playing.then_some(now);
+        tally.book = state.book_id.clone();
+        tally.last_tick = playing.then_some(now);
     }
 
     /// One book's listened time per local day, oldest first.
-    pub fn book_listening(&self, id: &str) -> Result<Vec<aoide_library::DayListening>, String> {
+    pub fn book(&self, id: &str) -> Result<Vec<aoide_library::DayListening>, String> {
         lock(&self.library)
             .book_listening(&BookId(id.into()))
             .map_err(|e| e.to_string())
     }
 
-    pub fn listening_stats(&self) -> Result<ListeningStatsView, String> {
+    pub fn stats(&self) -> Result<ListeningStatsView, String> {
         let library = lock(&self.library);
         let stats = library.listening_stats().map_err(|e| e.to_string())?;
         let by_book = stats
@@ -104,5 +124,73 @@ impl Core {
             by_book,
             by_day: stats.by_day,
         })
+    }
+}
+
+impl Core {
+    /// One book's listened time per local day, oldest first.
+    pub fn book_listening(&self, id: &str) -> Result<Vec<aoide_library::DayListening>, String> {
+        self.listening.book(id)
+    }
+
+    pub fn listening_stats(&self) -> Result<ListeningStatsView, String> {
+        self.listening.stats()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::tests::library_with;
+    use super::*;
+
+    fn heard(book: &str, status: PlaybackStatus) -> PlayerStateView {
+        PlayerStateView {
+            book_id: Some(book.into()),
+            status,
+            chapter: 0,
+            segment_id: None,
+            word_index: None,
+            speed: 1.0,
+            volume: 1.0,
+            chapter_fraction: 0.0,
+            error: None,
+            sleep: None,
+            source: Default::default(),
+            off_text: false,
+            chapter_left_ms: None,
+            waiting_for_sync: false,
+        }
+    }
+
+    #[test]
+    fn time_spent_playing_is_saved_for_the_book_once_it_pauses() {
+        let listening = Listening::new(library_with(&["a"]), Default::default());
+        listening.track(&heard("a", PlaybackStatus::Playing));
+        std::thread::sleep(Duration::from_millis(40));
+        listening.track(&heard("a", PlaybackStatus::Playing));
+        assert!(
+            listening.book("a").unwrap().is_empty(),
+            "not saved while playing"
+        );
+
+        listening.track(&heard("a", PlaybackStatus::Paused));
+
+        let days = listening.book("a").unwrap();
+        assert_eq!(days.len(), 1);
+        assert!(days[0].ms >= 40, "{days:?}");
+        let stats = listening.stats().unwrap();
+        assert_eq!(
+            (stats.by_book[0].title.as_str(), stats.total_ms),
+            ("Book a", days[0].ms)
+        );
+    }
+
+    #[test]
+    fn time_paused_is_not_counted() {
+        let listening = Listening::new(library_with(&["a"]), Default::default());
+        listening.track(&heard("a", PlaybackStatus::Paused));
+        std::thread::sleep(Duration::from_millis(20));
+        listening.track(&heard("a", PlaybackStatus::Paused));
+        assert_eq!(listening.stats().unwrap().total_ms, 0);
     }
 }

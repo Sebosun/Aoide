@@ -271,6 +271,8 @@ pub struct Core {
     pub paths: Paths,
     library: Arc<Mutex<Library>>,
     shelf: shelf::Shelf,
+    bookmarks: bookmarks::Bookmarks,
+    listening: listening::Listening,
     playback: playback::Playback,
     output: Mutex<Option<PipeOutput>>,
     /// The speech engine in use.
@@ -282,7 +284,7 @@ pub struct Core {
     extras: Mutex<listening::ExtrasState>,
     /// Exact word timings being asked for.
     aligning: Mutex<align::Aligning>,
-    config: Mutex<config::Config>,
+    settings: config::Settings,
     /// Recordings and their sync.
     recordings: recordings::Recordings,
     /// What "Find audiobooks" found.
@@ -379,6 +381,8 @@ impl Core {
             reporter.clone(),
             Arc::clone(&events),
         );
+        let bookmarks = bookmarks::Bookmarks::new(Arc::clone(&library));
+        let listening = listening::Listening::new(Arc::clone(&library), reporter.clone());
         let core = Arc::new(Self {
             events,
             reporter,
@@ -387,6 +391,8 @@ impl Core {
             paths,
             library,
             shelf,
+            bookmarks,
+            listening,
             playback: playback::Playback::new(player),
             output: Mutex::new(None),
             engine: engine_component,
@@ -394,7 +400,7 @@ impl Core {
             controls: Default::default(),
             extras: Mutex::new(Default::default()),
             aligning: Mutex::new(Default::default()),
-            config: Mutex::new(config),
+            settings: config::Settings::new(config),
             recordings,
             audiobooks: Mutex::new(Default::default()),
         });
@@ -441,7 +447,7 @@ impl Core {
         if background {
             let watcher = Arc::clone(&core);
             let runtime = tokio::runtime::Handle::current();
-            std::thread::spawn(move || watcher.watch_config(runtime));
+            std::thread::spawn(move || watcher.settings.watch(&*watcher, &runtime));
         }
         Ok(core)
     }
@@ -751,7 +757,7 @@ impl Core {
     /// Validates, persists and activates a new engine profile. Must run inside the runtime.
     pub async fn save_engine_profile(&self, profile: EngineProfile) -> Result<(), String> {
         let engine = self.engine.create(&profile)?;
-        lock(&self.config).update(|file| file.set_section(config::ENGINE, &profile))?;
+        self.settings.save(config::ENGINE, &profile)?;
         self.activate_profile(profile, engine).await
     }
 
@@ -1024,7 +1030,7 @@ impl Core {
             speed: self.playback.speed(),
             volume: self.playback.volume(),
         };
-        let saved = lock(&self.config).update(|file| file.set_section(config::PLAYER, &settings));
+        let saved = self.settings.save(config::PLAYER, &settings);
         if let Err(error) = saved {
             self.report("config.save", "Could not save the player settings", error);
         }
@@ -1113,7 +1119,7 @@ impl Core {
             if self.controls.sleep_due(state.chapter) {
                 self.pause();
             }
-            self.track_listening(&state);
+            self.listening.track(&state);
             if let Some(state) = self
                 .controls
                 .observe(state, &|chapter| self.now_playing(chapter))

@@ -3,7 +3,7 @@
 //! the library database.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use aoide_config::{Appearance, SettingsFile, Theme, SETTINGS_FILE, THEMES_DIR};
@@ -11,8 +11,8 @@ use aoide_library::{GlobalKey, Library};
 use aoide_tts::EngineProfile;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::settings::AppSettings;
-use super::{lock, Core, CoreEvent};
+use super::settings::{changed_keys, AppSettings, AppSettingsPatch};
+use super::{lock, Core, CoreError, CoreEvent};
 
 pub(super) const APPEARANCE: &str = "appearance";
 pub(super) const PLAYER: &str = "player";
@@ -198,19 +198,79 @@ impl Config {
     }
 }
 
-impl Core {
+/// What the settings ask of the rest of the app.
+pub(super) trait ConfigHost {
+    /// settings.toml was edited by hand: play at `player`'s speed and volume and switch to
+    /// `engine`. An `Err` says why the engine was not switched.
+    fn settings_edited(
+        &self,
+        player: Option<PlayerSettings>,
+        engine: Option<EngineProfile>,
+        runtime: &tokio::runtime::Handle,
+    ) -> Result<(), String>;
+    /// The window shows `preferences` from now on.
+    fn preferences_changed(&self, preferences: PreferencesView);
+}
+
+/// The settings file, shared by everything that reads or saves a section.
+pub(super) struct Settings {
+    config: Mutex<Config>,
+}
+
+impl Settings {
+    pub fn new(config: Config) -> Self {
+        Self {
+            config: Mutex::new(config),
+        }
+    }
+
+    /// A section, or `None` when it is missing or malformed.
+    pub fn get<T: DeserializeOwned>(&self, section: &str) -> Option<T> {
+        lock(&self.config).get(section)
+    }
+
+    /// Writes one section.
+    pub fn save<T: Serialize>(&self, section: &str, value: &T) -> Result<(), CoreError> {
+        lock(&self.config).update(|file| file.set_section(section, value))
+    }
+
+    pub fn app(&self) -> AppSettings {
+        self.get(APP).unwrap_or_default()
+    }
+
+    /// Merges `patch` into the app settings, checks and saves them. Returns the settings
+    /// before and after; an invalid change saves nothing.
+    pub fn update_app(
+        &self,
+        patch: AppSettingsPatch,
+    ) -> Result<(AppSettings, AppSettings), String> {
+        // Read, merge and write under one lock, so concurrent patches both land.
+        let mut config = lock(&self.config);
+        let before = config.get::<AppSettings>(APP).unwrap_or_default();
+        let settings = patch.apply(before.clone());
+        settings.recognition.validate()?;
+        if let Some(aligner) = &settings.aligner {
+            aoide_aligner::Aligner::new(aoide_aligner::Options {
+                base_url: aligner.base_url.clone(),
+                network: aligner.network,
+                ..Default::default()
+            })
+            .map_err(|e| e.to_string())?;
+        }
+        config.update(|file| file.set_section(APP, &settings))?;
+        drop(config);
+        tracing::info!(event = "config.saved", section = "app", changed = %changed_keys(&before, &settings), "Saved the app settings");
+        Ok((before, settings))
+    }
+
     pub fn preferences(&self) -> PreferencesView {
         lock(&self.config).preferences()
     }
 
-    pub fn save_appearance(&self, appearance: Appearance) -> Result<(), super::CoreError> {
-        lock(&self.config).update(|file| file.set_section(APPEARANCE, &appearance))
-    }
-
-    /// Watches the config folder. Hand edits to settings.toml are applied (speed, engine;
-    /// app settings are read on use) and every change is sent to the UI as
-    /// [`CoreEvent::ConfigChanged`] with the new [`PreferencesView`].
-    pub(super) fn watch_config(self: Arc<Self>, runtime: tokio::runtime::Handle) {
+    /// Watches the config folder. Hand edits to settings.toml are applied through `host`
+    /// (speed, engine; app settings are read on use), and every change is sent to it as new
+    /// [`PreferencesView`]s. Returns only if the folder cannot be watched.
+    pub fn watch(&self, host: &dyn ConfigHost, runtime: &tokio::runtime::Handle) {
         use notify::{RecursiveMode, Watcher};
         let dir = lock(&self.config).dir().to_path_buf();
         if let Err(error) = std::fs::create_dir_all(dir.join(aoide_config::THEMES_DIR)) {
@@ -234,37 +294,50 @@ impl Core {
             while rx.recv_timeout(Duration::from_millis(250)).is_ok() {}
             let changed = lock(&self.config).reload();
             if changed {
-                self.apply_config(&runtime);
+                let (player, engine) = (self.get(PLAYER), self.get(ENGINE));
+                let applied = host.settings_edited(player, engine, runtime);
+                lock(&self.config).rejected_engine = applied
+                    .err()
+                    .map(|e| format!("[engine] in settings.toml was not applied: {e}"));
             }
-            self.emit(CoreEvent::ConfigChanged(self.preferences()));
+            host.preferences_changed(self.preferences());
         }
         drop(watcher);
     }
+}
 
-    fn apply_config(&self, runtime: &tokio::runtime::Handle) {
-        let (profile, player) = {
-            let config = lock(&self.config);
-            (
-                config.get::<EngineProfile>(ENGINE),
-                config.get::<PlayerSettings>(PLAYER),
-            )
-        };
+impl Core {
+    pub fn preferences(&self) -> PreferencesView {
+        self.settings.preferences()
+    }
+
+    pub fn save_appearance(&self, appearance: Appearance) -> Result<(), CoreError> {
+        self.settings.save(APPEARANCE, &appearance)
+    }
+}
+
+impl ConfigHost for Core {
+    fn settings_edited(
+        &self,
+        player: Option<PlayerSettings>,
+        engine: Option<EngineProfile>,
+        runtime: &tokio::runtime::Handle,
+    ) -> Result<(), String> {
         if let Some(player) = player {
             self.playback.set_speed(player.speed);
             self.playback.set_volume(player.volume);
         }
-        let Some(profile) = profile else { return };
-        if profile == self.engine.profile() {
-            lock(&self.config).rejected_engine = None;
-            return;
+        match engine {
+            Some(profile) if profile != self.engine.profile() => {
+                let engine = self.engine.create(&profile)?;
+                runtime.block_on(self.activate_profile(profile, engine))
+            }
+            _ => Ok(()),
         }
-        let result = match self.engine.create(&profile) {
-            Ok(engine) => runtime.block_on(self.activate_profile(profile, engine)),
-            Err(error) => Err(error),
-        };
-        lock(&self.config).rejected_engine = result
-            .err()
-            .map(|e| format!("[engine] in settings.toml was not applied: {e}"));
+    }
+
+    fn preferences_changed(&self, preferences: PreferencesView) {
+        self.emit(CoreEvent::ConfigChanged(preferences));
     }
 }
 
@@ -420,5 +493,34 @@ mod tests {
         assert_eq!(themes.len(), 1);
         assert_eq!(themes[0].name, "dusk");
         assert_eq!(themes[0].dark["accent"], "#FFB000");
+    }
+
+    #[test]
+    fn patches_to_different_app_settings_both_land_and_a_bad_one_saves_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = Settings::new(Config::open(
+            dir.path(),
+            &Library::open_in_memory().unwrap(),
+        ));
+        settings
+            .update_app(serde_json::from_str(r#"{"cacheLimitBytes":1000}"#).unwrap())
+            .unwrap();
+        settings
+            .update_app(serde_json::from_str(r#"{"verifyAudiobooks":true}"#).unwrap())
+            .unwrap();
+        let refused = settings
+            .update_app(serde_json::from_str(r#"{"aligner":{"baseUrl":"not a url"}}"#).unwrap());
+
+        assert!(refused.is_err());
+        let saved = Settings::new(Config::open(
+            dir.path(),
+            &Library::open_in_memory().unwrap(),
+        ))
+        .app();
+        assert_eq!(
+            (saved.cache_limit_bytes, saved.verify_audiobooks),
+            (Some(1000), true)
+        );
+        assert_eq!(saved.aligner, None);
     }
 }

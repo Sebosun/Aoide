@@ -637,3 +637,25 @@ fn the_first_poisoned_lock_is_reported_once() {
     assert_eq!(problems.len(), 1, "{problems:?}");
     assert_eq!(problems[0]["error"]["kind"], "internal");
 }
+
+/// A library in memory holding books `ids` (rows only, no files).
+pub(super) fn library_with(ids: &[&str]) -> Arc<Mutex<Library>> {
+    let library = Library::open_in_memory().unwrap();
+    for id in ids {
+        library
+            .upsert_book(
+                &aoide_library::NewBook {
+                    id: aoide_library::BookId((*id).into()),
+                    path: format!("/books/{id}.epub").into(),
+                    title: Some(format!("Book {id}")),
+                    authors: vec![],
+                    language: None,
+                    cover_path: None,
+                    error: None,
+                },
+                0,
+            )
+            .unwrap();
+    }
+    Arc::new(Mutex::new(library))
+}

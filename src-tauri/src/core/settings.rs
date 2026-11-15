@@ -68,7 +68,7 @@ where
 
 impl AppSettingsPatch {
     /// `settings` with this change made.
-    fn apply(self, mut settings: AppSettings) -> AppSettings {
+    pub(super) fn apply(self, mut settings: AppSettings) -> AppSettings {
         fn set<T>(field: &mut T, value: Option<T>) {
             if let Some(value) = value {
                 *field = value;
@@ -159,9 +159,7 @@ pub struct AlignerSettings {
 
 impl Core {
     pub fn app_settings(&self) -> AppSettings {
-        lock(&self.config)
-            .get::<AppSettings>(super::config::APP)
-            .unwrap_or_default()
+        self.settings.app()
     }
 
     /// Replaces every app setting (for tests and smoke runs; the window sends patches).
@@ -172,26 +170,7 @@ impl Core {
     /// Merges `patch` into the saved app settings, checks and saves them, and does what the
     /// change asks for. Returns the settings now saved; an invalid change saves nothing.
     pub fn update_app_settings(&self, patch: AppSettingsPatch) -> Result<AppSettings, String> {
-        let (before, settings) = {
-            // Read, merge and write under one lock, so concurrent patches both land.
-            let mut config = lock(&self.config);
-            let before = config
-                .get::<AppSettings>(super::config::APP)
-                .unwrap_or_default();
-            let settings = patch.apply(before.clone());
-            settings.recognition.validate()?;
-            if let Some(aligner) = &settings.aligner {
-                aoide_aligner::Aligner::new(aoide_aligner::Options {
-                    base_url: aligner.base_url.clone(),
-                    network: aligner.network,
-                    ..Default::default()
-                })
-                .map_err(|e| e.to_string())?;
-            }
-            config.update(|file| file.set_section(super::config::APP, &settings))?;
-            (before, settings)
-        };
-        tracing::info!(event = "config.saved", section = "app", changed = %changed_keys(&before, &settings), "Saved the app settings");
+        let (before, settings) = self.settings.update_app(patch)?;
         if before.recognition != settings.recognition {
             // Another model size or a recognition server may be what a waiting sync needs.
             self.models_changed();
@@ -206,7 +185,7 @@ impl Core {
 }
 
 /// The names of the settings that differ between `before` and `after` (never their values).
-fn changed_keys(before: &impl Serialize, after: &impl Serialize) -> String {
+pub(super) fn changed_keys(before: &impl Serialize, after: &impl Serialize) -> String {
     let (Ok(serde_json::Value::Object(before)), Ok(serde_json::Value::Object(after))) =
         (serde_json::to_value(before), serde_json::to_value(after))
     else {
