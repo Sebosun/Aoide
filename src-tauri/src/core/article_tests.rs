@@ -358,6 +358,25 @@ async fn a_refetch_keeps_whichever_copy_has_more() {
 }
 
 #[tokio::test]
+async fn a_partial_copy_is_replaced_only_by_a_fuller_one() {
+    let pages = Pages::with(&[(LIGHTS_URL, &cut_short())]);
+    let (_dir, core, id) = saved(&pages).await;
+    assert_eq!(settled(&core, &id).await, Stage::NeedsYou(Reason::CutShort));
+    let kept = core.article(&id).unwrap().captured_words;
+
+    // The site now shows a sign-in page with less on it: the copy stays as it was.
+    pages.set(
+        LIGHTS_URL,
+        Ok("<html><head><title>Sign in</title></head><body><p>Sign in to keep reading.</p></body></html>".into()),
+    );
+    core.refetch_article(&id, ArticleSource::Http).unwrap();
+    until("the shorter fetch is done", || pages.asks() == 2).await;
+    assert_eq!(settled(&core, &id).await, Stage::NeedsYou(Reason::CutShort));
+    assert_eq!(core.article(&id).unwrap().captured_words, kept);
+    assert_eq!(core.chapter(&id, 0).unwrap().blocks.len(), 4);
+}
+
+#[tokio::test]
 async fn removing_an_article_deletes_its_folder_and_it_can_be_saved_again() {
     let pages = Pages::with(&[(LIGHTS_URL, LIGHTS)]);
     let (dir, core, id) = saved(&pages).await;

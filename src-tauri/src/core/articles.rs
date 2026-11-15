@@ -464,11 +464,13 @@ impl Articles {
             Ok(snapshot) => {
                 let fresh = extract(&snapshot.html, &snapshot.final_url);
                 let old = stored.as_deref().map(|html| extract(html, &base));
+                // A copy is replaced only by a fuller one: more of the text, or all of it.
                 let better = match &old {
                     None => true,
                     Some(old) => {
-                        old.completeness != Completeness::Complete
-                            || fresh.meta.word_count > old.meta.word_count
+                        fresh.meta.word_count > old.meta.word_count
+                            || (fresh.completeness == Completeness::Complete
+                                && old.completeness != Completeness::Complete)
                     }
                 };
                 if better {

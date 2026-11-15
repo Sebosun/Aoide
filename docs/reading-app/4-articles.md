@@ -287,3 +287,35 @@ Update `README.md` and `docs/roadmap.md`.
   captured, never in an item that looks complete but is not.
 - With the network unplugged, saved articles open and a new link ends in "Could not be
   fetched".
+
+## Notes from implementation
+
+- The migration is library v10 (phase 3 used v9). The `articles` table also keeps `lead`: the
+  page's description, else its first paragraph, cut at about 200 characters, for cards.
+- 4.2–4.4: `extract()` is infallible and returns `Extracted { document, meta, completeness,
+  feeds }`; an empty page is `Completeness::Empty`, not an error. dom_smoothie is pinned at
+  0.18 (0.19 needs Rust 1.85; the MSRV is 1.77). html5ever and dom_smoothie are super-linear
+  in nesting depth, so a page nested deeper than `ExtractOptions.max_depth` (256, measured by a
+  linear lexical scan first) is read as plain text with its chrome skipped. A JSON-LD
+  `headline` is used only when it shares most words with `og:title` or `<title>` (an
+  encyclopedia puts a description there); else its `name`, else the page's title.
+- 4.6: `fetching::Event` has `Started`, `Got`, `FetchFailed`, `Retried` and `Interrupted`
+  (a fetch cut off by quitting is queued again on start); there is no `Removed` event, since
+  removing an article deletes its row.
+- 4.7–4.8: a refetch that fails keeps the stored copy and returns to that copy's stage, with
+  "Could not fetch it again. …" in `error` (the reader's notice and the item page show it). A
+  new copy replaces the stored one only when it is fuller: more words, or complete where the
+  stored one is not.
+- 4.9: the Add dialog is not prefilled from the clipboard (reading it needs a permission
+  prompt); a link pasted outside a text field, or dropped, opens Add with it filled in. A link
+  dropped on the native window may not arrive (WebKitGTK passes only files). The UI checks a
+  link with `asLink` before asking the core, which decides.
+- 4.10: `open_original` opens the canonical address through an `Environment.open_link` hook
+  (tests record it). The needs-you notice stays through a fetch again, its actions disabled,
+  and says when that fetch failed. In the reader's margin an article has no chapter menu.
+- 4.12: the archived copy is fetched from `https://web.archive.org/web/{timestamp}id_/{url}`
+  (the `id_` form is the page as archived, without the archive's toolbar).
+- An article's word count is stored when its copy is kept, so lists show its reading time
+  before it is first opened.
+- 4.13: the opt-in real-network test is `crates/fetch/tests/live_page.rs`, `#[ignore]`d like
+  the other local-only tests, with the address in `AOIDE_TEST_ARTICLE_URL`.

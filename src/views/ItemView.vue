@@ -406,7 +406,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
         <p v-if="article?.stage.kind === 'needsYou'" class="item-page__problem" role="status">
           <TriangleAlert :size="15" aria-hidden="true" /> Needs you · {{ NEEDS[article.stage.reason] }}
         </p>
-        <p v-else-if="article?.stage.kind === 'failed' && article.error" class="item-page__problem" role="alert">
+        <p v-if="article?.error && !busy" class="item-page__problem" role="alert">
           <TriangleAlert :size="15" aria-hidden="true" /> {{ article.error }}
         </p>
         <button

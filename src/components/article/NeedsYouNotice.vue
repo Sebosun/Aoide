@@ -56,9 +56,7 @@ const copy = computed(() => {
       <button type="button" class="needs-you__button" @click="emit('original')">Open original</button>
     </div>
     <p v-if="busy" class="needs-you__status" role="status">Fetching again…</p>
-    <p v-else-if="article.stage.kind === 'failed' && article.error" class="needs-you__status" role="alert">
-      The last fetch failed: {{ article.error }}
-    </p>
+    <p v-else-if="article.error" class="needs-you__status" role="alert">{{ article.error }}</p>
     <p class="needs-you__kept">
       Kept so far: {{ words(article.capturedWords) }} words. Nothing is replaced until a fuller copy arrives.
     </p>

@@ -28,6 +28,7 @@ Aoide reads your EPUB books aloud with a text-to-speech engine that runs on your
 - **A real player.** Gapless playback, 0.5× to 3× speed without the chipmunk effect, sleep timer, bookmarks with notes, chapter skipping, media keys and your desktop's now-playing controls. It remembers where you stopped.
 - **Footnotes done right.** Notes are left out of the narration and shown beside the text. You can have them read aloud after their paragraph instead.
 - **A tidy library.** Drop EPUBs on the window, or let Aoide find the ones already scattered around your computer. Covers, progress, collections and per-book details from Open Library if you want them.
+- **Articles too.** Paste a link to an article and Aoide fetches the page once, keeps its readable text, and reads or narrates it like a book. If a site shows only part of it (a sign-in, a paywall), Aoide says so instead of pretending it is complete.
 - **Home and activity.** Home picks up where you left off and shows what is next. Activity has your time per day and per book, streaks, and a heat map of the last six months.
 - **Bring your own audiobook.** Own the DRM-free audiobook of a book? Pair it with the EPUB and the narrator's recording plays with the same sentence and word highlighting. Aoide listens to it once on your computer to find where each sentence is.
 - **Take it with you.** Export any book as an M4B audiobook with chapters and cover, for your phone or another player. A book paired with its audiobook exports as a read-along EPUB instead (EPUB 3 Media Overlays), which highlights each sentence in other reading apps that support them.
@@ -68,6 +69,7 @@ When you skip around, it waits a moment for you to settle and then starts from w
 - Book text goes only to the speech server you set up, and by default Aoide refuses any server that isn't on the same computer. If your speech server runs on another machine at home (say, one with a better graphics card), tick *Allow addresses on my home network* in Settings.
 - Open Library sees a book's title, first author and ISBN only when you click *Find details online*. You can turn lookups off completely in Settings.
 - Pairing an audiobook downloads a speech-recognition model from huggingface.co once, when you press **Download** in **Settings → Recordings**. It is checked against a fixed checksum. The recording itself is only read on your computer.
+- Saving an article fetches its page (and its lead image) once, from the site you linked, with no cookies or account. Aoide only fetches public addresses, never your home network. **Try an archived copy** asks the Internet Archive (archive.org) for its copy of that page.
 - There is no account, no telemetry and no update check.
 
 ## Getting started
@@ -188,6 +190,7 @@ Any of these works:
 - Click **Add** in the sidebar (or press <kbd>Ctrl</kbd> <kbd>N</kbd>), then **Choose books…**.
 - Click **Add → Scan for books…** to find EPUBs on your computer you haven't added yet.
 - Copy files into `~/Documents/Aoide/Books` yourself. Aoide notices.
+- For an article, paste its link anywhere on the window (or drop it there), or put it in **Add → A link to an article**, and press **Save article**.
 
 Open a book and read, or press **Listen**.
 
@@ -202,6 +205,8 @@ Open a book and read, or press **Listen**.
 **Exporting.** **Export as M4B**, in a book's menu in the library or under **Narration** in the book tools, saves an audiobook file with chapter marks and cover to `~/Documents/Aoide/Exports`. This needs [`ffmpeg`](https://ffmpeg.org/) installed. A book whose own audiobook is synced offers **Export read-along EPUB** instead. It saves `<title> (read-along).epub` there: the text with the recording inside, which other reading apps with EPUB 3 Media Overlays play with sentence highlighting. MP3, M4B/M4A and Ogg Opus recordings go in unchanged. Other formats are converted with ffmpeg. Images and the book's own styling are not carried over.
 
 **Your own audiobook.** Drop the audiobook's files (M4B, M4A, MP3, FLAC, Ogg or WAV; one file or a folder of parts) on the window, or choose **Add audiobook…** in a book's menu, then pick the book it reads. Aoide first checks three short samples against the text, then listens to the whole recording in the background; the sidebar shows its progress and you can pause it. The first time, it asks you to download a speech-recognition model (about 140 MB) in **Settings → Recordings**. You don't have to wait: **Listen now** plays what is synced so far, and if you catch up with the sync, playback waits for it. When it's done, the book plays the recording instead of the speech engine, with the same highlighting and controls. **See the report** on the book's page shows how much of the text was found in each chapter and lists narration that isn't in the text, such as credits. Under **Narration** in the book tools you can switch a book back to the speech engine at any time, or turn on **Speak what the recording lacks**: chapters and passages the narrator skipped are then read by the speech engine in the book's voice instead of being passed over. Sentences that were read aloud but not recognised are left to the recording, so nothing is heard twice. **Find books** also looks beside each EPUB it finds for that book's audiobook: a file or folder with the book's title in its name, in the same folder or the one above. New books can be imported with their audiobooks paired, and a book already in the library gets a **Pair…** button that opens the same check. For books already in your library, **Add → Find audiobooks…** searches your home folder (or the folders you set there) and lists each book without a recording next to up to three audiobooks with close names: most of the title's words, a misspelling allowed. An audiobook with exactly the title's words is listed alone, and an audiobook is offered only to the book it fits best, so one audiobook is never paired with two books. Pick one per book and pair the ones you select, or all of them. Books you add later are looked up too, and the screen opens when audiobooks were found for them. If you'd rather not confirm each one, turn on **Settings → Recordings → Let Aoide verify audiobook matches**. Aoide then pairs each book's closest audiobook itself. If the quick check fails, it tries the next audiobook, and leaves the book unpaired if none pass. Your audio files are never changed or copied, and recordings protected by DRM (Audible AAX, for example) can't be used.
+
+**Articles.** A saved article shows in the library as a tile with its site and first lines while it is fetched. Read it, or press **Listen** to have it narrated; its headings are in the reader's header, where a book has its chapters. If the page gave only part of the article, it is marked **Needs you** and the reader explains why after the text: **Fetch again**, **Try an archived copy**, or **Open original** to read it on the site. A copy is replaced only by a fuller one. Pairing an audiobook and looking up details online are for books only.
 
 **Storage.** Generated audio is kept so nothing is made twice. Set a size limit in **Settings → Storage**; the oldest audio goes first, never the book you're listening to or preparing.
 
@@ -235,6 +240,7 @@ The same list is in **Settings → About**.
 | Settings | `~/.config/aoide/settings.toml` |
 | Colour themes | `~/.config/aoide/themes/*.toml` |
 | Library, progress, bookmarks, covers | `~/.local/share/com.aoide.audiobooks` |
+| Saved articles (each page as fetched, and its image) | `~/.local/share/com.aoide.audiobooks/articles` |
 | Speech-recognition models | `~/.local/share/com.aoide.audiobooks/models` |
 | Generated audio | `~/.cache/com.aoide.audiobooks` (safe to delete; it's made again when needed) |
 
@@ -307,6 +313,8 @@ Per-book settings, progress and bookmarks live in the library database, not in t
 
 **Syncing is slow.** It runs at about 25 times real time on a processor. Choose a smaller model in **Settings → Recordings**, raise the thread count, or build with a graphics card (see *Build Aoide*). If you already run a speech-recognition server with the OpenAI transcription API and word timestamps (faster-whisper-server, LocalAI), choose **A recognition server** there instead; like the speech server, it must be on this computer unless you allow your home network. Syncing pauses when you quit and carries on next time.
 
+**An article says *Needs you* or *Could not be fetched*.** *Needs you* means the page held back part of the article (a sign-in, a paywall, a check that you are a person) or looked cut short; what was captured is still readable. **Try an archived copy** often has the whole text. *Could not be fetched* gives the reason on its card; pages that only show their text after running scripts cannot be saved yet.
+
 **Export as M4B is missing or fails.** Install `ffmpeg` and make sure it's on your `PATH`.
 
 **The word highlight drifts a little.** That's the estimate at work. Try *Exact word timing* above.
@@ -336,6 +344,9 @@ The browser preview at `http://127.0.0.1:1420` runs the whole interface against 
 | Crate | What it does |
 | --- | --- |
 | [`crates/epub-parser`](crates/epub-parser/README.md) | Reads an EPUB into ordered chapters of typed blocks, with metadata, cover, excluded front/back matter (with reasons) and warnings. Deterministic, no network. |
+| `crates/document` | The parsed-book model (chapters of typed blocks, warnings) shared by EPUBs and articles. |
+| `crates/article` | Extracts an article's readable text, metadata and completeness from a stored web page. Deterministic, no network. |
+| `crates/fetch` | Fetches a page once over plain HTTP: public addresses only, redirects checked, size and time limits; the Internet Archive lookup. |
 | `crates/segmenter` | Splits text into sentences and speech segments with stable ids; estimates word timings. |
 | `crates/tts` | The `SpeechEngine` trait every engine implements, settings descriptors for the UI, address rules, cache keys, and a conformance kit for adapters. |
 | [`crates/chatterbox-client`](crates/chatterbox-client/README.md) | Chatterbox TTS Server adapter. |
