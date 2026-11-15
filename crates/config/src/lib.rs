@@ -14,6 +14,9 @@ use std::path::{Path, PathBuf};
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+mod sites;
+pub use sites::{site_host, Fallback, SiteData, SiteFetch, SiteRule, SiteRules, SITE_RULES_FILE};
+
 /// File name of the settings file inside the config folder.
 pub const SETTINGS_FILE: &str = "settings.toml";
 /// Folder of theme files inside the config folder.
