@@ -4,10 +4,12 @@ import {
   AudioLines,
   BookOpen,
   Check,
+  CircleCheck,
   FolderPlus,
   Headphones,
   Library,
   Mic,
+  RotateCcw,
   Settings2,
   Sparkles,
   TriangleAlert,
@@ -79,7 +81,15 @@ const authors = computed(
 );
 const progress = computed(() => summary.value?.progress ?? overview.value?.progress ?? null);
 const percent = computed(() => Math.round((progress.value?.fraction ?? 0) * 100));
-const state = computed(() => (progress.value ? `${percent.value}%` : "unread"));
+const finished = computed(() => summary.value?.readState === "finished");
+const state = computed(() => (finished.value ? "finished" : progress.value ? `${percent.value}%` : "unread"));
+async function markRead() {
+  try {
+    await library.markRead(props.bookId, finished.value ? "unread" : "finished");
+  } catch (e) {
+    error.value = String(e);
+  }
+}
 /** The Audio card's body: a recording (syncing or synced), speech, or nothing set up yet. */
 const audio = computed<"none" | "speech" | "recording">(() => {
   const book = summary.value;
@@ -230,6 +240,10 @@ const collectionItems = computed<MenuEntry[]>(() => {
               <Library :size="17" aria-hidden="true" /> Add to collection
             </button>
           </UiMenu>
+          <button v-if="summary" type="button" class="item-page__secondary" @click="markRead">
+            <component :is="finished ? RotateCcw : CircleCheck" :size="17" aria-hidden="true" />
+            {{ finished ? "Mark as unread" : "Mark as finished" }}
+          </button>
         </div>
         <template v-if="loading">
           <p class="visually-hidden" role="status" aria-label="Loading book details">Loading book details…</p>

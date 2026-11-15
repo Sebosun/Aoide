@@ -59,7 +59,7 @@ it("keeps missing books greyed in the grid and lists books that failed to import
   wrapper.unmount();
 });
 
-it("filters by unread, in progress, can listen and preparing, from the core's fields", async () => {
+it("filters by unread, in progress, finished, can listen and preparing, from the core's fields", async () => {
   const wrapper = await library();
   const chip = (name: string) => wrapper.get(`[role="group"][aria-label="Filter books"] [aria-label^="${name}"]`);
   expect(chip("All").text()).toContain("4");
@@ -68,6 +68,8 @@ it("filters by unread, in progress, can listen and preparing, from the core's fi
   await chip("In progress").trigger("click");
   expect(titles(wrapper)).toEqual(["The Lantern Keeper"]);
   expect(chip("In progress").attributes("aria-pressed")).toBe("true");
+  await chip("Finished").trigger("click");
+  expect(titles(wrapper)).toEqual([]);
   mock.setAudioSourceForTest("book-3", "recording");
   await flushPromises();
   await chip("Can listen").trigger("click");
@@ -372,5 +374,32 @@ it("only opens a started book when nothing is playing", async () => {
   await flushPromises();
   expect(useReaderStore().book?.id).toBe("book-1");
   expect(play).not.toHaveBeenCalled();
+  wrapper.unmount();
+});
+
+it("marks a book finished and unread again from its card menu", async () => {
+  const wrapper = await library();
+  const chip = (name: string) => wrapper.get(`[role="group"][aria-label="Filter books"] [aria-label^="${name}"]`);
+  const line = () =>
+    wrapper
+      .findAll(".book-card")
+      .find((card) => card.text().includes("The Lantern Keeper"))!
+      .get(".book-card__status")
+      .text();
+  await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
+  await flushPromises();
+  await pickMenuItem("Mark as finished");
+  expect(line()).toBe("Text + voice · finished");
+  await chip("Finished").trigger("click");
+  expect(titles(wrapper)).toEqual(["The Lantern Keeper"]);
+
+  await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
+  await flushPromises();
+  expect(openMenu()?.textContent).not.toContain("Mark as finished");
+  await pickMenuItem("Mark as unread");
+  expect(titles(wrapper)).toEqual([]);
+  await chip("Unread").trigger("click");
+  expect(titles(wrapper)).toContain("The Lantern Keeper");
+  expect(line()).toBe("Text + voice · unread");
   wrapper.unmount();
 });

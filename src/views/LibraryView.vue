@@ -18,6 +18,7 @@ const FILTERS: { value: BuiltInFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "unread", label: "Unread" },
   { value: "progress", label: "In progress" },
+  { value: "finished", label: "Finished" },
   { value: "listen", label: "Can listen" },
   { value: "preparing", label: "Preparing" },
 ];

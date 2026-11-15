@@ -148,3 +148,23 @@ it("leaves the listening section out for a book nobody has listened to", async (
   expect(wrapper.find('[aria-label="Your listening"]').exists()).toBe(false);
   wrapper.unmount();
 });
+
+it("marks the book finished, and unread again, from its page", async () => {
+  const wrapper = await app();
+  await wrapper.get('[aria-label="Open A Map of Quiet Places"]').trigger("click");
+  await flushPromises();
+  const about = page(wrapper);
+  await about
+    .findAll("button")
+    .find((b) => b.text() === "Mark as finished")!
+    .trigger("click");
+  await flushPromises();
+  expect(about.get(".item-page__kind").text()).toBe("Book · finished");
+  const button = about.findAll("button").find((b) => b.text() === "Mark as unread");
+  expect(button).toBeDefined();
+  await button!.trigger("click");
+  await flushPromises();
+  expect(about.get(".item-page__kind").text()).toBe("Book · unread");
+  expect(about.findAll("button").some((b) => b.text() === "Mark as finished")).toBe(true);
+  wrapper.unmount();
+});

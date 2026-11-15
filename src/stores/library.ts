@@ -4,14 +4,15 @@ import { api } from "../api";
 import { useNavigationStore } from "./navigation";
 import type { BookProgress, BookSummary, Collection, ImportResult, LibrarySort } from "../api/types";
 
-export type BuiltInFilter = "all" | "unread" | "progress" | "listen" | "preparing";
+export type BuiltInFilter = "all" | "unread" | "progress" | "finished" | "listen" | "preparing";
 /** A built-in filter, or one collection. */
 export type LibraryFilter = BuiltInFilter | `collection:${number}`;
 /** Each filter reads one field the core sends; none works out state of its own. */
 const filters: Record<BuiltInFilter, (book: BookSummary) => boolean> = {
   all: () => true,
-  unread: (book) => !book.progress,
-  progress: (book) => Boolean(book.progress) && (book.progress?.fraction ?? 0) < 1,
+  unread: (book) => book.readState === "unread",
+  progress: (book) => book.readState === "inProgress",
+  finished: (book) => book.readState === "finished",
   listen: (book) => book.audio !== "none",
   preparing: (book) => Boolean(book.prepare && book.prepare.state !== "done"),
 };
@@ -76,6 +77,11 @@ export const useLibraryStore = defineStore("library", () => {
     } catch (e) {
       error.value = String(e);
     }
+  }
+  /** Marks a book finished, or unread (which also forgets where the user was in it). */
+  async function markRead(id: string, state: "finished" | "unread") {
+    await (state === "finished" ? api.markFinished(id) : api.markUnread(id));
+    await refresh();
   }
   async function setReadingWpm(wpm: number) {
     readingWpm.value = (await api.updateAppSettings({ readingWpm: wpm })).readingWpm;
@@ -189,6 +195,7 @@ export const useLibraryStore = defineStore("library", () => {
     collection,
     readingWpm,
     setReadingWpm,
+    markRead,
     setProgress,
     createCollection,
     renameCollection,

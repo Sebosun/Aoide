@@ -1,6 +1,18 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { BookDown, Download, Ellipsis, Eraser, FolderOpen, FolderPlus, Headphones, Info, Trash2 } from "@lucide/vue";
+import {
+  BookDown,
+  CircleCheck,
+  Download,
+  Ellipsis,
+  Eraser,
+  FolderOpen,
+  FolderPlus,
+  Headphones,
+  Info,
+  RotateCcw,
+  Trash2,
+} from "@lucide/vue";
 import type { SyncStage } from "../../api/types";
 import { useRecordingsStore } from "../../stores/recordings";
 import { useCollections } from "../../composables/useCollections";
@@ -43,7 +55,7 @@ const RECORDING: Record<SyncStage, string> = {
 const HAS = { none: "Text", speech: "Text + voice", recording: "Text + recording" } as const;
 const status = computed(() => {
   const { prepare, progress, recording, audio } = props.book;
-  const along = progress ? `${percent.value}%` : "unread";
+  const along = props.book.readState === "finished" ? "finished" : progress ? `${percent.value}%` : "unread";
   if (prepare && prepare.state !== "done") return describePreparation(preparationStatus(prepare));
   if (recording && recording !== "ready")
     return progress?.fraction
@@ -104,6 +116,20 @@ const items = computed<MenuEntry[]>(() => {
     list: MenuEntry[] = [];
   if (!unavailable.value) {
     list.push({ id: "details", label: "Details", icon: Info, action: () => emit("details") });
+    if (book.readState !== "finished")
+      list.push({
+        id: "finished",
+        label: "Mark as finished",
+        icon: CircleCheck,
+        action: () => act(() => library.markRead(book.id, "finished")),
+      });
+    if (book.readState !== "unread")
+      list.push({
+        id: "unread",
+        label: "Mark as unread",
+        icon: RotateCcw,
+        action: () => act(() => library.markRead(book.id, "unread")),
+      });
     list.push({
       id: "folder",
       label: "Show in folder",
