@@ -561,6 +561,39 @@ async fn remove_browser(core: CoreState<'_>) -> Result<(), CoreError> {
 }
 
 #[tauri::command]
+fn sites(core: CoreState<'_>) -> Result<Vec<crate::core::SiteView>, CoreError> {
+    Ok(core.sites()?)
+}
+
+#[tauri::command]
+fn set_site_rule(
+    core: CoreState<'_>,
+    host: String,
+    fetch: Option<aoide_config::SiteFetch>,
+    site_data: aoide_config::SiteData,
+) -> Result<(), CoreError> {
+    Ok(core.set_site_rule(&host, fetch, site_data)?)
+}
+
+#[tauri::command]
+async fn sign_out_site(core: CoreState<'_>, host: String) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.sign_out_site(&host).await?)
+}
+
+#[tauri::command]
+async fn forget_site(core: CoreState<'_>, host: String) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.forget_site(&host).await?)
+}
+
+#[tauri::command]
+async fn clear_browser_data(core: CoreState<'_>) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.clear_browser_data().await?)
+}
+
+#[tauri::command]
 fn refetch_article(
     core: CoreState<'_>,
     book_id: String,
@@ -1071,6 +1104,11 @@ pub fn run() {
             download_browser,
             cancel_browser_download,
             remove_browser,
+            sites,
+            set_site_rule,
+            sign_out_site,
+            forget_site,
+            clear_browser_data,
             article,
             feeds,
             subscribe,

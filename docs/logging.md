@@ -102,11 +102,14 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | **Browser** (optional, off by default) | | | |
 | `browser.start` | info | `visible`, `outcome` (`ok`, `failed`), `error` | `core/browsing.rs` `ChromeDriver`, a browser process started (headless to render, visible to sign in) |
 | `browser.render` | info | `outcome` (`ok`, `failed`), `took_ms`, `error` | `core/browsing.rs` `render`, one page rendered for an article |
-| `browser.stop` | info | `outcome` (`idle`, `off` when turned off, `removed`, `quit`, `failed`) | `core/browsing.rs` `idle` / `stop` |
+| `browser.stop` | info | `outcome` (`idle`, `off` when turned off, `removed`, `cleared`, `quit`, `failed`) | `core/browsing.rs` `idle` / `stop` |
 | `browser.download` | info | `version`, `resumed_from` (bytes kept from an earlier try), `outcome` (`ok`, `cancelled`, `failed`), `took_ms`, `error` | `core/browser_download.rs` `download` |
 | `browser.download.stage` | info | `from`, `to` | `core/browser_download.rs` `step`, where the download stage's `next` is applied |
 | `browser.remove` | info | | `core/browser_download.rs` `remove`, the downloaded browser deleted |
-| `browser.profile` | info | `outcome` (`unlocked`: a lock a crashed browser left) | `crates/browser` `Browser::launch` |
+| `browser.profile` | info | `outcome` (`unlocked`: a lock a crashed browser left; `cleared`: all browser data removed) | `crates/browser` `Browser::launch`; `core/browsing.rs` `clear_profile` |
+| `site.rule` | info | (no host: which sites are read is not logged) | `core/sites.rs` `set_site_rule`, written to site-rules.toml |
+| `site.sign_out` | info | (no host: which sites are read is not logged) | `core/sites.rs` `sign_out_site`, its browser data cleared |
+| `site.forget` | info | (no host: which sites are read is not logged) | `core/sites.rs` `forget_site`, its data, row and rule dropped |
 | `browser.clear` | debug | `error` (an origin's storage that could not be cleared) | `crates/browser` `clear_site` |
 | `browser.proxy` | debug | `error` (a proxied connection that ended badly) | `crates/browser` `proxy.rs` |
 | `feed.clean` | info / warn | `removed` (entries), `orphans` (items no entry needs), `book`, `error` | `core/feeds.rs` `clean`, daily and after Check now |

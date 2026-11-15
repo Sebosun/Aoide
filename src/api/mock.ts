@@ -13,6 +13,7 @@ import type {
   ModelDownloadView,
   BrowserDownloadView,
   BrowserStatusView,
+  SiteView,
   SyncReportView,
   PrepareState,
   Preferences,
@@ -282,6 +283,15 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       offeredVersion: BROWSER_VERSION,
       downloaded: browserDownloaded,
     };
+  };
+  /** Sites, as the core lists them (core/sites.rs): rows joined with rules, by host. */
+  const sites = new Map<string, SiteView>([
+    ["harbour.example", { host: "harbour.example", session: { kind: "signedIn", at: Date.parse("2026-11-02T09:00:00Z") }, fetch: null, siteData: "keep" }],
+    ["quay.example", { host: "quay.example", session: { kind: "askedFor", reason: "paywall", at: Date.parse("2026-11-14T18:30:00Z") }, fetch: "browser", siteData: "keep" }],
+  ]);
+  const siteHost = (host: string) => host.trim().toLowerCase().replace(/^www\./, "");
+  const browserOff = () => {
+    if (appSettings.browser.use === "off") throw new Error("The browser is off. Turn it on in Settings › Sites.");
   };
   const tellBrowserDownload = (change: Partial<BrowserDownloadView>) => {
     browserDownload = { ...browserDownload!, ...change };
@@ -1897,6 +1907,28 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     onArticleState: (h) => subscribe(articleHandlers, h),
     onModelDownload: (h) => subscribe(downloadHandlers, h),
     onBrowserDownload: (h) => subscribe(browserDownloadHandlers, h),
+    async sites() {
+      return [...sites.values()].sort((a, b) => a.host.localeCompare(b.host)).map((s) => structuredClone(s));
+    },
+    async setSiteRule(host, fetch, siteData) {
+      const key = siteHost(host);
+      if (!key) throw new Error("No site was named.");
+      sites.set(key, { ...(sites.get(key) ?? { host: key, session: { kind: "none" } }), fetch, siteData });
+    },
+    async signOutSite(host) {
+      browserOff();
+      const site = sites.get(siteHost(host));
+      if (site && (site.session.kind === "signedIn" || site.session.kind === "checkPassed"))
+        site.session = { kind: "none" };
+    },
+    async forgetSite(host) {
+      browserOff();
+      sites.delete(siteHost(host));
+    },
+    async clearBrowserData() {
+      for (const site of sites.values())
+        if (site.session.kind === "signedIn" || site.session.kind === "checkPassed") site.session = { kind: "none" };
+    },
     async browserStatus() {
       return browserStatus();
     },

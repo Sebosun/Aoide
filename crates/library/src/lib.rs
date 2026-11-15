@@ -13,11 +13,13 @@ mod articles;
 mod feeds;
 mod merge;
 mod recordings;
+mod sites;
 mod store;
 pub use activity::{ActivityStats, BookActivity, DayActivity};
 pub use articles::ArticleRow;
 pub use feeds::{EntryListing, EntryRow, FeedRow, NewEntry};
 pub use recordings::{RecordingRow, StoredSyncMap, TranscriptBlock};
+pub use sites::SiteRow;
 
 /// Lower-case hex SHA-256 of the EPUB file bytes.
 #[derive(

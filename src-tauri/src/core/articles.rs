@@ -586,6 +586,13 @@ impl Articles {
         };
         let (from, _) = fetching.names();
         self.store_stage(&book, from, to, error.as_deref());
+        if let (Stage::NeedsYou(reason), Some(site)) = (to, site_of(&row.canonical_url)) {
+            // The site is listed in Settings › Sites with what it asked for.
+            let wall = lock(&self.library).site_wall(&site, reason.name(), super::now_ms());
+            if let Err(error) = wall {
+                tracing::warn!(event = "library.save", %error, "Could not note the site's wall");
+            }
+        }
         if let Ok(view) = self.view(id) {
             host.article_changed(view, written);
         }
@@ -813,6 +820,12 @@ impl Articles {
             })
             .map_err(|e| e.to_string())
     }
+}
+
+/// The site an address is listed under (`www.` dropped).
+pub(super) fn site_of(url: &str) -> Option<String> {
+    let url = Url::parse(url).ok()?;
+    url.host_str().map(aoide_config::site_host)
 }
 
 /// Whether `fresh` is a fuller copy than `kept`: more of the text, or all of it.

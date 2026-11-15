@@ -868,6 +868,18 @@ offeredVersion: string | null,
  */
 downloaded: boolean, };
 
+export type SiteFetch = "http" | "browser";
+
+export type SiteData = "keep" | "clear_before_fetch";
+
+export type SiteSession = { "kind": "signedIn", at: number, } | { "kind": "checkPassed", at: number, } | { "kind": "askedFor", reason: FetchReason, at: number, } | { "kind": "none" };
+
+export type SiteView = { host: string, session: SiteSession, 
+/**
+ * `None`: follows the global choice.
+ */
+fetch: SiteFetch | null, siteData: SiteData, };
+
 /** Every event Core emits, by name, with its payload. */
 export type CoreEvents = {
   "library://changed": null,
@@ -966,6 +978,11 @@ export type Commands = {
   "download_browser": { args: Record<string, never>; result: void };
   "cancel_browser_download": { args: Record<string, never>; result: void };
   "remove_browser": { args: Record<string, never>; result: void };
+  "sites": { args: Record<string, never>; result: SiteView[] };
+  "set_site_rule": { args: { host: string; fetch: SiteFetch | null; siteData: SiteData }; result: void };
+  "sign_out_site": { args: { host: string }; result: void };
+  "forget_site": { args: { host: string }; result: void };
+  "clear_browser_data": { args: Record<string, never>; result: void };
   "refetch_article": { args: { bookId: string; source: ArticleSource }; result: void };
   "article": { args: { bookId: string }; result: ArticleView };
   "feeds": { args: Record<string, never>; result: FeedView[] };

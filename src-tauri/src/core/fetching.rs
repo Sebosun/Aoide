@@ -95,7 +95,7 @@ impl Stage {
 }
 
 impl Reason {
-    fn name(self) -> &'static str {
+    pub(super) fn name(self) -> &'static str {
         match self {
             Reason::SignIn => "sign_in",
             Reason::Paywall => "paywall",
@@ -105,7 +105,7 @@ impl Reason {
         }
     }
 
-    fn from_name(name: &str) -> Option<Reason> {
+    pub(super) fn from_name(name: &str) -> Option<Reason> {
         [
             Reason::SignIn,
             Reason::Paywall,

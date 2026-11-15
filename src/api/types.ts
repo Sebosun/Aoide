@@ -13,6 +13,9 @@ import type {
   ArticleSource,
   BrowserDownloadView,
   BrowserStatusView,
+  SiteData,
+  SiteFetch,
+  SiteView,
   ArticleView,
   AddedLink,
   EntryFilter,
@@ -270,6 +273,17 @@ export interface AoideApi {
   /** Deletes the downloaded browser. */
   removeBrowser(): Promise<void>;
   onBrowserDownload(handler: (download: BrowserDownloadView) => void): Promise<() => void>;
+  /** Sites that needed the user or have a rule, by host. */
+  sites(): Promise<SiteView[]>;
+  /** How a site is fetched (null: as the global choice) and whether its data is kept; written
+   *  to site-rules.toml. */
+  setSiteRule(host: string, fetch: SiteFetch | null, siteData: SiteData): Promise<void>;
+  /** Clears the site's cookies and storage in the browser (refused while it is off). */
+  signOutSite(host: string): Promise<void>;
+  /** Signs out of the site and drops its row and rule. */
+  forgetSite(host: string): Promise<void>;
+  /** Removes the browser's profile: every sign-in and all site data. */
+  clearBrowserData(): Promise<void>;
   /** An article's source and where its fetch stands. */
   article(bookId: string): Promise<ArticleView>;
   /** Opens an article's page, as it was kept, in the system's browser. */

@@ -43,6 +43,7 @@ pub use facets::HomeView;
 pub use feeds::{
     AddedLink, EntryFilter, EntryQuery, EntryView, FeedView, OpmlImport, SubscribeResult,
 };
+pub use sites::SiteView;
 mod generation;
 mod shelf;
 use generation::PlanEvent;
@@ -66,6 +67,7 @@ pub use reading::{ReadState, ReadingMode, Shape};
 mod recording;
 mod recordings;
 mod settings;
+mod sites;
 mod syncing;
 pub use recording::{
     InspectionView, Narration, RecognitionOptions, RecordingView, SyncAction, SyncReportView,

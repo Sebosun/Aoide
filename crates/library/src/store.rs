@@ -9,7 +9,7 @@ impl Library {
         conn.pragma_update(None, "foreign_keys", true)?;
         let tx = conn.transaction()?;
         let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if !(0..=11).contains(&version) {
+        if !(0..=12).contains(&version) {
             return Err(LibraryError::Corrupt(format!(
                 "unsupported schema version {version}"
             )));
@@ -262,6 +262,19 @@ impl Library {
                 CREATE INDEX feed_entries_feed ON feed_entries(feed_id, published_at);",
             )?;
             tx.pragma_update(None, "user_version", 11)?;
+        }
+        if version <= 11 {
+            // Sites that needed the user (a sign-in, a check) and whether they are passed.
+            tx.execute_batch(
+                "CREATE TABLE sites (
+                    host TEXT PRIMARY KEY NOT NULL,
+                    signed_in_at INTEGER,
+                    check_passed_at INTEGER,
+                    last_wall TEXT,
+                    last_wall_at INTEGER
+                );",
+            )?;
+            tx.pragma_update(None, "user_version", 12)?;
         }
         tx.commit()?;
         Ok(Self { conn })

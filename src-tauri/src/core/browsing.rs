@@ -357,6 +357,55 @@ impl Browsing {
         lock(&self.rules).rule_for(host).map(|(_, rule)| rule)
     }
 
+    /// The hosts with a rule.
+    pub fn rule_hosts(&self) -> Vec<String> {
+        lock(&self.rules).hosts()
+    }
+
+    /// Sets the parts of `host`'s rule Settings edits, keeping the rest, and saves the file.
+    pub fn set_rule(
+        &self,
+        host: &str,
+        fetch: Option<SiteFetch>,
+        site_data: SiteData,
+    ) -> Result<(), String> {
+        let mut rules = lock(&self.rules);
+        rules.set(host, fetch, site_data);
+        rules.save(&self.rules_path).map_err(|e| e.to_string())
+    }
+
+    /// Drops `host`'s rule and saves the file.
+    pub fn forget_rule(&self, host: &str) -> Result<(), String> {
+        let mut rules = lock(&self.rules);
+        rules.remove(host);
+        rules.save(&self.rules_path).map_err(|e| e.to_string())
+    }
+
+    /// Deletes the whole profile (every sign-in and all site data), shutting the browser down
+    /// first.
+    pub async fn clear_profile(&self) -> Result<(), String> {
+        if self.driver.running() {
+            self.driver.shutdown().await;
+            *lock(&self.last_used) = None;
+            tracing::info!(
+                event = "browser.stop",
+                outcome = "cleared",
+                "Shut the browser down"
+            );
+        }
+        match std::fs::remove_dir_all(self.profile_dir()) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+            _ => {
+                tracing::info!(
+                    event = "browser.profile",
+                    outcome = "cleared",
+                    "Removed all browser data"
+                );
+                Ok(())
+            }
+        }
+    }
+
     /// Reads the rules file again after it changed on disk.
     pub fn reload_rules(&self) {
         match lock(&self.rules).reload(&self.rules_path) {
@@ -433,7 +482,6 @@ impl Browsing {
     }
 
     /// Forgets `host`'s browser data.
-    #[allow(dead_code)] // TODO(6.7): Settings › Sites uses it.
     pub async fn clear_site(&self, host: &dyn BrowsingHost, site: &str) -> Result<(), String> {
         let launch = self.ready(host)?;
         let _in_use = InUse::new(self, host);
@@ -676,6 +724,8 @@ pub(super) mod testing {
         pub rendered: Mutex<Vec<RenderRequest>>,
         /// The program each start ran.
         pub started: Mutex<Vec<PathBuf>>,
+        /// The sites whose data was cleared.
+        pub cleared: Mutex<Vec<String>>,
         pub shutdowns: AtomicUsize,
         running: AtomicBool,
     }
@@ -728,8 +778,15 @@ pub(super) mod testing {
             Box::pin(async { Err("No windows in this test.".into()) })
         }
 
-        fn clear_site<'a>(&'a self, _: &'a Launch, _: &'a str) -> Pending<'a, Result<(), String>> {
-            Box::pin(async { Ok(()) })
+        fn clear_site<'a>(
+            &'a self,
+            _: &'a Launch,
+            host: &'a str,
+        ) -> Pending<'a, Result<(), String>> {
+            Box::pin(async move {
+                self.cleared.lock().unwrap().push(host.to_owned());
+                Ok(())
+            })
         }
 
         fn running(&self) -> bool {

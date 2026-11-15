@@ -168,6 +168,10 @@ fn contract() -> String {
         super::browser_download::BrowserDownloadView,
         super::browsing::BrowserBinaryView,
         super::browsing::BrowserStatusView,
+        aoide_config::SiteFetch,
+        aoide_config::SiteData,
+        super::sites::SiteSession,
+        super::sites::SiteView,
     );
     // Type aliases the commands use.
     names.insert("Params".into(), name::<aoide_tts::Params>(&config));

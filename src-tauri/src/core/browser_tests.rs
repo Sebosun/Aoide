@@ -222,3 +222,84 @@ async fn the_status_names_the_browser_and_runs_it_for_its_version_only_once_turn
     assert!(s.core.download_browser().await.is_err());
     assert_eq!(s.core.browser_status().offered_version, None);
 }
+
+#[tokio::test]
+async fn a_site_that_needs_the_user_is_listed_with_its_rule_and_can_be_signed_out_or_forgotten() {
+    use super::sites::SiteSession;
+    use aoide_config::{SiteData, SiteFetch};
+    let s = setup(
+        BrowserUse::Fallback,
+        "[\"lantern.example\"]\nfetch = \"http\"\n",
+    );
+    s.pages.set(LIGHTS_URL, Ok(cut_short()));
+    s.browser.set(LIGHTS_URL, Err("timed out"));
+    let id = s.core.save_article(LIGHTS_URL).unwrap();
+    assert_eq!(
+        settled(&s.core, &id).await,
+        Stage::NeedsYou(Reason::CutShort)
+    );
+    let sites = s.core.sites().unwrap();
+    let hosts: Vec<_> = sites.iter().map(|v| v.host.as_str()).collect();
+    assert_eq!(hosts, ["lantern.example", "quay.example"]);
+    assert_eq!(sites[0].fetch, Some(SiteFetch::Http));
+    assert!(matches!(
+        sites[1].session,
+        SiteSession::AskedFor {
+            reason: Reason::CutShort,
+            ..
+        }
+    ));
+
+    // A rule set in Settings is written to the file, keeping what was written by hand.
+    s.core
+        .set_site_rule(
+            "www.quay.example",
+            Some(SiteFetch::Browser),
+            SiteData::ClearBeforeFetch,
+        )
+        .unwrap();
+    let file = std::fs::read_to_string(s.dir.path().join("config/site-rules.toml")).unwrap();
+    assert!(
+        file.contains("[\"quay.example\"]") && file.contains("clear_before_fetch"),
+        "{file}"
+    );
+    assert!(file.contains("[\"lantern.example\"]"));
+    let quay = s.core.sites().unwrap().pop().unwrap();
+    assert_eq!(
+        (quay.fetch, quay.site_data),
+        (Some(SiteFetch::Browser), SiteData::ClearBeforeFetch)
+    );
+
+    s.core.sign_out_site("quay.example").await.unwrap();
+    s.core.forget_site("lantern.example").await.unwrap();
+    assert_eq!(
+        *s.browser.cleared.lock().unwrap(),
+        ["quay.example", "lantern.example"]
+    );
+    let hosts: Vec<_> = s
+        .core
+        .sites()
+        .unwrap()
+        .into_iter()
+        .map(|v| v.host)
+        .collect();
+    assert_eq!(hosts, ["quay.example"]);
+    let file = std::fs::read_to_string(s.dir.path().join("config/site-rules.toml")).unwrap();
+    assert!(!file.contains("lantern.example"), "{file}");
+}
+
+#[tokio::test]
+async fn with_the_browser_off_sites_are_not_cleared_and_clearing_everything_removes_the_profile() {
+    let s = setup(BrowserUse::Off, "");
+    assert_eq!(
+        s.core.sign_out_site("quay.example").await,
+        Err(BROWSER_OFF.into())
+    );
+    assert!(s.browser.cleared.lock().unwrap().is_empty());
+
+    let profile = s.dir.path().join("data/browser/profile");
+    std::fs::create_dir_all(profile.join("Default")).unwrap();
+    std::fs::write(profile.join("Default/Cookies"), "kept").unwrap();
+    s.core.clear_browser_data().await.unwrap();
+    assert!(!profile.exists());
+}
