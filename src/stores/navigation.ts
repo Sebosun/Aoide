@@ -39,9 +39,12 @@ export const useNavigationStore = defineStore("navigation", () => {
   /** The Add dialog, over the current screen. */
   const addOpen = ref(false),
     /** A link to fill in when the dialog opens (one pasted or dropped on the window). */
-    addLink = ref("");
-  const openAdd = (link = "") => {
+    addLink = ref(""),
+    /** "subscribe" when it was opened to subscribe to a feed (from Feeds). */
+    addMode = ref<"add" | "subscribe">("add");
+  const openAdd = (link = "", mode: "add" | "subscribe" = "add") => {
     addLink.value = link;
+    addMode.value = mode;
     addOpen.value = true;
   };
   const closeAdd = () => (addOpen.value = false);
@@ -80,6 +83,7 @@ export const useNavigationStore = defineStore("navigation", () => {
     leaveReader,
     addOpen,
     addLink,
+    addMode,
     openAdd,
     closeAdd,
     settingsOpen,

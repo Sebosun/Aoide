@@ -601,7 +601,11 @@ via: ArticleSource | null, fetchedAt: number | null, capturedWords: number, decl
 /**
  * Feeds the page links to.
  */
-feeds: Array<DiscoveredFeed>, };
+feeds: Array<DiscoveredFeed>, 
+/**
+ * Kept in the library; false while it was only opened from a feed.
+ */
+inLibrary: boolean, };
 
 export type ArticleSummary = { 
 /**
@@ -636,6 +640,8 @@ export type FeedView = { id: number, title: string | null, url: string, siteUrl:
 error: string | null, lastOkAt: number | null, };
 
 export type SubscribeResult = { "kind": "subscribed", "value": FeedView } | { "kind": "choose", "value": Array<DiscoveredFeed> } | { "kind": "notAFeed" };
+
+export type AddedLink = { "kind": "subscribed", "value": FeedView } | { "kind": "saved", "value": string };
 
 export type EntryFilter = "all" | "unread" | "saved";
 
@@ -896,6 +902,7 @@ export type Commands = {
   "refetch_article": { args: { bookId: string; source: ArticleSource }; result: void };
   "article": { args: { bookId: string }; result: ArticleView };
   "feeds": { args: Record<string, never>; result: FeedView[] };
+  "add_link": { args: { url: string }; result: AddedLink };
   "subscribe": { args: { url: string }; result: SubscribeResult };
   "unsubscribe": { args: { feedId: number }; result: void };
   "feed_entries": { args: { feedId: number | null; filter: EntryFilter; before: number | null; limit: number | null }; result: EntryView[] };
@@ -903,6 +910,7 @@ export type Commands = {
   "save_feed_entry": { args: { entryId: number }; result: string };
   "mark_entry_read": { args: { entryId: number; read: boolean }; result: void };
   "mark_all_read": { args: { feedId: number | null }; result: void };
+  "save_to_library": { args: { bookId: string }; result: void };
   "open_feed_site": { args: { feedId: number }; result: void };
   "check_feeds": { args: Record<string, never>; result: void };
   "unmatched_audiobooks": { args: Record<string, never>; result: AudiobookSuggestion[] };

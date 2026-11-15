@@ -558,6 +558,12 @@ fn feeds(core: CoreState<'_>) -> Result<Vec<crate::core::FeedView>, CoreError> {
 }
 
 #[tauri::command]
+async fn add_link(core: CoreState<'_>, url: String) -> Result<crate::core::AddedLink, CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.add_link(&url).await?)
+}
+
+#[tauri::command]
 async fn subscribe(
     core: CoreState<'_>,
     url: String,
@@ -606,6 +612,11 @@ fn mark_entry_read(core: CoreState<'_>, entry_id: i64, read: bool) -> Result<(),
 #[tauri::command]
 fn mark_all_read(core: CoreState<'_>, feed_id: Option<i64>) -> Result<(), CoreError> {
     Ok(core.mark_all_read(feed_id)?)
+}
+
+#[tauri::command]
+fn save_to_library(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
+    Ok(core.save_to_library(&book_id)?)
 }
 
 #[tauri::command]
@@ -993,6 +1004,8 @@ pub fn run() {
             unsubscribe,
             check_feeds,
             open_feed_site,
+            add_link,
+            save_to_library,
             feed_entries,
             open_feed_entry,
             save_feed_entry,

@@ -154,6 +154,7 @@ pub(super) const LIGHTS: &str = r#"<!doctype html><html lang="en"><head>
 <meta property="og:site_name" content="Quay Weekly">
 <meta property="og:title" content="The Quay Lights">
 <meta name="author" content="Ada Brightwater">
+<link rel="alternate" type="application/rss+xml" title="Quay Weekly" href="/feed.xml">
 </head><body><nav><a href="/">Home</a></nav><article><h1>The Quay Lights</h1>
 <p>Every evening at dusk the harbour master walks the length of the quay and lights the lamps one by one, starting at the slipway and ending by the lifeboat house.</p>
 <h2>Why by hand</h2>

@@ -33,6 +33,10 @@ const wide = useMediaQuery("(min-width: 1000px)");
 const scroller = ref<HTMLElement>();
 const { article, openOriginal } = useOpenArticle();
 const articles = useArticlesStore();
+/** Keeps the open article, opened from a feed, in the library. */
+const keep = () => {
+  if (reader.book) articles.keep(reader.book.id).catch((e) => (reader.error = String(e)));
+};
 /** Why the article needs the user, kept through a fetch again until one gets all of it. */
 const needs = ref<FetchReason | null>(null);
 watch(
@@ -152,6 +156,7 @@ const next = computed(() => {
               :words="reader.book.wordCount"
               :wpm="library.readingWpm"
               @original="openOriginal"
+              @save="keep"
             />
           </template>
           <template v-if="article && needs" #after>

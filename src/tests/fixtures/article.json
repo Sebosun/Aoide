@@ -5,9 +5,16 @@
     "capturedWords": 93,
     "declaredWords": null,
     "error": null,
-    "feeds": [],
+    "feeds": [
+      {
+        "subscribed": false,
+        "title": "Quay Weekly",
+        "url": "https://quay.example/feed.xml"
+      }
+    ],
     "fetchedAt": 205,
     "id": "book-6",
+    "inLibrary": true,
     "publishedAt": null,
     "siteName": "Quay Weekly",
     "stage": {

@@ -420,7 +420,9 @@ mod through_core {
 
     use super::super::article_tests::{Pages, LIGHTS, LIGHTS_URL};
     use super::super::articles::ArticleSource;
-    use super::super::feeds::{next_shelf, EntryFilter, EntryQuery, ItemShelf, ShelfEvent};
+    use super::super::feeds::{
+        next_shelf, AddedLink, EntryFilter, EntryQuery, ItemShelf, ShelfEvent,
+    };
     use super::super::fetching::Stage;
     use super::super::tests::{library_folder, start_fetching, until};
     use super::super::Core;
@@ -537,6 +539,44 @@ mod through_core {
         let back = entry(&core, "The night ferry");
         assert!(!back.in_library);
         assert_eq!(back.book_id.as_deref(), Some(id.as_str()));
+    }
+
+    #[tokio::test]
+    async fn the_reader_saves_an_item_opened_from_a_feed() {
+        let pages = Pages::with(&[]);
+        let (_dir, core) = subscribed(&pages).await;
+        let id = core
+            .open_feed_entry(entry(&core, "The night ferry").id)
+            .unwrap();
+        assert!(!core.article(&id).unwrap().in_library);
+
+        core.save_to_library(&id).unwrap();
+        assert!(core.article(&id).unwrap().in_library);
+        assert!(in_library(&core, &id));
+        assert!(entry(&core, "The night ferry").in_library);
+        // Saving again changes nothing.
+        core.save_to_library(&id).unwrap();
+        assert!(in_library(&core, &id));
+    }
+
+    #[tokio::test]
+    async fn a_link_added_is_subscribed_when_it_is_a_feed_and_saved_when_it_is_a_page() {
+        let pages = Pages::with(&[(LIGHTS_URL, LIGHTS)]);
+        pages.feed(HARBOUR, &feed(), "v1");
+        let dir = tempfile::tempdir().unwrap();
+        library_folder(dir.path(), "");
+        let (core, _) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+
+        match core.add_link(HARBOUR).await.unwrap() {
+            AddedLink::Subscribed(feed) => assert_eq!(feed.url, HARBOUR),
+            other => panic!("{other:?}"),
+        }
+        let id = match core.add_link(LIGHTS_URL).await.unwrap() {
+            AddedLink::Saved(id) => id,
+            other => panic!("{other:?}"),
+        };
+        assert!(in_library(&core, &id));
+        assert!(core.add_link("not a link").await.is_err());
     }
 
     #[tokio::test]

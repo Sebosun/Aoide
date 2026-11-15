@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api } from "../api";
 import type { EntryView, FeedView } from "../api/types";
+import { useArticlesStore } from "./articles";
 import { useLibraryStore } from "./library";
 import { useReaderStore } from "./reader";
 
@@ -58,6 +59,7 @@ export const useFeedsStore = defineStore("feeds", () => {
   async function choose(next: FeedsSource) {
     source.value = next;
     entries.value = [];
+    await start();
     await refresh();
   }
   /** The next page of older entries. */
@@ -72,6 +74,8 @@ export const useFeedsStore = defineStore("feeds", () => {
   async function open(entry: EntryView) {
     try {
       const id = await api.openFeedEntry(entry.id);
+      // The reader shows it as an article (with Save to library) from the start.
+      await useArticlesStore().load(id);
       await useReaderStore().open(id);
     } catch (e) {
       error.value = String(e);

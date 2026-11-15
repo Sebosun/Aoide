@@ -1,5 +1,6 @@
 import type {
   ArticleView,
+  AddedLink,
   EntryView,
   FeedView,
   SubscribeResult,
@@ -587,6 +588,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   let entries: EntryView[] = (structuredClone(fixtureFeeds.entries) as EntryView[])
     .filter((e) => feeds.some((f) => f.id === e.feedId))
     .map((e) => ({ ...e, at: loaded + e.at }));
+  /** An address that names a feed by its usual file name. */
+  const isFeedAddress = (link: string) => /(feed|rss|atom)(\.xml|\.json)?\/?$/i.test(link);
   /** Items opened from a feed and not saved. */
   const feedShelf = new Set<string>();
   const inLibrary = (id: string | null) => id !== null && books.some((b) => b.id === id) && !feedShelf.has(id);
@@ -605,6 +608,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     if (!books.some((b) => b.id === id)) {
       id = addArticle({ kind: "ready" });
       feedShelf.add(id);
+      setArticle(id, { inLibrary: false });
       home.upNextIds = home.upNextIds.filter((other) => other !== id);
       home.recentIds = home.recentIds.filter((other) => other !== id);
     }
@@ -855,6 +859,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       // As the core does: an item an entry still opens goes back to the feed shelf.
       if (entries.some((e) => e.bookId === id) && !feedShelf.has(id)) {
         feedShelf.add(id);
+        setArticle(id, { inLibrary: false });
         changed();
         feedsChanged();
         return;
@@ -1536,7 +1541,17 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       const link = parseLink(url).href;
       const known = feedViews().find((f) => f.url === link);
       if (known) return { kind: "subscribed", value: known };
-      if (!/(feed|rss|atom)(\.xml|\.json)?\/?$/i.test(link)) return { kind: "notAFeed" };
+      if (!isFeedAddress(link)) {
+        // A site's front page names two feeds; any other page none.
+        if (new URL(link).pathname !== "/") return { kind: "notAFeed" };
+        return {
+          kind: "choose",
+          value: [
+            { url: new URL("/feed.xml", link).href, title: "Articles", subscribed: false },
+            { url: new URL("/comments/feed.xml", link).href, title: "Comments", subscribed: false },
+          ].map((f) => ({ ...f, subscribed: feeds.some((known) => known.url === f.url) })),
+        };
+      }
       const feed: FeedView = {
         id: Math.max(0, ...feeds.map((f) => f.id)) + 1,
         title: new URL(link).hostname,
@@ -1548,6 +1563,10 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         lastOkAt: Date.now(),
       };
       feeds = [...feeds, feed].sort((a, b) => (a.title ?? a.url).localeCompare(b.title ?? b.url));
+      // Articles that name it now say it is subscribed.
+      for (const [id, view] of articles)
+        if (view.feeds.some((f) => f.url === link))
+          setArticle(id, { feeds: view.feeds.map((f) => (f.url === link ? { ...f, subscribed: true } : f)) });
       feedsChanged();
       return { kind: "subscribed", value: feed };
     },
@@ -1574,10 +1593,21 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async saveFeedEntry(entryId) {
       const id = entryItem(getEntry(entryId));
-      feedShelf.delete(id);
-      changed();
-      feedsChanged();
+      await api.saveToLibrary(id);
       return id;
+    },
+    async saveToLibrary(id) {
+      if (!feedShelf.delete(id)) return;
+      setArticle(id, { inLibrary: true });
+      feedsChanged();
+    },
+    /** As the core does: a feed address subscribes, anything else is saved as an article. */
+    async addLink(url): Promise<AddedLink> {
+      if (isFeedAddress(parseLink(url).href)) {
+        const result = await api.subscribe(url);
+        if (result.kind === "subscribed") return result;
+      }
+      return { kind: "saved", value: await api.saveArticle(url) };
     },
     async markEntryRead(entryId, read) {
       getEntry(entryId).read = read;

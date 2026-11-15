@@ -1,7 +1,8 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import { api } from "../api";
-import type { ArticleSource, ArticleView } from "../api/types";
+import type { ArticleSource, ArticleView, FeedView } from "../api/types";
+import { useFeedsStore } from "./feeds";
 import { useLibraryStore } from "./library";
 import { useNavigationStore } from "./navigation";
 import { useReaderStore } from "./reader";
@@ -36,6 +37,30 @@ export const useArticlesStore = defineStore("articles", () => {
     await useLibraryStore().refresh();
     return id;
   }
+  /** A link given to Add: a feed is subscribed and Feeds opens on it; anything else is saved
+   *  as an article and the library opens to show it being fetched. */
+  async function add(link: string) {
+    await start();
+    const added = await api.addLink(link);
+    if (added.kind === "saved") {
+      const navigation = useNavigationStore();
+      navigation.closeAdd();
+      navigation.view = "library";
+      await useLibraryStore().refresh();
+    } else await showFeed(added.value);
+  }
+  /** Feeds, on the feed `feed`. */
+  async function showFeed(feed: FeedView) {
+    const navigation = useNavigationStore();
+    navigation.closeAdd();
+    navigation.view = "feeds";
+    await useFeedsStore().choose({ kind: "feed", id: feed.id });
+  }
+  /** Keeps an article opened from a feed in the library. */
+  async function keep(id: string) {
+    await api.saveToLibrary(id);
+    await Promise.all([load(id), useLibraryStore().refresh()]);
+  }
   async function refetch(id: string, source: ArticleSource) {
     await start();
     await api.refetchArticle(id, source);
@@ -47,5 +72,5 @@ export const useArticlesStore = defineStore("articles", () => {
     unlisten = undefined;
     startup = undefined;
   }
-  return { byId, start, load, save, refetch, openOriginal, dispose };
+  return { byId, start, load, save, add, showFeed, keep, refetch, openOriginal, dispose };
 });

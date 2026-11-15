@@ -133,6 +133,17 @@ pub enum SubscribeResult {
     NotAFeed,
 }
 
+/// What a link given to Add became.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", tag = "kind", content = "value")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum AddedLink {
+    /// It was a feed: subscribed (or already).
+    Subscribed(FeedView),
+    /// It was a page: saved as an article, with this id.
+    Saved(String),
+}
+
 /// Where an item is kept: in the library, or on the feed shelf (opened from a feed, not
 /// saved; out of every library list).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -321,6 +332,15 @@ impl Feeds {
         }
     }
 
+    /// The shelf item `id` is on, when it exists.
+    pub fn shelf_of(&self, id: &str) -> Option<ItemShelf> {
+        lock(&self.library)
+            .book(&aoide_library::BookId(id.into()))
+            .ok()
+            .flatten()
+            .map(|b| ItemShelf::stored(&b.shelf))
+    }
+
     fn view_of(&self, id: i64) -> Result<FeedView, String> {
         self.views()?
             .into_iter()
@@ -441,6 +461,17 @@ impl Feeds {
                     .collect(),
             )),
         }
+    }
+
+    /// Subscribes to `link` when it is a feed; `None` when it is anything else (a page, or an
+    /// address that does not answer).
+    pub async fn subscribe_if_feed(
+        &self,
+        host: &dyn FeedsHost,
+        link: &str,
+    ) -> Result<Option<FeedView>, String> {
+        let url = parse_link(link)?;
+        Ok(self.subscribe_feed(host, &url).await.unwrap_or(None))
     }
 
     /// Subscribes to `url` when it is a feed; `None` when it is not one.
@@ -811,6 +842,14 @@ impl super::Core {
         self.feeds.subscribe(self, url).await
     }
 
+    /// A link given to Add: a feed is subscribed, anything else is saved as an article.
+    pub async fn add_link(&self, url: &str) -> Result<AddedLink, String> {
+        if let Some(feed) = self.feeds.subscribe_if_feed(self, url).await? {
+            return Ok(AddedLink::Subscribed(feed));
+        }
+        self.save_article(url).map(AddedLink::Saved)
+    }
+
     pub fn unsubscribe(&self, id: i64) -> Result<(), String> {
         self.feeds.unsubscribe(self, id)
     }
@@ -917,6 +956,11 @@ impl super::Core {
         Ok(())
     }
 
+    /// Keeps item `id`, opened from a feed, in the library (the reader's "Save to library").
+    pub fn save_to_library(&self, id: &str) -> Result<(), String> {
+        self.move_shelf(id, ShelfEvent::Saved)
+    }
+
     /// Instead of deleting item `id` from the library, returns it to the feed shelf when an
     /// entry still points at it; whether it did.
     pub(super) fn unsave(&self, id: &str) -> Result<bool, String> {
@@ -962,6 +1006,9 @@ impl super::Core {
             );
             self.emit(super::CoreEvent::LibraryChanged);
             self.emit(super::CoreEvent::FeedsChanged);
+            if let Ok(view) = self.article(id) {
+                self.emit(super::CoreEvent::ArticleState(view));
+            }
         }
         Ok(())
     }

@@ -1,14 +1,23 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { ExternalLink } from "@lucide/vue";
+import { computed, ref, watch } from "vue";
+import { BookmarkCheck, BookmarkPlus, ExternalLink } from "@lucide/vue";
 import type { ArticleView } from "../../api/types";
 import { formatDuration, readingMs } from "../../estimate";
+import FeedOffer from "./FeedOffer.vue";
 import { siteOf } from "../../articles";
 
 /** The top of an article in the reader: its site, date and reading time, a way to the
- *  original page, then its title and byline. */
+ *  original page, then its title and byline. One opened from a feed offers Save to library,
+ *  and says it is in the library once saved. */
 const props = defineProps<{ article: ArticleView; title: string; authors: string[]; words: number; wpm: number }>();
-const emit = defineEmits<{ original: [] }>();
+const emit = defineEmits<{ original: []; save: [] }>();
+const fromFeed = ref(!props.article.inLibrary);
+watch(
+  () => props.article.inLibrary,
+  (kept) => {
+    if (!kept) fromFeed.value = true;
+  },
+);
 const published = computed(() =>
   props.article.publishedAt === null
     ? null
@@ -31,9 +40,16 @@ const readTime = computed(() => `${formatDuration(readingMs(props.words, props.w
       <button type="button" class="article-header__original" @click="emit('original')">
         Open original<ExternalLink :size="13" aria-hidden="true" />
       </button>
+      <button v-if="!article.inLibrary" type="button" class="article-header__save" @click="emit('save')">
+        <BookmarkPlus :size="15" aria-hidden="true" />Save to library
+      </button>
+      <span v-else-if="fromFeed" class="article-header__kept"
+        ><BookmarkCheck :size="15" aria-hidden="true" />In your library</span
+      >
     </div>
     <h1 class="article-header__title">{{ title }}</h1>
     <p v-if="byline" class="article-header__byline">{{ byline }}</p>
+    <FeedOffer class="article-header__offer" :article="article" />
   </header>
 </template>
 
@@ -68,6 +84,24 @@ const readTime = computed(() => `${formatDuration(readingMs(props.words, props.w
   text-decoration: underline;
 }
 .article-header__original:hover {
+  color: var(--ink);
+}
+.article-header__save,
+.article-header__kept {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.article-header__save {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 18px;
+  background: var(--ink);
+  color: var(--ground);
+}
+.article-header__kept {
   color: var(--ink);
 }
 .article-header__title {

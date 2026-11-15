@@ -37,7 +37,7 @@ mod feeds;
 mod fetching;
 pub use articles::{ArticleSource, ArticleSummary, ArticleView};
 pub use facets::HomeView;
-pub use feeds::{EntryFilter, EntryQuery, EntryView, FeedView, SubscribeResult};
+pub use feeds::{AddedLink, EntryFilter, EntryQuery, EntryView, FeedView, SubscribeResult};
 mod generation;
 mod shelf;
 use generation::PlanEvent;

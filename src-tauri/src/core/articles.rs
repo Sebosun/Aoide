@@ -161,6 +161,8 @@ pub struct ArticleView {
     pub declared_words: Option<u64>,
     /// Feeds the page links to.
     pub feeds: Vec<DiscoveredFeed>,
+    /// Kept in the library; false while it was only opened from a feed.
+    pub in_library: bool,
 }
 
 /// What a library card shows of an article.
@@ -454,6 +456,7 @@ impl Articles {
             captured_words: row.word_count.unwrap_or(0),
             declared_words: row.declared_words,
             feeds,
+            in_library: true,
         })
     }
 
@@ -763,7 +766,7 @@ impl ArticlesHost for super::Core {
             self.shelf.unload(&view.id);
         }
         self.emit(super::CoreEvent::LibraryChanged);
-        self.emit(super::CoreEvent::ArticleState(self.subscriptions_in(view)));
+        self.emit(super::CoreEvent::ArticleState(self.completed(view)));
     }
 }
 
@@ -773,7 +776,7 @@ impl super::Core {
         let (id, view) = self.articles.save(link, super::now_ms())?;
         if let Some(view) = view {
             self.emit(super::CoreEvent::LibraryChanged);
-            self.emit(super::CoreEvent::ArticleState(self.subscriptions_in(view)));
+            self.emit(super::CoreEvent::ArticleState(self.completed(view)));
         }
         Ok(id)
     }
@@ -781,22 +784,22 @@ impl super::Core {
     /// Fetches article `id` again, from the page or an archived copy.
     pub fn refetch_article(&self, id: &str, source: ArticleSource) -> Result<(), String> {
         if let Some(view) = self.articles.queue_fetch(id, source)? {
-            self.emit(super::CoreEvent::ArticleState(self.subscriptions_in(view)));
+            self.emit(super::CoreEvent::ArticleState(self.completed(view)));
         }
         Ok(())
     }
 
     pub fn article(&self, id: &str) -> Result<ArticleView, String> {
-        self.articles
-            .view(id)
-            .map(|view| self.subscriptions_in(view))
+        self.articles.view(id).map(|view| self.completed(view))
     }
 
-    /// `view` with the feeds it names marked when they are subscribed.
-    fn subscriptions_in(&self, mut view: ArticleView) -> ArticleView {
+    /// `view` with the feeds it names marked when they are subscribed, and whether it is kept
+    /// in the library.
+    pub(super) fn completed(&self, mut view: ArticleView) -> ArticleView {
         for feed in &mut view.feeds {
             feed.subscribed = self.feeds.subscribed(&feed.url);
         }
+        view.in_library = self.feeds.shelf_of(&view.id) != Some(super::feeds::ItemShelf::Feed);
         view
     }
 

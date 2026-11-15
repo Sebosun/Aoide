@@ -151,3 +151,75 @@ it("says when nothing is new", async () => {
   await flushPromises();
   expect(wrapper.get(".feeds__empty").text()).toContain("Nothing saved yet");
 });
+
+const reader = (wrapper: ReturnType<typeof mount>) => wrapper.get('[aria-label="About this article"]');
+
+it("reads an entry opened from a feed with Save to library, then says it is in the library", async () => {
+  const wrapper = await openFeeds();
+  await entry(wrapper, "The ferry that runs on the tide table").get(".feed-entry__open").trigger("click");
+  await flushPromises();
+  expect((await mock.listBooks()).some((b) => b.kind === "article")).toBe(false);
+  await reader(wrapper).get("button.article-header__save").trigger("click");
+  await flushPromises();
+  expect(reader(wrapper).find("button.article-header__save").exists()).toBe(false);
+  expect(reader(wrapper).get(".article-header__kept").text()).toBe("In your library");
+  expect((await mock.listBooks()).some((b) => b.kind === "article")).toBe(true);
+});
+
+const addDialog = () => document.body.querySelector<HTMLElement>('[role="dialog"][aria-label="Add to your library"]');
+async function submitLink(wrapper: ReturnType<typeof mount>, link: string) {
+  const field = wrapper.get<HTMLInputElement>('[role="dialog"] input[type="url"]');
+  await field.setValue(link);
+  await wrapper.get('[role="dialog"] form').trigger("submit");
+  await flushPromises();
+}
+
+it("subscribes when the link given to Add is a feed, and shows it in Feeds", async () => {
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  useNavigationStore().openAdd();
+  await flushPromises();
+  expect(addDialog()!.textContent).toContain("A link to an article or a feed");
+  await submitLink(wrapper, "https://lanterns.example/feed.xml");
+  expect(addDialog()).toBeNull();
+  expect(useNavigationStore().view).toBe("feeds");
+  expect(wrapper.get(".feeds__source[aria-current='true']").text()).toContain("lanterns.example");
+});
+
+it("offers a site's feeds to choose from when subscribing to the site", async () => {
+  const wrapper = await openFeeds();
+  await wrapper
+    .findAll("button")
+    .find((b) => b.text() === "Subscribe")!
+    .trigger("click");
+  await flushPromises();
+  expect(addDialog()!.textContent).toContain("A feed, or a site that has one");
+  await submitLink(wrapper, "https://lanterns.example/");
+  const choices = wrapper.findAll('[role="dialog"] .add-dialog__choice');
+  expect(choices.map((c) => c.get(".add-dialog__choice-title").text())).toEqual(["Articles", "Comments"]);
+  await choices[0].get("button").trigger("click");
+  await flushPromises();
+  expect(addDialog()).toBeNull();
+  expect(wrapper.get(".feeds__source[aria-current='true']").text()).toContain("lanterns.example");
+
+  await wrapper
+    .findAll("button")
+    .find((b) => b.text() === "Subscribe")!
+    .trigger("click");
+  await submitLink(wrapper, "https://lanterns.example/about");
+  expect(wrapper.get('[role="dialog"] [role="alert"]').text()).toBe("No feed was found at that address.");
+});
+
+it("offers the feed of an article's site in the reader", async () => {
+  start("?article=ready");
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await useReaderStore().open("book-6");
+  await flushPromises();
+  const offer = wrapper.get(".feed-offer");
+  expect(offer.text()).toContain("This site has a feed: Quay Weekly");
+  await offer.get("button").trigger("click");
+  await flushPromises();
+  expect(wrapper.find(".feed-offer").exists()).toBe(false);
+  expect((await mock.feeds()).some((f) => f.url === "https://quay.example/feed.xml")).toBe(true);
+});

@@ -105,7 +105,7 @@ onBeforeUnmount(() => watcher?.disconnect());
           type="button"
           class="feeds__button feeds__button--main"
           aria-haspopup="dialog"
-          @click="navigation.openAdd()"
+          @click="navigation.openAdd('', 'subscribe')"
         >
           <Plus :size="16" aria-hidden="true" />Subscribe
         </button>
@@ -120,7 +120,7 @@ onBeforeUnmount(() => watcher?.disconnect());
         type="button"
         class="feeds__button feeds__button--main"
         aria-haspopup="dialog"
-        @click="navigation.openAdd()"
+        @click="navigation.openAdd('', 'subscribe')"
       >
         <Plus :size="16" aria-hidden="true" />Subscribe
       </button>

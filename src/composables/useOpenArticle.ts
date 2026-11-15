@@ -9,7 +9,12 @@ export function useOpenArticle() {
   const reader = useReaderStore(),
     library = useLibraryStore(),
     articles = useArticlesStore();
-  const isArticle = computed(() => library.books.find((b) => b.id === reader.book?.id)?.kind === "article");
+  // An item opened from a feed is not on the library's lists; its article view says what it is.
+  const isArticle = computed(
+    () =>
+      !!reader.book &&
+      (library.books.find((b) => b.id === reader.book!.id)?.kind === "article" || !!articles.byId[reader.book.id]),
+  );
   watch(
     () => (isArticle.value ? reader.book?.id : undefined),
     (id) => {

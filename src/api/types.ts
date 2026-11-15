@@ -12,6 +12,7 @@ import type {
   Appearance,
   ArticleSource,
   ArticleView,
+  AddedLink,
   EntryFilter,
   EntryView,
   FeedView,
@@ -260,6 +261,10 @@ export interface AoideApi {
   article(bookId: string): Promise<ArticleView>;
   /** Opens an article's page, as it was kept, in the system's browser. */
   openOriginal(bookId: string): Promise<void>;
+  /** A link given to Add: a feed is subscribed, anything else is saved as an article. */
+  addLink(url: string): Promise<AddedLink>;
+  /** Keeps an item opened from a feed in the library (the reader's "Save to library"). */
+  saveToLibrary(bookId: string): Promise<void>;
   /** Subscriptions, by title, with their unread counts and health. */
   feeds(): Promise<FeedView[]>;
   /** Subscribes to a feed address, or to the one feed a page links to; a page with several

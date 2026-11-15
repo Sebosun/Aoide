@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { FilePlus, FolderOpen, FolderSearch, Headphones, RefreshCw, X } from "@lucide/vue";
+import { FilePlus, FolderOpen, FolderSearch, Headphones, RefreshCw, Rss, X } from "@lucide/vue";
+import type { DiscoveredFeed } from "../../api/types";
 import UiDialog from "../ui/UiDialog.vue";
 import { api } from "../../api";
 import { useLibraryStore } from "../../stores/library";
@@ -24,16 +25,38 @@ const link = ref(navigation.addLink),
 onMounted(() => {
   if (link.value) field.value?.focus();
 });
-async function saveLink() {
+/** Opened from Feeds to subscribe: the link is a feed, or a site that names one. */
+const subscribing = navigation.addMode === "subscribe";
+/** The feeds a site names, to pick one when it names several. */
+const choices = ref<DiscoveredFeed[]>([]);
+async function submitLink() {
   const valid = asLink(link.value);
   if (!valid) {
     linkError.value = "That is not a web address.";
     return;
   }
   linkError.value = "";
+  choices.value = [];
   saving.value = true;
   try {
-    await articles.save(valid);
+    if (subscribing) await subscribe(valid);
+    else await articles.add(valid);
+  } catch (e) {
+    linkError.value = String(e).replace(/^Error: /, "");
+  } finally {
+    saving.value = false;
+  }
+}
+async function subscribe(url: string) {
+  const result = await api.subscribe(url);
+  if (result.kind === "subscribed") await articles.showFeed(result.value);
+  else if (result.kind === "choose") choices.value = result.value;
+  else linkError.value = "No feed was found at that address.";
+}
+async function choose(feed: DiscoveredFeed) {
+  saving.value = true;
+  try {
+    await subscribe(feed.url);
   } catch (e) {
     linkError.value = String(e).replace(/^Error: /, "");
   } finally {
@@ -82,8 +105,10 @@ function rescan() {
           <X :size="18" aria-hidden="true" />
         </button>
       </div>
-      <form class="add-dialog__section" novalidate @submit.prevent="saveLink">
-        <label for="add-link" class="add-dialog__label">A link to an article</label>
+      <form class="add-dialog__section" novalidate @submit.prevent="submitLink">
+        <label for="add-link" class="add-dialog__label">{{
+          subscribing ? "A feed, or a site that has one" : "A link to an article or a feed"
+        }}</label>
         <div class="add-dialog__row">
           <input
             id="add-link"
@@ -99,13 +124,34 @@ function rescan() {
             @input="linkError = ''"
           />
           <button type="submit" class="add-dialog__button add-dialog__button--accent" :disabled="saving">
-            Save article
+            {{ subscribing ? "Subscribe" : "Save article" }}
           </button>
         </div>
         <p v-if="linkError" class="add-dialog__error" role="alert">{{ linkError }}</p>
         <p id="add-link-note" class="add-dialog__hint add-dialog__hint--wide">
-          The page is fetched once, and its readable text is kept on this computer.
+          {{
+            subscribing
+              ? "Feeds are checked in the background, and new entries arrive in Feeds."
+              : "The page is fetched once, and its readable text is kept on this computer. A feed's address subscribes to it instead."
+          }}
         </p>
+        <ul v-if="choices.length" class="add-dialog__choices" aria-label="Feeds on this site">
+          <li v-for="feed in choices" :key="feed.url" class="add-dialog__choice">
+            <Rss :size="18" aria-hidden="true" />
+            <span class="add-dialog__choice-text">
+              <b class="add-dialog__choice-title">{{ feed.title ?? feed.url }}</b>
+              <span class="add-dialog__choice-url">{{ feed.url }}</span>
+            </span>
+            <button
+              type="button"
+              class="add-dialog__button add-dialog__button--main"
+              :disabled="saving || feed.subscribed"
+              @click="choose(feed)"
+            >
+              {{ feed.subscribed ? "Subscribed" : "Subscribe" }}
+            </button>
+          </li>
+        </ul>
       </form>
       <section class="add-dialog__section" aria-labelledby="add-files">
         <h2 id="add-files" class="add-dialog__label">Files on this computer</h2>
@@ -244,6 +290,35 @@ function rescan() {
 }
 .add-dialog__field[aria-invalid="true"] {
   border-color: var(--accent);
+}
+.add-dialog__choices {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.add-dialog__choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 14px;
+  border-radius: 14px;
+  background: var(--wash);
+}
+.add-dialog__choice-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.add-dialog__choice-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--dim);
 }
 .add-dialog__error {
   margin: 0;
