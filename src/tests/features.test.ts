@@ -116,6 +116,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     },
     audiobooks: { roots: [], exclude: [], includeHidden: [], onAdd: true },
     verifyAudiobooks: false,
+    readingWpm: 230,
   });
   wrapper.unmount();
 });

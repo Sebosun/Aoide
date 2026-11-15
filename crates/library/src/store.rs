@@ -9,7 +9,7 @@ impl Library {
         conn.pragma_update(None, "foreign_keys", true)?;
         let tx = conn.transaction()?;
         let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if !(0..=7).contains(&version) {
+        if !(0..=8).contains(&version) {
             return Err(LibraryError::Corrupt(format!(
                 "unsupported schema version {version}"
             )));
@@ -175,6 +175,21 @@ impl Library {
             )?;
             tx.pragma_update(None, "user_version", 7)?;
         }
+        if version <= 7 {
+            // Reading without listening: when a book was finished, its length in words (known
+            // once it has been parsed), and time spent reading per local day.
+            tx.execute_batch(
+                "ALTER TABLE books ADD COLUMN finished_at INTEGER;
+                ALTER TABLE books ADD COLUMN word_count INTEGER CHECK(word_count >= 0);
+                CREATE TABLE reading (
+                    book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+                    day TEXT NOT NULL,
+                    ms INTEGER NOT NULL CHECK(ms >= 0),
+                    PRIMARY KEY (book_id, day)
+                );",
+            )?;
+            tx.pragma_update(None, "user_version", 8)?;
+        }
         tx.commit()?;
         Ok(Self { conn })
     }
@@ -215,6 +230,8 @@ pub(super) fn read_book(row: &Row<'_>) -> Result<BookRecord> {
         cover_path: row.get::<_, Option<String>>("cover_path")?.map(Into::into),
         added_at: row.get("added_at")?,
         last_opened_at: row.get("last_opened_at")?,
+        finished_at: row.get("finished_at")?,
+        word_count: row.get("word_count")?,
     })
 }
 

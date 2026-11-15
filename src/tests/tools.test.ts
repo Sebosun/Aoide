@@ -91,6 +91,7 @@ it("flags a book voice the engine does not offer and opens the Voice tab from th
     readNotes: false,
     narration: null,
     speakMissing: false,
+    mode: null,
   });
   const wrapper = await reader("book-0");
   const warning = wrapper.get('[aria-label="About this book"] .book-margin__warning--voice');

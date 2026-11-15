@@ -15,11 +15,29 @@ export type BookProgress = { chapter: number, segmentId: string | null, fraction
 
 export type AudioSource = "none" | "speech" | "recording";
 
+export type ReadingMode = "read" | "listen";
+
+export type Shape = "read" | "readAlong" | "listen";
+
+export type ReadState = "unread" | "inProgress" | "finished";
+
 export type BookSummary = { id: string, title: string, authors: Array<string>, language: string | null, status: BookStatus, coverPath: string | null, progress: BookProgress | null, audioBytes: number, 
 /**
  * What plays if the user listens.
  */
 audio: AudioSource, 
+/**
+ * Read silently or listened to.
+ */
+mode: ReadingMode, 
+/**
+ * What the reader screen is for it.
+ */
+shape: Shape, readState: ReadState, 
+/**
+ * Its length in words, once it has been opened.
+ */
+wordCount: number | null, 
 /**
  * Whole-book preparation status, if queued, running or finished.
  */
@@ -132,7 +150,15 @@ voiceWarning: string | null, progress: BookProgress | null,
 /**
  * Words read aloud in the whole book, for time estimates.
  */
-wordCount: number, };
+wordCount: number, 
+/**
+ * Read silently or listened to.
+ */
+mode: ReadingMode, 
+/**
+ * What the reader screen is for it.
+ */
+shape: Shape, };
 
 export type ChapterAudioView = { done: number, total: number, };
 
@@ -248,7 +274,12 @@ narration: Narration | null,
 /**
  * While the recording plays, the speech engine speaks the text it lacks.
  */
-speakMissing: boolean, };
+speakMissing: boolean, 
+/**
+ * Read silently or listened to; `None` until the user chooses (see
+ * `reading::default_mode`).
+ */
+mode: ReadingMode | null, };
 
 export type Bookmark = { id: number, bookId: BookId, chapter: number, charOffset: number, segmentId: string | null, 
 /**
@@ -261,6 +292,24 @@ export type DayListening = {
  * Local calendar day, `YYYY-MM-DD`.
  */
 day: string, ms: number, };
+
+export type DayActivity = { 
+/**
+ * Local calendar day, `YYYY-MM-DD`.
+ */
+day: string, readingMs: number, listeningMs: number, };
+
+export type BookActivity = { bookId: BookId, readingMs: number, listeningMs: number, };
+
+export type ActivityStats = { readingMs: number, listeningMs: number, 
+/**
+ * Oldest day first.
+ */
+byDay: Array<DayActivity>, 
+/**
+ * Most time first, then by id.
+ */
+byBook: Array<BookActivity>, };
 
 export type BookListeningView = { bookId: string, title: string, ms: number, };
 
@@ -353,9 +402,13 @@ audiobooks: AudiobookSearchSettings,
  * Pair found audiobooks without asking: each book's closest audiobooks are tried in turn
  * until one passes the quick check.
  */
-verifyAudiobooks: boolean, };
+verifyAudiobooks: boolean, 
+/**
+ * Reading speed in words per minute, for reading-time estimates (100–600).
+ */
+readingWpm: number, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -653,6 +706,11 @@ export type Commands = {
   "show_in_folder": { args: { bookId: string }; result: void };
   "open_book": { args: { bookId: string }; result: BookView };
   "book_overview": { args: { bookId: string }; result: BookView };
+  "mark_finished": { args: { bookId: string }; result: void };
+  "mark_unread": { args: { bookId: string }; result: void };
+  "set_reading_place": { args: { bookId: string; chapter: number; segmentId: string }; result: void };
+  "reading_activity": { args: { bookId: string }; result: void };
+  "set_mode": { args: { bookId: string; mode: ReadingMode }; result: BookView };
   "chapter": { args: { bookId: string; chapter: number }; result: ChapterView };
   "play": { args: { bookId: string; chapter: number | null; segmentId: string | null }; result: void };
   "pause": { args: Record<string, never>; result: void };
@@ -688,6 +746,7 @@ export type Commands = {
   "update_bookmark_note": { args: { id: number; note: string }; result: void };
   "delete_bookmark": { args: { id: number }; result: void };
   "book_listening": { args: { bookId: string }; result: DayListening[] };
+  "activity_stats": { args: Record<string, never>; result: ActivityStats };
   "listening_stats": { args: Record<string, never>; result: ListeningStats };
   "book_details": { args: { bookId: string }; result: BookDetails };
   "app_settings": { args: Record<string, never>; result: AppSettings };

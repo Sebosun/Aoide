@@ -69,7 +69,11 @@ pub fn home(books: &[BookSummary]) -> HomeView {
     let mut continuing: Vec<&BookSummary> = usable
         .iter()
         .copied()
-        .filter(|b| started(b) && fraction(b).is_some_and(|f| f < 1.0))
+        .filter(|b| {
+            started(b)
+                && fraction(b).is_some_and(|f| f < 1.0)
+                && b.read_state != super::ReadState::Finished
+        })
         .collect();
     continuing.sort_by_key(|b| std::cmp::Reverse(b.last_opened_at.unwrap_or(b.added_at)));
     let mut newest = usable.clone();
@@ -165,6 +169,14 @@ mod tests {
             }),
             audio_bytes: 0,
             audio: AudioSource::None,
+            mode: crate::core::ReadingMode::Read,
+            shape: crate::core::Shape::Read,
+            read_state: if fraction.is_some() {
+                crate::core::ReadState::InProgress
+            } else {
+                crate::core::ReadState::Unread
+            },
+            word_count: None,
             prepare: None,
             added_at,
             last_opened_at: opened,

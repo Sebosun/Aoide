@@ -85,6 +85,10 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `library.watch` | warn | `error` | `core.rs`, the library folder watcher |
 | `discovery.scan` | info, warn | `roots`, `epubs`, `read`, `took_ms`, `outcome`, `error` | `core/discovery.rs` |
 | `discovery.import` | info | `chosen`, `failed` | `core/discovery.rs` |
+| `library.word_count` | warn | `book`, `error` | `core/shelf.rs` `load`, storing a parsed book's length |
+| `reading.mode` | info | `book`, `from`, `to` | `core/reading.rs` `choose_mode`, a book switched between read and listen |
+| `reading.state` | info | `book`, `from`, `to` | `core/reading.rs` `Reading::apply`, unread / in progress / finished |
+| `reading.save` | warn | `kind`, `error`, `repeat` (reported) | `core/reading.rs`, storing reading time |
 | `metadata.lookup` | warn | `book`, `outcome`, `error` | `core/discovery.rs` |
 | `metadata.apply` | warn | `book`, `error` | `core/discovery.rs` |
 | `http` | debug, warn | `service`, `op`, `found`, `took_ms`, `outcome`, `error` | `core/metadata.rs` (Open Library) |

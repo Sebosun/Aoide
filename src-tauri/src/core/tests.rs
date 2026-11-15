@@ -693,3 +693,213 @@ pub(super) fn library_with(ids: &[&str]) -> Arc<Mutex<Library>> {
     }
     Arc::new(Mutex::new(library))
 }
+
+#[tokio::test]
+async fn a_new_book_is_read_silently_and_a_narrated_one_is_listened_to() {
+    use super::{ReadingMode, Shape};
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let view = core.book_overview(&id).unwrap();
+    assert_eq!((view.mode, view.shape), (ReadingMode::Read, Shape::Read));
+    let summary = &core.list_books().unwrap()[0];
+    assert_eq!(
+        (summary.mode, summary.shape),
+        (ReadingMode::Read, Shape::Read)
+    );
+
+    // Speech made for it ahead of time means it was set up for listening.
+    core.prepare_book(&id).await.unwrap();
+    until("preparation to finish", || {
+        stage(&core, &id) == Some(PrepareStage::Done)
+    })
+    .await;
+    let view = core.book_overview(&id).unwrap();
+    assert_eq!(
+        (view.mode, view.shape),
+        (ReadingMode::Listen, Shape::ReadAlong)
+    );
+
+    // The user's choice wins over the default, and survives a restart.
+    core.set_mode(&id, ReadingMode::Read).unwrap();
+    assert_eq!(core.book_overview(&id).unwrap().mode, ReadingMode::Read);
+    drop(core);
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let view = core.book_overview(&id).unwrap();
+    assert_eq!((view.mode, view.shape), (ReadingMode::Read, Shape::Read));
+    assert_eq!(core.list_books().unwrap()[0].mode, ReadingMode::Read);
+}
+
+#[tokio::test]
+async fn playing_a_book_listens_to_it_and_reading_it_pauses_it() {
+    use super::{PlaybackStatus, ReadingMode};
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+
+    core.play(&id, Some(0), None).await.unwrap();
+    assert_eq!(core.book_overview(&id).unwrap().mode, ReadingMode::Listen);
+    assert_ne!(core.player_state().status, PlaybackStatus::Paused);
+
+    core.set_mode(&id, ReadingMode::Read).unwrap();
+    assert_eq!(core.book_overview(&id).unwrap().mode, ReadingMode::Read);
+    assert_eq!(core.player_state().status, PlaybackStatus::Paused);
+
+    // Choosing to listen does not start playback by itself.
+    core.set_mode(&id, ReadingMode::Listen).unwrap();
+    assert_eq!(core.player_state().status, PlaybackStatus::Paused);
+    core.stop();
+}
+
+/// The ids of the segments read aloud in chapter `chapter` of book `id`.
+fn spoken(core: &Core, id: &str, chapter: usize) -> Vec<String> {
+    core.chapter(id, chapter)
+        .unwrap()
+        .blocks
+        .into_iter()
+        .flat_map(|b| b.segments)
+        .filter(|s| s.speakable)
+        .map(|s| s.id)
+        .collect()
+}
+
+#[tokio::test]
+async fn reading_silently_saves_the_place_and_the_last_sentence_finishes_the_book() {
+    use super::ReadState;
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let read_state = |core: &Core| core.list_books().unwrap()[0].read_state;
+    assert_eq!(read_state(&core), ReadState::Unread);
+
+    let second = spoken(&core, &id, 1);
+    core.set_reading_place(&id, 1, &second[0]).unwrap();
+    let progress = core.book_overview(&id).unwrap().progress.unwrap();
+    assert_eq!(
+        (progress.chapter, progress.segment_id.as_deref()),
+        (1, Some(second[0].as_str()))
+    );
+    assert!(
+        progress.fraction > 0.0 && progress.fraction < 1.0,
+        "{}",
+        progress.fraction
+    );
+    assert_eq!(read_state(&core), ReadState::InProgress);
+    assert!(
+        core.set_reading_place(&id, 0, &second[0]).is_err(),
+        "a segment of another chapter is not a place"
+    );
+    assert_eq!(core.home().unwrap().continue_ids, std::slice::from_ref(&id));
+
+    // Reopened after a restart, the book is where the reader left it.
+    drop(core);
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let progress = core.open_book(&id).unwrap().progress.unwrap();
+    assert_eq!(progress.segment_id.as_deref(), Some(second[0].as_str()));
+
+    core.set_reading_place(&id, 1, second.last().unwrap())
+        .unwrap();
+    assert_eq!(read_state(&core), ReadState::Finished);
+    assert!(
+        core.home().unwrap().continue_ids.is_empty(),
+        "finished books are not continued"
+    );
+    // Reading an earlier page of a finished book keeps it finished.
+    core.set_reading_place(&id, 0, &spoken(&core, &id, 0)[0])
+        .unwrap();
+    assert_eq!(read_state(&core), ReadState::Finished);
+
+    core.mark_unread(&id).unwrap();
+    assert_eq!(read_state(&core), ReadState::Unread);
+    assert!(core.book_overview(&id).unwrap().progress.is_none());
+    core.mark_finished(&id).unwrap();
+    assert_eq!(read_state(&core), ReadState::Finished);
+}
+
+#[tokio::test]
+async fn the_playing_book_keeps_its_place_and_playing_it_to_the_end_finishes_it() {
+    use super::ReadState;
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let first = spoken(&core, &id, 0);
+    let second = spoken(&core, &id, 1);
+    core.play(&id, Some(1), Some(second[0].clone()))
+        .await
+        .unwrap();
+    // Playback owns the place while the book plays: a reading place is ignored.
+    core.set_reading_place(&id, 0, &first[0]).unwrap();
+    until("playback to reach the end", || {
+        core.list_books().unwrap()[0].read_state == ReadState::Finished
+    })
+    .await;
+    let progress = core.book_overview(&id).unwrap().progress.unwrap();
+    assert_eq!(progress.chapter, 1);
+    core.stop();
+}
+
+#[tokio::test]
+async fn reading_time_adds_up_in_activity() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    core.reading_activity(&id);
+    tokio::time::sleep(Duration::from_millis(60)).await;
+    core.reading_activity(&id);
+    let stats = core.activity_stats().unwrap();
+    assert!(stats.reading_ms >= 50, "{stats:?}");
+    assert_eq!(stats.listening_ms, 0);
+    assert_eq!(stats.by_book[0].book_id.0, id);
+}
+
+#[tokio::test]
+async fn reading_speed_is_kept_within_its_range() {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    assert_eq!(core.app_settings().reading_wpm, 230);
+    let speed = |wpm| AppSettingsPatch {
+        reading_wpm: Some(wpm),
+        ..Default::default()
+    };
+    assert_eq!(
+        core.update_app_settings(speed(300)).unwrap().reading_wpm,
+        300
+    );
+    assert!(core.update_app_settings(speed(50)).is_err());
+    assert_eq!(core.app_settings().reading_wpm, 300);
+}

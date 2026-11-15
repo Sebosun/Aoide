@@ -8,8 +8,10 @@ use std::path::{Path, PathBuf};
 use rusqlite::OptionalExtension;
 use sha2::{Digest, Sha256};
 
+mod activity;
 mod recordings;
 mod store;
+pub use activity::{ActivityStats, BookActivity, DayActivity};
 pub use recordings::{RecordingRow, StoredSyncMap, TranscriptBlock};
 
 /// Lower-case hex SHA-256 of the EPUB file bytes.
@@ -54,6 +56,10 @@ pub struct BookRecord {
     pub cover_path: Option<PathBuf>,
     pub added_at: i64,
     pub last_opened_at: Option<i64>,
+    /// When the reader finished it; `None` while unread or in progress.
+    pub finished_at: Option<i64>,
+    /// Its length in words, once it has been parsed.
+    pub word_count: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

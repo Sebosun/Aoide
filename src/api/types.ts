@@ -91,6 +91,8 @@ import type {
   RecordingFileView,
   RecordingProblemView,
   RecordingView,
+  ReadingMode,
+  ActivityStats,
   SyncAction,
   SyncReportView,
   SyncStage,
@@ -130,7 +132,17 @@ export interface AoideApi {
   openBook(bookId: string): Promise<BookView>;
   /** Like openBook, without marking the book as recently opened. */
   bookOverview(bookId: string): Promise<BookView>;
+  /** Reads the book silently or listens to it. Reading the playing book pauses it; choosing to
+   *  listen does not start playback (call play next). */
+  setMode(bookId: string, mode: ReadingMode): Promise<BookView>;
   chapter(bookId: string, chapter: number): Promise<ChapterView>;
+  markFinished(bookId: string): Promise<void>;
+  /** Also forgets where the user was in it. */
+  markUnread(bookId: string): Promise<void>;
+  /** Where the user is reading silently; ignored while that book plays. */
+  setReadingPlace(bookId: string, chapter: number, segmentId: string): Promise<void>;
+  /** The user is reading the book silently now; send every 15 s at most. */
+  readingActivity(bookId: string): Promise<void>;
   /** Starts playback at a segment (or the saved position when segmentId is null). */
   play(bookId: string, chapter: number | null, segmentId: string | null): Promise<void>;
   pause(): Promise<void>;
@@ -183,6 +195,8 @@ export interface AoideApi {
   updateBookmarkNote(id: number, note: string): Promise<void>;
   deleteBookmark(id: number): Promise<void>;
   listeningStats(): Promise<ListeningStats>;
+  /** Reading and listening time, per day and per book. */
+  activityStats(): Promise<ActivityStats>;
   /** One book's listened time per local day, oldest first. */
   bookListening(bookId: string): Promise<DayListening[]>;
   bookDetails(bookId: string): Promise<BookDetails>;

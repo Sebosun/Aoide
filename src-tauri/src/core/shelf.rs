@@ -12,6 +12,7 @@ use aoide_library::{
 
 use super::error::Reporter;
 use super::facets::{self, AudioFacts};
+use super::reading;
 use super::syncing::Stage as SyncStage;
 use super::{
     lock, now_ms, BookProgressView, BookSummary, CoreEvent, Events, ImportResult, PrepareView,
@@ -30,6 +31,8 @@ pub(super) trait ShelfHost {
     fn recording_of(&self, id: &str) -> Option<SyncStage>;
     /// Whether book `id` is narrated by its recording, and the recording can be listened to.
     fn narrates_recording(&self, id: &str) -> bool;
+    /// The mode the user chose for book `id`, if they did.
+    fn chosen_mode(&self, id: &str) -> Option<super::ReadingMode>;
 }
 
 pub(super) struct Shelf {
@@ -378,17 +381,27 @@ impl Shelf {
             .book_audio_bytes(&record.id)
             .unwrap_or(0);
         let prepare = host.prepare_of(&record.id.0);
-        let audio = facets::audio_source(AudioFacts {
+        let facts = AudioFacts {
             narrates_recording: host.narrates_recording(&record.id.0),
             cached_speech: audio_bytes > 0,
             prepared: prepare.is_some(),
             listened,
-        });
+        };
+        let audio = facets::audio_source(facts);
+        let mode = reading::mode_for(host.chosen_mode(&record.id.0), &facts);
+        let progress = self.progress(&record.id);
         BookSummary {
             prepare,
             audio,
+            mode,
+            shape: reading::shape(true, mode),
+            read_state: reading::ReadState::stored(
+                record.finished_at.is_some(),
+                progress.is_some(),
+            ),
+            word_count: record.word_count,
             recording: host.recording_of(&record.id.0),
-            progress: self.progress(&record.id),
+            progress,
             id: record.id.0,
             title: record.title.unwrap_or_else(|| "Untitled".into()),
             authors: record.authors,
@@ -418,6 +431,13 @@ impl Shelf {
         }
         let bytes = std::fs::read(&record.path).map_err(|e| e.to_string())?;
         let book = Arc::new(BookModel::parse(id, &bytes, host.reads_notes(id))?);
+        // Its length, for reading-time estimates in lists that do not parse it.
+        let words = u32::try_from(book.word_count()).unwrap_or(u32::MAX);
+        if record.word_count != Some(words) {
+            if let Err(error) = lock(&self.library).set_word_count(&record.id, words) {
+                tracing::warn!(event = "library.word_count", book = crate::logging::book(id), %error, "Could not store the word count");
+            }
+        }
         let mut books = lock(&self.books);
         if books.len() >= 3 {
             let playing = host.playing();
@@ -469,6 +489,15 @@ impl Shelf {
 
     /// Saves book `id`'s voice settings; it is read again when next loaded (footnote
     /// narration changes how it is split).
+    /// Stores the mode chosen for book `id`, keeping its other settings and its parsed text.
+    pub fn save_mode(&self, id: &str, mode: super::ReadingMode) -> Result<(), String> {
+        let mut settings = self.settings(id);
+        settings.mode = Some(mode);
+        lock(&self.library)
+            .set_book_value(&BookId(id.into()), BookKey::Settings, &settings)
+            .map_err(|e| e.to_string())
+    }
+
     pub fn save_settings(&self, id: &str, settings: &super::BookSettings) -> Result<(), String> {
         lock(&self.library)
             .set_book_value(&BookId(id.into()), BookKey::Settings, settings)
@@ -563,6 +592,10 @@ impl ShelfHost for super::Core {
     fn narrates_recording(&self, id: &str) -> bool {
         self.plays_recording(id, &self.book_settings(id))
     }
+
+    fn chosen_mode(&self, id: &str) -> Option<super::ReadingMode> {
+        self.book_settings(id).mode
+    }
 }
 
 impl super::Core {
@@ -641,6 +674,8 @@ impl super::Core {
             voice_warning: self.voice_warning(&book),
             progress: self.shelf.progress(&BookId(id.into())),
             word_count: book.word_count(),
+            mode: self.mode_of(id),
+            shape: reading::shape(true, self.mode_of(id)),
         })
     }
 
@@ -714,6 +749,9 @@ mod tests {
         }
         fn narrates_recording(&self, _: &str) -> bool {
             false
+        }
+        fn chosen_mode(&self, _: &str) -> Option<super::super::ReadingMode> {
+            None
         }
     }
 

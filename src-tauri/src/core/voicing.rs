@@ -127,6 +127,7 @@ mod tests {
             read_notes: false,
             narration: None,
             speak_missing: false,
+            mode: None,
         };
         let voicing = Voicing::resolve(
             &descriptor(None),

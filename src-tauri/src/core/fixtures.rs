@@ -221,6 +221,19 @@ async fn fixtures_for_the_ui_mock() {
             .map_or_else(|| id.to_owned(), |(_, to)| to.clone())
     };
 
+    // The first book is listened to; the others are read silently, as new books are.
+    let mut ids: Vec<String> = core
+        .list_books()
+        .unwrap()
+        .into_iter()
+        .map(|b| b.id)
+        .collect();
+    ids.sort_by_key(|id| preview(id));
+    core.set_mode(&ids[0], super::ReadingMode::Listen).unwrap();
+    // Each readable book has been opened once, so its length is known.
+    for id in &ids {
+        let _ = core.book_overview(id);
+    }
     // The library as first scanned, in the preview's order, added one after another.
     let mut books = core.list_books().unwrap();
     books.sort_by_key(|book| preview(&book.id));
@@ -237,6 +250,7 @@ async fn fixtures_for_the_ui_mock() {
     });
     started.audio_bytes = 2_457_600;
     started.last_opened_at = Some(500);
+    started.read_state = super::ReadState::InProgress;
     started.audio = super::facets::audio_source(super::facets::AudioFacts {
         cached_speech: true,
         ..Default::default()

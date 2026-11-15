@@ -50,6 +50,8 @@ mod narration;
 mod playback;
 mod preparation;
 mod read_along;
+mod reading;
+pub use reading::{ReadState, ReadingMode, Shape};
 mod recording;
 mod recordings;
 mod settings;
@@ -147,6 +149,7 @@ pub struct Core {
     discovery: Arc<discovery::Discovery>,
     bookmarks: bookmarks::Bookmarks,
     listening: listening::Listening,
+    reading: reading::Reading,
     metadata: metadata::Metadata,
     storage: storage::Storage,
     exports: export::Exports,
@@ -225,6 +228,7 @@ impl Core {
         );
         let bookmarks = bookmarks::Bookmarks::new(Arc::clone(&library));
         let listening = listening::Listening::new(Arc::clone(&library), reporter.clone());
+        let reading = reading::Reading::new(Arc::clone(&library), reporter.clone());
         let storage = storage::Storage::new(Arc::clone(&library), &paths);
         let audiobooks = Arc::new(audiobooks::Finder::new(
             Arc::clone(&library),
@@ -254,6 +258,7 @@ impl Core {
             discovery,
             bookmarks,
             listening,
+            reading,
             metadata,
             storage,
             exports,
@@ -350,6 +355,8 @@ impl Core {
         segment_id: Option<String>,
     ) -> Result<(), String> {
         let book = self.load_book(book_id)?;
+        // Playing an item by any route means listening to it.
+        self.choose_mode(book_id, reading::ModeEvent::ListenChosen)?;
         let same_book = self.playback.is_book(book_id);
         let start = segment_id
             .as_deref()

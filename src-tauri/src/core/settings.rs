@@ -26,7 +26,12 @@ pub struct AppSettings {
     /// Pair found audiobooks without asking: each book's closest audiobooks are tried in turn
     /// until one passes the quick check.
     pub verify_audiobooks: bool,
+    /// Reading speed in words per minute, for reading-time estimates (100–600).
+    pub reading_wpm: u32,
 }
+
+/// Reading speeds Settings offers, in words per minute.
+pub const READING_WPM: std::ops::RangeInclusive<u32> = 100..=600;
 
 /// A change to some of the [`AppSettings`]: fields left out keep their value; `null` clears an
 /// optional one. The core merges it into the saved settings, so changes from different places
@@ -55,6 +60,8 @@ pub struct AppSettingsPatch {
     pub audiobooks: Option<super::audiobooks::AudiobookSearchSettings>,
     #[cfg_attr(test, ts(optional))]
     pub verify_audiobooks: Option<bool>,
+    #[cfg_attr(test, ts(optional))]
+    pub reading_wpm: Option<u32>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -83,6 +90,7 @@ impl AppSettingsPatch {
         set(&mut settings.recognition, self.recognition);
         set(&mut settings.audiobooks, self.audiobooks);
         set(&mut settings.verify_audiobooks, self.verify_audiobooks);
+        set(&mut settings.reading_wpm, self.reading_wpm);
         settings
     }
 }
@@ -100,6 +108,7 @@ impl From<AppSettings> for AppSettingsPatch {
             recognition,
             audiobooks,
             verify_audiobooks,
+            reading_wpm,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -111,6 +120,7 @@ impl From<AppSettings> for AppSettingsPatch {
             recognition: Some(recognition),
             audiobooks: Some(audiobooks),
             verify_audiobooks: Some(verify_audiobooks),
+            reading_wpm: Some(reading_wpm),
         }
     }
 }
@@ -141,6 +151,7 @@ impl Default for AppSettings {
             recognition: Default::default(),
             audiobooks: Default::default(),
             verify_audiobooks: false,
+            reading_wpm: 230,
         }
     }
 }

@@ -249,6 +249,13 @@ impl Settings {
         let before = config.get::<AppSettings>(APP).unwrap_or_default();
         let settings = patch.apply(before.clone());
         settings.recognition.validate()?;
+        if !super::settings::READING_WPM.contains(&settings.reading_wpm) {
+            return Err(format!(
+                "Reading speed must be {} to {} words a minute",
+                super::settings::READING_WPM.start(),
+                super::settings::READING_WPM.end()
+            ));
+        }
         if let Some(aligner) = &settings.aligner {
             aoide_aligner::Aligner::new(aoide_aligner::Options {
                 base_url: aligner.base_url.clone(),

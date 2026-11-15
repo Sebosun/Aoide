@@ -27,6 +27,13 @@ pub struct BookSummary {
     pub audio_bytes: u64,
     /// What plays if the user listens.
     pub audio: super::facets::AudioSource,
+    /// Read silently or listened to.
+    pub mode: super::ReadingMode,
+    /// What the reader screen is for it.
+    pub shape: super::Shape,
+    pub read_state: super::ReadState,
+    /// Its length in words, once it has been opened.
+    pub word_count: Option<u32>,
     /// Whole-book preparation status, if queued, running or finished.
     pub prepare: Option<PrepareView>,
     pub added_at: i64,
@@ -54,6 +61,10 @@ pub struct BookView {
     pub progress: Option<BookProgressView>,
     /// Words read aloud in the whole book, for time estimates.
     pub word_count: usize,
+    /// Read silently or listened to.
+    pub mode: super::ReadingMode,
+    /// What the reader screen is for it.
+    pub shape: super::Shape,
 }
 
 /// What the player is doing, as the UI shows it.
@@ -180,6 +191,9 @@ pub struct BookSettings {
     pub narration: Option<recording::Narration>,
     /// While the recording plays, the speech engine speaks the text it lacks.
     pub speak_missing: bool,
+    /// Read silently or listened to; `None` until the user chooses (see
+    /// `reading::default_mode`).
+    pub mode: Option<super::ReadingMode>,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -189,6 +189,7 @@ export function createMockApi() {
       readNotes: false,
       narration: null,
       speakMissing: false,
+      mode: null,
     };
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
@@ -213,7 +214,10 @@ export function createMockApi() {
     },
     audiobooks: { roots: [], exclude: [], includeHidden: [], onAdd: true },
     verifyAudiobooks: false,
+    readingWpm: 230,
   };
+  /** Minutes read silently, per book. */
+  const readMs = new Map<string, number>([["book-1", 1_800_000]]);
   const found: Candidate[] = [
     {
       id: "h-tide",
@@ -625,13 +629,63 @@ export function createMockApi() {
         voice && !offered.includes(voice)
           ? `${voice.replace(".wav", "")} is not one of Mock engine's voices, so Emily reads this book. Choose a voice in the book's settings.`
           : null;
-      return { ...view, title: b.title, progress: structuredClone(b.progress), voiceWarning };
+      return {
+        ...view,
+        title: b.title,
+        progress: structuredClone(b.progress),
+        voiceWarning,
+        mode: b.mode,
+        shape: b.shape,
+      };
+    },
+    async setMode(id, mode) {
+      const b = getBook(id);
+      if (mode === "read" && state.bookId === id && state.status === "playing") await api.pause();
+      b.mode = mode;
+      b.shape = mode === "read" ? "read" : "readAlong";
+      settings.set(id, { ...settingsOf(id), mode });
+      changed();
+      return api.bookOverview(id);
     },
     async chapter(id, chapter) {
       return getChapter(id, chapter);
     },
+    async markFinished(id) {
+      getBook(id).readState = "finished";
+      changed();
+    },
+    async markUnread(id) {
+      const b = getBook(id);
+      b.readState = "unread";
+      b.progress = null;
+      changed();
+    },
+    async setReadingPlace(id, chapter, segmentId) {
+      const b = getBook(id);
+      if (state.bookId === id && state.status === "playing") return;
+      // As the core does: the place's share of the book's spoken segments.
+      const all = chapters[Number(id.split("-")[1])].flatMap((c, n) =>
+        c.blocks.flatMap((block) => block.segments.filter((s) => s.speakable).map((s) => `${n}/${s.id}`)),
+      );
+      const index = all.indexOf(`${chapter}/${segmentId}`);
+      if (index < 0) throw new Error("That place is not in the book.");
+      b.progress = { chapter, segmentId, fraction: all.length ? index / all.length : 0 };
+      if (index === all.length - 1) b.readState = "finished";
+      else if (b.readState === "unread") b.readState = "inProgress";
+      changed();
+    },
+    async readingActivity(id) {
+      getBook(id);
+      readMs.set(id, (readMs.get(id) ?? 0) + 15_000);
+    },
     async play(id, chapter, segmentId) {
       const book = getBook(id);
+      // Playing a book by any route means listening to it.
+      if (book.mode !== "listen") {
+        book.mode = "listen";
+        book.shape = "readAlong";
+        changed();
+      }
       const c = chapter ?? book.progress?.chapter ?? 0;
       const segments = getChapter(id, c)
         .blocks.flatMap((b) => b.segments)
@@ -899,6 +953,22 @@ export function createMockApi() {
           { day: "2026-11-09", ms: 3_000_000 },
           { day: "2026-11-10", ms: 1_200_000 },
         ],
+      };
+    },
+    async activityStats() {
+      const ids = [...new Set([...listened.keys(), ...readMs.keys()])];
+      const byBook = ids
+        .map((bookId) => ({ bookId, readingMs: readMs.get(bookId) ?? 0, listeningMs: listened.get(bookId) ?? 0 }))
+        .sort((a, b) => b.readingMs + b.listeningMs - (a.readingMs + a.listeningMs));
+      return {
+        readingMs: byBook.reduce((t, b) => t + b.readingMs, 0),
+        listeningMs: byBook.reduce((t, b) => t + b.listeningMs, 0),
+        byDay: [
+          { day: "2026-11-08", readingMs: 600_000, listeningMs: 2_400_000 },
+          { day: "2026-11-09", readingMs: 1_200_000, listeningMs: 3_000_000 },
+          { day: "2026-11-10", readingMs: 0, listeningMs: 1_200_000 },
+        ],
+        byBook,
       };
     },
     async bookDetails(id) {

@@ -386,20 +386,19 @@ impl Playback {
 
     // ------------------------------------------------------------ views
 
-    /// The playhead, when `force` or it was last saved a while ago.
+    /// The playhead, when `force`, it was last saved a while ago, or it is on the book's last
+    /// entry (which finishes the book).
     #[must_use = "the place is lost unless it is saved"]
     pub fn place_to_save(&self, force: bool) -> Option<Place> {
         let mut session = lock(&self.session);
         let session = session.as_mut()?;
-        if !force && session.last_saved.elapsed() < Duration::from_secs(3) {
+        let book = Arc::clone(&session.target.book);
+        let last = book.total_entries().saturating_sub(1);
+        let index = self.position().index.min(last);
+        if !force && index < last && session.last_saved.elapsed() < Duration::from_secs(3) {
             return None;
         }
         session.last_saved = Instant::now();
-        let book = Arc::clone(&session.target.book);
-        let index = self
-            .position()
-            .index
-            .min(book.total_entries().saturating_sub(1));
         Some(Place { book, index })
     }
 
@@ -500,9 +499,20 @@ impl SpeechAudio for LibraryAudio<'_> {
 impl super::Core {
     /// Saves the listener's place; the one way it is saved.
     pub(super) fn save_place(&self, place: Option<Place>) {
-        if let Some(Err(error)) = place.map(|place| place.save(&self.library)) {
+        let Some(place) = place else { return };
+        if let Err(error) = self.store_place(place) {
             self.report("progress.save", "Could not save your place", error);
         }
+    }
+
+    /// Stores `place` as its book's progress and moves the book's read state on; the one way a
+    /// place is stored, by listening or by reading.
+    pub(super) fn store_place(&self, place: Place) -> Result<(), String> {
+        let id = place.book.id.clone();
+        let at_end = place.index + 1 >= place.book.total_entries();
+        place.save(&self.library)?;
+        self.read_event(&id, super::reading::ReadEvent::Progressed { at_end })
+            .map(drop)
     }
 
     pub(super) fn seek(&self, index: usize) {

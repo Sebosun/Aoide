@@ -14,7 +14,7 @@ use crate::book::ChapterView;
 use crate::core::{
     AppInfo, AppSettings, AppSettingsPatch, BookSettings, BookSummary, BookView, Core, CoreError,
     EngineOptions, EngineStatusView, HomeView, ImportResult, ListeningStatsView, Paths,
-    PreferencesView,
+    PreferencesView, ReadingMode,
 };
 
 type CoreState<'a> = State<'a, Arc<Core>>;
@@ -79,6 +79,53 @@ async fn open_book(core: CoreState<'_>, book_id: String) -> Result<BookView, Cor
 async fn book_overview(core: CoreState<'_>, book_id: String) -> Result<BookView, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.book_overview(&book_id)).await
+}
+
+#[tauri::command]
+async fn mark_finished(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.mark_finished(&book_id)).await
+}
+
+/// Forgets that the book was finished and where the user was in it.
+#[tauri::command]
+async fn mark_unread(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.mark_unread(&book_id)).await
+}
+
+/// Where the user is reading silently; ignored while that book plays.
+#[tauri::command]
+async fn set_reading_place(
+    core: CoreState<'_>,
+    book_id: String,
+    chapter: usize,
+    segment_id: String,
+) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.set_reading_place(&book_id, chapter, &segment_id)).await
+}
+
+/// The user is reading the book silently now (sent every 15 s at most).
+#[tauri::command]
+async fn reading_activity(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || {
+        core.reading_activity(&book_id);
+        Ok::<(), String>(())
+    })
+    .await
+}
+
+/// Reads book `book_id` silently or listens to it; reading the playing book pauses it.
+#[tauri::command]
+async fn set_mode(
+    core: CoreState<'_>,
+    book_id: String,
+    mode: ReadingMode,
+) -> Result<BookView, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.set_mode(&book_id, mode)).await
 }
 
 #[tauri::command]
@@ -320,6 +367,13 @@ async fn book_listening(
 ) -> Result<Vec<aoide_library::DayListening>, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.book_listening(&book_id)).await
+}
+
+/// Reading and listening time, per day and per book.
+#[tauri::command]
+async fn activity_stats(core: CoreState<'_>) -> Result<aoide_library::ActivityStats, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.activity_stats()).await
 }
 
 #[tauri::command]
@@ -735,6 +789,12 @@ pub fn run() {
             app_info,
             list_books,
             home,
+            set_mode,
+            mark_finished,
+            mark_unread,
+            set_reading_place,
+            reading_activity,
+            activity_stats,
             import_files,
             rescan_library,
             remove_book,

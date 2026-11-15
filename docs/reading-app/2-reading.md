@@ -163,3 +163,17 @@ Done: the smoke home with no speech engine can be used as a plain e-reader.
   sentence; press Listen and hear it continue from there; press it again and keep reading.
 - Activity shows today's reading minutes after a few minutes of reading.
 - Books that had a recording or cached speech before the upgrade open in read-along as before.
+
+## Notes from implementation
+
+- The library was already at v7 (`book_values`), so this phase's schema is **v8**; later
+  phases shift by one (phase 3 v9, 4 v10, 5 v11, 6 v12).
+- The mode enum is `ReadingMode` in Rust and TypeScript: the contract names types by their Rust
+  name, and `aoide_config::Mode` (exported as `AppearanceMode`) already took `Mode`.
+- The core parts of 2.1, 2.3, 2.4 and 2.5 landed in one commit (they share `core/reading.rs`);
+  the UI slices follow one commit each.
+- A mode choice is stored with `Shelf::save_mode`, not `save_settings`, which would drop the
+  parsed book and restart a session.
+- Playback saves its place at once when the playhead reaches the book's last entry (otherwise
+  every 3 s), so playing to the end finishes the book.
+- `books.word_count` is filled when a book is parsed (`Shelf::load`), not at import.
