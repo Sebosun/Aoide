@@ -528,73 +528,25 @@ impl Core {
     pub(super) fn forget_recording(&self, id: &str) {
         self.recordings.forget_recording(id);
     }
-}
-
-impl Core {
-    /// Runs the sync job on a thread of its own until Core is dropped.
-    pub(super) fn spawn_sync_runner(self: &Arc<Self>) {
-        let (tx, rx) = std::sync::mpsc::channel();
-        self.recordings.set_wake(tx);
-        let core = Arc::downgrade(self);
-        let spawned = std::thread::Builder::new()
-            .name("aoide-sync".into())
-            .spawn(move || loop {
-                let Some(strong) = core.upgrade() else { return };
-                let worked = strong.sync_step();
-                drop(strong);
-                if worked {
-                    continue;
-                }
-                match rx.recv_timeout(Duration::from_secs(60)) {
-                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                        if let Some(strong) = core.upgrade() {
-                            strong.look_for_missing_files();
-                        }
-                    }
-                    Ok(()) => {}
-                }
-            });
-        if let Err(error) = spawned {
-            self.report(
-                "sync.runner",
-                "Could not start syncing recordings",
-                CoreError::internal(error),
-            );
-        }
-    }
 
     /// A book whose narration was never chosen plays its recording once it is synced.
     fn narrate_with_recording_by_default(&self, id: &str) {
-        let book = BookId(id.into());
-        let library = lock(&self.library);
-        let saved = library
-            .book_value::<BookSettings>(&book, BookKey::Settings)
-            .and_then(|stored| {
-                let mut settings = stored.unwrap_or_default();
-                if settings.narration.is_some() {
-                    return Ok(false);
-                }
-                settings.narration = Some(Narration::Recording);
-                library
-                    .set_book_value(&book, BookKey::Settings, &settings)
-                    .map(|()| true)
-            });
-        drop(library);
-        if let Ok(false) = saved {
-            return;
+        match self.shelf.prefer_recording(id) {
+            Ok(false) => {}
+            Ok(true) => self.emit_recording(id),
+            Err(error) => {
+                self.report(
+                    "narration.save",
+                    "Could not save that the book plays its recording",
+                    error,
+                );
+                self.emit_recording(id);
+            }
         }
-        if let Err(error) = saved {
-            self.report(
-                "narration.save",
-                "Could not save that the book plays its recording",
-                error,
-            );
-        }
-        self.shelf.unload(id);
-        self.emit_recording(id);
     }
+}
 
+impl Core {
     // ------------------------------------------------------------ commands
 
     /// Forgets a book's recording and its sync. The audio files are left as they are.
@@ -654,14 +606,7 @@ impl Core {
                 .narration
                 .unrecorded(entries),
         };
-        Some(
-            unrecorded
-                .into_iter()
-                .filter_map(|index| book.segment(index))
-                .filter(|segment| !segment.speech.is_empty())
-                .map(|segment| segment.id.clone())
-                .collect(),
-        )
+        Some(super::narration::spoken_ids(&book, unrecorded))
     }
 
     /// Whether a book plays its recording.

@@ -585,6 +585,16 @@ impl super::Core {
     pub(super) fn plan(&self, event: PlanEvent) {
         self.generation.apply(event, self);
     }
+
+    pub(super) fn segment_id_for(&self, job: &Job) -> Option<String> {
+        if let Some(book) = self.playback.book().filter(|b| b.id == job.book) {
+            return book.segment(job.index).map(|s| s.id.clone());
+        }
+        self.load_book(&job.book)
+            .ok()?
+            .segment(job.index)
+            .map(|s| s.id.clone())
+    }
 }
 
 impl super::Core {

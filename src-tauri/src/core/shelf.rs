@@ -456,6 +456,31 @@ impl Shelf {
         Ok(())
     }
 
+    /// Makes book `id` play its recording unless its narration was chosen already. Returns
+    /// whether that changed it; it is read again when next loaded.
+    pub fn prefer_recording(&self, id: &str) -> Result<bool, String> {
+        let book = BookId(id.into());
+        let changed = {
+            let library = lock(&self.library);
+            library
+                .book_value::<super::BookSettings>(&book, BookKey::Settings)
+                .and_then(|stored| {
+                    let mut settings = stored.unwrap_or_default();
+                    if settings.narration.is_some() {
+                        return Ok(false);
+                    }
+                    settings.narration = Some(super::Narration::Recording);
+                    library
+                        .set_book_value(&book, BookKey::Settings, &settings)
+                        .map(|()| true)
+                })
+        };
+        if !matches!(changed, Ok(false)) {
+            self.unload(id);
+        }
+        changed.map_err(|e| e.to_string())
+    }
+
     /// Notes that book `id` was opened now.
     pub fn opened(&self, id: &str) {
         if let Err(error) = lock(&self.library).set_last_opened(&BookId(id.into()), now_ms()) {
@@ -568,6 +593,39 @@ impl super::Core {
             .shelve(|library| library.set_book_collections(&BookId(book_id.into()), ids))?;
         self.emit(CoreEvent::LibraryChanged);
         Ok(())
+    }
+
+    pub fn open_book(&self, id: &str) -> Result<super::BookView, String> {
+        let view = self.book_overview(id)?;
+        self.shelf.opened(id);
+        Ok(view)
+    }
+
+    /// The same view as [`Core::open_book`], without marking the book as opened.
+    pub fn book_overview(&self, id: &str) -> Result<super::BookView, String> {
+        let book = self.load_book(id)?;
+        Ok(super::BookView {
+            id: book.id.clone(),
+            title: book.title.clone(),
+            authors: book.authors.clone(),
+            language: book.language.clone(),
+            chapters: book.chapter_summaries(),
+            warnings: book.warnings.clone(),
+            excluded: book.excluded.clone(),
+            language_warning: self.language_warning(book.language.as_deref()),
+            voice_warning: self.voice_warning(&book),
+            progress: self.shelf.progress(&BookId(id.into())),
+            word_count: book.word_count(),
+        })
+    }
+
+    pub fn chapter(&self, id: &str, chapter: usize) -> Result<crate::book::ChapterView, String> {
+        let book = self.load_book(id)?;
+        let mut view = book
+            .chapter_view(chapter)
+            .ok_or_else(|| "no such chapter".to_owned())?;
+        view.not_narrated = self.not_narrated(book, chapter);
+        Ok(view)
     }
 }
 

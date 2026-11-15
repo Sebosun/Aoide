@@ -12,8 +12,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aoide_audio::{codec, PlayerCore};
-use aoide_generation::{Job, WorkerEvent};
-use aoide_library::{content_hash, BookId, BookKey, BookStatus, CachedSegment, Library, NewBook};
+use aoide_generation::WorkerEvent;
+use aoide_library::{content_hash, BookId, BookStatus, CachedSegment, Library, NewBook};
 use aoide_tts::{EngineProfile, LaunchCommand, NetworkScope};
 use serde::Serialize;
 
@@ -75,7 +75,7 @@ use preparation::Plan;
 pub use preparation::{PrepareView, Stage as PrepareStage};
 pub use settings::{AlignerSettings, AppSettings, AppSettingsPatch};
 
-use crate::book::{BookModel, ChapterSummary, ChapterView, ExcludedView};
+use crate::book::{BookModel, ChapterSummary, ExcludedView};
 
 const TICK: Duration = Duration::from_millis(33);
 
@@ -334,39 +334,6 @@ impl Core {
 
     // ------------------------------------------------------------ books
 
-    pub fn open_book(&self, id: &str) -> Result<BookView, String> {
-        let view = self.book_overview(id)?;
-        self.shelf.opened(id);
-        Ok(view)
-    }
-
-    /// The same view as [`Core::open_book`], without marking the book as opened.
-    pub fn book_overview(&self, id: &str) -> Result<BookView, String> {
-        let book = self.load_book(id)?;
-        Ok(BookView {
-            id: book.id.clone(),
-            title: book.title.clone(),
-            authors: book.authors.clone(),
-            language: book.language.clone(),
-            chapters: book.chapter_summaries(),
-            warnings: book.warnings.clone(),
-            excluded: book.excluded.clone(),
-            language_warning: self.language_warning(book.language.as_deref()),
-            voice_warning: self.voice_warning(&book),
-            progress: self.shelf.progress(&BookId(id.into())),
-            word_count: book.word_count(),
-        })
-    }
-
-    pub fn chapter(&self, id: &str, chapter: usize) -> Result<ChapterView, String> {
-        let book = self.load_book(id)?;
-        let mut view = book
-            .chapter_view(chapter)
-            .ok_or_else(|| "no such chapter".to_owned())?;
-        view.not_narrated = self.not_narrated(book, chapter);
-        Ok(view)
-    }
-
     // ------------------------------------------------------------ playback
 
     pub async fn play(
@@ -485,16 +452,6 @@ impl Core {
         }
     }
 
-    fn segment_id_for(&self, job: &Job) -> Option<String> {
-        if let Some(book) = self.playback.book().filter(|b| b.id == job.book) {
-            return book.segment(job.index).map(|s| s.id.clone());
-        }
-        self.load_book(&job.book)
-            .ok()?
-            .segment(job.index)
-            .map(|s| s.id.clone())
-    }
-
     async fn tick_loop(self: Arc<Self>) {
         let mut interval = tokio::time::interval(TICK);
         loop {
@@ -534,6 +491,39 @@ impl Core {
         };
         self.align(tick.to_align);
         tick.moved
+    }
+
+    /// Runs the sync job on a thread of its own until Core is dropped.
+    fn spawn_sync_runner(self: &Arc<Self>) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.recordings.set_wake(tx);
+        let core = Arc::downgrade(self);
+        let spawned = std::thread::Builder::new()
+            .name("aoide-sync".into())
+            .spawn(move || loop {
+                let Some(strong) = core.upgrade() else { return };
+                let worked = strong.sync_step();
+                drop(strong);
+                if worked {
+                    continue;
+                }
+                match rx.recv_timeout(Duration::from_secs(60)) {
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                        if let Some(strong) = core.upgrade() {
+                            strong.look_for_missing_files();
+                        }
+                    }
+                    Ok(()) => {}
+                }
+            });
+        if let Err(error) = spawned {
+            self.report(
+                "sync.runner",
+                "Could not start syncing recordings",
+                CoreError::internal(error),
+            );
+        }
     }
 
     async fn engine_loop(self: Arc<Self>) {

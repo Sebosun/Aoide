@@ -340,6 +340,16 @@ fn pause_after(book: &BookModel, index: usize) -> u32 {
     book.segment(index).map_or(0, |s| s.pause_after_ms)
 }
 
+/// The ids of the segments of `book` at `entries` that have something to say.
+pub(super) fn spoken_ids(book: &BookModel, entries: Vec<usize>) -> Vec<String> {
+    entries
+        .into_iter()
+        .filter_map(|index| book.segment(index))
+        .filter(|segment| !segment.speech.is_empty())
+        .map(|segment| segment.id.clone())
+        .collect()
+}
+
 #[cfg(test)]
 #[allow(clippy::single_range_in_vec_init)]
 mod tests {

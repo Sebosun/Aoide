@@ -209,7 +209,7 @@ generation (`BookForgotten`), recordings, shelf.
 **Done when:** `core.rs` contains no `lock(&self.books)`; the shelf has tests beside it for
 import, rescan finding a removed file, and an ignored book staying out of a rescan.
 
-### - [ ] 11. Close out `Core`
+### - [x] 11. Close out `Core`
 
 - Sleep timer and media keys move into a module beside `Playback`.
 - `lock()` logs through `report` the first time it recovers a poisoned mutex.
