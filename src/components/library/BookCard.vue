@@ -293,13 +293,17 @@ const items = computed<MenuEntry[]>(() => {
 .book-card {
   position: relative;
   display: grid;
+  /* Its one column keeps to the library's track, whatever the tile's text. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   align-content: start;
   min-width: 0;
   font-size: 12.5px;
 }
+/* A button sizes to its content even as a block: it fills the grid track instead. */
 .book-card__open {
   display: block;
+  width: 100%;
   border-radius: 12px;
 }
 /* A square cover sits at the foot of a portrait frame, so the titles below line up. */

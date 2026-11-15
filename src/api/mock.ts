@@ -497,7 +497,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       b.title = got ? fixtureArticle.summary.title : new URL(view.canonicalUrl).hostname;
       b.authors = got ? [...fixtureArticle.summary.authors] : [];
       b.article = {
-        siteName: got ? view.siteName : null,
+        siteName: (got ? view.siteName : null) ?? new URL(view.canonicalUrl).hostname,
         lead: got ? fixtureArticle.summary.article.lead : null,
         stage: view.stage,
         error: view.error,

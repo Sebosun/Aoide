@@ -298,7 +298,11 @@ Update `README.md` and `docs/roadmap.md`.
   in nesting depth, so a page nested deeper than `ExtractOptions.max_depth` (256, measured by a
   linear lexical scan first) is read as plain text with its chrome skipped. A JSON-LD
   `headline` is used only when it shares most words with `og:title` or `<title>` (an
-  encyclopedia puts a description there); else its `name`, else the page's title.
+  encyclopedia puts a description there); else its `name`, else the page's title. A site's
+  name after the title ("Title | Site") is taken off when another level's title or an
+  `h1`/`h2` on the page is the same without it. The fetcher follows a page that only
+  refreshes to another within 5 s (`<meta http-equiv="refresh">`, as moved static pages do),
+  counted like redirects. An unnamed site goes by its host in `ArticleSummary.site_name`.
 - 4.6: `fetching::Event` has `Started`, `Got`, `FetchFailed`, `Retried` and `Interrupted`
   (a fetch cut off by quitting is queued again on start); there is no `Removed` event, since
   removing an article deletes its row.
@@ -315,7 +319,21 @@ Update `README.md` and `docs/roadmap.md`.
   and says when that fetch failed. In the reader's margin an article has no chapter menu.
 - 4.12: the archived copy is fetched from `https://web.archive.org/web/{timestamp}id_/{url}`
   (the `id_` form is the page as archived, without the archive's toolbar).
+  The lead image is kept beside the books' covers, as `covers/<id>.<ext>`, not in the
+  article's folder: the asset scope lets the interface show images only from the covers
+  folder, and widening it would also expose the stored pages.
 - An article's word count is stored when its copy is kept, so lists show its reading time
   before it is first opened.
 - 4.13: the opt-in real-network test is `crates/fetch/tests/live_page.rs`, `#[ignore]`d like
   the other local-only tests, with the address in `AOIDE_TEST_ARTICLE_URL`.
+- Done-check (native, muted smoke run, 2026-11-15): an encyclopedia page, two blog posts (one
+  behind a moved page's meta refresh) and an essay each read cleanly with site, byline, lead
+  image and reading time, and reopened at the sentence left. A profile page on a site that
+  needs scripts ended in "Needs you · no text was found" with its 29 captured words. An
+  address whose host does not resolve ended in "Could not be fetched" with the reason; the
+  network itself was not unplugged. Narration natively was not heard: the GPU was full, so the
+  speech server could not load its model and the app showed the engine as not ready. Articles
+  play, prepare and export through the fake engine in `core/article_tests.rs`. The run found
+  and fixed: tiles sized by their text in the library grid, article covers outside the asset
+  scope, site suffixes in titles, the meta-refresh page, and a partial copy replaced by a
+  shorter one.

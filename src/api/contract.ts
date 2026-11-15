@@ -599,7 +599,11 @@ via: ArticleSource | null, fetchedAt: number | null, capturedWords: number, decl
  */
 feeds: Array<FeedView>, };
 
-export type ArticleSummary = { siteName: string | null, 
+export type ArticleSummary = { 
+/**
+ * The site's name, else its address's host.
+ */
+siteName: string | null, 
 /**
  * Its first lines.
  */

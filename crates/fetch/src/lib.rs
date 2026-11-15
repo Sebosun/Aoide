@@ -109,24 +109,37 @@ impl HttpFetcher {
         Ok(Self { client, options })
     }
 
-    /// Fetches `url`, following redirects, and returns the page as text.
+    /// Fetches `url`, following redirects (and a page that only refreshes to another, as a
+    /// moved static page does), and returns the page as text.
     pub async fn fetch(&self, url: &Url) -> Result<Snapshot, FetchError> {
-        let (final_url, response) = self.send(url).await?;
-        let status = response.status().as_u16();
-        let content_type = content_type(&response);
-        let essence = essence(&content_type);
-        if essence != "text/html" && essence != "application/xhtml+xml" {
-            return Err(not_html(essence));
+        let mut current = url.clone();
+        let mut refreshes = 0;
+        loop {
+            let (final_url, response) = self.send(&current).await?;
+            let status = response.status().as_u16();
+            let content_type = content_type(&response);
+            let essence = essence(&content_type);
+            if essence != "text/html" && essence != "application/xhtml+xml" {
+                return Err(not_html(essence));
+            }
+            let body = self.body(response, self.options.max_bytes).await?;
+            let html = decode(&body, &content_type);
+            if let Some(next) = refresh_target(&html, &final_url) {
+                if next != final_url && refreshes < self.options.max_redirects {
+                    refreshes += 1;
+                    current = next;
+                    continue;
+                }
+            }
+            return Ok(Snapshot {
+                requested: url.clone(),
+                final_url,
+                status,
+                html,
+                fetched_at_ms: now_ms(),
+                via: Via::Http,
+            });
         }
-        let body = self.body(response, self.options.max_bytes).await?;
-        Ok(Snapshot {
-            requested: url.clone(),
-            final_url,
-            status,
-            html: decode(&body, &content_type),
-            fetched_at_ms: now_ms(),
-            via: Via::Http,
-        })
     }
 
     /// Fetches the image at `url`, of at most `max_bytes`.
@@ -390,4 +403,68 @@ fn meta_charset(body: &[u8]) -> Option<String> {
         }
     }
     None
+}
+
+/// How soon a refresh must come to count as a redirect rather than a page that reloads itself.
+const REFRESH_SECONDS: f64 = 5.0;
+
+/// Where a `<meta http-equiv="refresh">` sends the page at once, if anywhere.
+fn refresh_target(html: &str, base: &Url) -> Option<Url> {
+    // ASCII lowercasing keeps every byte offset, so `lower`'s positions index `html`.
+    let lower = html.to_ascii_lowercase();
+    let mut from = 0;
+    while let Some(at) = lower[from..].find("<meta") {
+        let start = from + at;
+        let end = lower[start..].find('>').map_or(lower.len(), |e| start + e);
+        let tag = &html[start..end];
+        from = end;
+        if attribute(tag, "http-equiv").is_some_and(|v| v.eq_ignore_ascii_case("refresh")) {
+            return refresh_url(&attribute(tag, "content")?, base);
+        }
+    }
+    None
+}
+
+/// The value of attribute `name` in the start tag `tag`.
+fn attribute(tag: &str, name: &str) -> Option<String> {
+    let lower = tag.to_ascii_lowercase();
+    let mut from = 0;
+    while let Some(at) = lower[from..].find(name) {
+        let start = from + at;
+        from = start + name.len();
+        if !lower[..start].ends_with(|c: char| c.is_ascii_whitespace()) {
+            continue;
+        }
+        let Some(rest) = tag[from..].trim_start().strip_prefix('=') else {
+            continue;
+        };
+        let rest = rest.trim_start();
+        let value = match rest.chars().next()? {
+            quote @ ('"' | '\'') => rest[1..].split(quote).next()?,
+            _ => rest
+                .split(|c: char| c.is_ascii_whitespace() || c == '>')
+                .next()?,
+        };
+        return Some(value.replace("&amp;", "&"));
+    }
+    None
+}
+
+/// The address in a refresh's `content` ("0; url=/new/"), when it comes within
+/// [`REFRESH_SECONDS`].
+fn refresh_url(content: &str, base: &Url) -> Option<Url> {
+    let (delay, rest) = content.split_once([';', ','])?;
+    if delay.trim().parse::<f64>().ok()? > REFRESH_SECONDS {
+        return None;
+    }
+    let rest = rest.trim();
+    let rest = match rest.get(..3) {
+        Some(key) if key.eq_ignore_ascii_case("url") => rest[3..].trim_start().strip_prefix('=')?,
+        _ => rest,
+    };
+    let target = rest.trim().trim_matches(|c| c == '"' || c == '\'').trim();
+    if target.is_empty() {
+        return None;
+    }
+    base.join(target).ok()
 }

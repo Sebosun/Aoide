@@ -262,6 +262,7 @@ impl Core {
         let articles = Arc::new(articles::Articles::new(
             Arc::clone(&library),
             paths.articles_dir.clone(),
+            paths.covers_dir.clone(),
             fetcher,
         ));
         let core = Arc::new(Self {

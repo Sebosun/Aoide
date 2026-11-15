@@ -158,6 +158,7 @@ pub struct ArticleView {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct ArticleSummary {
+    /// The site's name, else its address's host.
     pub site_name: Option<String>,
     /// Its first lines.
     pub lead: Option<String>,
@@ -174,12 +175,18 @@ pub(super) trait ArticlesHost: Send + Sync {
 pub(super) struct Articles {
     library: Arc<Mutex<Library>>,
     dir: PathBuf,
+    /// The books' covers folder, which the interface may show images from: lead images go
+    /// there as `<id>.<ext>`.
+    covers: PathBuf,
     fetcher: Arc<dyn Fetcher>,
     queue: Mutex<VecDeque<(String, ArticleSource)>>,
     wake: tokio::sync::Notify,
     /// Feeds each extracted page links to.
     feeds: Mutex<HashMap<String, Vec<FeedView>>>,
 }
+
+/// The formats a lead image is kept in.
+const COVER_EXTENSIONS: [&str; 4] = ["jpg", "png", "webp", "gif"];
 
 /// A saved link as a web address: trimmed, and `https://` when it names no scheme.
 pub fn parse_link(link: &str) -> Result<Url, String> {
@@ -202,10 +209,16 @@ pub fn parse_link(link: &str) -> Result<Url, String> {
 }
 
 impl Articles {
-    pub fn new(library: Arc<Mutex<Library>>, dir: PathBuf, fetcher: Arc<dyn Fetcher>) -> Self {
+    pub fn new(
+        library: Arc<Mutex<Library>>,
+        dir: PathBuf,
+        covers: PathBuf,
+        fetcher: Arc<dyn Fetcher>,
+    ) -> Self {
         Self {
             library,
             dir,
+            covers,
             fetcher,
             queue: Mutex::new(VecDeque::new()),
             wake: tokio::sync::Notify::new(),
@@ -340,6 +353,14 @@ impl Articles {
                 tracing::warn!(event = "article.forget", book = crate::logging::book(id), %error, "Could not delete the article's folder");
             }
         }
+        self.drop_covers(id);
+    }
+
+    /// Deletes article `id`'s lead image, in whichever format it was stored.
+    fn drop_covers(&self, id: &str) {
+        for ext in COVER_EXTENSIONS {
+            let _ = std::fs::remove_file(self.covers.join(format!("{id}.{ext}")));
+        }
     }
 
     fn store_stage(&self, book: &BookId, from: &str, to: Stage, error: Option<&str>) {
@@ -382,9 +403,15 @@ impl Articles {
 
     pub fn summary(&self, id: &str) -> Option<ArticleSummary> {
         let row = lock(&self.library).article(&BookId(id.into())).ok()??;
+        // A site that has not named itself goes by its address.
+        let host = || {
+            Url::parse(&row.canonical_url)
+                .ok()
+                .and_then(|u| u.host_str().map(str::to_owned))
+        };
         Some(ArticleSummary {
             stage: Stage::from_stored(&row.stage, row.reason.as_deref()),
-            site_name: row.site_name,
+            site_name: row.site_name.clone().or_else(host),
             lead: row.lead,
             error: row.error,
         })
@@ -545,6 +572,7 @@ impl Articles {
                 return;
             }
         };
+        // One of COVER_EXTENSIONS.
         let ext = match image.media_type.as_str() {
             "image/jpeg" | "image/jpg" => "jpg",
             "image/png" => "png",
@@ -552,8 +580,11 @@ impl Articles {
             "image/gif" => "gif",
             _ => return,
         };
-        let path = self.dir.join(id).join(format!("cover.{ext}"));
-        if let Err(error) = std::fs::write(&path, &image.bytes) {
+        let path = self.covers.join(format!("{id}.{ext}"));
+        self.drop_covers(id);
+        if let Err(error) =
+            std::fs::create_dir_all(&self.covers).and_then(|()| std::fs::write(&path, &image.bytes))
+        {
             tracing::warn!(event = "article.cover", book = crate::logging::book(id), outcome = "failed", %error, "Could not store the article's image");
             return;
         }

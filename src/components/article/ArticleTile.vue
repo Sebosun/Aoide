@@ -17,6 +17,9 @@ defineProps<{ site: string; title: string; lead: string | null; loading?: boolea
 
 <style scoped>
 .article-tile {
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -28,6 +31,7 @@ defineProps<{ site: string; title: string; lead: string | null; loading?: boolea
   text-align: left;
 }
 .article-tile__site {
+  flex: none;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -38,16 +42,21 @@ defineProps<{ site: string; title: string; lead: string | null; loading?: boolea
   white-space: nowrap;
 }
 .article-tile__headline {
+  flex: none;
   font-family: var(--font-read);
   font-size: 20px;
   line-height: 1.18;
   font-weight: 500;
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* The lead takes what room is left and fades where the tile ends. */
 .article-tile__lead {
+  min-height: 0;
+  -webkit-mask-image: linear-gradient(var(--ink) 70%, transparent);
+  mask-image: linear-gradient(var(--ink) 70%, transparent);
   font-family: var(--font-read);
   font-size: 13.5px;
   line-height: 1.4;

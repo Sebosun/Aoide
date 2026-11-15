@@ -72,7 +72,7 @@ pub(crate) fn read(page: &Html, url: &Url, found_title: Option<String>) -> Read 
     });
     Read {
         meta: ArticleMeta {
-            title: title(&levels),
+            title: title(&levels, &headings(page)),
             byline: pick(|l| &l.byline),
             site_name: pick(|l| &l.site_name),
             published,
@@ -88,17 +88,39 @@ pub(crate) fn read(page: &Html, url: &Url, found_title: Option<String>) -> Read 
 }
 
 /// JSON-LD's `headline`, else its `name`, when it agrees with the page's own titles (some
-/// sites put a description of the subject in `headline`); else the first page title.
-fn title(levels: &[Level; 3]) -> Option<String> {
+/// sites put a description of the subject in `headline`); else the first page title. A site's
+/// name after it ("Title | Site") is taken off when another level's title or one of the page's
+/// `headings` is the same without it.
+fn title(levels: &[Level; 3], headings: &[String]) -> Option<String> {
     let [json, rest @ ..] = levels;
     let page: Vec<&str> = rest.iter().filter_map(|l| l.title.as_deref()).collect();
     let agrees = |title: &str| page.is_empty() || page.iter().any(|p| alike(title, p));
-    [&json.title, &json.other_title]
+    let chosen = [&json.title, &json.other_title]
         .into_iter()
         .flatten()
         .find(|t| agrees(t))
         .cloned()
-        .or_else(|| rest.iter().find_map(|l| l.title.clone()))
+        .or_else(|| rest.iter().find_map(|l| l.title.clone()))?;
+    let shorter = levels
+        .iter()
+        .filter_map(|l| l.title.as_deref())
+        .chain(headings.iter().map(String::as_str))
+        .find(|other| {
+            chosen.len() > other.len()
+                && chosen.starts_with(*other)
+                && chosen[other.len()..]
+                    .trim_start()
+                    .starts_with(['|', '-', '–', '—', '·', ':'])
+        });
+    Some(shorter.map_or(chosen.clone(), str::to_owned))
+}
+
+/// The texts of the page's first top-level headings.
+fn headings(page: &Html) -> Vec<String> {
+    page.select(&selector("h1, h2"))
+        .take(8)
+        .filter_map(|h| clean(&h.text().collect::<String>()))
+        .collect()
 }
 
 /// Whether two titles share at least half the words of the shorter.

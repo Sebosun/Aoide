@@ -308,3 +308,45 @@ async fn the_archive_names_its_closest_copy_of_a_page() {
         .await;
     assert_eq!(none, Ok(None));
 }
+
+#[tokio::test]
+async fn a_page_that_only_refreshes_to_another_is_followed() {
+    // A static site's moved page: a script and a `<meta http-equiv="refresh">` to the new place.
+    let moved = br#"<!doctype html><title>Redirect</title>
+<script>window.location.replace("/new/");</script>
+<noscript><meta http-equiv="Refresh" content="0; URL='/new/'"></noscript>
+<p><a href="/new/">Click here</a> to be redirected.</p>"#;
+    let slow = br#"<meta http-equiv="refresh" content="300; url=/new/"><p>Live scores.</p>"#;
+    let server = serve(vec![
+        ("/old.html", html("text/html", moved)),
+        ("/new/", html("text/html", b"<p>The article itself.</p>")),
+        ("/scores", html("text/html", slow)),
+        (
+            "/again",
+            html(
+                "text/html",
+                br#"<meta http-equiv="refresh" content="0;url=/again">"#,
+            ),
+        ),
+    ])
+    .await;
+    let snapshot = fetcher(options())
+        .fetch(&server.at("/old.html"))
+        .await
+        .unwrap();
+    assert_eq!(snapshot.requested, server.at("/old.html"));
+    assert_eq!(snapshot.final_url, server.at("/new/"));
+    assert_eq!(snapshot.html, "<p>The article itself.</p>");
+
+    // A page that reloads itself later is the page; one that refreshes to itself is not followed.
+    let scores = fetcher(options())
+        .fetch(&server.at("/scores"))
+        .await
+        .unwrap();
+    assert_eq!(scores.final_url, server.at("/scores"));
+    let again = fetcher(options())
+        .fetch(&server.at("/again"))
+        .await
+        .unwrap();
+    assert_eq!(again.final_url, server.at("/again"));
+}

@@ -221,3 +221,30 @@ fn a_json_ld_headline_that_is_not_the_pages_title_gives_way_to_its_name() {
         .as_deref()
         .is_some_and(|t| t.starts_with("Harbour lights")));
 }
+
+#[test]
+fn a_sites_name_after_the_title_is_taken_off() {
+    let head = r#"<title>Announcing the Night Ferry 2.0 | Harbour Blog</title>
+<meta property="og:title" content="Announcing the Night Ferry 2.0 | Harbour Blog">"#;
+    let body = BODY.replace(
+        "<h1>The Night Ferry</h1>",
+        "<h1>Announcing the Night Ferry 2.0</h1>",
+    );
+    let html = format!("<!doctype html><html><head>{head}</head><body>{body}</body></html>");
+    let meta = extract(&html, &url(), &ExtractOptions::default()).meta;
+    assert_eq!(
+        meta.title.as_deref(),
+        Some("Announcing the Night Ferry 2.0")
+    );
+}
+
+#[test]
+fn a_short_title_loses_its_sites_name_when_a_heading_says_it_alone() {
+    // Three words before the site's name: content finders keep the whole title.
+    let html = format!(
+        "<!doctype html><html><head><title>Night Ferry 2.0 | Harbour Blog</title></head>\
+         <body><header><h2>Night Ferry 2.0</h2></header>{BODY}</body></html>"
+    );
+    let meta = extract(&html, &url(), &ExtractOptions::default()).meta;
+    assert_eq!(meta.title.as_deref(), Some("Night Ferry 2.0"));
+}

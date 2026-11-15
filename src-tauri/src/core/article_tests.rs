@@ -308,7 +308,10 @@ async fn a_failed_fetch_stores_nothing_and_says_why() {
         .into_iter()
         .find(|b| b.id == id)
         .unwrap();
-    assert_eq!(summary.article.unwrap().stage, Stage::Failed);
+    let article = summary.article.unwrap();
+    assert_eq!(article.stage, Stage::Failed);
+    // A site that has not named itself goes by its address.
+    assert_eq!(article.site_name.as_deref(), Some("quay.example"));
     assert!(core.open_book(&id).is_err());
 
     // Fetching again once the site is back.
@@ -505,7 +508,8 @@ async fn a_lead_image_becomes_the_cover_and_a_missing_one_changes_nothing() {
     );
     let (dir, core, id) = saved(&pages).await;
     assert_eq!(settled(&core, &id).await, Stage::Ready);
-    let cover = dir.path().join(format!("data/articles/{id}/cover.jpg"));
+    // Beside the books' covers, where the interface may show images from.
+    let cover = dir.path().join(format!("data/covers/{id}.jpg"));
     until("the cover is stored", || {
         core.list_books()
             .unwrap()
@@ -514,6 +518,8 @@ async fn a_lead_image_becomes_the_cover_and_a_missing_one_changes_nothing() {
     })
     .await;
     assert_eq!(std::fs::read(&cover).unwrap(), b"\xff\xd8lamps");
+    core.remove_book(&id).unwrap();
+    assert!(!cover.exists(), "removing the article removes its cover");
 
     // An image that cannot be fetched leaves the article as it is.
     let other = "https://quay.example/harbour";
