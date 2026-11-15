@@ -1,0 +1,17 @@
+[package]
+name = "aoide-fetch"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Fetches a web page once over plain HTTP and keeps it as a snapshot"
+publish = false
+
+[dependencies]
+encoding_rs = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+thiserror = "2"
+tokio = { version = "1", features = ["net", "time"] }
+url = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "sync"] }
