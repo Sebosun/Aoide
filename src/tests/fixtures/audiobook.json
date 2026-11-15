@@ -52,5 +52,33 @@
     },
     "title": "Winter Radio",
     "wordCount": null
+  },
+  "view": {
+    "authors": [
+      "Ines Morrow"
+    ],
+    "chapters": [
+      {
+        "durationMs": 1020,
+        "index": 0,
+        "title": "Part One"
+      },
+      {
+        "durationMs": 525,
+        "index": 1,
+        "title": "Part Two"
+      }
+    ],
+    "excluded": [],
+    "id": "book-5",
+    "language": null,
+    "languageWarning": null,
+    "mode": "listen",
+    "progress": null,
+    "shape": "listen",
+    "title": "Winter Radio",
+    "voiceWarning": null,
+    "warnings": [],
+    "wordCount": 0
   }
 }

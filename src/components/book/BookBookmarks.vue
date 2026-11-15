@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { BookmarkPlus, Trash2 } from "@lucide/vue";
 import { api } from "../../api";
 import type { Bookmark } from "../../api/types";
+import { formatClock, partsOf } from "../../estimate";
 import { usePlayerStore } from "../../stores/player";
 import { useReaderStore } from "../../stores/reader";
 const props = defineProps<{ bookId: string }>();
@@ -51,6 +52,23 @@ async function remove(mark: Bookmark) {
 }
 const chapterTitle = (index: number) =>
   reader.book?.chapters.find((c) => c.index === index)?.title ?? `Chapter ${index + 1}`;
+/** An audiobook on its own: its bookmarks are times, in its parts. */
+const audio = computed(() => reader.shape === "listen");
+const parts = computed(() => partsOf(reader.book?.chapters ?? []));
+/** Where a bookmark is: "Part 7 · 18:42" (into the part) for a time, else its chapter. */
+function where(mark: Bookmark) {
+  if (mark.positionMs === null) return chapterTitle(mark.chapter);
+  const start = parts.value[mark.chapter]?.start ?? 0;
+  return `Part ${mark.chapter + 1} · ${formatClock(mark.positionMs - start)}`;
+}
+/** Plays from the bookmark: its sentence, or its time. */
+async function jump(mark: Bookmark) {
+  if (mark.positionMs !== null) {
+    await player.seek(props.bookId, mark.positionMs);
+    if (player.state.bookId !== props.bookId || player.state.status !== "playing")
+      await player.play(props.bookId, null, null);
+  } else await player.play(props.bookId, mark.chapter, mark.segmentId);
+}
 const when = (seconds: number) => new Date(seconds * 1000).toLocaleDateString();
 </script>
 
@@ -59,18 +77,15 @@ const when = (seconds: number) => new Date(seconds * 1000).toLocaleDateString();
     <input v-model="note" type="text" aria-label="Bookmark note" placeholder="Optional note" />
     <button type="submit" class="book-bookmarks__button"><BookmarkPlus :size="15" /> Bookmark here</button>
   </form>
-  <p class="book-bookmarks__hint">Marks the sentence being read, or where you left off.</p>
+  <p class="book-bookmarks__hint">
+    {{ audio ? "Marks the moment playing" : "Marks the sentence being read" }}, or where you left off.
+  </p>
   <p v-if="error" class="book-bookmarks__error" role="alert">{{ error }}</p>
   <p v-if="!marks.length" class="book-bookmarks__empty">No bookmarks yet.</p>
   <ul class="book-bookmarks__list">
     <li v-for="mark in marks" :key="mark.id" class="book-bookmarks__item">
-      <button
-        type="button"
-        class="book-bookmarks__play"
-        :title="'Play from here'"
-        @click="player.play(bookId, mark.chapter, mark.segmentId)"
-      >
-        <small>{{ chapterTitle(mark.chapter) }} · {{ when(mark.createdAt) }}</small>
+      <button type="button" class="book-bookmarks__play" :title="'Play from here'" @click="jump(mark)">
+        <small>{{ where(mark) }} · {{ when(mark.createdAt) }}</small>
         <span>{{ mark.excerpt || "Start of chapter" }}</span>
       </button>
       <div class="book-bookmarks__row">

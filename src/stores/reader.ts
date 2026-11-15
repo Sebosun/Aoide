@@ -70,7 +70,9 @@ export const useReaderStore = defineStore("reader", () => {
       book.value = result;
       const saved = result.progress;
       place.value = saved?.segmentId ? { chapter: saved.chapter, segmentId: saved.segmentId } : null;
-      await loadChapter(saved?.chapter ?? 0);
+      // An audiobook on its own has no text to show: its parts are played.
+      if (result.shape === "listen") currentChapter.value = saved?.chapter ?? 0;
+      else await loadChapter(saved?.chapter ?? 0);
       useNavigationStore().view = "reader";
     } catch (e) {
       error.value = String(e);
@@ -81,6 +83,10 @@ export const useReaderStore = defineStore("reader", () => {
   /** Shows a chapter of the open book; while listening, plays it from its first spoken
    *  sentence. */
   async function startChapter(index: number) {
+    if (shape.value === "listen") {
+      if (book.value) await usePlayerStore().play(book.value.id, index, null);
+      return;
+    }
     await loadChapter(index);
     if (shape.value === "read") return;
     const first = chapter.value?.blocks.flatMap((b) => b.segments).find((s) => s.speakable);
@@ -90,7 +96,7 @@ export const useReaderStore = defineStore("reader", () => {
   /** Fetches a book's chapters again (its narration changed what they mark). */
   async function refreshBook(id: string) {
     cache.value = Object.fromEntries(Object.entries(cache.value).filter(([key]) => !key.startsWith(`${id}:`)));
-    if (book.value?.id === id) await loadChapter(currentChapter.value);
+    if (book.value?.id === id && shape.value !== "listen") await loadChapter(currentChapter.value);
   }
   return {
     book,

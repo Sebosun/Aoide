@@ -13,13 +13,15 @@ import { useRecordingsStore } from "./stores/recordings";
  *  `prepare=book-1,book-0` queues those books for whole-book preparation, in that order.
  *  `recording=syncing|ready|review|missing|model|mismatch|failed` gives book-0 a recording in that
  *  stage (see api/mock); `pair=~/a.m4b,~/b.aax` opens the pairing dialog on those paths and
- *  `report=book-0` that book's sync report */
+ *  `report=book-0` that book's sync report; `audiobook=1` adds the preview's audiobook on its own
+ *  (book-5) */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
   const view = query.get("view") as View | null,
     settings = query.get("settings") as SettingsTab | null;
   if (settings) useNavigationStore().openSettings(settings);
   for (const id of query.get("prepare")?.split(",").filter(Boolean) ?? []) await api.prepareBook(id);
+  if (query.has("audiobook")) await api.addAudiobook(["~/Audiobooks/Winter Radio"]);
   if (query.has("shelves")) {
     // Sample collections for screenshots: `shelves=1`.
     const library = useLibraryStore();

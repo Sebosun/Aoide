@@ -353,6 +353,7 @@ impl Shelf {
             chapter: progress.chapter,
             segment_id: progress.segment_id,
             fraction,
+            position_ms: progress.position_ms,
         })
     }
 

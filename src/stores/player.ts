@@ -84,6 +84,8 @@ export const usePlayerStore = defineStore("player", () => {
     play: (id: string, chapter: number | null = null, segmentId: string | null = null) =>
       action(() => api.play(id, chapter, segmentId)),
     skipChapter: (delta: number) => action(() => api.skipChapter(delta)),
+    seek: (id: string, positionMs: number) => action(() => api.seek(id, positionMs)),
+    skip: (id: string, deltaMs: number) => action(() => api.skip(id, deltaMs)),
     setSleepTimer: (minutes: number | null, endOfChapter: boolean) =>
       action(() => api.setSleepTimer(minutes, endOfChapter)),
     pause: () => action(() => api.pause()),

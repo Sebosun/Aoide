@@ -46,7 +46,13 @@ const coreBooks = (): BookSummary[] =>
     coverUrl: coverPath,
   }));
 const coreView = (id: string): BookView | undefined =>
-  structuredClone((fixtureViews as unknown as Record<string, BookView>)[id]);
+  structuredClone(
+    id === fixtureAudiobook.view.id
+      ? (fixtureAudiobook.view as unknown as BookView)
+      : (fixtureViews as unknown as Record<string, BookView>)[id],
+  );
+/** What the core says of a text-only operation on an audiobook. */
+const NO_TEXT = "Not available for an audiobook: it has no text.";
 
 /** The same API with every request (not the event subscriptions) taking `ms` longer. */
 export function slowed<T extends AoideApi>(api: T, ms: number): T {
@@ -510,8 +516,67 @@ export function createMockApi() {
     clearInterval(timer);
     timer = undefined;
   };
+  /** An audiobook on its own plays on a timeline of its parts, as the core does
+   *  (core/timeline.rs); its parts and their lengths come from the core's view of it. */
+  const isAudiobook = (id: string) => books.find((b) => b.id === id)?.kind === "audiobook";
+  const partsOf = (id: string) => {
+    let start = 0;
+    return (coreView(id)?.chapters ?? []).map((c) => {
+      const part = { start, end: start + (c.durationMs ?? 0), title: c.title };
+      start = part.end;
+      return part;
+    });
+  };
+  /** The part holding `at` (the last one at the very end). */
+  const partAt = (parts: { start: number }[], at: number) => Math.max(0, parts.filter((p) => p.start <= at).length - 1);
+  const timelineState = (id: string, at: number, status: PlayerState["status"]): PlayerState => {
+    const parts = partsOf(id),
+      total = parts.at(-1)?.end ?? 0,
+      position = Math.min(total, Math.max(0, at)),
+      index = partAt(parts, position),
+      part = parts[index] ?? { start: 0, end: total };
+    return {
+      ...state,
+      bookId: id,
+      status,
+      chapter: index,
+      segmentId: null,
+      wordIndex: null,
+      chapterFraction: part.end > part.start ? (position - part.start) / (part.end - part.start) : 0,
+      error: null,
+      source: "recording",
+      offText: false,
+      chapterLeftMs: Math.round((part.end - position) / state.speed),
+      waitingForSync: false,
+      positionMs: position,
+      durationMs: total,
+      partPositionMs: position - part.start,
+    };
+  };
+  /** Saves an audiobook's place, finishing it at the end. */
+  const keepTime = (id: string, at: number) => {
+    const b = getBook(id),
+      parts = partsOf(id),
+      total = parts.at(-1)?.end ?? 0;
+    const chapter = partAt(parts, at);
+    b.progress = { chapter, segmentId: null, fraction: total ? at / total : 0, positionMs: at };
+    b.readState = at + 1000 >= total ? "finished" : "inProgress";
+    changed();
+  };
+  const TIMELINE_STEP = 250;
+  const tickTimeline = () => {
+    if (state.status !== "playing" || !state.bookId || state.positionMs === null) return;
+    const id = state.bookId,
+      at = state.positionMs + TIMELINE_STEP * state.speed;
+    if (at >= (state.durationMs ?? 0)) {
+      halt();
+      emitPlayer(timelineState(id, state.durationMs ?? 0, "stopped"));
+    } else emitPlayer(timelineState(id, at, "playing"));
+    keepTime(id, state.positionMs!);
+  };
   const tick = () => {
     if (state.status !== "playing" || !state.bookId) return;
+    if (isAudiobook(state.bookId)) return tickTimeline();
     const chapter = getChapter(state.bookId, state.chapter);
     const segments = chapter.blocks.flatMap((b) => b.segments).filter((s) => s.speakable);
     let index = segments.findIndex((s) => s.id === state.segmentId);
@@ -546,12 +611,13 @@ export function createMockApi() {
       chapter: state.chapter,
       segmentId: state.segmentId,
       fraction: (state.chapter + state.chapterFraction) / chapters[Number(book.id.split("-")[1])].length,
+      positionMs: null,
     };
     changed();
   };
   const run = () => {
     halt();
-    timer = setInterval(tick, 320 / state.speed);
+    timer = setInterval(tick, state.positionMs === null ? 320 / state.speed : TIMELINE_STEP);
   };
   const subscribe = async <T>(set: Set<(s: T) => void>, handler: (s: T) => void) => {
     set.add(handler);
@@ -666,6 +732,7 @@ export function createMockApi() {
     },
     async setMode(id, mode) {
       const b = getBook(id);
+      if (mode === "read" && isAudiobook(id)) throw new Error(NO_TEXT);
       if (mode === "read" && state.bookId === id && state.status === "playing") await api.pause();
       b.mode = mode;
       b.shape = mode === "read" ? "read" : "readAlong";
@@ -674,6 +741,7 @@ export function createMockApi() {
       return api.bookOverview(id);
     },
     async chapter(id, chapter) {
+      if (isAudiobook(id)) throw new Error(NO_TEXT);
       return getChapter(id, chapter);
     },
     async markFinished(id) {
@@ -695,7 +763,7 @@ export function createMockApi() {
       );
       const index = all.indexOf(`${chapter}/${segmentId}`);
       if (index < 0) throw new Error("That place is not in the book.");
-      b.progress = { chapter, segmentId, fraction: all.length ? index / all.length : 0 };
+      b.progress = { chapter, segmentId, fraction: all.length ? index / all.length : 0, positionMs: null };
       if (index === all.length - 1) b.readState = "finished";
       else if (b.readState === "unread") b.readState = "inProgress";
       changed();
@@ -707,6 +775,18 @@ export function createMockApi() {
     },
     async play(id, chapter, segmentId) {
       const book = getBook(id);
+      if (isAudiobook(id)) {
+        const parts = partsOf(id),
+          total = parts.at(-1)?.end ?? 0;
+        const saved = state.bookId === id ? state.positionMs : (book.progress?.positionMs ?? null);
+        // As the core does: from the part asked for, else the saved place (from the start once
+        // it was finished).
+        const resume = saved !== null && saved + 1000 < total ? saved : 0;
+        const at = chapter !== null ? (parts[chapter]?.start ?? 0) : resume;
+        emitPlayer(timelineState(id, at, "playing"));
+        run();
+        return;
+      }
       wantEngine();
       // Playing a book by any route means listening to it.
       if (book.mode !== "listen") {
@@ -920,31 +1000,61 @@ export function createMockApi() {
       return hits;
     },
     async skipChapter(delta) {
-      if (state.bookId) {
+      if (state.bookId && state.positionMs !== null) {
+        const parts = partsOf(state.bookId),
+          part = Math.min(parts.length - 1, Math.max(0, state.chapter + delta));
+        await api.seek(state.bookId, parts[part].start);
+        await api.resume();
+      } else if (state.bookId) {
         const list = chapters[Number(state.bookId.split("-")[1])];
         const c = Math.min(list.length - 1, Math.max(0, state.chapter + delta));
         await api.play(state.bookId, c, list[c].blocks[0].segments[0].id);
       }
     },
     async seek(id, positionMs) {
-      if (state.bookId === id && state.durationMs !== null) {
-        const at = Math.min(state.durationMs, Math.max(0, positionMs));
-        emitPlayer({ ...state, positionMs: at });
-      }
+      const total = partsOf(id).at(-1)?.end ?? 0,
+        at = Math.min(total, Math.max(0, positionMs));
+      if (state.bookId === id && state.positionMs !== null) emitPlayer(timelineState(id, at, state.status));
+      keepTime(id, at);
     },
     async skip(id, deltaMs) {
-      if (state.bookId === id && state.positionMs !== null) await api.seek(id, state.positionMs + deltaMs);
+      const at = state.bookId === id ? state.positionMs : (getBook(id).progress?.positionMs ?? 0);
+      await api.seek(id, (at ?? 0) + deltaMs);
     },
     async bookmarks(id) {
       return structuredClone(
         bookmarks
           .filter((b) => b.bookId === id)
-          .sort((a, b) => a.chapter - b.chapter || a.charOffset - b.charOffset || a.createdAt - b.createdAt),
+          .sort(
+            (a, b) =>
+              a.chapter - b.chapter ||
+              a.charOffset - b.charOffset ||
+              (a.positionMs ?? 0) - (b.positionMs ?? 0) ||
+              a.createdAt - b.createdAt,
+          ),
       );
     },
     async addBookmark(id, note) {
       const book = getBook(id);
       const playing = state.bookId === id;
+      if (isAudiobook(id)) {
+        const at = (playing ? state.positionMs : book.progress?.positionMs) ?? 0,
+          parts = partsOf(id),
+          part = partAt(parts, at);
+        const mark: Bookmark = {
+          id: nextBookmark++,
+          bookId: id,
+          chapter: part,
+          charOffset: 0,
+          segmentId: null,
+          excerpt: parts[part]?.title ?? "",
+          note,
+          createdAt: Math.floor(Date.now() / 1000),
+          positionMs: at,
+        };
+        bookmarks.push(mark);
+        return structuredClone(mark);
+      }
       const chapter = playing ? state.chapter : (book.progress?.chapter ?? 0);
       const segmentId = (playing ? state.segmentId : book.progress?.segmentId) ?? null;
       const segment = getChapter(id, chapter)
@@ -1368,7 +1478,7 @@ export function createMockApi() {
   };
   /** Test hooks: put a book at a share of its length, or give it generated audio. */
   const setProgressForTest = (id: string, fraction: number) => {
-    getBook(id).progress = { chapter: 0, segmentId: null, fraction };
+    getBook(id).progress = { chapter: 0, segmentId: null, fraction, positionMs: null };
     changed();
   };
   const setAudioForTest = (id: string, bytes: number) => {

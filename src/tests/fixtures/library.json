@@ -13,7 +13,8 @@
     "progress": {
       "chapter": 0,
       "segmentId": "0:1:0",
-      "fraction": 0.12
+      "fraction": 0.12,
+      "positionMs": null
     },
     "audioBytes": 2457600,
     "kind": "book",

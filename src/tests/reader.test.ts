@@ -4,6 +4,10 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "../api/mock";
 import { initialPlayer } from "../api/initial";
 import ReaderView from "../views/ReaderView.vue";
+import ReaderTools from "../components/reader/ReaderTools.vue";
+import ListenButton from "../components/reader/ListenButton.vue";
+import ChapterMenu from "../components/reader/ChapterMenu.vue";
+import ChapterText from "../components/reader/ChapterText.vue";
 import { useReaderStore } from "../stores/reader";
 import { usePlayerStore } from "../stores/player";
 import { useLibraryStore } from "../stores/library";
@@ -480,4 +484,76 @@ it("counts reading time only while a silent book is read in a focused window", a
   } finally {
     vi.useRealTimers();
   }
+});
+
+/** The preview's audiobook on its own ("Winter Radio": Part One 1.02 s, Part Two 0.525 s). */
+async function openAudiobook() {
+  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  return openReader({ book: "book-5", attach: true });
+}
+
+it("shows an audiobook as a player with its parts, and nothing that needs text", async () => {
+  const wrapper = await openAudiobook();
+  const deck = wrapper.get(".audio-reader");
+  expect(deck.get("h1").text()).toBe("Winter Radio");
+  expect(deck.text()).toContain("Ines Morrow");
+  expect(deck.text()).toContain("Part 1 · Part One");
+  expect(deck.text()).toContain("0% of the book");
+  const rows = deck.findAll(".audio-reader__part-row");
+  expect(rows.map((r) => r.text())).toEqual(["1Part One0:01", "2Part Two0:00"]);
+  expect(rows[0].attributes("aria-current")).toBe("true");
+  // No Page/Lines switch, text size, Listen button or chapter menu.
+  for (const absent of [ReaderTools, ListenButton, ChapterMenu, ChapterText])
+    expect(wrapper.findComponent(absent).exists()).toBe(false);
+  expect(wrapper.find('[aria-label="Text size"]').exists()).toBe(false);
+  wrapper.unmount();
+});
+
+it("scrubs and skips an audiobook on its timeline, and jumps to a part", async () => {
+  const seek = vi.spyOn(mock, "seek"),
+    play = vi.spyOn(mock, "play");
+  const wrapper = await openAudiobook();
+  const slider = wrapper.get('[role="slider"][aria-label="Position in part"]');
+  await slider.trigger("keydown", { key: "End" });
+  await flushPromises();
+  expect(seek).toHaveBeenLastCalledWith("book-5", 1020);
+  expect(wrapper.text(), "the saved place moved into the next part").toContain("Part 2 · Part Two");
+  await wrapper.get('[aria-label="Back 30 seconds"]').trigger("click");
+  expect(seek).toHaveBeenLastCalledWith("book-5", 0);
+
+  await wrapper.findAll(".audio-reader__part-row")[1].trigger("click");
+  await flushPromises();
+  expect(play).toHaveBeenLastCalledWith("book-5", 1, null);
+  expect(wrapper.get(".audio-reader__part-row--current").text()).toContain("Part Two");
+  expect(wrapper.find('.audio-reader__play[aria-label="Pause"]').exists()).toBe(true);
+  await wrapper.get('[aria-label="Forward 30 seconds"]').trigger("click");
+  expect(seek).toHaveBeenLastCalledWith("book-5", 1545);
+  await mock.pause();
+  wrapper.unmount();
+});
+
+it("bookmarks a moment of an audiobook and plays from it", async () => {
+  const wrapper = await openAudiobook();
+  await mock.play("book-5", 1, null);
+  await mock.pause();
+  await flushPromises();
+  await wrapper.get('[aria-label="Bookmark this moment"]').trigger("click");
+  await flushPromises();
+  expect(useUiStore().toasts.map((t) => t.text)).toContain("Bookmarked");
+  await wrapper.get('[aria-label="Search and more"]').trigger("click");
+  await flushPromises();
+  const sheet = wrapper.get('[role="dialog"]');
+  expect(sheet.findAll('[role="tab"]').map((t) => t.text())).toEqual(["Bookmarks", "Details"]);
+  const mark = sheet.get(".book-bookmarks__play");
+  expect(mark.text()).toContain("Part 2 · 0:00");
+  expect(mark.text()).toContain("Part Two");
+
+  const seek = vi.spyOn(mock, "seek"),
+    play = vi.spyOn(mock, "play");
+  await mark.trigger("click");
+  await flushPromises();
+  expect(seek).toHaveBeenCalledWith("book-5", 1020);
+  expect(play).toHaveBeenCalledWith("book-5", null, null);
+  await mock.pause();
+  wrapper.unmount();
 });

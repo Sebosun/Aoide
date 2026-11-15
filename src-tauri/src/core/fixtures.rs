@@ -247,6 +247,7 @@ async fn fixtures_for_the_ui_mock() {
         chapter: 0,
         segment_id: Some("0:1:0".into()),
         fraction: 0.12,
+        position_ms: None,
     });
     started.audio_bytes = 2_457_600;
     started.last_opened_at = Some(500);
@@ -306,7 +307,11 @@ async fn fixtures_for_the_ui_mock() {
     summary.added_at = 200;
     write(
         "audiobook",
-        &serde_json::json!({ "summary": summary, "recording": core.recording(&id) }),
+        &serde_json::json!({
+            "summary": summary,
+            "recording": core.recording(&id),
+            "view": core.book_overview(&id).unwrap(),
+        }),
         &renames,
     );
     tokio::time::sleep(Duration::from_millis(50)).await;

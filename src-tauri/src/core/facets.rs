@@ -166,6 +166,7 @@ mod tests {
                 chapter: 0,
                 segment_id: Some("0:0:0".into()),
                 fraction,
+                position_ms: None,
             }),
             audio_bytes: 0,
             kind: aoide_library::ItemKind::Book,

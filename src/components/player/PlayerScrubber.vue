@@ -2,8 +2,16 @@
 /** Chapter progress: played part in coral, generated-but-unplayed audio as a lighter band.
  *  Clicking or arrow keys move the playhead by sentence (the parent decides where). */
 const props = withDefaults(
-  defineProps<{ played: number; ahead?: number; start?: string; end?: string; disabled?: boolean; detail?: string }>(),
-  { ahead: 0, start: "", end: "", disabled: false, detail: "" },
+  defineProps<{
+    played: number;
+    ahead?: number;
+    start?: string;
+    end?: string;
+    disabled?: boolean;
+    detail?: string;
+    label?: string;
+  }>(),
+  { ahead: 0, start: "", end: "", disabled: false, detail: "", label: "Chapter position" },
 );
 const emit = defineEmits<{ seek: [fraction: number]; step: [delta: number] }>();
 function click(event: MouseEvent) {
@@ -36,7 +44,7 @@ function key(event: KeyboardEvent) {
       class="scrubber__track"
       role="slider"
       :tabindex="disabled ? -1 : 0"
-      aria-label="Chapter position"
+      :aria-label="label"
       :title="detail || undefined"
       aria-valuemin="0"
       aria-valuemax="100"

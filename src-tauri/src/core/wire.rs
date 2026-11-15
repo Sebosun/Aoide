@@ -11,6 +11,8 @@ pub struct BookProgressView {
     pub chapter: u32,
     pub segment_id: Option<String>,
     pub fraction: f64,
+    /// An audiobook's place on its timeline (`chapter` is its part).
+    pub position_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]

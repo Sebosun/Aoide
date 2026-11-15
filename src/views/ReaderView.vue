@@ -6,6 +6,7 @@ import ReaderLines from "../components/reader/ReaderLines.vue";
 import ReaderTools from "../components/reader/ReaderTools.vue";
 import ChapterMenu from "../components/reader/ChapterMenu.vue";
 import ListenButton from "../components/reader/ListenButton.vue";
+import AudioReader from "../components/reader/AudioReader.vue";
 import { usePlayerControls } from "../composables/usePlayerControls";
 import { useReadingTime } from "../composables/useReadingTime";
 import { prepareChapter } from "../preparation";
@@ -23,6 +24,7 @@ const reader = useReaderStore(),
 watch(
   () => [reader.book?.id, player.state.bookId, player.state.chapter],
   async () => {
+    if (reader.shape === "listen") return;
     if (player.state.bookId === reader.book?.id && player.state.chapter !== reader.currentChapter)
       await reader.loadChapter(player.state.chapter);
   },
@@ -44,6 +46,8 @@ const { bookmark } = usePlayerControls();
 const playingHere = computed(() => player.state.bookId === reader.book?.id);
 /** Lines follows the narration, so it is offered only while listening. */
 const lines = computed(() => reader.shape === "readAlong" && preferences.appearance.readerMode === "lines");
+/** An audiobook on its own: no text, so no chapter menu, Listen button or text tools. */
+const audio = computed(() => reader.shape === "listen");
 </script>
 
 <template>
@@ -53,6 +57,7 @@ const lines = computed(() => reader.shape === "readAlong" && preferences.appeara
         <ArrowLeft :size="16" aria-hidden="true" />{{ backLabel }}
       </button>
       <ChapterMenu
+        v-if="!audio"
         class="reader__chapters"
         variant="title"
         prepare
@@ -64,13 +69,15 @@ const lines = computed(() => reader.shape === "readAlong" && preferences.appeara
         @prepare="prepareChapter(reader.book.id, $event)"
       />
       <div class="reader__actions">
-        <ListenButton />
-        <ReaderTools :lines="reader.shape === 'readAlong'" />
+        <template v-if="!audio">
+          <ListenButton />
+          <ReaderTools :lines="reader.shape === 'readAlong'" />
+        </template>
         <button
           type="button"
           class="reader__round"
-          aria-label="Bookmark this place"
-          title="Bookmark this place"
+          :aria-label="audio ? 'Bookmark this moment' : 'Bookmark this place'"
+          :title="audio ? 'Bookmark this moment' : 'Bookmark this place'"
           @click="bookmark"
         >
           <Bookmark :size="18" aria-hidden="true" />
@@ -79,7 +86,7 @@ const lines = computed(() => reader.shape === "readAlong" && preferences.appeara
           type="button"
           class="reader__round"
           aria-label="Search and more"
-          title="Bookmarks, search, narration and details"
+          :title="audio ? 'Bookmarks and details' : 'Bookmarks, search, narration and details'"
           aria-haspopup="dialog"
           :aria-expanded="Boolean(navigation.tools)"
           @click="openTools(undefined)"
@@ -88,7 +95,8 @@ const lines = computed(() => reader.shape === "readAlong" && preferences.appeara
         </button>
       </div>
     </header>
-    <ReaderLines v-if="lines" @tools="openTools(undefined)" />
+    <AudioReader v-if="audio" />
+    <ReaderLines v-else-if="lines" @tools="openTools(undefined)" />
     <ReaderSheet v-else :shape="reader.shape" @tools="openTools" />
     <Transition name="reader__chip">
       <p v-if="offText" class="reader__chip" role="status">
@@ -130,6 +138,7 @@ const lines = computed(() => reader.shape === "readAlong" && preferences.appeara
   justify-self: center;
 }
 .reader__actions {
+  grid-column: -2;
   justify-self: end;
   display: flex;
   align-items: center;

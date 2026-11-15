@@ -13,7 +13,11 @@ export type Collection = { id: number, name: string, createdAt: number,
  */
 books: number, };
 
-export type BookProgress = { chapter: number, segmentId: string | null, fraction: number, };
+export type BookProgress = { chapter: number, segmentId: string | null, fraction: number, 
+/**
+ * An audiobook's place on its timeline (`chapter` is its part).
+ */
+positionMs: number | null, };
 
 export type AudioSource = "none" | "speech" | "recording";
 

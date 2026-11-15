@@ -26,6 +26,26 @@ export function formatDuration(ms: number): string {
   return h ? `${h} h ${m} min` : `${m} min`;
 }
 
+/** A time as a clock reads it: "4:05", or "1:02:09" from an hour; `up` rounds a part of a
+ *  second up (for time left). */
+export function formatClock(ms: number, up = false): string {
+  const total = Math.max(0, (up ? Math.ceil : Math.floor)(ms / 1000)),
+    h = Math.floor(total / 3600),
+    m = Math.floor((total % 3600) / 60),
+    s = String(total % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+/** Each part of an audiobook (its view's chapters) with where it starts and ends. */
+export function partsOf(chapters: { index: number; title: string; durationMs: number | null }[]) {
+  let start = 0;
+  return chapters.map((c) => {
+    const part = { index: c.index, title: c.title, start, end: start + (c.durationMs ?? 0) };
+    start = part.end;
+    return part;
+  });
+}
+
 const spoken = (chapter: ChapterView): SegmentView[] =>
   chapter.blocks.flatMap((b) => b.segments).filter((s) => s.speakable);
 

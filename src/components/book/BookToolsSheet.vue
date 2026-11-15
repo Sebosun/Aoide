@@ -32,12 +32,15 @@ watch(
     body.value?.querySelector<HTMLElement>(SEARCH_FIELD)?.focus();
   },
 );
-const tabs = [
+const allTabs = [
   { id: "bookmarks", label: "Bookmarks", icon: Bookmark },
   { id: "search", label: "Search", icon: Search },
   { id: "voice", label: "Narration", icon: SlidersHorizontal },
   { id: "details", label: "Details", icon: Info },
 ] as const;
+/** An audiobook on its own has no text to search and no voice to choose. */
+const tabs = reader.shape === "listen" ? allTabs.filter((t) => t.id === "bookmarks" || t.id === "details") : allTabs;
+if (!tabs.some((t) => t.id === tab.value)) tab.value = "bookmarks";
 async function focusTab() {
   await nextTick();
   tabList.value?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
