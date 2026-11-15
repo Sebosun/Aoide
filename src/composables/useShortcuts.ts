@@ -22,7 +22,8 @@ const ARROWS = '[role="slider"], [role="tablist"], [role="menu"], [role="listbox
  *    control that uses the key (for Space: one reached with the keyboard), under a dialog, and
  *    when a component already handled the key.
  *  - Escape leaves the reader for the screen it was opened from, when nothing is open over it.
- *  - Ctrl F searches the open book (in the reader) or the library; Ctrl , opens Settings.
+ *  - Ctrl F searches the open book (in the reader) or the library; Ctrl , opens Settings;
+ *    Ctrl N opens Add.
  *  - Ctrl + / Ctrl − / Ctrl 0 and Ctrl + wheel zoom, also while typing. */
 export function useShortcuts() {
   const preferences = usePreferencesStore(),
@@ -55,7 +56,10 @@ export function useShortcuts() {
     if (key === "+" || key === "=") zoom(stepZoom(current, 1));
     else if (key === "-" || key === "_") zoom(stepZoom(current, -1));
     else if (key === "0") zoom(1);
-    else if (key === "," || key === "f") {
+    else if (key === "n") {
+      if (document.querySelector('[aria-modal="true"]')) return false;
+      navigation.openAdd();
+    } else if (key === "," || key === "f") {
       // Not over another dialog: Settings only toggles itself, search only reaches book tools.
       const dialog = document.querySelector('[aria-modal="true"]')?.getAttribute("aria-label") ?? null;
       const field = document.querySelector<HTMLElement>('[aria-label="Search library"]');

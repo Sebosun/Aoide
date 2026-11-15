@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import { api } from "../api";
 import type { BookSummary, HomeView } from "../api/types";
 import CoverArt from "../components/CoverArt.vue";
-import AddBooksMenu from "../components/library/AddBooksMenu.vue";
+import { Plus } from "@lucide/vue";
 import WeekCard from "../components/library/WeekCard.vue";
 import HomeContinueCard from "../components/home/HomeContinueCard.vue";
 import { useLibraryStore } from "../stores/library";
@@ -50,7 +50,9 @@ function added(at: number) {
     <section v-if="empty" class="home__welcome" aria-labelledby="home-welcome">
       <h1 id="home-welcome" class="home__title">Nothing to read yet</h1>
       <p class="home__lead">Add EPUB books to start reading, or listen to them with a voice.</p>
-      <AddBooksMenu />
+      <button type="button" class="home__add" aria-label="Add" @click="navigation.openAdd()">
+        <Plus :size="16" aria-hidden="true" /> Add books
+      </button>
     </section>
     <template v-else>
       <section v-if="continuing.length" class="home__section" aria-labelledby="home-continue">
@@ -212,6 +214,17 @@ function added(at: number) {
 .home__lead {
   margin: 0 0 6px;
   color: var(--dim);
+}
+.home__add {
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px;
+  border-radius: 22px;
+  background: var(--ink);
+  color: var(--ground);
+  font-weight: 600;
 }
 .home__error {
   margin: 0;

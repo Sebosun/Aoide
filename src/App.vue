@@ -13,6 +13,7 @@ import FindAudiobooksView from "./views/FindAudiobooksView.vue";
 import ItemView from "./views/ItemView.vue";
 import UiHost from "./components/ui/UiHost.vue";
 import SettingsDialog from "./components/settings/SettingsDialog.vue";
+import AddDialog from "./components/library/AddDialog.vue";
 import PairRecordingDialog from "./components/recording/PairRecordingDialog.vue";
 import SyncReport from "./components/recording/SyncReport.vue";
 import { useLibraryStore } from "./stores/library";
@@ -43,6 +44,7 @@ function dropped(paths: string[]) {
     recordings.openPairing(audio, open);
   }
   if (books.length) {
+    navigation.closeAdd();
     navigation.view = "library";
     void library.importFiles(books);
   }
@@ -162,6 +164,7 @@ function browserDrop(event: DragEvent) {
       </Transition>
     </main>
     <DropOverlay v-if="dragging" />
+    <AddDialog v-if="navigation.addOpen" />
     <SettingsDialog v-if="navigation.settingsOpen" />
     <PairRecordingDialog v-if="recordings.pairing" :key="recordings.pairing.paths.join('|')" />
     <SyncReport v-if="recordings.report" :key="recordings.report" />

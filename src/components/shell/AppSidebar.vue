@@ -5,7 +5,6 @@ import type { Collection } from "../../api/types";
 import UiMenu from "../ui/UiMenu.vue";
 import type { MenuEntry } from "../ui/types";
 import { useCollections } from "../../composables/useCollections";
-import AddBooksMenu from "../library/AddBooksMenu.vue";
 import EnginePill from "./EnginePill.vue";
 import MiniPlayer from "../player/MiniPlayer.vue";
 import { useLibraryStore } from "../../stores/library";
@@ -49,7 +48,16 @@ const actions = (collection: Collection): MenuEntry[] => [
 <template>
   <nav class="sidebar" aria-label="Main">
     <div class="sidebar__brand">aoide</div>
-    <AddBooksMenu wide />
+    <button
+      type="button"
+      class="sidebar__add"
+      aria-label="Add"
+      aria-haspopup="dialog"
+      title="Add books or audiobooks (Ctrl N)"
+      @click="navigation.openAdd()"
+    >
+      <Plus :size="16" aria-hidden="true" /> Add
+    </button>
     <div class="sidebar__links">
       <button
         v-for="link in links"
@@ -148,6 +156,17 @@ const actions = (collection: Collection): MenuEntry[] => [
   font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.01em;
+}
+.sidebar__add {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 22px;
+  background: var(--ink);
+  color: var(--ground);
+  font-weight: 600;
 }
 .sidebar__links,
 .sidebar__collections {

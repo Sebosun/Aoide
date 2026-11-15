@@ -4,6 +4,7 @@ export const SHORTCUTS: { keys: string[][]; action: string }[] = [
   { keys: [["Space"]], action: "Play or pause" },
   { keys: [["←"], ["→"]], action: "Previous or next sentence" },
   { keys: [["Ctrl", "F"]], action: "Search the open book, or the library" },
+  { keys: [["Ctrl", "N"]], action: "Add books or audiobooks" },
   { keys: [["Ctrl", ","]], action: "Settings" },
   { keys: [["Ctrl", "+"]], action: "Larger interface" },
   { keys: [["Ctrl", "−"]], action: "Smaller interface" },

@@ -5,7 +5,7 @@ import { createMockApi } from "../api/mock";
 import App from "../App.vue";
 import { useLibraryStore } from "../stores/library";
 import { usePlayerStore } from "../stores/player";
-import { openMenu, pickMenuItem } from "./helpers";
+import { useRecordingsStore } from "../stores/recordings";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("../api", () => ({
@@ -107,31 +107,65 @@ it("opens Library filtered to a collection from the sidebar", async () => {
   wrapper.unmount();
 });
 
-it("reaches Find books and rescan from the Add menu, which closes on Escape", async () => {
+const dialog = (wrapper: ReturnType<typeof mount>) => wrapper.find('[role="dialog"][aria-label="Add to your library"]');
+const button = (wrapper: ReturnType<typeof mount>, text: string) =>
+  dialog(wrapper)
+    .findAll("button")
+    .find((b) => b.text().includes(text))!;
+
+it("adds from one dialog, opened by the sidebar's Add and by Ctrl N, and closed by Escape", async () => {
   const rescan = vi.spyOn(mock, "rescanLibrary");
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
-  const add = wrapper.get('[aria-label="Add books"]');
-  await add.trigger("click");
-  expect(add.attributes("aria-expanded")).toBe("true");
-  expect(openMenu()!.textContent).toContain("drop EPUB files anywhere on this window");
-  expect(openMenu()!.textContent).not.toContain("~/Documents/Aoide/Books");
-  await pickMenuItem("Rescan library folder");
-  expect(rescan).toHaveBeenCalled();
-  expect(openMenu()).toBeNull();
-
-  await add.trigger("click");
-  openMenu()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await nav(wrapper, "Add").trigger("click");
   await flushPromises();
-  expect(openMenu()).toBeNull();
-  expect(document.activeElement).toBe(add.element);
+  expect(dialog(wrapper).text()).toContain("Drop books or audiobooks anywhere on this window");
+  await button(wrapper, "Rescan library folder").trigger("click");
+  await flushPromises();
+  expect(rescan).toHaveBeenCalled();
+  expect(dialog(wrapper).exists()).toBe(false);
 
-  await add.trigger("click");
-  await pickMenuItem("Find books on this computer");
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "n", ctrlKey: true, cancelable: true }));
+  await flushPromises();
+  expect(dialog(wrapper).exists()).toBe(true);
+  await dialog(wrapper).trigger("keydown", { key: "Escape" });
+  await flushPromises();
+  expect(dialog(wrapper).exists()).toBe(false);
+
+  await nav(wrapper, "Add").trigger("click");
+  await flushPromises();
+  await button(wrapper, "Scan for books").trigger("click");
+  await flushPromises();
   expect(wrapper.find(".find").exists()).toBe(true);
   await wrapper.get('[aria-label="Back to library"]').trigger("click");
   expect(useLibraryStore().books.length).toBe(5);
   expect(wrapper.find(".find").exists()).toBe(false);
+  wrapper.unmount();
+});
+
+it("imports chosen EPUBs, closing the dialog on Library", async () => {
+  const imported = vi.spyOn(mock, "importFiles");
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await nav(wrapper, "Add").trigger("click");
+  await flushPromises();
+  await button(wrapper, "Choose books").trigger("click");
+  await flushPromises();
+  expect(imported).toHaveBeenCalledWith(["~/Downloads/the-lantern-keeper.epub"]);
+  expect(dialog(wrapper).exists()).toBe(false);
+  expect(nav(wrapper, "Library").attributes("aria-current")).toBe("page");
+  wrapper.unmount();
+});
+
+it("pairs a chosen audiobook with a book, as a dropped one is", async () => {
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await nav(wrapper, "Add").trigger("click");
+  await flushPromises();
+  await button(wrapper, "Choose an audiobook…").trigger("click");
+  await flushPromises();
+  expect(dialog(wrapper).exists()).toBe(false);
+  expect(useRecordingsStore().pairing?.paths).toEqual(["~/Audiobooks/the-lantern-keeper.m4b"]);
   wrapper.unmount();
 });
 

@@ -3,7 +3,6 @@ import { computed } from "vue";
 import { BookOpen, Search, Trash2, TriangleAlert } from "@lucide/vue";
 import UiSelect from "../components/ui/UiSelect.vue";
 import UiSkeleton from "../components/ui/UiSkeleton.vue";
-import AddBooksMenu from "../components/library/AddBooksMenu.vue";
 import BookCard from "../components/library/BookCard.vue";
 import { useLibraryStore, type BuiltInFilter } from "../stores/library";
 import { usePlayerStore } from "../stores/player";
@@ -98,7 +97,6 @@ const SORTS: { value: LibrarySort; label: string }[] = [
           @update:model-value="library.setSort"
         />
       </template>
-      <AddBooksMenu />
     </div>
     <div
       v-if="library.books.length && !library.collection"
@@ -129,7 +127,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
     <div v-else-if="!library.books.length" class="library__empty">
       <BookOpen :size="36" :stroke-width="1.4" />
       <b>Your library is empty</b>
-      <span>Drop EPUB files on this window, or use Add to find books on this computer.</span>
+      <span>Drop EPUB files on this window, or use Add in the sidebar.</span>
     </div>
     <p v-else-if="library.query.trim() && !library.visible.length" class="library__note">
       No books match “{{ library.query }}”.

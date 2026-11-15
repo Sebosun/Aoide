@@ -35,6 +35,10 @@ export const useNavigationStore = defineStore("navigation", () => {
   function leaveReader() {
     view.value = readerFrom.value === "item" && !bookId.value ? "home" : readerFrom.value;
   }
+  /** The Add dialog, over the current screen. */
+  const addOpen = ref(false);
+  const openAdd = () => (addOpen.value = true);
+  const closeAdd = () => (addOpen.value = false);
   /** Settings is a dialog over the current screen; it reopens on the last tab. */
   const settingsOpen = ref(false),
     settingsTab = ref<SettingsTab>("appearance");
@@ -68,6 +72,9 @@ export const useNavigationStore = defineStore("navigation", () => {
     readerFrom,
     openItem,
     leaveReader,
+    addOpen,
+    openAdd,
+    closeAdd,
     settingsOpen,
     settingsTab,
     openSettings,

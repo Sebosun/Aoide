@@ -35,11 +35,16 @@ async function scanned() {
   return wrapper;
 }
 
-it("is reached from the Add menu", async () => {
+it("is reached from the Add dialog", async () => {
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
-  await wrapper.get('[aria-label="Add books"]').trigger("click");
-  await pickMenuItem("Find audiobooks for your books");
+  await wrapper.get('nav [aria-label="Add"]').trigger("click");
+  await flushPromises();
+  const find = [...document.body.querySelectorAll<HTMLElement>('[role="dialog"] button')].find((b) =>
+    b.textContent?.includes("Find audiobooks"),
+  )!;
+  find.click();
+  await flushPromises();
   expect(useNavigationStore().view).toBe("audiobooks");
   expect(wrapper.find(".find-audiobooks").exists()).toBe(true);
   wrapper.unmount();

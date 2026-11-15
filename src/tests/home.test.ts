@@ -81,7 +81,9 @@ it("invites the first add when there is nothing to show", async () => {
   await flushPromises();
   const welcome = wrapper.get('[aria-labelledby="home-welcome"]');
   expect(welcome.text()).toContain("Nothing to read yet");
-  expect(welcome.find('[aria-label="Add books"]').exists()).toBe(true);
+  await welcome.get('[aria-label="Add"]').trigger("click");
+  await flushPromises();
+  expect(wrapper.find('[role="dialog"][aria-label="Add to your library"]').exists()).toBe(true);
   expect(wrapper.find('[aria-labelledby="home-week"]').exists()).toBe(false);
   wrapper.unmount();
 });
