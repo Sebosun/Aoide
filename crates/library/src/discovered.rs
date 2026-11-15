@@ -43,30 +43,40 @@ impl Library {
         rows.map(|row| row?).collect()
     }
 
-    pub fn upsert_discovered(&self, file: &DiscoveredFile) -> Result<()> {
-        self.conn.execute(
-            "INSERT INTO discovered_files
-             (path, size, modified_ns, inode, hash, title, authors, language, isbn, cover_path, error, seen_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
-             ON CONFLICT(path) DO UPDATE SET size = excluded.size, modified_ns = excluded.modified_ns,
-             inode = excluded.inode, hash = excluded.hash, title = excluded.title,
-             authors = excluded.authors, language = excluded.language, isbn = excluded.isbn,
-             cover_path = excluded.cover_path, error = excluded.error, seen_at = excluded.seen_at",
-            rusqlite::params![
-                store::path_text(&file.path)?,
-                file.size as i64,
-                file.modified_ns,
-                file.inode as i64,
-                file.hash,
-                file.title,
-                store::json(&file.authors)?,
-                file.language,
-                file.isbn,
-                file.cover_path.as_deref().map(store::path_text).transpose()?,
-                file.error,
-                file.seen_at,
-            ],
-        )?;
+    /// Stores what a scan read from each file (replacing what was known by path), together.
+    pub fn upsert_discovered(&self, files: &[DiscoveredFile]) -> Result<()> {
+        let tx = self.conn.unchecked_transaction()?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO discovered_files
+                 (path, size, modified_ns, inode, hash, title, authors, language, isbn, cover_path, error, seen_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                 ON CONFLICT(path) DO UPDATE SET size = excluded.size, modified_ns = excluded.modified_ns,
+                 inode = excluded.inode, hash = excluded.hash, title = excluded.title,
+                 authors = excluded.authors, language = excluded.language, isbn = excluded.isbn,
+                 cover_path = excluded.cover_path, error = excluded.error, seen_at = excluded.seen_at",
+            )?;
+            for file in files {
+                stmt.execute(rusqlite::params![
+                    store::path_text(&file.path)?,
+                    file.size as i64,
+                    file.modified_ns,
+                    file.inode as i64,
+                    file.hash,
+                    file.title,
+                    store::json(&file.authors)?,
+                    file.language,
+                    file.isbn,
+                    file.cover_path
+                        .as_deref()
+                        .map(store::path_text)
+                        .transpose()?,
+                    file.error,
+                    file.seen_at,
+                ])?;
+            }
+        }
+        tx.commit()?;
         Ok(())
     }
 

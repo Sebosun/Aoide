@@ -285,3 +285,12 @@ fn scanning_a_missing_folder_yields_nothing() {
     let dir = tempfile::tempdir().unwrap();
     assert!(scan_folder(&dir.path().join("absent")).unwrap().is_empty());
 }
+
+#[test]
+fn a_library_on_disk_writes_ahead_to_a_log() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("library.sqlite");
+    let lib = Library::open(&path).unwrap();
+    lib.mark_discovered_seen(&[], 1).unwrap();
+    assert!(dir.path().join("library.sqlite-wal").exists());
+}

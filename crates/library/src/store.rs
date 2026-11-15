@@ -226,6 +226,11 @@ const MIGRATIONS: &[&str] = &[
 impl Library {
     pub(super) fn initialize(mut conn: Connection) -> Result<Self> {
         conn.pragma_update(None, "foreign_keys", true)?;
+        // A write-ahead log, synced at checkpoints rather than at each commit: saving a place or
+        // a minute of listening costs no fsync. A crash can lose the last commits, never the file.
+        // (An in-memory database keeps its own journal and ignores this.)
+        conn.pragma_update(None, "journal_mode", "WAL")?;
+        conn.pragma_update(None, "synchronous", "NORMAL")?;
         let tx = conn.transaction()?;
         let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
         let latest = MIGRATIONS.len() as i64;

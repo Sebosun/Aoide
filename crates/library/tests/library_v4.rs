@@ -25,7 +25,7 @@ fn discovered_files_round_trip_and_replace_by_path() {
     let lib = Library::open_in_memory().unwrap();
     assert_eq!(lib.discovered("/home/a.epub".as_ref()).unwrap(), None);
     let a = file("/home/a.epub", 1);
-    lib.upsert_discovered(&a).unwrap();
+    lib.upsert_discovered(std::slice::from_ref(&a)).unwrap();
     assert_eq!(
         lib.discovered("/home/a.epub".as_ref()).unwrap(),
         Some(a.clone())
@@ -34,7 +34,8 @@ fn discovered_files_round_trip_and_replace_by_path() {
     changed.hash = None;
     changed.error = Some("not an EPUB".into());
     changed.authors = vec![];
-    lib.upsert_discovered(&changed).unwrap();
+    lib.upsert_discovered(std::slice::from_ref(&changed))
+        .unwrap();
     assert_eq!(
         lib.discovered("/home/a.epub".as_ref()).unwrap(),
         Some(changed)
@@ -44,9 +45,9 @@ fn discovered_files_round_trip_and_replace_by_path() {
 #[test]
 fn files_not_seen_in_the_latest_scan_are_forgotten() {
     let lib = Library::open_in_memory().unwrap();
-    lib.upsert_discovered(&file("/home/b.epub", 10)).unwrap();
-    lib.upsert_discovered(&file("/home/a.epub", 20)).unwrap();
-    lib.upsert_discovered(&file("/home/c.epub", 20)).unwrap();
+    lib.upsert_discovered(&[file("/home/b.epub", 10)]).unwrap();
+    lib.upsert_discovered(&[file("/home/a.epub", 20), file("/home/c.epub", 20)])
+        .unwrap();
     assert_eq!(lib.forget_discovered_before(20).unwrap(), 1);
     let paths: Vec<PathBuf> = lib
         .discovered_files()
@@ -63,7 +64,7 @@ fn files_not_seen_in_the_latest_scan_are_forgotten() {
 #[test]
 fn seen_at_can_be_refreshed_for_unchanged_files() {
     let lib = Library::open_in_memory().unwrap();
-    lib.upsert_discovered(&file("/home/a.epub", 1)).unwrap();
+    lib.upsert_discovered(&[file("/home/a.epub", 1)]).unwrap();
     lib.mark_discovered_seen(&[PathBuf::from("/home/a.epub")], 9)
         .unwrap();
     assert_eq!(

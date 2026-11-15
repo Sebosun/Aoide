@@ -478,11 +478,9 @@ impl Discovery {
     /// Stores what was read, and forgets files not seen in this scan.
     fn store(&self, records: &[DiscoveredFile], seen_at: i64) -> Result<(), String> {
         let library = lock(&self.library);
-        for record in records {
-            library
-                .upsert_discovered(record)
-                .map_err(|e| e.to_string())?;
-        }
+        library
+            .upsert_discovered(records)
+            .map_err(|e| e.to_string())?;
         let forgot = library.forget_discovered_before(seen_at);
         drop(library);
         if let Err(error) = forgot {
