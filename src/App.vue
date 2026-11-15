@@ -41,8 +41,8 @@ function dropped(paths: string[]) {
   if (audio.length) {
     const open =
       navigation.view === "item" ? navigation.bookId : navigation.view === "reader" ? (reader.book?.id ?? null) : null;
-    // An audiobook on its own has no text to pair audio with.
-    const book = library.books.find((b) => b.id === open && b.kind !== "audiobook")?.id ?? null;
+    // Only a book (an EPUB) is paired with audio.
+    const book = library.books.find((b) => b.id === open && b.kind === "book")?.id ?? null;
     void recordings.receive(audio, book);
   }
   if (books.length) {

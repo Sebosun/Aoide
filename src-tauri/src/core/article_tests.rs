@@ -330,3 +330,75 @@ async fn removing_an_article_deletes_its_folder_and_it_can_be_saved_again() {
     assert_eq!(settled(&core, &id).await, Stage::Ready);
     assert!(core.list_books().unwrap().iter().any(|b| b.id == id));
 }
+
+#[tokio::test]
+async fn an_article_is_narrated_prepared_and_exported_like_a_book() {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _) = start_fetching(dir.path(), &engine, Pages::with(&[(LIGHTS_URL, LIGHTS)]));
+    let id = core.save_article(LIGHTS_URL).unwrap();
+    until("the article is fetched", || {
+        stage(&core, &id) == Some(Stage::Ready)
+    })
+    .await;
+
+    core.play(&id, Some(0), None).await.unwrap();
+    until("its first sentence is spoken", || {
+        engine
+            .calls()
+            .iter()
+            .any(|t| t.starts_with("Every evening at dusk"))
+    })
+    .await;
+    core.stop();
+
+    core.prepare_book(&id).await.unwrap();
+    until("the article is prepared", || {
+        core.prepare_view(&id)
+            .is_some_and(|v| v.state == super::PrepareStage::Done)
+    })
+    .await;
+    match core.export_book(&id).await {
+        Ok(path) => assert!(std::path::Path::new(&path).exists(), "{path}"),
+        // Exporting needs ffmpeg, which a test machine may not have.
+        Err(error) => assert!(error.contains("ffmpeg"), "{error}"),
+    }
+}
+
+#[tokio::test]
+async fn an_article_cannot_be_paired_with_a_recording_or_looked_up() {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let (core, _) = start_fetching(
+        dir.path(),
+        &FakeEngine::new(),
+        Pages::with(&[(LIGHTS_URL, LIGHTS)]),
+    );
+    let id = core.save_article(LIGHTS_URL).unwrap();
+    until("the article is fetched", || {
+        stage(&core, &id) == Some(Stage::Ready)
+    })
+    .await;
+    let refused = |result: Result<(), String>, what: &str| {
+        assert_eq!(
+            result,
+            Err(super::articles::NOT_FOR_ARTICLES.to_string()),
+            "{what}"
+        );
+    };
+    let files = vec![dir.path().join("a.mp3").to_string_lossy().into_owned()];
+    refused(
+        core.attach_recording(&id, files.clone()).map(drop),
+        "attach_recording",
+    );
+    refused(
+        core.attach_recording_as_listed(&id, files).map(drop),
+        "attach_recording_as_listed",
+    );
+    refused(
+        core.lookup_metadata(&id, false).await.map(drop),
+        "lookup_metadata",
+    );
+    assert!(core.recording(&id).is_none());
+}

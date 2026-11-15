@@ -223,6 +223,7 @@ impl Metadata {
 impl Core {
     /// Candidate matches for the book from Open Library.
     pub async fn lookup_metadata(&self, id: &str, refresh: bool) -> Result<Vec<Match>, String> {
+        self.require_book(id)?;
         let book = self.load_book(id)?;
         let allowed = self.app_settings().metadata_lookup;
         self.metadata.lookup(&book, allowed, refresh).await
@@ -230,6 +231,7 @@ impl Core {
 
     /// Stores the picked match.
     pub async fn apply_metadata(&self, id: &str, picked: Match) -> Result<BookDetails, String> {
+        self.require_book(id)?;
         let book = self.load_book(id)?;
         let allowed = self.app_settings().metadata_lookup;
         let details = self.metadata.apply(&book, picked, allowed).await?;

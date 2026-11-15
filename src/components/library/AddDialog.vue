@@ -32,7 +32,7 @@ async function chooseAudio(folder: boolean) {
   if (!paths?.length) return;
   close();
   const open = navigation.view === "item" ? navigation.bookId : null;
-  await recordings.receive(paths, library.books.find((b) => b.id === open && b.kind !== "audiobook")?.id ?? null);
+  await recordings.receive(paths, library.books.find((b) => b.id === open && b.kind === "book")?.id ?? null);
 }
 function go(view: "find" | "audiobooks") {
   close();

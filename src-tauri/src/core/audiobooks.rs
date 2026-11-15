@@ -567,6 +567,7 @@ impl Finder {
                 .map_err(|e| e.to_string())?
                 .into_iter()
                 .filter(|b| !matches!(b.status, BookStatus::Error(_)))
+                .filter(|b| b.kind == aoide_library::ItemKind::Book)
                 .filter(|b| !with_recording.contains(&b.id))
                 .filter(|b| ids.as_ref().map_or(true, |ids| ids.contains(&b.id.0)))
                 .collect()

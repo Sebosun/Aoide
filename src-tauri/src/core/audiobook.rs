@@ -47,6 +47,16 @@ impl Core {
         }
     }
 
+    /// Refuses item `id` unless it is a book (an EPUB): only a book is paired with a
+    /// recording or looked up in a book catalogue.
+    pub(super) fn require_book(&self, id: &str) -> Result<(), String> {
+        match self.kind_of(id) {
+            Some(ItemKind::Audiobook) => Err(NO_TEXT.into()),
+            Some(ItemKind::Article) => Err(super::articles::NOT_FOR_ARTICLES.into()),
+            _ => Ok(()),
+        }
+    }
+
     /// Adds the audiobook at `paths` (an M4B, audio files, or a folder of them) as an item with
     /// no text. DRM-protected and unreadable audio is refused with the reasons the pairing
     /// gives. The same files added again, from anywhere, are the same item.

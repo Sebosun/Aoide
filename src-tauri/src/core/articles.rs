@@ -19,6 +19,10 @@ use url::Url;
 use super::fetching::{next, Event, Stage};
 use super::lock;
 
+/// Said when something only an EPUB has is asked of an article.
+pub const NOT_FOR_ARTICLES: &str =
+    "Not available for an article: it has no recording to pair or book details to look up.";
+
 /// A fetch under way.
 pub type Fetching<'a, T> = Pin<Box<dyn Future<Output = Result<T, FetchError>> + Send + 'a>>;
 

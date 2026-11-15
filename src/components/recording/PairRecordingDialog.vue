@@ -34,7 +34,7 @@ onMounted(async () => {
 });
 const books = computed(() =>
   library.books
-    .filter((b) => b.status.kind === "present" && b.kind !== "audiobook")
+    .filter((b) => b.status.kind === "present" && b.kind === "book")
     .map((b) => ({ value: b.id, label: b.title, hint: b.authors.join(", ") || undefined })),
 );
 /** The files in the order they will play; Aoide's order unless moved by hand. */

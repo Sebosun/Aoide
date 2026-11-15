@@ -469,7 +469,7 @@ impl Core {
 
     /// Pairs audio files with a book (replacing any recording it had) and starts syncing.
     pub fn attach_recording(&self, id: &str, paths: Vec<String>) -> Result<RecordingView, String> {
-        self.require_text(id)?;
+        self.require_book(id)?;
         self.recordings.attach_recording(self, id, paths)
     }
 
@@ -480,7 +480,7 @@ impl Core {
         id: &str,
         files: Vec<String>,
     ) -> Result<RecordingView, String> {
-        self.require_text(id)?;
+        self.require_book(id)?;
         self.recordings.attach_recording_as_listed(self, id, files)
     }
 
