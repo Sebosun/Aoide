@@ -9,7 +9,7 @@ impl Library {
         conn.pragma_update(None, "foreign_keys", true)?;
         let tx = conn.transaction()?;
         let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if !(0..=6).contains(&version) {
+        if !(0..=7).contains(&version) {
             return Err(LibraryError::Corrupt(format!(
                 "unsupported schema version {version}"
             )));
@@ -154,6 +154,26 @@ impl Library {
                 );",
             )?;
             tx.pragma_update(None, "user_version", 6)?;
+        }
+        if version <= 6 {
+            // Values that belong to a book and go with it when it is removed. Asked on
+            // 2026-11-15, the user chose that a book removed and added again keeps its voice
+            // settings and its place, so `BookKey::Settings` and `BookKey::ProgressFraction`
+            // stay in `settings`; only the prepared mark moves here.
+            tx.execute_batch(
+                "CREATE TABLE book_values (
+                    book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+                    key TEXT NOT NULL,
+                    value TEXT NOT NULL,
+                    PRIMARY KEY (book_id, key)
+                );
+                INSERT INTO book_values (book_id, key, value)
+                    SELECT substr(key, 6, length(key) - 14), 'prepared', value FROM settings
+                    WHERE key LIKE 'book.%.prepared'
+                    AND substr(key, 6, length(key) - 14) IN (SELECT id FROM books);
+                DELETE FROM settings WHERE key LIKE 'book.%.prepared';",
+            )?;
+            tx.pragma_update(None, "user_version", 7)?;
         }
         tx.commit()?;
         Ok(Self { conn })

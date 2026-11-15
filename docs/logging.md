@@ -145,6 +145,7 @@ from it:
 | `listening.save` | saving listening time | `core/extras.rs` |
 | `narration.save` | saving that a book plays its recording | `core/recording.rs` |
 | `discovery.save` | forgetting found books no longer on disk | `core/discovery.rs` |
+| `library.read`, `book.read`, `prep.read` | reading a stored value that does not parse (the default is used) | `core.rs`, `core/preparation.rs` |
 
 `metadata.apply` and `audiobooks.pair` are also reported when saving a cover or unpairing fails.
 

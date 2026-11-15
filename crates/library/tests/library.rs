@@ -225,12 +225,13 @@ fn removing_a_book_drops_progress_and_segments_and_returns_files() {
 }
 
 #[test]
-fn settings_are_key_value_and_overwritable() {
+fn settings_are_typed_values_and_overwritable() {
     let lib = Library::open_in_memory().unwrap();
-    assert_eq!(lib.setting("theme").unwrap(), None);
-    lib.set_setting("theme", "dark").unwrap();
-    lib.set_setting("theme", "light").unwrap();
-    assert_eq!(lib.setting("theme").unwrap().as_deref(), Some("light"));
+    let key = aoide_library::GlobalKey::PrepareQueue;
+    assert_eq!(lib.value::<Vec<String>>(key).unwrap(), None);
+    lib.set_value(key, &["a"]).unwrap();
+    lib.set_value(key, &["b"]).unwrap();
+    assert_eq!(lib.value(key).unwrap(), Some(vec!["b".to_owned()]));
 }
 
 #[test]
@@ -240,11 +241,15 @@ fn database_file_persists_across_reopen() {
     {
         let lib = Library::open(&path).unwrap();
         lib.upsert_book(&book("a", "/a.epub"), 1).unwrap();
-        lib.set_setting("k", "v").unwrap();
+        lib.set_value(aoide_library::GlobalKey::PrepareQueue, &["v"])
+            .unwrap();
     }
     let lib = Library::open(&path).unwrap();
     assert_eq!(lib.books().unwrap().len(), 1);
-    assert_eq!(lib.setting("k").unwrap().as_deref(), Some("v"));
+    assert_eq!(
+        lib.value(aoide_library::GlobalKey::PrepareQueue).unwrap(),
+        Some(vec!["v".to_owned()])
+    );
 }
 
 #[test]

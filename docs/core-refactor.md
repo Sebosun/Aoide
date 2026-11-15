@@ -99,7 +99,7 @@ apart and background failures go only to stderr.
 finds only the body of `report`; a UI test shows a rejected command reaching a store as an
 `ApiError` with its `kind`; a core test shows a failed background save emitting `Problem`.
 
-### - [ ] 5. Typed keys and a per-book table
+### - [x] 5. Typed keys and a per-book table
 
 The `settings` key-value table holds per-book values under formatted keys
 (`book.{id}.settings`, `progress.fraction.{id}`, the per-book prepare keys in
@@ -110,8 +110,9 @@ The `settings` key-value table holds per-book values under formatted keys
 and progress? The answer decides which keys cascade. Record the answer as a comment on the
 table's migration.
 
-*Answered 2026-11-15:* keep both. Voice settings and progress stay in `settings` and survive
-removal; the prepare and narration values move to `book_values` and cascade.
+*Answered 2026-11-15:* keep both. Voice settings (`BookKey::Settings`, which also holds the
+narration choice) and progress stay in `settings` and survive removal; the prepared mark
+(`BookKey::Prepared`) moves to `book_values` and cascades.
 
 - Migration v7 in `crates/library/src/store.rs`: table
   `book_values(book_id REFERENCES books ON DELETE CASCADE, key, value, PRIMARY KEY(book_id, key))`;

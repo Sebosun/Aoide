@@ -566,21 +566,24 @@ impl Core {
 
     /// A book whose narration was never chosen plays its recording once it is synced.
     fn narrate_with_recording_by_default(&self, id: &str) {
-        let key = book_settings_key(id);
+        let book = BookId(id.into());
         let library = lock(&self.library);
-        let stored = library.setting(&key).ok().flatten();
-        let mut settings: BookSettings = stored
-            .as_deref()
-            .and_then(|j| serde_json::from_str(j).ok())
-            .unwrap_or_default();
-        if settings.narration.is_some() {
+        let saved = library
+            .book_value::<BookSettings>(&book, BookKey::Settings)
+            .and_then(|stored| {
+                let mut settings = stored.unwrap_or_default();
+                if settings.narration.is_some() {
+                    return Ok(false);
+                }
+                settings.narration = Some(Narration::Recording);
+                library
+                    .set_book_value(&book, BookKey::Settings, &settings)
+                    .map(|()| true)
+            });
+        drop(library);
+        if let Ok(false) = saved {
             return;
         }
-        settings.narration = Some(Narration::Recording);
-        let saved = serde_json::to_string(&settings)
-            .map_err(CoreError::internal)
-            .and_then(|json| Ok(library.set_setting(&key, &json)?));
-        drop(library);
         if let Err(error) = saved {
             self.report(
                 "narration.save",

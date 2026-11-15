@@ -346,9 +346,10 @@ async fn a_queue_resumed_at_startup_does_not_send_a_voice_the_engine_lacks() {
     queued_by_an_earlier_run(dir.path(), &id);
     let library = Library::open(&dir.path().join("data/library.sqlite3")).unwrap();
     library
-        .set_setting(
-            &format!("book.{id}.settings"),
-            r#"{"voiceId":"Abigail.wav"}"#,
+        .set_book_value(
+            &aoide_library::BookId(id.clone()),
+            aoide_library::BookKey::Settings,
+            &serde_json::json!({ "voiceId": "Abigail.wav" }),
         )
         .unwrap();
     drop(library);

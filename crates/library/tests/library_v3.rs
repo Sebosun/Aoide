@@ -28,15 +28,19 @@ fn version_two_databases_gain_the_cache_and_keep_their_data() {
     let path = dir.path().join("v2.db");
     {
         let lib = Library::open(&path).unwrap();
-        lib.set_setting("kept", "yes").unwrap();
+        lib.set_value(aoide_library::GlobalKey::IgnoredBooks, &["kept"])
+            .unwrap();
     }
     // Simulate a database written by the v2 schema: drop the v3+ tables and version.
     let conn = rusqlite::Connection::open(&path).unwrap();
-    conn.execute_batch("DROP TABLE IF EXISTS sync_maps; DROP TABLE IF EXISTS recording_blocks; DROP TABLE IF EXISTS recordings; DROP TABLE IF EXISTS book_collections; DROP TABLE IF EXISTS collections; DROP TABLE IF EXISTS discovered_files; DROP TABLE IF EXISTS metadata_cache; PRAGMA user_version = 2;")
+    conn.execute_batch("DROP TABLE IF EXISTS book_values; DROP TABLE IF EXISTS sync_maps; DROP TABLE IF EXISTS recording_blocks; DROP TABLE IF EXISTS recordings; DROP TABLE IF EXISTS book_collections; DROP TABLE IF EXISTS collections; DROP TABLE IF EXISTS discovered_files; DROP TABLE IF EXISTS metadata_cache; PRAGMA user_version = 2;")
         .unwrap();
     drop(conn);
     let lib = Library::open(&path).unwrap();
-    assert_eq!(lib.setting("kept").unwrap().as_deref(), Some("yes"));
+    assert_eq!(
+        lib.value(aoide_library::GlobalKey::IgnoredBooks).unwrap(),
+        Some(vec!["kept".to_owned()])
+    );
     lib.store_lookup("k", "v", 1).unwrap();
     assert_eq!(lib.cached_lookup("k").unwrap(), Some(("v".into(), 1)));
 }

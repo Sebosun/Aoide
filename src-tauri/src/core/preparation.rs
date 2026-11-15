@@ -7,20 +7,11 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use aoide_generation::PlanItem;
-use aoide_library::Library;
+use aoide_library::{BookId, BookKey, GlobalKey, Library};
 use aoide_tts::SynthesisRequest;
 use serde::Serialize;
 
 use super::error::Reporter;
-
-const QUEUE_KEY: &str = "prepare.queue";
-const PAUSED_KEY: &str = "prepare.paused";
-/// Books queued for some chapters only, with those chapters; the rest are whole books.
-const CHAPTERS_KEY: &str = "prepare.chapters";
-
-fn done_key(id: &str) -> String {
-    format!("book.{id}.prepared")
-}
 
 /// Where a book is in whole-book preparation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -169,10 +160,11 @@ pub struct Preparation {
 impl Preparation {
     /// The queue as saved by an earlier run: paused books stay paused, the rest wait for a plan.
     pub fn load(library: &Library, reporter: Reporter) -> Self {
-        let ids: Vec<String> = read_json(library, QUEUE_KEY).unwrap_or_default();
-        let paused: HashSet<String> = read_json(library, PAUSED_KEY).unwrap_or_default();
+        let ids: Vec<String> = read(library, &reporter, GlobalKey::PrepareQueue);
+        let paused: HashSet<String> = read(library, &reporter, GlobalKey::PreparePaused);
+        // Books queued for some chapters only, with those chapters; the rest are whole books.
         let mut chapters: HashMap<String, BTreeSet<usize>> =
-            read_json(library, CHAPTERS_KEY).unwrap_or_default();
+            read(library, &reporter, GlobalKey::PrepareChapters);
         let queue = ids
             .into_iter()
             .map(|id| {
@@ -434,8 +426,11 @@ impl Preparation {
                 apply(entry, Event::Finish);
                 // Zero would read as "not prepared"; a book with nothing to say is still done.
                 if entry.scope == Scope::Book {
-                    let saved =
-                        library.set_setting(&done_key(&entry.id), &total.max(1).to_string());
+                    let saved = library.set_book_value(
+                        &BookId(entry.id.clone()),
+                        BookKey::Prepared,
+                        &total.max(1),
+                    );
                     if let Err(error) = saved {
                         self.reporter.report(
                             "prep.save",
@@ -467,20 +462,13 @@ impl Preparation {
             .iter()
             .filter_map(|e| Some((e.id.as_str(), e.scope.chapters()?)))
             .collect();
-        for (key, value) in [
-            (QUEUE_KEY, serde_json::to_string(&ids)),
-            (PAUSED_KEY, serde_json::to_string(&paused)),
-            (CHAPTERS_KEY, serde_json::to_string(&chapters)),
-        ] {
-            if let Ok(json) = value {
-                if let Err(error) = library.set_setting(key, &json) {
-                    self.reporter.report(
-                        "prep.save",
-                        "Could not save the preparation queue",
-                        error,
-                    );
-                }
-            }
+        let saved = library
+            .set_value(GlobalKey::PrepareQueue, &ids)
+            .and_then(|()| library.set_value(GlobalKey::PreparePaused, &paused))
+            .and_then(|()| library.set_value(GlobalKey::PrepareChapters, &chapters));
+        if let Err(error) = saved {
+            self.reporter
+                .report("prep.save", "Could not save the preparation queue", error);
         }
     }
 }
@@ -509,25 +497,31 @@ fn logged(id: &str, cause: Event, from: Stage, to: Stage) {
     }
 }
 
-fn read_json<T: serde::de::DeserializeOwned>(library: &Library, key: &str) -> Option<T> {
+/// The saved value under `key`, or its default when there is none or it cannot be read.
+fn read<T: serde::de::DeserializeOwned + Default>(
+    library: &Library,
+    reporter: &Reporter,
+    key: GlobalKey,
+) -> T {
     library
-        .setting(key)
-        .ok()
-        .flatten()
-        .and_then(|json| serde_json::from_str(&json).ok())
+        .value(key)
+        .unwrap_or_else(|error| {
+            reporter.report("prep.read", "Could not read the preparation queue", error);
+            None
+        })
+        .unwrap_or_default()
 }
 
 fn done_count(library: &Library, id: &str) -> Option<usize> {
     library
-        .setting(&done_key(id))
+        .book_value::<usize>(&BookId(id.into()), BookKey::Prepared)
         .ok()
         .flatten()
-        .and_then(|v| v.parse::<usize>().ok())
         .filter(|n| *n > 0)
 }
 
 fn clear_done(library: &Library, reporter: &Reporter, id: &str) {
-    if let Err(error) = library.set_setting(&done_key(id), "0") {
+    if let Err(error) = library.remove_book_value(&BookId(id.into()), BookKey::Prepared) {
         reporter.report(
             "prep.save",
             "Could not save that a book needs preparing",
@@ -560,8 +554,23 @@ mod tests {
             requests: Vec::new(),
         }
     }
+    /// A library holding the books the tests queue ("a" to "d"): a book's prepared mark goes
+    /// with the book.
     fn library() -> Library {
-        Library::open_in_memory().unwrap()
+        let library = Library::open_in_memory().unwrap();
+        for id in ["a", "b", "c", "d"] {
+            let book = aoide_library::NewBook {
+                id: BookId(id.into()),
+                path: format!("{id}.epub").into(),
+                title: None,
+                authors: vec![],
+                language: None,
+                cover_path: None,
+                error: None,
+            };
+            library.upsert_book(&book, 0).unwrap();
+        }
+        library
     }
     fn stages(p: &Preparation, lib: &Library, ids: &[&str]) -> Vec<Stage> {
         ids.iter().map(|id| p.stage(lib, id)).collect()

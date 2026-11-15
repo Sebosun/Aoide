@@ -14,8 +14,8 @@ use aoide_generation::{
     SegmentStore, WorkItem, Worker, WorkerEvent, WorkerOptions,
 };
 use aoide_library::{
-    content_hash, scan_folder, BookId, BookRecord, BookStatus, CachedSegment, Library, NewBook,
-    Progress,
+    content_hash, scan_folder, BookId, BookKey, BookRecord, BookStatus, CachedSegment, GlobalKey,
+    Library, NewBook, Progress,
 };
 use aoide_tts::{
     cache_key, encode_wav, resolve_params, supports_language, BoxFuture, EngineProfile,
@@ -74,11 +74,6 @@ use crate::book::{BookModel, ChapterSummary, ChapterView, ExcludedView, SearchHi
 const OUTPUT_RATE: u32 = 48_000;
 const LOOKAHEAD_MS: u32 = 90_000;
 const TICK: Duration = Duration::from_millis(33);
-const IGNORED_KEY: &str = "library.ignored";
-
-fn book_settings_key(id: &str) -> String {
-    format!("book.{id}.settings")
-}
 
 /// All built-in engine adapters.
 pub fn registry() -> Registry {
@@ -761,19 +756,18 @@ impl Core {
     // ------------------------------------------------------------ library
 
     fn ignored(&self) -> HashSet<String> {
-        lock(&self.library)
-            .setting(IGNORED_KEY)
-            .ok()
-            .flatten()
-            .and_then(|j| serde_json::from_str(&j).ok())
+        let stored = lock(&self.library).value(GlobalKey::IgnoredBooks);
+        stored
+            .unwrap_or_else(|error| {
+                self.report("library.read", "Could not read the books left out", error);
+                None
+            })
             .unwrap_or_default()
     }
 
     fn set_ignored(&self, ignored: &HashSet<String>) {
-        if let Ok(json) = serde_json::to_string(ignored) {
-            if let Err(error) = lock(&self.library).set_setting(IGNORED_KEY, &json) {
-                self.report("library.save", "Could not save the books left out", error);
-            }
+        if let Err(error) = lock(&self.library).set_value(GlobalKey::IgnoredBooks, ignored) {
+            self.report("library.save", "Could not save the books left out", error);
         }
     }
 
@@ -1043,10 +1037,9 @@ impl Core {
         let library = lock(&self.library);
         let progress = library.progress(id).ok().flatten()?;
         let fraction = library
-            .setting(&format!("progress.fraction.{}", id.0))
+            .book_value::<f64>(id, BookKey::ProgressFraction)
             .ok()
             .flatten()
-            .and_then(|f| f.parse().ok())
             .unwrap_or(0.0);
         Some(BookProgressView {
             chapter: progress.chapter,
@@ -1394,11 +1387,16 @@ impl Core {
     // ------------------------------------------------------------ settings
 
     pub fn book_settings(&self, id: &str) -> BookSettings {
-        lock(&self.library)
-            .setting(&book_settings_key(id))
-            .ok()
-            .flatten()
-            .and_then(|j| serde_json::from_str(&j).ok())
+        let stored = lock(&self.library).book_value(&BookId(id.into()), BookKey::Settings);
+        stored
+            .unwrap_or_else(|error| {
+                self.report(
+                    "book.read",
+                    "Could not read the book's voice settings",
+                    error,
+                );
+                None
+            })
             .unwrap_or_default()
     }
 
@@ -1408,9 +1406,8 @@ impl Core {
             resolve_params(engine.engine.descriptor(), &settings.params)
                 .map_err(|e| e.to_string())?;
         }
-        let json = serde_json::to_string(&settings).map_err(|e| e.to_string())?;
         lock(&self.library)
-            .set_setting(&book_settings_key(id), &json)
+            .set_book_value(&BookId(id.into()), BookKey::Settings, &settings)
             .map_err(|e| e.to_string())?;
         // Footnote narration changes segmentation: reparse.
         lock(&self.books).remove(id);
@@ -1989,10 +1986,7 @@ impl Core {
                     },
                 )
                 .and_then(|()| {
-                    library.set_setting(
-                        &format!("progress.fraction.{}", id.0),
-                        &book.fraction(index).to_string(),
-                    )
+                    library.set_book_value(&id, BookKey::ProgressFraction, &book.fraction(index))
                 })
         };
         if let Err(error) = saved {

@@ -138,7 +138,7 @@ fn a_version_5_library_is_upgraded_with_its_books_kept() {
     }
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch(
-        "DROP TABLE sync_maps; DROP TABLE recording_blocks; DROP TABLE recordings; \
+        "DROP TABLE book_values; DROP TABLE sync_maps; DROP TABLE recording_blocks; DROP TABLE recordings; \
          PRAGMA user_version = 5;",
     )
     .unwrap();

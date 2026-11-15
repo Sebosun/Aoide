@@ -113,8 +113,11 @@ fn version_one_database_migrates_in_place_and_preserves_existing_data() {
         ],
     )
     .unwrap();
-    conn.execute("INSERT INTO settings VALUES (?1, ?2)", ["theme", "dark"])
-        .unwrap();
+    conn.execute(
+        "INSERT INTO settings VALUES (?1, ?2)",
+        ["library.ignored", r#"["dark"]"#],
+    )
+    .unwrap();
     conn.pragma_update(None, "user_version", 1).unwrap();
     drop(conn);
 
@@ -138,7 +141,10 @@ fn version_one_database_migrates_in_place_and_preserves_existing_data() {
     let mut expected_segment = segment("old", &id, 456, 50);
     expected_segment.word_timings = None;
     assert_eq!(lib.segment("old").unwrap(), Some(expected_segment));
-    assert_eq!(lib.setting("theme").unwrap().as_deref(), Some("dark"));
+    assert_eq!(
+        lib.value(aoide_library::GlobalKey::IgnoredBooks).unwrap(),
+        Some(vec!["dark".to_owned()])
+    );
     let mark = lib
         .add_bookmark(&id, 2, 30, None, "old text", "note", 60)
         .unwrap();

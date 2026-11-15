@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use aoide_config::{Appearance, SettingsFile, Theme, SETTINGS_FILE, THEMES_DIR};
-use aoide_library::Library;
+use aoide_library::{GlobalKey, Library};
 use aoide_tts::EngineProfile;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -18,12 +18,6 @@ pub(super) const APPEARANCE: &str = "appearance";
 pub(super) const PLAYER: &str = "player";
 pub(super) const APP: &str = "app";
 pub(super) const ENGINE: &str = "engine";
-
-/// Keys under which Aoide kept these settings in the library database before they moved to
-/// the config folder. Read once, when `settings.toml` does not exist yet.
-const OLD_PROFILE_KEY: &str = "engine.profile";
-const OLD_SPEED_KEY: &str = "player.speed";
-const OLD_APP_KEY: &str = "app.settings";
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,15 +92,20 @@ impl Config {
     }
 
     fn migrate(&mut self, library: &Library) {
-        let old = |key: &str| library.setting(key).ok().flatten();
-        let profile = old(OLD_PROFILE_KEY)
-            .and_then(|json| serde_json::from_str::<EngineProfile>(&json).ok())
+        let profile = library
+            .value::<EngineProfile>(GlobalKey::OldEngineProfile)
+            .ok()
+            .flatten()
             .unwrap_or_else(super::default_profile);
-        let speed = old(OLD_SPEED_KEY)
-            .and_then(|s| s.parse::<f32>().ok())
+        let speed = library
+            .value::<f32>(GlobalKey::OldPlayerSpeed)
+            .ok()
+            .flatten()
             .unwrap_or(1.0);
-        let app = old(OLD_APP_KEY)
-            .and_then(|json| serde_json::from_str::<AppSettings>(&json).ok())
+        let app = library
+            .value::<AppSettings>(GlobalKey::OldAppSettings)
+            .ok()
+            .flatten()
             .unwrap_or_default();
         let result = self.update(|file| {
             file.set_section(APPEARANCE, &Appearance::default())?;
@@ -285,17 +284,17 @@ mod tests {
         let mut profile = crate::core::default_profile();
         profile.name = "Old profile".into();
         library
-            .set_setting(OLD_PROFILE_KEY, &serde_json::to_string(&profile).unwrap())
+            .set_value(GlobalKey::OldEngineProfile, &profile)
             .unwrap();
-        library.set_setting(OLD_SPEED_KEY, "1.5").unwrap();
+        library
+            .set_value(GlobalKey::OldPlayerSpeed, &1.5f32)
+            .unwrap();
         let app = AppSettings {
             cache_limit_bytes: Some(1 << 30),
             library_sort: crate::core::extras::LibrarySort::Title,
             ..AppSettings::default()
         };
-        library
-            .set_setting(OLD_APP_KEY, &serde_json::to_string(&app).unwrap())
-            .unwrap();
+        library.set_value(GlobalKey::OldAppSettings, &app).unwrap();
         library
     }
 
