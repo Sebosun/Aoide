@@ -618,6 +618,10 @@ impl super::Core {
 
     /// How much of each chapter's speech is made.
     pub async fn chapter_audio(&self, id: &str) -> Result<Vec<super::ChapterAudioView>, String> {
+        // An audiobook has no text, so no speech is made for it.
+        if self.kind_of(id) == Some(aoide_library::ItemKind::Audiobook) {
+            return Ok(Vec::new());
+        }
         let book = self.load_book(id)?;
         let _ = self.ensure_voice().await; // Without a voice nothing can be cached yet.
         Ok(self.speech_plan(&book)?.chapter_audio(&book))

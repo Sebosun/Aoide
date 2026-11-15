@@ -360,7 +360,8 @@ pub(super) mod tests {
         refused(core.search_book(&id, "lantern").map(drop), "search_book");
         refused(core.prepare_book(&id).await, "prepare_book");
         refused(core.prepare_chapter(&id, 0).await, "prepare_chapter");
-        refused(core.chapter_audio(&id).await.map(drop), "chapter_audio");
+        // Its page asks what speech each chapter has: none, without loading text.
+        assert!(core.chapter_audio(&id).await.unwrap().is_empty());
         refused(core.regenerate_book(&id).await, "regenerate_book");
         refused(core.export_book(&id).await.map(drop), "export_book");
         refused(

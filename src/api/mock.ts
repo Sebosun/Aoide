@@ -925,6 +925,7 @@ export function createMockApi() {
     },
     async chapterAudio(id) {
       getBook(id);
+      if (isAudiobook(id)) return [];
       const list = chapters[Number(id.split("-")[1])],
         queued = prepareEntry(id);
       return list.map((_, c) => {

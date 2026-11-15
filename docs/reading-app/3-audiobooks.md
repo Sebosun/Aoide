@@ -198,12 +198,36 @@ read-along near the same place once synced.
   cleaned name; they are stored with the recording.
 - 3.4: `Shelf::load` refuses an audiobook, so everything that needs the text gets "Not
   available for an audiobook: it has no text.": `chapter`, `search_book`, `prepare_book`
-  (before it wants the speech engine), `prepare_chapter`, `chapter_audio`,
-  `set_reading_place`, `lookup_metadata`, `apply_metadata`. Guarded up front because they
+  (before it wants the speech engine), `prepare_chapter`, `set_reading_place`, `lookup_metadata`, `apply_metadata`. Guarded up front because they
   would change state or give a less clear error: `regenerate_book`, `export_book`,
   `export_read_along`, `set_mode(Read)`, `attach_recording`, `attach_recording_as_listed`,
   `remove_recording` (an audiobook goes with its recording: remove the item),
   `set_narration`, `play_recording_at`. Made to work: `book_overview`/`open_book` (parts as
   chapters with `duration_ms`, a missing file as a warning), `book_details` (stored details
   only), `add_bookmark` (a time bookmark at the playhead or saved place, its excerpt the part's
-  title). Voice settings save but change nothing for an audiobook.
+  title), `chapter_audio` (empty: no speech is made for it, and its page asks on opening).
+  Voice settings save but change nothing for an audiobook.
+- 3.5: the scrubber spans the part playing, not the whole book; the line under the transport
+  gives the whole book's percentage and time left at the current speed. Bookmarks read
+  "Part N · m:ss" and jump by seeking, then playing. The sleep timer's "End of chapter" ends
+  the part. The mock's audiobook (`book-5`, Winter Radio) has parts of about a second, so
+  previews show tiny lengths.
+- 3.6: Find audiobooks lists folders close to no book under "Not in your library". Any folder
+  of audio counts, so music folders in the scanned places show up there too; they are only
+  added when the user picks Add. Dropped audio goes to the book whose page or reader is open
+  (not an audiobook), else to pairing when its name comes close to a book, else on its own.
+- 3.7: the library's kind switch only shows when the library holds more than one kind. An
+  audiobook's square cover sits at the foot of a portrait frame, so titles line up with
+  EPUBs on the same row.
+- 3.8: "Add the EPUB…" (reader and page) imports the chosen EPUB, merges the audiobook into it
+  (`merge_audiobook`) and opens the book's page. The listened place waits as
+  `pending_place` until the sync has a clip at or after it, then becomes the reading place.
+- Covers: the embedded front cover (else the first picture) is saved beside the EPUB covers
+  as `<id>.<ext>`. Debug smoke homes now allow their own covers folder in the asset scope,
+  which only names the real one.
+- Done-check (native, muted, synthetic audio): a folder of three tagged MP3s and an M4B with
+  chapters and cover; listen, part jumps, ±30 s, seek, 1.5×, sleep at the end of a part,
+  bookmark and jump back, quit and resume at the same place with the same speed; media keys
+  (play-pause, next, previous) over MPRIS. A tiny EPUB paired with espeak-ng speech of its
+  text synced to Ready and plays in the text reader with highlighting as before. MPRIS sends
+  no length for what plays (neither did speech).

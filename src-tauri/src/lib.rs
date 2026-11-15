@@ -785,6 +785,9 @@ pub fn run() {
             #[cfg(debug_assertions)]
             if let Some(home) = std::env::var_os("AOIDE_SMOKE_HOME") {
                 paths = smoke::paths(std::path::Path::new(&home));
+                // The asset scope only names the real covers folder.
+                app.asset_protocol_scope()
+                    .allow_directory(&paths.covers_dir, true)?;
             }
             #[allow(unused_mut)]
             let mut environment = crate::core::Environment::desktop(app.handle().clone());
