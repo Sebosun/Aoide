@@ -20,15 +20,35 @@ export const useAudiobooksStore = defineStore("audiobooks", () => {
   const matches = ref<AudiobookMatch[]>([]),
     progress = ref<ScanProgress | null>(null);
   /** What the last search found that matches no book, to add on its own. */
-  const unmatched = ref<AudiobookSuggestion[]>([]),
-    adding = ref(false);
+  const unmatched = ref<AudiobookSuggestion[]>([]);
   async function loadUnmatched() {
     unmatched.value = await api.unmatchedAudiobooks();
   }
-  const scanning = ref(false),
-    pairing = ref(false),
-    error = ref(""),
+  /** What the screen is doing: one thing at a time. */
+  const activity = ref<"idle" | "scanning" | "pairing" | "adding">("idle");
+  const scanning = computed(() => activity.value === "scanning"),
+    pairing = computed(() => activity.value === "pairing"),
+    adding = computed(() => activity.value === "adding");
+  const error = ref(""),
     filter = ref<MatchGroup>("found");
+  /** Runs `task` as the screen's one activity (nothing, when another is under way); what it
+   *  throws becomes the error, unless `quiet` says it is not one. */
+  async function run(
+    kind: Exclude<typeof activity.value, "idle">,
+    task: () => Promise<void>,
+    quiet: (e: unknown) => boolean = () => false,
+  ) {
+    if (activity.value !== "idle") return;
+    activity.value = kind;
+    error.value = "";
+    try {
+      await task();
+    } catch (e) {
+      if (!quiet(e)) error.value = String(e);
+    } finally {
+      activity.value = "idle";
+    }
+  }
   const selected = ref<Set<string>>(new Set());
   /** The candidate picked for a book, when not its closest. */
   const picked = ref<Record<string, number>>({});
@@ -70,48 +90,33 @@ export const useAudiobooksStore = defineStore("audiobooks", () => {
       }
     })());
   }
-  async function scan() {
-    error.value = "";
-    scanning.value = true;
-    progress.value = null;
-    try {
-      put(await api.scanForAudiobooks());
-      await loadUnmatched();
-    } catch (e) {
-      if (!String(e).includes("cancelled")) error.value = String(e);
-    } finally {
-      scanning.value = false;
-    }
-  }
+  const scan = () =>
+    run(
+      "scanning",
+      async () => {
+        progress.value = null;
+        put(await api.scanForAudiobooks());
+        await loadUnmatched();
+      },
+      (e) => String(e).includes("cancelled"),
+    );
   async function pair(bookIds: string[]) {
     if (!bookIds.length) return;
-    error.value = "";
-    pairing.value = true;
-    try {
+    await run("pairing", async () => {
       const outcomes = await api.pairAudiobooks(bookIds.map((bookId) => ({ bookId, candidate: candidateOf(bookId) })));
       const failed = outcomes.filter((o) => o.error);
       if (failed.length) error.value = failed.map((o) => o.error).join("\n");
       put(await api.audiobookMatches());
       const recordings = useRecordingsStore();
       await Promise.all(bookIds.map((id) => recordings.load(id)));
-    } catch (e) {
-      error.value = String(e);
-    } finally {
-      pairing.value = false;
-    }
+    });
   }
   /** Adds an audiobook that matches no book as an item of its own. */
-  async function addUnmatched(audiobook: AudiobookSuggestion) {
-    adding.value = true;
-    try {
+  const addUnmatched = (audiobook: AudiobookSuggestion) =>
+    run("adding", async () => {
       await useRecordingsStore().addOnItsOwn(audiobook.paths);
       await loadUnmatched();
-    } catch (e) {
-      error.value = String(e);
-    } finally {
-      adding.value = false;
-    }
-  }
+    });
   function toggle(id: string, on: boolean) {
     const next = new Set(selected.value);
     if (on) next.add(id);
@@ -130,6 +135,7 @@ export const useAudiobooksStore = defineStore("audiobooks", () => {
     startup = undefined;
   }
   return {
+    activity,
     matches,
     unmatched,
     adding,
