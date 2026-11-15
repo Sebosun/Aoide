@@ -14,6 +14,7 @@ import type {
   ArticleView,
   AddedLink,
   EntryFilter,
+  OpmlImport,
   EntryView,
   FeedView,
   SubscribeResult,
@@ -288,6 +289,14 @@ export interface AoideApi {
   markAllRead(feedId: number | null): Promise<void>;
   /** Opens a feed's site (its own address when it names none) in the system's browser. */
   openFeedSite(feedId: number): Promise<void>;
+  /** The system's file chooser for a subscription list (OPML) to import; null when cancelled. */
+  chooseOpml(): Promise<string | null>;
+  /** The system's save dialog for exporting the subscription list; null when cancelled. */
+  chooseOpmlTarget(): Promise<string | null>;
+  /** Subscribes to the feeds an OPML file lists that are not subscribed yet. */
+  importOpml(path: string): Promise<OpmlImport>;
+  /** Writes every subscription to an OPML file; resolves with how many. */
+  exportOpml(path: string): Promise<number>;
   /** Checks every feed now ("feeds://changed" reports what changed). */
   checkFeeds(): Promise<void>;
   /** Fires when feeds or their entries change (a check, reading, saving, cleanup). */

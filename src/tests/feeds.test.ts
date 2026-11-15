@@ -133,6 +133,10 @@ it("invites a first subscription when there is none", async () => {
   expect(wrapper.get(".feeds__empty").text()).toContain("No subscriptions yet");
   await wrapper.get(".feeds__empty button").trigger("click");
   expect(useNavigationStore().addOpen).toBe(true);
+  useNavigationStore().closeAdd();
+  await wrapper.get(".feeds__empty .feeds__link").trigger("click");
+  await flushPromises();
+  expect(subscriptions(wrapper).slice(2)).toEqual(["Lantern Notes", "Quay Weekly", "Tidewatch"]);
 });
 
 it("says when nothing is new", async () => {

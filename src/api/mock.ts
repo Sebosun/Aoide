@@ -1627,6 +1627,42 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async openFeedSite(feedId) {
       if (!feeds.some((f) => f.id === feedId)) throw new Error("No such feed.");
     },
+    async chooseOpml() {
+      return "~/subscriptions.opml";
+    },
+    async chooseOpmlTarget() {
+      return "~/subscriptions.opml";
+    },
+    /** As the core does for the preview's list: one feed already subscribed (skipped), two
+     *  new ones named by the list until their first check. */
+    async importOpml() {
+      const listed = [
+        { title: "Tidewatch", url: "https://tidewatch.example/feed.xml" },
+        { title: "Lantern Notes", url: "https://lanterns.example/feed.xml" },
+        { title: "Quay Weekly", url: "https://quay.example/feed.xml" },
+      ];
+      let added = 0;
+      for (const item of listed) {
+        if (feeds.some((f) => f.url === item.url)) continue;
+        added++;
+        feeds.push({
+          id: Math.max(0, ...feeds.map((f) => f.id)) + 1,
+          title: item.title,
+          url: item.url,
+          siteUrl: new URL("/", item.url).href,
+          unread: 0,
+          stage: { kind: "idle" },
+          error: null,
+          lastOkAt: null,
+        });
+      }
+      feeds.sort((a, b) => (a.title ?? a.url).localeCompare(b.title ?? b.url));
+      feedsChanged();
+      return { added, skipped: listed.length - added };
+    },
+    async exportOpml() {
+      return feeds.length;
+    },
     onFeedsChanged: (h) => subscribe(feedHandlers, h),
     /** The preview opens nothing. */
     async openOriginal(id) {

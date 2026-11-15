@@ -28,6 +28,16 @@ const failingSince = (feed: FeedView) =>
   feed.stage.kind === "failing" ? `Not reachable since ${dayName(feed.stage.sinceMs)}` : "";
 const feedName = (feed: FeedView) => feed.title ?? new URL(feed.url).hostname;
 
+/** A subscription list (OPML) from another reader. */
+async function importList() {
+  try {
+    const done = await feeds.importList();
+    if (done)
+      ui.toast(done.added ? `Added ${done.added} feed${done.added === 1 ? "" : "s"}` : "No new feeds in that list");
+  } catch (e) {
+    ui.toast(String(e).replace(/^Error: /, ""), "error");
+  }
+}
 async function copyAddress(feed: FeedView) {
   try {
     await navigator.clipboard.writeText(feed.url);
@@ -123,6 +133,9 @@ onBeforeUnmount(() => watcher?.disconnect());
         @click="navigation.openAdd('', 'subscribe')"
       >
         <Plus :size="16" aria-hidden="true" />Subscribe
+      </button>
+      <button type="button" class="feeds__link" @click="importList">
+        Or import a subscription list from another feed reader…
       </button>
     </div>
 
@@ -424,6 +437,15 @@ onBeforeUnmount(() => watcher?.disconnect());
 }
 .feeds__empty--start .feeds__button {
   margin-top: 14px;
+}
+.feeds__link {
+  margin-top: 6px;
+  padding: 0;
+  color: var(--dim);
+  text-decoration: underline;
+}
+.feeds__link:hover {
+  color: var(--ink);
 }
 .feeds__empty-title {
   margin: 0;

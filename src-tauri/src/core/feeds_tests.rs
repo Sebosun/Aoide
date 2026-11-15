@@ -301,6 +301,40 @@ async fn unsubscribing_removes_the_feed_and_its_entries() {
 }
 
 #[tokio::test]
+async fn an_opml_list_adds_the_feeds_not_subscribed_and_the_first_check_fills_them() {
+    let pages = Pages::with(&[]);
+    pages.feed(HARBOUR, &rss(0..12), "v1");
+    let (feeds, _) = feeds(&pages);
+    let host = Host::at(20 * DAY);
+    let opml = r#"<?xml version="1.0"?><opml version="2.0"><head><title>Mine</title></head><body>
+        <outline text="News"><outline text="Harbour" type="rss" xmlUrl="https://harbour.example/feed.xml"/>
+        <outline text="Again" type="rss" xmlUrl="https://harbour.example/feed.xml"/></outline>
+        <outline text="Local file" type="rss" xmlUrl="file:///etc/feed.xml"/>
+        </body></opml>"#;
+    let result = feeds.import(&host, opml).unwrap();
+    assert_eq!((result.added, result.skipped), (1, 2));
+    let view = only(&feeds);
+    assert_eq!(
+        view.title.as_deref(),
+        Some("Harbour"),
+        "named by the list until checked"
+    );
+    assert!(host.changed.load(Ordering::SeqCst) > 0);
+
+    feeds.check_due(&host).await;
+    let view = only(&feeds);
+    assert_eq!(view.title.as_deref(), Some("Harbour Notes"));
+    assert_eq!(view.unread, 10, "a first check, as for a new subscription");
+
+    let written = feeds.export().unwrap();
+    let outlines = aoide_feeds::opml::read(&written);
+    assert_eq!(outlines.len(), 1);
+    assert_eq!(outlines[0].xml_url, HARBOUR);
+    assert_eq!(outlines[0].title.as_deref(), Some("Harbour Notes"));
+    assert_eq!(outlines[0].html_url.as_deref(), Some(PAGE));
+}
+
+#[tokio::test]
 async fn old_entries_go_unless_saved_and_items_no_entry_needs_are_named() {
     use aoide_library::{BookId, ItemKind, NewBook, NewEntry};
     let pages = Pages::with(&[]);
@@ -577,6 +611,30 @@ mod through_core {
         };
         assert!(in_library(&core, &id));
         assert!(core.add_link("not a link").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn subscriptions_go_out_to_an_opml_file_and_come_in_from_one() {
+        let pages = Pages::with(&[]);
+        let (dir, core) = subscribed(&pages).await;
+        let file = dir.path().join("subscriptions.opml");
+        assert_eq!(core.export_opml(&file.to_string_lossy()).unwrap(), 1);
+        let written = std::fs::read_to_string(&file).unwrap();
+        assert!(written.contains(HARBOUR));
+
+        let list = dir.path().join("more.opml");
+        std::fs::write(
+            &list,
+            format!(
+                r#"<opml version="2.0"><body><outline text="Harbour" xmlUrl="{HARBOUR}"/>
+                <outline text="Lanterns" xmlUrl="https://lanterns.example/feed.xml"/></body></opml>"#
+            ),
+        )
+        .unwrap();
+        let result = core.import_opml(&list.to_string_lossy()).unwrap();
+        assert_eq!((result.added, result.skipped), (1, 1));
+        assert_eq!(core.feeds().unwrap().len(), 2);
+        assert!(core.import_opml("/no/such/file.opml").is_err());
     }
 
     #[tokio::test]

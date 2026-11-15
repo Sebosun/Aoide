@@ -785,6 +785,52 @@ async fn choose_books(app: tauri::AppHandle) -> Option<Vec<String>> {
     rx.await.ok().flatten()
 }
 
+/// The system's file chooser for a subscription list to import; `None` when cancelled.
+#[tauri::command]
+async fn choose_opml(app: tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("Choose a subscription list to import")
+        .add_filter("Subscription lists (OPML)", &["opml", "xml"])
+        .pick_file(move |picked| {
+            let _ = tx.send(picked.map(|p| p.to_string()));
+        });
+    rx.await.ok().flatten()
+}
+
+/// The system's save dialog for exporting the subscription list; `None` when cancelled.
+#[tauri::command]
+async fn choose_opml_target(app: tauri::AppHandle) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("Export subscriptions")
+        .set_file_name("subscriptions.opml")
+        .add_filter("Subscription lists (OPML)", &["opml"])
+        .save_file(move |picked| {
+            let _ = tx.send(picked.map(|p| p.to_string()));
+        });
+    rx.await.ok().flatten()
+}
+
+#[tauri::command]
+async fn import_opml(
+    core: CoreState<'_>,
+    path: String,
+) -> Result<crate::core::OpmlImport, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.import_opml(&path)).await
+}
+
+#[tauri::command]
+async fn export_opml(core: CoreState<'_>, path: String) -> Result<u32, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.export_opml(&path)).await
+}
+
 /// The system's file chooser for audiobook files, or a folder of them. `None` when cancelled.
 #[tauri::command]
 async fn choose_audio(app: tauri::AppHandle, folder: bool) -> Option<Vec<String>> {
@@ -1005,6 +1051,10 @@ pub fn run() {
             check_feeds,
             open_feed_site,
             add_link,
+            choose_opml,
+            choose_opml_target,
+            import_opml,
+            export_opml,
             save_to_library,
             feed_entries,
             open_feed_entry,

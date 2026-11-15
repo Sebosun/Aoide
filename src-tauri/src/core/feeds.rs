@@ -133,6 +133,17 @@ pub enum SubscribeResult {
     NotAFeed,
 }
 
+/// What importing a subscription list (OPML) did.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct OpmlImport {
+    /// Feeds subscribed to.
+    pub added: u32,
+    /// Feeds already subscribed, listed twice, or not at a web address.
+    pub skipped: u32,
+}
+
 /// What a link given to Add became.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind", content = "value")]
@@ -519,6 +530,76 @@ impl Feeds {
         self.view_of(id).map(Some)
     }
 
+    /// Subscribes to the feeds an OPML list names that are not subscribed yet. They are named
+    /// by the list until their first check, which the worker makes soon after.
+    pub fn import(&self, host: &dyn FeedsHost, xml: &str) -> Result<OpmlImport, String> {
+        let now = host.now_ms();
+        let mut result = OpmlImport {
+            added: 0,
+            skipped: 0,
+        };
+        {
+            let library = lock(&self.library);
+            let mut known: HashSet<String> = library
+                .feeds()
+                .map_err(|e| e.to_string())?
+                .into_iter()
+                .map(|f| f.url)
+                .collect();
+            for outline in aoide_feeds::opml::read(xml) {
+                let url = match parse_link(&outline.xml_url) {
+                    Ok(url) if known.insert(url.to_string()) => url,
+                    _ => {
+                        result.skipped += 1;
+                        continue;
+                    }
+                };
+                let id = library
+                    .add_feed(url.as_str(), now)
+                    .map_err(|e| e.to_string())?;
+                if let Some(mut row) = library.feed(id).map_err(|e| e.to_string())? {
+                    row.title = outline.title;
+                    row.site_url = outline
+                        .html_url
+                        .and_then(|site| parse_link(&site).ok())
+                        .map(String::from);
+                    library.update_feed(&row).map_err(|e| e.to_string())?;
+                }
+                result.added += 1;
+            }
+        }
+        tracing::info!(
+            event = "feed.import",
+            added = result.added,
+            skipped = result.skipped,
+            "Imported a subscription list"
+        );
+        if result.added > 0 {
+            host.feeds_changed();
+            self.wake.notify_one();
+        }
+        Ok(result)
+    }
+
+    /// Every subscription as an OPML list.
+    pub fn export(&self) -> Result<String, String> {
+        let feeds = lock(&self.library).feeds().map_err(|e| e.to_string())?;
+        let outlines: Vec<_> = feeds
+            .into_iter()
+            .map(|f| aoide_feeds::opml::Outline {
+                title: f.title,
+                xml_url: f.url,
+                html_url: f.site_url,
+            })
+            .collect();
+        tracing::info!(
+            event = "feed.export",
+            feeds = outlines.len(),
+            "Exported the subscription list"
+        );
+        Ok(aoide_feeds::opml::write(&outlines))
+    }
+
     pub fn unsubscribe(&self, host: &dyn FeedsHost, id: i64) -> Result<(), String> {
         lock(&self.library)
             .remove_feed(id)
@@ -840,6 +921,24 @@ impl super::Core {
     /// Subscribes to a feed, by its address or a page naming it.
     pub async fn subscribe(&self, url: &str) -> Result<SubscribeResult, String> {
         self.feeds.subscribe(self, url).await
+    }
+
+    /// Subscribes to the feeds the OPML file at `path` lists (at most 5 MiB).
+    pub fn import_opml(&self, path: &str) -> Result<OpmlImport, String> {
+        const MAX_BYTES: u64 = 5 * 1024 * 1024;
+        let file =
+            std::fs::File::open(path).map_err(|e| format!("Could not open the file: {e}"))?;
+        let mut xml = String::new();
+        std::io::Read::read_to_string(&mut std::io::Read::take(file, MAX_BYTES), &mut xml)
+            .map_err(|e| format!("Could not read the file: {e}"))?;
+        self.feeds.import(self, &xml)
+    }
+
+    /// Writes every subscription to `path` as an OPML list; returns how many.
+    pub fn export_opml(&self, path: &str) -> Result<u32, String> {
+        let xml = self.feeds.export()?;
+        std::fs::write(path, &xml).map_err(|e| format!("Could not write the file: {e}"))?;
+        Ok(self.feeds.views()?.len() as u32)
     }
 
     /// A link given to Add: a feed is subscribed, anything else is saved as an article.

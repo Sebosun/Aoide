@@ -643,6 +643,16 @@ export type SubscribeResult = { "kind": "subscribed", "value": FeedView } | { "k
 
 export type AddedLink = { "kind": "subscribed", "value": FeedView } | { "kind": "saved", "value": string };
 
+export type OpmlImport = { 
+/**
+ * Feeds subscribed to.
+ */
+added: number, 
+/**
+ * Feeds already subscribed, listed twice, or not at a web address.
+ */
+skipped: number, };
+
 export type EntryFilter = "all" | "unread" | "saved";
 
 export type EntryView = { id: number, feedId: number, feedTitle: string | null, title: string | null, 
@@ -931,5 +941,9 @@ export type Commands = {
   "download_model": { args: { modelId: string }; result: void };
   "play_recording_at": { args: { bookId: string; atMs: number }; result: void };
   "choose_books": { args: Record<string, never>; result: string[] | null };
+  "choose_opml": { args: Record<string, never>; result: string | null };
+  "choose_opml_target": { args: Record<string, never>; result: string | null };
+  "import_opml": { args: { path: string }; result: OpmlImport };
+  "export_opml": { args: { path: string }; result: number };
   "choose_audio": { args: { folder: boolean }; result: string[] | null };
 };

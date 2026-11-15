@@ -52,6 +52,7 @@ it("opens settings from the gear as a modal with a tab per section, and Escape c
     "Speech engine",
     "Recordings",
     "Library",
+    "Feeds",
     "Word highlighting",
     "Storage",
     "About",
@@ -264,5 +265,52 @@ it("uses a recognition server instead of the built-in model", async () => {
     engine: "server",
     server: { baseUrl: "http://127.0.0.1:8001", model: "Systran/faster-whisper-base.en", network: "loopback" },
   });
+  wrapper.unmount();
+});
+
+async function openFeedSettings() {
+  useNavigationStore().openSettings("feeds");
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  return wrapper;
+}
+
+it("keeps how often feeds are checked and how long entries stay", async () => {
+  let wrapper = await openFeedSettings();
+  expect(selected(wrapper).text()).toBe("Feeds");
+  await choose(wrapper, "How often feeds are checked", "Every 6 hours");
+  const read = wrapper.get<HTMLInputElement>('input[aria-label="Days to keep read entries"]');
+  expect(read.element.value).toBe("30");
+  await read.setValue("14");
+  await read.trigger("change");
+  await flushPromises();
+  expect((await mock.appSettings()).feeds).toEqual({ checkMinutes: 360, keepReadDays: 14, keepUnreadDays: 90 });
+  wrapper.unmount();
+
+  setActivePinia(createPinia());
+  wrapper = await openFeedSettings();
+  expect(wrapper.get('[aria-label="How often feeds are checked"]').text()).toBe("Every 6 hours");
+  expect(wrapper.get<HTMLInputElement>('input[aria-label="Days to keep read entries"]').element.value).toBe("14");
+  wrapper.unmount();
+});
+
+it("imports a subscription list and says what was added and skipped, and exports one", async () => {
+  const before = (await mock.feeds()).length;
+  const wrapper = await openFeedSettings();
+  await wrapper
+    .findAll("button")
+    .find((b) => b.text() === "Import…")!
+    .trigger("click");
+  await flushPromises();
+  expect(wrapper.get(".feed-settings__result").text()).toBe(
+    "Added 2 feeds. 1 skipped: already subscribed, or not at a web address.",
+  );
+  expect((await mock.feeds()).length).toBe(before + 2);
+  await wrapper
+    .findAll("button")
+    .find((b) => b.text() === "Export…")!
+    .trigger("click");
+  await flushPromises();
+  expect(wrapper.get(".feed-settings__result").text()).toBe(`Exported ${before + 2} feeds.`);
   wrapper.unmount();
 });

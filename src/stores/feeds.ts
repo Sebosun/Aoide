@@ -106,6 +106,19 @@ export const useFeedsStore = defineStore("feeds", () => {
       await api.unsubscribe(id);
       if (source.value.kind === "feed" && source.value.id === id) await choose({ kind: "all" });
     });
+  /** Imports a subscription list the user picks; null when they pick none. */
+  async function importList() {
+    const path = await api.chooseOpml();
+    if (!path) return null;
+    const result = await api.importOpml(path);
+    await refresh();
+    return result;
+  }
+  /** Exports the subscriptions where the user picks; how many, or null when they pick nowhere. */
+  async function exportList() {
+    const path = await api.chooseOpmlTarget();
+    return path ? api.exportOpml(path) : null;
+  }
   function dispose() {
     unlisten?.();
     unlisten = undefined;
@@ -129,6 +142,8 @@ export const useFeedsStore = defineStore("feeds", () => {
     checkNow,
     markAllRead,
     unsubscribe,
+    importList,
+    exportList,
     dispose,
   };
 });

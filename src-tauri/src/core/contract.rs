@@ -128,6 +128,7 @@ fn contract() -> String {
         super::feeds::FeedView,
         super::feeds::SubscribeResult,
         super::feeds::AddedLink,
+        super::feeds::OpmlImport,
         super::feeds::EntryFilter,
         super::feeds::EntryView,
         // Appearance

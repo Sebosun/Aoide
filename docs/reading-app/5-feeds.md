@@ -221,3 +221,39 @@ Update `README.md`, `docs/roadmap.md`, `AGENTS.md` (where feed parsing lives).
   puts it in the library; after a restart the unread counts are right and a check sends
   conditional requests.
 - A feed that stops answering is marked and does not stop the others from updating.
+
+## Notes from implementation
+
+- The schema is library **v11**, not v10: the ledger is one ahead of the plan since phase 2.
+- 5.1: `aoide-feeds` wraps feed-rs 2.4 (the last line on Rust edition 2021; 3.0 needs 2024).
+  feed-rs names an RSS `<author>` as a person whose name is the text and email empty, so
+  `Entry.author` takes the name, else the email. Titles are plain text (markup removed,
+  entities decoded). An entry without an id, link or date gets `sha256:` of its title.
+- 5.3: `FeedResponse::Body` also says `moved` (the address answered with a permanent
+  redirect), which the check stores as the feed's new address.
+- 5.4: `feeds` also has `failing_since`, so `FeedStage::Failing { since_ms }` survives a
+  restart; and `books()` keeps to the library shelf as planned.
+- 5.5: `FeedStage` stays `Failing` (keeping `since_ms`) through `CheckStarted` and further
+  failures; any answer returns it to `Idle`. A page's discovered feeds are `DiscoveredFeed`
+  (renamed from phase 4's `FeedView`, which is now a subscription's view).
+- 5.6: the core's shelf enum is `ItemShelf` (`core::shelf::Shelf` was taken). Paging is by
+  `before = entry id`, in the list's order: published time, else when a check first found the
+  entry; `EntryView.at` carries that time, so the view groups and orders by what the core
+  sorted by. Subscriptions list by title.
+- 5.7: cleanup runs daily in the worker and after Check now; an item removed for being no
+  entry's goes through `remove_book`, so its folder and cover go too.
+- 5.8: a subscription's menu also has Open site (`open_feed_site`, through the same
+  `open_link` hook as Open original). Older entries load when the end of the list comes into
+  view, with a "Show older entries" button for the same.
+- 5.9: the core decides what a link given to Add is (`add_link`): a feed subscribes, anything
+  else is saved as an article (one extra request to the address to tell). The dialog closes
+  on saving, as in phase 4, so "This site has a feed" is offered under the article's byline
+  in the reader instead of in the dialog. Opened from Feeds, the dialog subscribes
+  (`subscribe`) and shows a site's feeds to choose from. The reader's Save to library is
+  `save_to_library(book_id)`; `ArticleView.in_library` tells the reader which items came from
+  a feed and are not kept.
+- 5.10: `import_opml`/`export_opml` take paths from `choose_opml`/`choose_opml_target`
+  (the system's file dialogs). Imported feeds are named by the list until the worker's first
+  check, which treats them as new subscriptions (ten newest unread). The empty Feeds screen
+  offers the import too.
+
