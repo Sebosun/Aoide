@@ -316,3 +316,49 @@ async fn fixtures_for_the_ui_mock() {
     );
     tokio::time::sleep(Duration::from_millis(50)).await;
 }
+
+/// An article saved and fetched, which the mock adds when a link is saved: its summary, its
+/// view, its overview and its text, as `book-6`.
+#[tokio::test]
+async fn an_article_for_the_ui_mock() {
+    use super::article_tests::{Pages, LIGHTS, LIGHTS_URL};
+    if !wanted() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    super::tests::library_folder(dir.path(), "");
+    let (core, _) = super::tests::start_fetching(
+        dir.path(),
+        &FakeEngine::new(),
+        Pages::with(&[(LIGHTS_URL, LIGHTS)]),
+    );
+    let id = core.save_article(LIGHTS_URL).unwrap();
+    until("the article is fetched", || {
+        core.article(&id)
+            .is_ok_and(|a| a.stage == super::fetching::Stage::Ready)
+    })
+    .await;
+    let mut summary = core
+        .list_books()
+        .unwrap()
+        .into_iter()
+        .find(|b| b.id == id)
+        .unwrap();
+    summary.added_at = 210;
+    let mut article = core.article(&id).unwrap();
+    article.fetched_at = Some(205);
+    let renames = vec![
+        (id.clone(), "book-6".to_owned()),
+        (dir.path().to_string_lossy().into_owned(), "~".to_owned()),
+    ];
+    write(
+        "article",
+        &serde_json::json!({
+            "summary": summary,
+            "article": article,
+            "view": core.book_overview(&id).unwrap(),
+            "chapter": core.chapter(&id, 0).unwrap(),
+        }),
+        &renames,
+    );
+}

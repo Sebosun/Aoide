@@ -133,6 +133,9 @@ export const tauriApi: AoideApi = {
   audiobookMatches: () => call("audiobook_matches"),
   unmatchedAudiobooks: () => call("unmatched_audiobooks"),
   mergeAudiobook: (audiobookId, bookId) => call("merge_audiobook", { audiobookId, bookId }),
+  saveArticle: (url) => call("save_article", { url }),
+  refetchArticle: (bookId, source) => call("refetch_article", { bookId, source }),
+  article: (bookId) => call("article", { bookId }),
   cancelAudiobookScan: () => call("cancel_audiobook_scan"),
   lookForAudiobooks: (ids) => call("look_for_audiobooks", { ids }),
   pairAudiobooks: (choices) => call("pair_audiobooks", { choices }),
@@ -159,6 +162,7 @@ export const tauriApi: AoideApi = {
   chooseBooks: () => call("choose_books"),
   playRecordingAt: (bookId, atMs) => call("play_recording_at", { bookId, atMs }),
   onSyncState: (h) => on("sync://state", h),
+  onArticleState: (h) => on("article://state", h),
   onModelDownload: (h) => on("model://download", h),
   onProblem: (h) => on("core://problem", h),
 };

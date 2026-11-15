@@ -23,8 +23,10 @@ import { usePreferencesStore } from "./stores/preferences";
 import { listenForProblems } from "./problems";
 import { api } from "./api";
 import { useRecordingsStore } from "./stores/recordings";
+import { useArticlesStore } from "./stores/articles";
 import { useReaderStore } from "./stores/reader";
 import { isAudioPath } from "./recording";
+import { asLink } from "./articles";
 import { useShortcuts } from "./composables/useShortcuts";
 
 const library = useLibraryStore(),
@@ -51,6 +53,18 @@ function dropped(paths: string[]) {
     void library.importFiles(books);
   }
 }
+/** A link pasted outside a text field, or dropped on the window, opens Add with it filled in. */
+function offerLink(text: string | undefined) {
+  const link = text && /^\s*https?:\/\//i.test(text) ? asLink(text) : null;
+  if (link) navigation.openAdd(link);
+  return !!link;
+}
+function pasted(event: ClipboardEvent) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
+  if (offerLink(event.clipboardData?.getData("text"))) event.preventDefault();
+}
+window.addEventListener("paste", pasted);
 const dragging = ref(false),
   dropError = ref("");
 useShortcuts();
@@ -100,11 +114,13 @@ onUnmounted(() => {
   unlisten?.();
   unlistenProblems?.();
   window.removeEventListener("blur", endDrag);
+  window.removeEventListener("paste", pasted);
   void Promise.all([library.start(), player.start()]).then(() => {
     library.dispose();
     player.dispose();
     preferences.dispose();
     recordings.dispose();
+    useArticlesStore().dispose();
   });
 });
 // The browser path: only drags that carry files count, and nested enter/leave pairs are
@@ -117,8 +133,9 @@ function dragEnter(event: DragEvent) {
   depth += 1;
   dragging.value = true;
 }
+const carriesLink = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("text/uri-list");
 function dragOver(event: DragEvent) {
-  if (carriesFiles(event)) event.preventDefault();
+  if (carriesFiles(event) || carriesLink(event)) event.preventDefault();
 }
 function dragLeave(event: DragEvent) {
   if (!carriesFiles(event)) return;
@@ -132,7 +149,11 @@ function endDrag() {
 window.addEventListener("blur", endDrag);
 function browserDrop(event: DragEvent) {
   endDrag();
-  if (native || !carriesFiles(event)) return;
+  if (!carriesFiles(event)) {
+    offerLink(event.dataTransfer?.getData("text/uri-list").split("\n")[0]);
+    return;
+  }
+  if (native) return;
   dropped(Array.from(event.dataTransfer?.files ?? []).map((file) => file.name));
 }
 </script>

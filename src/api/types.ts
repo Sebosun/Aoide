@@ -10,6 +10,8 @@ import type {
   AppSettings,
   AppSettingsPatch,
   Appearance,
+  ArticleSource,
+  ArticleView,
   AppearanceMode,
   BlockKind,
   BlockView,
@@ -245,6 +247,13 @@ export interface AoideApi {
    *  the book takes its recording, which syncs, its bookmarks, collections and listening time,
    *  and its place once the sync reaches it. The audiobook item is removed. */
   mergeAudiobook(audiobookId: string, bookId: string): Promise<void>;
+  /** Saves a link as an article (or finds it saved) and queues its fetch; returns its id. An
+   *  invalid link is refused. "article://state" reports the fetch. */
+  saveArticle(url: string): Promise<string>;
+  /** Fetches an article again, from the page or an archived copy. */
+  refetchArticle(bookId: string, source: ArticleSource): Promise<void>;
+  /** An article's source and where its fetch stands. */
+  article(bookId: string): Promise<ArticleView>;
   cancelAudiobookScan(): Promise<void>;
   /** After books were added: how many have audiobooks waiting for the user (0 when looking on
    *  adding is off or Aoide verifies them). */
@@ -286,6 +295,7 @@ export interface AoideApi {
   /** Plays the book's recording from a time on its timeline (needs the recording narration). */
   playRecordingAt(bookId: string, atMs: number): Promise<void>;
   onSyncState(handler: (recording: RecordingView) => void): Promise<() => void>;
+  onArticleState(handler: (article: ArticleView) => void): Promise<() => void>;
   onModelDownload(handler: (download: ModelDownloadView) => void): Promise<() => void>;
   /** A failure in the background the user should know about. */
   onProblem(handler: (problem: ProblemView) => void): Promise<() => void>;

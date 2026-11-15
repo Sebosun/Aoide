@@ -217,7 +217,8 @@ impl Library {
                     via TEXT,
                     fetched_at INTEGER,
                     word_count INTEGER CHECK(word_count >= 0),
-                    declared_words INTEGER CHECK(declared_words >= 0)
+                    declared_words INTEGER CHECK(declared_words >= 0),
+                    lead TEXT
                 );",
             )?;
             tx.pragma_update(None, "user_version", 10)?;

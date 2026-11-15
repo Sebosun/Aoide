@@ -12,7 +12,9 @@ import {
   Info,
   RotateCcw,
   Trash2,
+  TriangleAlert,
 } from "@lucide/vue";
+import { NEEDS, fetching } from "../../articles";
 import type { SyncStage } from "../../api/types";
 import { useRecordingsStore } from "../../stores/recordings";
 import { useCollections } from "../../composables/useCollections";
@@ -57,8 +59,15 @@ const RECORDING: Record<SyncStage, string> = {
 const HAS = { none: "Text", speech: "Text + voice", recording: "Text + recording" } as const;
 /** An audiobook on its own: square cover, no text to prepare, export or pair audio with. */
 const audiobook = computed(() => props.book.kind === "audiobook");
+/** An article: a text tile in place of a cover, and its fetch on the card until it is in. */
+const article = computed(() => props.book.article);
+const loading = computed(() => !!article.value && fetching(article.value.stage));
 const status = computed(() => {
   const { prepare, progress, recording, audio } = props.book;
+  const stage = article.value?.stage;
+  if (stage && fetching(stage)) return "Fetching…";
+  if (stage?.kind === "failed") return "Could not be fetched";
+  if (stage?.kind === "needsYou") return `Needs you · ${NEEDS[stage.reason]}`;
   if (audiobook.value)
     return `Audio only · ${props.book.readState === "finished" ? "finished" : progress ? `${percent.value}%` : "unplayed"}`;
   const along = props.book.readState === "finished" ? "finished" : progress ? `${percent.value}%` : "unread";
@@ -68,7 +77,8 @@ const status = computed(() => {
       ? `${percent.value}% · ${RECORDING[recording]}`
       : RECORDING[recording].replace(/^./, (c) => c.toUpperCase());
   const left = progress && props.book.readState === "inProgress" ? timeLeft(props.book, library.readingWpm) : "";
-  return [`${HAS[audio]}`, along, left].filter(Boolean).join(" · ");
+  const has = article.value ? (audio === "none" ? "Article" : "Article + voice") : HAS[audio];
+  return [has, along, left].filter(Boolean).join(" · ");
 });
 const ui = useUiStore(),
   library = useLibraryStore(),
@@ -114,7 +124,9 @@ async function remove() {
     title: `Remove ${props.book.title} from the library?`,
     body: audiobook.value
       ? "Its audio files stay where they are. Aoide forgets the audiobook and its bookmarks."
-      : "The EPUB file stays where it is. Aoide forgets the book and deletes its generated audio and bookmarks.",
+      : article.value
+        ? "Aoide forgets the article and deletes its saved page, generated audio and bookmarks."
+        : "The EPUB file stays where it is. Aoide forgets the book and deletes its generated audio and bookmarks.",
     confirmLabel: "Remove",
     danger: true,
   });
@@ -128,12 +140,14 @@ function textActions(book: BookSummary): MenuEntry[] {
     icon: ACTION_ICONS[action],
     action: () => runPrepareAction(book.id, action),
   }));
-  list.push({
-    id: "audiobook",
-    label: book.recording ? "Replace audiobook…" : "Add audiobook…",
-    icon: Headphones,
-    action: () => act(addAudiobook),
-  });
+  // Only a book (an EPUB) is paired with an audiobook.
+  if (book.kind === "book")
+    list.push({
+      id: "audiobook",
+      label: book.recording ? "Replace audiobook…" : "Add audiobook…",
+      icon: Headphones,
+      action: () => act(addAudiobook),
+    });
   if (book.recording === "ready")
     list.push({
       id: "export-read-along",
@@ -212,7 +226,16 @@ const items = computed<MenuEntry[]>(() => {
       :disabled="unavailable || busy"
       @click="emit('open')"
     >
+      <span v-if="article" class="book-card__tile" :class="{ 'book-card__tile--loading': loading }">
+        <template v-if="loading"><i /><i /><i /></template>
+        <template v-else>
+          <span class="book-card__site">{{ article.siteName ?? book.title }}</span>
+          <span class="book-card__headline">{{ book.title }}</span>
+          <span v-if="article.lead" class="book-card__lead">{{ article.lead }}</span>
+        </template>
+      </span>
       <CoverArt
+        v-else
         class="book-card__cover"
         :class="{ 'book-card__cover--square': audiobook }"
         :title="book.title"
@@ -221,15 +244,26 @@ const items = computed<MenuEntry[]>(() => {
       />
     </button>
     <h3 class="book-card__title" :title="book.title">{{ book.title }}</h3>
-    <span class="book-card__line">{{ book.authors.join(", ") || "Unknown author" }}</span>
+    <span class="book-card__line">{{
+      book.authors.join(", ") || (article ? (article.siteName ?? "\u00a0") : "Unknown author")
+    }}</span>
     <span class="book-card__track"><i :style="{ width: `${percent}%` }" /></span>
     <span v-if="book.status.kind === 'missing'" class="book-card__badge book-card__badge--warn">File missing</span>
     <template v-else-if="book.status.kind === 'error'"
       ><span class="book-card__badge book-card__badge--error">Can't open this EPUB</span
       ><span class="book-card__reason" :title="book.status.message">{{ book.status.message }}</span></template
     >
-    <span v-else class="book-card__line book-card__status"
-      ><Headphones v-if="book.audio !== 'none'" class="book-card__mark" :size="12" aria-hidden="true" />{{
+    <span
+      v-else
+      class="book-card__line book-card__status"
+      :class="{ 'book-card__status--warn': article?.stage.kind === 'needsYou' }"
+      :title="article?.stage.kind === 'failed' ? (article.error ?? undefined) : undefined"
+      ><TriangleAlert
+        v-if="article?.stage.kind === 'needsYou'"
+        class="book-card__mark"
+        :size="12"
+        aria-hidden="true"
+      /><Headphones v-else-if="book.audio !== 'none'" class="book-card__mark" :size="12" aria-hidden="true" />{{
         status
       }}</span
     >
@@ -275,6 +309,80 @@ const items = computed<MenuEntry[]>(() => {
 .book-card__open:disabled {
   opacity: 1;
   cursor: default;
+}
+.book-card__tile {
+  aspect-ratio: 2 / 3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--page);
+  text-align: left;
+  transition: box-shadow var(--dur-2) var(--ease);
+}
+.book-card__open:not(:disabled):hover .book-card__tile {
+  box-shadow:
+    0 22px 44px -16px var(--shadow),
+    0 0 0 2px var(--line);
+}
+.book-card__site {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.book-card__headline {
+  font-family: var(--font-read);
+  font-size: 20px;
+  line-height: 1.18;
+  font-weight: 500;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.book-card__lead {
+  font-family: var(--font-read);
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.book-card__tile--loading i {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--line);
+  animation: book-card-pulse 1.4s ease-in-out infinite;
+}
+.book-card__tile--loading i:first-child {
+  width: 40%;
+}
+.book-card__tile--loading i:nth-child(2) {
+  height: 22px;
+  width: 85%;
+}
+.book-card__tile--loading i:nth-child(3) {
+  width: 70%;
+}
+@keyframes book-card-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .book-card__tile--loading i {
+    animation: none;
+  }
 }
 .book-card__cover {
   font-size: 13px;
@@ -325,6 +433,13 @@ const items = computed<MenuEntry[]>(() => {
   position: absolute;
   inset: 0 auto 0 0;
   background: var(--accent);
+}
+.book-card__status--warn {
+  color: var(--warn);
+  font-weight: 700;
+}
+.book-card__status--warn .book-card__mark {
+  color: inherit;
 }
 .book-card__badge {
   font-size: 12px;

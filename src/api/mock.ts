@@ -1,4 +1,5 @@
 import type {
+  ArticleView,
   ProblemView,
   AudiobookMatch,
   AudiobookSuggestion,
@@ -38,6 +39,7 @@ import fixtureGenerationPlaying from "../tests/fixtures/generation-playing.json"
 import fixtureRecording from "../tests/fixtures/recording.json";
 import fixtureHome from "../tests/fixtures/home.json";
 import fixtureAudiobook from "../tests/fixtures/audiobook.json";
+import fixtureArticle from "../tests/fixtures/article.json";
 
 /** The views the core made for the preview's books (see src-tauri/src/core/fixtures.rs), with
  *  covers as the window sees them. */
@@ -50,8 +52,24 @@ const coreView = (id: string): BookView | undefined =>
   structuredClone(
     id === fixtureAudiobook.view.id
       ? (fixtureAudiobook.view as unknown as BookView)
-      : (fixtureViews as unknown as Record<string, BookView>)[id],
+      : id === fixtureArticle.view.id
+        ? (fixtureArticle.view as unknown as BookView)
+        : (fixtureViews as unknown as Record<string, BookView>)[id],
   );
+/** A saved link as the core reads it (core/articles.rs `parse_link`). */
+const parseLink = (link: string) => {
+  const text = link.trim();
+  const invalid = () => new Error("That is not a web address.");
+  if (!text || /\s/.test(text)) throw invalid();
+  let url: URL;
+  try {
+    url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(text) ? text : `https://${text}`);
+  } catch {
+    throw invalid();
+  }
+  if (!/^https?:$/.test(url.protocol) || !url.hostname) throw invalid();
+  return url;
+};
 /** What the core says of a text-only operation on an audiobook. */
 const NO_TEXT = "Not available for an audiobook: it has no text.";
 
@@ -70,8 +88,9 @@ export function slowed<T extends AoideApi>(api: T, ms: number): T {
   });
 }
 
-/** Original, synthetic preview books. No personal books or network requests. */
-export function createMockApi() {
+/** Original, synthetic preview books. No personal books or network requests. `search` holds
+ *  the preview's parameters (the page's own by default). */
+export function createMockApi(search = typeof location === "undefined" ? "" : location.search) {
   const engine: EngineStatusView = {
     profileName: "Local Chatterbox",
     state: "ready",
@@ -287,7 +306,7 @@ export function createMockApi() {
   ];
   /** What a scan found; like the app, a book that has a recording is not offered another. */
   const listed = () => structuredClone(found).map((c) => (recordings.has(c.id) ? { ...c, audiobook: [] } : c));
-  const query = typeof location === "undefined" ? new URLSearchParams() : new URLSearchParams(location.search);
+  const query = new URLSearchParams(search);
   const mode = query.get("theme");
   let preferences: Preferences = {
     appearance: {
@@ -461,6 +480,80 @@ export function createMockApi() {
   };
   const emitGeneration = (next: GenerationState) => generationHandlers.forEach((h) => h({ ...next }));
   const changed = () => libraryHandlers.forEach((h) => h());
+  /** Saved articles, like the app (core/articles.rs): the preview's article (`article.json`,
+   *  book-6) with an explicit fetch stage. `?article=ready|fetching|needsyou-signin|
+   *  needsyou-cutshort|failed` saves it in that stage. */
+  const articleHandlers = new Set<(a: ArticleView) => void>();
+  const articles = new Map<string, ArticleView>();
+  /** Articles with a stored copy (read once fetched, kept when a later fetch fails). */
+  const fetched = new Set<string>();
+  const isArticle = (id: string) => articles.has(id);
+  const setArticle = (id: string, change: Partial<ArticleView>) => {
+    const view = { ...articles.get(id)!, ...change };
+    articles.set(id, view);
+    const b = books.find((b) => b.id === id);
+    if (b) {
+      const got = fetched.has(id);
+      b.title = got ? fixtureArticle.summary.title : new URL(view.canonicalUrl).hostname;
+      b.authors = got ? [...fixtureArticle.summary.authors] : [];
+      b.article = {
+        siteName: got ? view.siteName : null,
+        lead: got ? fixtureArticle.summary.article.lead : null,
+        stage: view.stage,
+        error: view.error,
+      };
+    }
+    articleHandlers.forEach((h) => h(structuredClone(view)));
+    changed();
+  };
+  /** Fetches article `id` as the core's worker would: fetching, then `outcome`. */
+  const fetchArticle = (id: string, outcome: ArticleView["stage"], via: ArticleView["via"] = "http") => {
+    setArticle(id, { stage: { kind: "queued" } });
+    setTimeout(() => setArticle(id, { stage: { kind: "fetching" } }), 300);
+    setTimeout(() => {
+      const got = outcome.kind !== "failed";
+      if (got) fetched.add(id);
+      const view = fixtureArticle.article as unknown as ArticleView;
+      setArticle(id, {
+        stage: outcome,
+        via: got ? via : articles.get(id)!.via,
+        error: got ? null : "The site answered with status 503.",
+        siteName: got ? view.siteName : null,
+        byline: got ? view.byline : null,
+        capturedWords: got
+          ? outcome.kind === "needsYou" && outcome.reason === "cutShort"
+            ? 93
+            : view.capturedWords
+          : 0,
+        declaredWords: outcome.kind === "needsYou" && outcome.reason === "cutShort" ? 1200 : null,
+        fetchedAt: got ? Date.now() : articles.get(id)!.fetchedAt,
+      });
+    }, 1200);
+  };
+  /** Adds the preview's article in `stage`, as saved and fetched that far. */
+  const addArticle = (stage: ArticleView["stage"], url = fixtureArticle.article.url) => {
+    const { coverPath, ...summary } = structuredClone(fixtureArticle.summary) as unknown as Wire.BookSummary;
+    const id = summary.id;
+    if (stage.kind === "ready" || stage.kind === "needsYou") fetched.add(id);
+    books.push({ ...summary, coverUrl: coverPath, addedAt: Date.now() });
+    articles.set(id, { ...(structuredClone(fixtureArticle.article) as unknown as ArticleView), url, stage });
+    setArticle(id, {
+      stage,
+      error: stage.kind === "failed" ? "The site answered with status 503." : null,
+      declaredWords: stage.kind === "needsYou" && stage.reason === "cutShort" ? 1200 : null,
+    });
+    return id;
+  };
+  const previewArticle = (
+    {
+      ready: { kind: "ready" },
+      fetching: { kind: "fetching" },
+      "needsyou-signin": { kind: "needsYou", reason: "signIn" },
+      "needsyou-cutshort": { kind: "needsYou", reason: "cutShort" },
+      failed: { kind: "failed" },
+    } as Record<string, ArticleView["stage"]>
+  )[query.get("article") ?? ""];
+  if (previewArticle) addArticle(previewArticle);
   /** Whole-book preparation, like the app (core/preparation.rs): each queued book has an explicit
    *  stage; the mock plans a book as soon as it is queued (books from `queueWaitingForTest` wait). */
   type PrepareEvent = "planned" | "pause" | "resume" | "promote" | "demote";
@@ -705,6 +798,8 @@ export function createMockApi() {
       if (state.bookId === id) await api.stop();
       const index = books.findIndex((b) => b.id === id);
       if (index >= 0) books.splice(index, 1);
+      articles.delete(id);
+      fetched.delete(id);
       changed();
     },
     async showInFolder(id) {
@@ -718,6 +813,7 @@ export function createMockApi() {
     async bookOverview(id): Promise<BookView> {
       const b = getBook(id),
         view = coreView(id);
+      if (isArticle(id) && !fetched.has(id)) throw new Error(articles.get(id)!.error ?? "Not fetched yet.");
       if (!view) throw new Error("Book is unavailable.");
       const voice = settings.get(id)?.voiceId,
         offered = (await api.engineVoices()).map((v) => v.id);
@@ -746,6 +842,11 @@ export function createMockApi() {
     },
     async chapter(id, chapter) {
       if (isAudiobook(id)) throw new Error(NO_TEXT);
+      if (isArticle(id)) {
+        if (!fetched.has(id)) throw new Error(articles.get(id)!.error ?? "Not fetched yet.");
+        if (chapter !== 0) throw new Error("Chapter not found.");
+        return structuredClone(fixtureArticle.chapter) as unknown as ChapterView;
+      }
       return getChapter(id, chapter);
     },
     async markFinished(id) {
@@ -1339,6 +1440,29 @@ export function createMockApi() {
     },
     /** As the core does: the book takes the audiobook's recording (which starts syncing),
      *  bookmarks and collections, and the audiobook item goes. */
+    /** As the core does for the preview's article (`article.json`): saved once, then fetched;
+     *  a link saved again is the same item, fetched again unless it is ready. */
+    async saveArticle(url) {
+      parseLink(url);
+      const id = fixtureArticle.summary.id;
+      const known = articles.get(id);
+      if (!known) {
+        addArticle({ kind: "queued" }, url.trim());
+        fetchArticle(id, { kind: "ready" });
+      } else if (known.stage.kind !== "ready") fetchArticle(id, { kind: "ready" });
+      return id;
+    },
+    async refetchArticle(id, source) {
+      const view = articles.get(id);
+      if (!view) throw new Error("Not an article.");
+      if (view.stage.kind === "queued" || view.stage.kind === "fetching") return;
+      fetchArticle(id, { kind: "ready" }, source);
+    },
+    async article(id) {
+      const view = articles.get(id);
+      if (!view) throw new Error("Not an article.");
+      return structuredClone(view);
+    },
     async mergeAudiobook(audiobookId, bookId) {
       if (!isAudiobook(audiobookId)) throw new Error("That is not an audiobook on its own.");
       const book = getBook(bookId),
@@ -1511,6 +1635,7 @@ export function createMockApi() {
       await api.play(bookId, Math.min(list.length - 1, Math.floor(atMs / hour)), null);
     },
     onSyncState: (h) => subscribe(syncHandlers, h),
+    onArticleState: (h) => subscribe(articleHandlers, h),
     onModelDownload: (h) => subscribe(downloadHandlers, h),
     onProblem: (h) => subscribe(problemHandlers, h),
   };

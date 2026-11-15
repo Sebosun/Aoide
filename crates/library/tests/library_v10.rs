@@ -35,6 +35,7 @@ fn row(id: &BookId) -> ArticleRow {
         fetched_at: None,
         word_count: None,
         declared_words: None,
+        lead: None,
     }
 }
 
@@ -75,6 +76,7 @@ fn an_article_round_trips_moves_through_its_stages_and_goes_with_its_item() {
         fetched_at: Some(20),
         word_count: Some(180),
         declared_words: Some(1_000),
+        lead: Some("The night ferry crosses the strait twice before dawn.".into()),
         ..row(&a)
     };
     lib.save_article(&fetched).unwrap();

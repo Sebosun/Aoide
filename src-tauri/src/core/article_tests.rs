@@ -132,6 +132,10 @@ async fn a_saved_link_is_fetched_and_read_like_a_book() {
     assert_eq!(item.authors, ["Ada Brightwater"]);
     let summary = item.article.as_ref().unwrap();
     assert_eq!(summary.site_name.as_deref(), Some("Quay Weekly"));
+    assert!(summary
+        .lead
+        .as_deref()
+        .is_some_and(|l| l.starts_with("Every evening at dusk")));
     assert_eq!(summary.stage, Stage::Ready);
 
     let view = core.article(&id).unwrap();
@@ -217,6 +221,7 @@ async fn an_unfinished_fetch_is_queued_again_after_a_restart() {
                 fetched_at: None,
                 word_count: None,
                 declared_words: None,
+                lead: None,
             })
             .unwrap();
     }

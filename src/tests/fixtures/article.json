@@ -1,0 +1,240 @@
+{
+  "article": {
+    "byline": "Ada Brightwater",
+    "canonicalUrl": "https://quay.example/lights",
+    "capturedWords": 93,
+    "declaredWords": null,
+    "error": null,
+    "feeds": [],
+    "fetchedAt": 205,
+    "id": "book-6",
+    "publishedAt": null,
+    "siteName": "Quay Weekly",
+    "stage": {
+      "kind": "ready"
+    },
+    "url": "https://quay.example/lights",
+    "via": "http"
+  },
+  "chapter": {
+    "blocks": [
+      {
+        "kind": "paragraph",
+        "level": null,
+        "segments": [
+          {
+            "id": "0:0:0",
+            "note": false,
+            "notes": [],
+            "speakable": true,
+            "words": [
+              "Every",
+              "evening",
+              "at",
+              "dusk",
+              "the",
+              "harbour",
+              "master",
+              "walks",
+              "the",
+              "length",
+              "of",
+              "the",
+              "quay",
+              "and",
+              "lights",
+              "the",
+              "lamps",
+              "one",
+              "by",
+              "one,",
+              "starting",
+              "at",
+              "the",
+              "slipway",
+              "and",
+              "ending",
+              "by",
+              "the",
+              "lifeboat",
+              "house."
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "heading",
+        "level": 2,
+        "segments": [
+          {
+            "id": "0:1:0",
+            "note": false,
+            "notes": [],
+            "speakable": true,
+            "words": [
+              "Why",
+              "by",
+              "hand"
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "paragraph",
+        "level": null,
+        "segments": [
+          {
+            "id": "0:2:0",
+            "note": false,
+            "notes": [],
+            "speakable": true,
+            "words": [
+              "The",
+              "town",
+              "voted",
+              "twice",
+              "to",
+              "put",
+              "the",
+              "lamps",
+              "on",
+              "a",
+              "timer,",
+              "and",
+              "twice",
+              "the",
+              "harbour",
+              "master",
+              "asked",
+              "them",
+              "to",
+              "wait",
+              "another",
+              "year."
+            ]
+          },
+          {
+            "id": "0:2:1",
+            "note": false,
+            "notes": [],
+            "speakable": true,
+            "words": [
+              "The",
+              "walk,",
+              "she",
+              "says,",
+              "is",
+              "how",
+              "she",
+              "sees",
+              "which",
+              "boats",
+              "are",
+              "in."
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "paragraph",
+        "level": null,
+        "segments": [
+          {
+            "id": "0:3:0",
+            "note": false,
+            "notes": [],
+            "speakable": true,
+            "words": [
+              "On",
+              "foggy",
+              "nights",
+              "she",
+              "rings",
+              "the",
+              "bell",
+              "at",
+              "the",
+              "end",
+              "of",
+              "the",
+              "pier",
+              "as",
+              "well,",
+              "three",
+              "times,",
+              "and",
+              "the",
+              "fishermen",
+              "still",
+              "out",
+              "answer",
+              "with",
+              "their",
+              "horns."
+            ]
+          }
+        ]
+      }
+    ],
+    "index": 0,
+    "notNarrated": null,
+    "title": "The Quay Lights"
+  },
+  "summary": {
+    "addedAt": 210,
+    "article": {
+      "error": null,
+      "lead": "Every evening at dusk the harbour master walks the length of the quay and lights the lamps one by one, starting at the slipway and ending by the lifeboat house.",
+      "siteName": "Quay Weekly",
+      "stage": {
+        "kind": "ready"
+      }
+    },
+    "audio": "none",
+    "audioBytes": 0,
+    "authors": [
+      "Ada Brightwater"
+    ],
+    "collections": [],
+    "coverPath": null,
+    "durationMs": null,
+    "id": "book-6",
+    "kind": "article",
+    "language": "en",
+    "lastOpenedAt": null,
+    "mode": "read",
+    "prepare": null,
+    "progress": null,
+    "readState": "unread",
+    "recording": null,
+    "shape": "read",
+    "status": {
+      "kind": "present"
+    },
+    "title": "The Quay Lights",
+    "wordCount": null
+  },
+  "view": {
+    "authors": [
+      "Ada Brightwater"
+    ],
+    "chapters": [
+      {
+        "durationMs": null,
+        "index": 0,
+        "title": "The Quay Lights"
+      }
+    ],
+    "excluded": [],
+    "id": "book-6",
+    "language": "en",
+    "languageWarning": null,
+    "mode": "read",
+    "progress": null,
+    "shape": "read",
+    "title": "The Quay Lights",
+    "voiceWarning": null,
+    "warnings": [],
+    "wordCount": 93
+  }
+}

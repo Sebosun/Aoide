@@ -159,6 +159,8 @@ pub struct ArticleView {
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct ArticleSummary {
     pub site_name: Option<String>,
+    /// Its first lines.
+    pub lead: Option<String>,
     pub stage: Stage,
     pub error: Option<String>,
 }
@@ -287,6 +289,7 @@ impl Articles {
                 fetched_at: None,
                 word_count: None,
                 declared_words: None,
+                lead: None,
             })
             .map_err(|e| e.to_string())?;
         drop(library);
@@ -382,6 +385,7 @@ impl Articles {
         Some(ArticleSummary {
             stage: Stage::from_stored(&row.stage, row.reason.as_deref()),
             site_name: row.site_name,
+            lead: row.lead,
             error: row.error,
         })
     }
@@ -622,10 +626,32 @@ impl Articles {
                 fetched_at: Some(snapshot.fetched_at_ms),
                 word_count: Some(meta.word_count as u64),
                 declared_words: meta.declared_words.map(|n| n as u64),
+                lead: lead(extracted),
                 ..row.clone()
             })
             .map_err(|e| e.to_string())
     }
+}
+
+/// The page's own summary, else its first paragraph, cut at about 200 characters.
+fn lead(extracted: &Extracted) -> Option<String> {
+    let text = extracted.document.description.clone().or_else(|| {
+        extracted.document.chapters.first().and_then(|c| {
+            c.blocks
+                .iter()
+                .find(|b| b.kind == aoide_document::BlockKind::Paragraph)
+                .map(|b| b.text.clone())
+        })
+    })?;
+    if text.chars().count() <= 200 {
+        return Some(text);
+    }
+    let cut: String = text.chars().take(200).collect();
+    let cut = cut.rsplit_once(' ').map_or(cut.as_str(), |(head, _)| head);
+    Some(format!(
+        "{}…",
+        cut.trim_end_matches(|c: char| c.is_ascii_punctuation())
+    ))
 }
 
 fn extract(html: &str, url: &Url) -> Extracted {

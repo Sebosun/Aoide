@@ -212,3 +212,59 @@ it("shows the drop overlay only for files dragged in from outside, never for thi
   for (const image of wrapper.findAll("img")) expect(image.attributes("draggable")).toBe("false");
   wrapper.unmount();
 });
+
+const linkField = (wrapper: ReturnType<typeof mount>) => dialog(wrapper).get('input[type="url"]');
+
+it("saves a link from the Add dialog: the card shows the fetch, then the article", async () => {
+  const save = vi.spyOn(mock, "saveArticle");
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await nav(wrapper, "Add").trigger("click");
+  await flushPromises();
+  expect(dialog(wrapper).text()).toContain("A link to an article");
+  await linkField(wrapper).setValue("https://quay.example/lights");
+  await dialog(wrapper).get("form").trigger("submit");
+  await flushPromises();
+  expect(save).toHaveBeenCalledWith("https://quay.example/lights");
+  expect(dialog(wrapper).exists()).toBe(false);
+  expect(wrapper.find(".library").exists()).toBe(true);
+  const card = () => wrapper.findAll(".book-card").find((c) => c.find(".book-card__tile").exists())!;
+  expect(card().get(".book-card__status").text()).toBe("Fetching…");
+  expect(card().find(".book-card__tile--loading").exists()).toBe(true);
+  await vi.waitFor(() => expect(card().get(".book-card__title").text()).toBe("The Quay Lights"), { timeout: 3000 });
+  expect(card().get(".book-card__tile").text()).toContain("Quay Weekly");
+  expect(card().get(".book-card__status").text()).toBe("Article · unread");
+  wrapper.unmount();
+});
+
+it("shows why a link is not one and saves nothing", async () => {
+  const save = vi.spyOn(mock, "saveArticle");
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await nav(wrapper, "Add").trigger("click");
+  await flushPromises();
+  await linkField(wrapper).setValue("not a link");
+  await dialog(wrapper).get("form").trigger("submit");
+  await flushPromises();
+  expect(save).not.toHaveBeenCalled();
+  expect(dialog(wrapper).get('[role="alert"]').text()).toBe("That is not a web address.");
+  expect(linkField(wrapper).attributes("aria-invalid")).toBe("true");
+  wrapper.unmount();
+});
+
+it("opens Add with a link pasted outside a text field", async () => {
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  const paste = (text: string, target: EventTarget = document.body) => {
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: { getData: () => text } });
+    target.dispatchEvent(event);
+  };
+  paste("just some words");
+  await flushPromises();
+  expect(dialog(wrapper).exists()).toBe(false);
+  paste(" https://quay.example/lights ");
+  await flushPromises();
+  expect((linkField(wrapper).element as HTMLInputElement).value).toBe("https://quay.example/lights");
+  wrapper.unmount();
+});

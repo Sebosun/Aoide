@@ -26,6 +26,8 @@ pub struct ArticleRow {
     pub fetched_at: Option<i64>,
     pub word_count: Option<u64>,
     pub declared_words: Option<u64>,
+    /// The article's first lines, for its card.
+    pub lead: Option<String>,
 }
 
 impl Library {
@@ -33,11 +35,11 @@ impl Library {
     pub fn save_article(&self, row: &ArticleRow) -> Result<()> {
         self.conn.execute(
             "INSERT INTO articles (book_id, url, canonical_url, site_name, byline, published_at,
-                 stage, reason, error, via, fetched_at, word_count, declared_words)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                 stage, reason, error, via, fetched_at, word_count, declared_words, lead)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
              ON CONFLICT(book_id) DO UPDATE SET url = ?2, canonical_url = ?3, site_name = ?4,
                  byline = ?5, published_at = ?6, stage = ?7, reason = ?8, error = ?9, via = ?10,
-                 fetched_at = ?11, word_count = ?12, declared_words = ?13",
+                 fetched_at = ?11, word_count = ?12, declared_words = ?13, lead = ?14",
             rusqlite::params![
                 row.book_id.0,
                 row.url,
@@ -52,6 +54,7 @@ impl Library {
                 row.fetched_at,
                 row.word_count.map(|n| n as i64),
                 row.declared_words.map(|n| n as i64),
+                row.lead,
             ],
         )?;
         Ok(())
@@ -109,5 +112,6 @@ fn read_article(row: &rusqlite::Row<'_>) -> rusqlite::Result<ArticleRow> {
         declared_words: row
             .get::<_, Option<i64>>("declared_words")?
             .map(|n| n as u64),
+        lead: row.get("lead")?,
     })
 }

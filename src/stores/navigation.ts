@@ -36,8 +36,13 @@ export const useNavigationStore = defineStore("navigation", () => {
     view.value = readerFrom.value === "item" && !bookId.value ? "home" : readerFrom.value;
   }
   /** The Add dialog, over the current screen. */
-  const addOpen = ref(false);
-  const openAdd = () => (addOpen.value = true);
+  const addOpen = ref(false),
+    /** A link to fill in when the dialog opens (one pasted or dropped on the window). */
+    addLink = ref("");
+  const openAdd = (link = "") => {
+    addLink.value = link;
+    addOpen.value = true;
+  };
   const closeAdd = () => (addOpen.value = false);
   /** Settings is a dialog over the current screen; it reopens on the last tab. */
   const settingsOpen = ref(false),
@@ -73,6 +78,7 @@ export const useNavigationStore = defineStore("navigation", () => {
     openItem,
     leaveReader,
     addOpen,
+    addLink,
     openAdd,
     closeAdd,
     settingsOpen,

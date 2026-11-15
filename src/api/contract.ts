@@ -599,7 +599,11 @@ via: ArticleSource | null, fetchedAt: number | null, capturedWords: number, decl
  */
 feeds: Array<FeedView>, };
 
-export type ArticleSummary = { siteName: string | null, stage: FetchStage, error: string | null, };
+export type ArticleSummary = { siteName: string | null, 
+/**
+ * Its first lines.
+ */
+lead: string | null, stage: FetchStage, error: string | null, };
 
 export type AppearanceMode = "auto" | "light" | "dark";
 

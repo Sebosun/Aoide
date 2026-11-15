@@ -442,3 +442,35 @@ it("offers no text actions on an audiobook's card", async () => {
     ).toBe(false);
   wrapper.unmount();
 });
+
+it("lists articles as their own kind, with a text tile and their fetch on the card", async () => {
+  const card = (wrapper: ReturnType<typeof mount>) =>
+    wrapper.findAll(".book-card").find((c) => c.find(".book-card__tile").exists())!;
+  const cases: [string, string, string | null][] = [
+    ["ready", "Article · unread", null],
+    ["fetching", "Fetching…", null],
+    ["needsyou-signin", "Needs you · sign in to get the rest", null],
+    ["needsyou-cutshort", "Needs you · only part of it was saved", null],
+    ["failed", "Could not be fetched", "The site answered with status 503."],
+  ];
+  for (const [stage, status, tooltip] of cases) {
+    mock.dispose();
+    setActivePinia(createPinia());
+    mock = createMockApi(`?article=${stage}`);
+    backend.api = mock;
+    const wrapper = await library();
+    const line = card(wrapper).get(".book-card__status");
+    expect(line.text(), stage).toBe(status);
+    expect(line.classes("book-card__status--warn"), stage).toBe(stage.startsWith("needsyou"));
+    expect(line.attributes("title"), stage).toBe(tooltip ?? undefined);
+    expect(card(wrapper).find(".book-card__tile--loading").exists(), stage).toBe(stage === "fetching");
+    if (stage === "ready") {
+      expect(card(wrapper).get(".book-card__tile").text()).toContain("Every evening at dusk");
+      const kinds = wrapper.get('[role="group"][aria-label="Kind"]');
+      expect(kinds.findAll("button").map((b) => b.text())).toEqual(["All5", "Books4", "Articles1"]);
+      await kinds.findAll("button")[2].trigger("click");
+      expect(titles(wrapper)).toEqual(["The Quay Lights"]);
+    }
+    wrapper.unmount();
+  }
+});
