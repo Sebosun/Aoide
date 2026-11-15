@@ -213,6 +213,7 @@ onBeforeUnmount(() => watcher?.disconnect());
               v-for="entry in group.entries"
               :key="entry.id"
               :entry="entry"
+              :opening="feeds.opening === entry.id"
               @open="feeds.open(entry)"
               @save="feeds.toggleSaved(entry)"
             />

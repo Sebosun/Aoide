@@ -227,3 +227,15 @@ it("offers the feed of an article's site in the reader", async () => {
   expect(wrapper.find(".feed-offer").exists()).toBe(false);
   expect((await mock.feeds()).some((f) => f.url === "https://quay.example/feed.xml")).toBe(true);
 });
+
+it("fetches the page of a summary-only entry, then reads it", async () => {
+  const wrapper = await openFeeds();
+  await entry(wrapper, "Who decides where the bus shelter goes").get(".feed-entry__open").trigger("click");
+  await flushPromises();
+  expect(entry(wrapper, "Who decides where the bus shelter goes").get(".feed-entry__note").text()).toBe(
+    "Fetching the article…",
+  );
+  expect(useNavigationStore().view).toBe("feeds");
+  await vi.waitFor(() => expect(useNavigationStore().view).toBe("reader"), { timeout: 3000 });
+  expect(useReaderStore().error).toBe("");
+});

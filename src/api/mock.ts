@@ -606,7 +606,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     if (entry.bookId && books.some((b) => b.id === entry.bookId)) return entry.bookId;
     let id = fixtureArticle.summary.id;
     if (!books.some((b) => b.id === id)) {
-      id = addArticle({ kind: "ready" });
+      // The feed's whole text is the copy; a summary-only entry has its page fetched.
+      id = addArticle({ kind: entry.hasFullText ? "ready" : "queued" });
+      if (!entry.hasFullText) fetchArticle(id, { kind: "ready" });
       feedShelf.add(id);
       setArticle(id, { inLibrary: false });
       home.upNextIds = home.upNextIds.filter((other) => other !== id);

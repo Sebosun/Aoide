@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { api } from "../api";
 import type { ArticleSource, ArticleView, FeedView } from "../api/types";
 import { useFeedsStore } from "./feeds";
@@ -56,6 +56,22 @@ export const useArticlesStore = defineStore("articles", () => {
     navigation.view = "feeds";
     await useFeedsStore().choose({ kind: "feed", id: feed.id });
   }
+  /** Resolves once article `id` has a stored copy to read; throws when its fetch fails first. */
+  async function whenFetched(id: string) {
+    await load(id);
+    await new Promise<void>((resolve, reject) => {
+      const stop = watch(
+        () => byId.value[id],
+        (view) => {
+          if (!view || view.fetchedAt !== null) resolve();
+          else if (view.stage.kind === "failed") reject(new Error(view.error ?? "The article could not be fetched."));
+          else return;
+          queueMicrotask(() => stop());
+        },
+        { immediate: true },
+      );
+    });
+  }
   /** Keeps an article opened from a feed in the library. */
   async function keep(id: string) {
     await api.saveToLibrary(id);
@@ -72,5 +88,5 @@ export const useArticlesStore = defineStore("articles", () => {
     unlisten = undefined;
     startup = undefined;
   }
-  return { byId, start, load, save, add, showFeed, keep, refetch, openOriginal, dispose };
+  return { byId, start, load, save, add, showFeed, keep, whenFetched, refetch, openOriginal, dispose };
 });

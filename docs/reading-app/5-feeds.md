@@ -256,4 +256,16 @@ Update `README.md`, `docs/roadmap.md`, `AGENTS.md` (where feed parsing lives).
   (the system's file dialogs). Imported feeds are named by the list until the worker's first
   check, which treats them as new subscriptions (ten newest unread). The empty Feeds screen
   offers the import too.
+- Done-check (native, muted smoke run, 2026-11-15): subscribed to a project blog by its feed
+  address, to two personal sites by their front pages (each found its one feed) and to a news
+  feed that carries summaries only; xkcd came in through Add's `add_link`, and an OPML list
+  added one feed and skipped one already subscribed and one not at a web address. Each new
+  feed arrived with its ten newest entries unread. A full-text entry opened in about 0.6 s
+  with no page fetch (`via: feed`); a summary-only one fetched its page and opened about a
+  second later; Save to library put the first in the library. The imported feed at an
+  address that does not resolve was marked "Not reachable since today" while the others
+  updated. After a restart the unread counts were the same, and Check now got
+  `not_modified` from the feeds that had not changed. The run found and fixed: a summary-only
+  entry clicked before its page was fetched did not open the reader (it now waits, saying
+  "Fetching the article…", and reports a failed fetch).
 

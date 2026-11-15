@@ -16,6 +16,8 @@ export const useFeedsStore = defineStore("feeds", () => {
   const feeds = ref<FeedView[]>([]);
   const entries = ref<EntryView[]>([]);
   const source = ref<FeedsSource>({ kind: "all" });
+  /** The entry being opened while its page is fetched. */
+  const opening = ref<number | null>(null);
   /** Older entries may follow the listed ones. */
   const more = ref(false);
   const loaded = ref(false);
@@ -70,15 +72,22 @@ export const useFeedsStore = defineStore("feeds", () => {
     entries.value = [...entries.value, ...page];
     more.value = page.length === ENTRY_PAGE;
   }
-  /** Reads an entry (made into an item when needed); it is read after. */
+  /** Reads an entry (made into an item when needed); it is read after. An entry the feed
+   *  gave only a summary of opens once its page is fetched. */
   async function open(entry: EntryView) {
+    error.value = "";
+    opening.value = entry.id;
     try {
       const id = await api.openFeedEntry(entry.id);
       // The reader shows it as an article (with Save to library) from the start.
-      await useArticlesStore().load(id);
-      await useReaderStore().open(id);
+      await useArticlesStore().whenFetched(id);
+      const reader = useReaderStore();
+      await reader.open(id);
+      if (reader.error) throw new Error(reader.error);
     } catch (e) {
-      error.value = String(e);
+      error.value = String(e).replace(/^Error: /, "");
+    } finally {
+      opening.value = null;
     }
   }
   /** Saves an entry to the library, or takes it out again (back to the feed). */
@@ -128,6 +137,7 @@ export const useFeedsStore = defineStore("feeds", () => {
     feeds,
     entries,
     source,
+    opening,
     more,
     loaded,
     error,

@@ -8,7 +8,7 @@ import { useLibraryStore } from "../../stores/library";
 
 /** One feed entry: its feed, age and length, headline and summary; opening reads it, the
  *  bookmark keeps it in the library. */
-const props = defineProps<{ entry: EntryView }>();
+const props = defineProps<{ entry: EntryView; opening?: boolean }>();
 defineEmits<{ open: []; save: [] }>();
 const library = useLibraryStore();
 /** After the feed's name: " · 2 hours ago · 9 min read · in your library". */
@@ -31,7 +31,8 @@ const meta = computed(() => {
       >
       <span class="feed-entry__title">{{ entry.title ?? entry.url ?? "Untitled" }}</span>
       <span v-if="entry.summary" class="feed-entry__summary">{{ entry.summary }}</span>
-      <span v-if="!entry.hasFullText && !entry.bookId" class="feed-entry__note"
+      <span v-if="opening" class="feed-entry__note" role="status">Fetching the article…</span>
+      <span v-else-if="!entry.hasFullText && !entry.bookId" class="feed-entry__note"
         >The feed carries a summary. The full article is fetched when you open it.</span
       >
     </button>
