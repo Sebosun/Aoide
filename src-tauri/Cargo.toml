@@ -29,6 +29,8 @@ tokio = { version = "1", features = ["sync", "time", "rt", "macros", "fs", "io-u
 notify = "8"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 aoide-epub = { path = "../crates/epub-parser" }
+aoide-article = { path = "../crates/article" }
+aoide-fetch = { path = "../crates/fetch" }
 aoide-text = { path = "../crates/segmenter" }
 aoide-tts = { path = "../crates/tts" }
 aoide-chatterbox = { path = "../crates/chatterbox-client" }

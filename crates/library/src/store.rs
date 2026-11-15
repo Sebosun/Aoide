@@ -9,7 +9,7 @@ impl Library {
         conn.pragma_update(None, "foreign_keys", true)?;
         let tx = conn.transaction()?;
         let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if !(0..=9).contains(&version) {
+        if !(0..=10).contains(&version) {
             return Err(LibraryError::Corrupt(format!(
                 "unsupported schema version {version}"
             )));
@@ -200,6 +200,27 @@ impl Library {
                 ALTER TABLE bookmarks ADD COLUMN position_ms INTEGER CHECK(position_ms >= 0);",
             )?;
             tx.pragma_update(None, "user_version", 9)?;
+        }
+        if version <= 9 {
+            // Articles saved from the web: their source and their fetch.
+            tx.execute_batch(
+                "CREATE TABLE articles (
+                    book_id TEXT PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+                    url TEXT NOT NULL,
+                    canonical_url TEXT NOT NULL,
+                    site_name TEXT,
+                    byline TEXT,
+                    published_at INTEGER,
+                    stage TEXT NOT NULL,
+                    reason TEXT,
+                    error TEXT,
+                    via TEXT,
+                    fetched_at INTEGER,
+                    word_count INTEGER CHECK(word_count >= 0),
+                    declared_words INTEGER CHECK(declared_words >= 0)
+                );",
+            )?;
+            tx.pragma_update(None, "user_version", 10)?;
         }
         tx.commit()?;
         Ok(Self { conn })

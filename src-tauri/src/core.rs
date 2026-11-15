@@ -32,6 +32,8 @@ use environment::{default_profile, OUTPUT_RATE};
 pub use environment::{Environment, Events, Paths, ShowInFolder};
 mod error;
 mod facets;
+#[allow(dead_code)] // Until the article worker (slice 4.7) uses it.
+mod fetching;
 pub use facets::HomeView;
 mod generation;
 mod shelf;

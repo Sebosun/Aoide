@@ -64,11 +64,13 @@ name = "aoide"
 version = "0.1.0"
 dependencies = [
  "aoide-aligner",
+ "aoide-article",
  "aoide-audio",
  "aoide-chatterbox",
  "aoide-config",
  "aoide-discovery",
  "aoide-epub",
+ "aoide-fetch",
  "aoide-generation",
  "aoide-library",
  "aoide-metadata",

@@ -9,10 +9,12 @@ use rusqlite::OptionalExtension;
 use sha2::{Digest, Sha256};
 
 mod activity;
+mod articles;
 mod merge;
 mod recordings;
 mod store;
 pub use activity::{ActivityStats, BookActivity, DayActivity};
+pub use articles::ArticleRow;
 pub use recordings::{RecordingRow, StoredSyncMap, TranscriptBlock};
 
 /// Lower-case hex SHA-256 of the EPUB file bytes.
