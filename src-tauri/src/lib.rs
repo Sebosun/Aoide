@@ -594,6 +594,39 @@ async fn clear_browser_data(core: CoreState<'_>) -> Result<(), CoreError> {
 }
 
 #[tauri::command]
+fn start_sign_in(
+    core: CoreState<'_>,
+    book_id: String,
+) -> Result<crate::core::SignInView, CoreError> {
+    Ok(core.start_sign_in(&book_id)?)
+}
+
+#[tauri::command]
+fn sign_in(core: CoreState<'_>) -> Option<crate::core::SignInView> {
+    core.sign_in()
+}
+
+#[tauri::command]
+fn finish_sign_in(core: CoreState<'_>) -> Result<(), CoreError> {
+    Ok(core.finish_sign_in()?)
+}
+
+#[tauri::command]
+fn cancel_sign_in(core: CoreState<'_>) -> Result<(), CoreError> {
+    Ok(core.cancel_sign_in()?)
+}
+
+#[tauri::command]
+fn show_sign_in_window(core: CoreState<'_>) -> Result<(), CoreError> {
+    Ok(core.show_sign_in_window()?)
+}
+
+#[tauri::command]
+fn stay_signed_in(core: CoreState<'_>, stay: bool) -> Result<(), CoreError> {
+    Ok(core.stay_signed_in(stay)?)
+}
+
+#[tauri::command]
 fn refetch_article(
     core: CoreState<'_>,
     book_id: String,
@@ -1109,6 +1142,12 @@ pub fn run() {
             sign_out_site,
             forget_site,
             clear_browser_data,
+            start_sign_in,
+            sign_in,
+            finish_sign_in,
+            cancel_sign_in,
+            show_sign_in_window,
+            stay_signed_in,
             article,
             feeds,
             subscribe,

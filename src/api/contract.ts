@@ -880,6 +880,26 @@ export type SiteView = { host: string, session: SiteSession,
  */
 fetch: SiteFetch | null, siteData: SiteData, };
 
+export type SignInStage = { "kind": "opening" } | { "kind": "waiting" } | { "kind": "fetching" } | { "kind": "done" } | { "kind": "cancelled" } | { "kind": "failed", error: string, };
+
+export type SignInView = { articleId: string, 
+/**
+ * The site signed in to (`www.` dropped).
+ */
+site: string, 
+/**
+ * What the article needed when the flow started.
+ */
+reason: FetchReason | null, stage: SignInStage, 
+/**
+ * Keep the site's cookies after the fetch ("Stay signed in to this site").
+ */
+staySignedIn: boolean, 
+/**
+ * The article's fetch stage once fetched.
+ */
+result: FetchStage | null, };
+
 /** Every event Core emits, by name, with its payload. */
 export type CoreEvents = {
   "library://changed": null,
@@ -898,6 +918,7 @@ export type CoreEvents = {
   "core://problem": ProblemView,
   "article://state": ArticleView,
   "feeds://changed": null,
+  "signin://state": SignInView,
   "browser://download": BrowserDownloadView,
 };
 
@@ -983,6 +1004,12 @@ export type Commands = {
   "sign_out_site": { args: { host: string }; result: void };
   "forget_site": { args: { host: string }; result: void };
   "clear_browser_data": { args: Record<string, never>; result: void };
+  "start_sign_in": { args: { bookId: string }; result: SignInView };
+  "sign_in": { args: Record<string, never>; result: SignInView | null };
+  "finish_sign_in": { args: Record<string, never>; result: void };
+  "cancel_sign_in": { args: Record<string, never>; result: void };
+  "show_sign_in_window": { args: Record<string, never>; result: void };
+  "stay_signed_in": { args: { stay: boolean }; result: void };
   "refetch_article": { args: { bookId: string; source: ArticleSource }; result: void };
   "article": { args: { bookId: string }; result: ArticleView };
   "feeds": { args: Record<string, never>; result: FeedView[] };

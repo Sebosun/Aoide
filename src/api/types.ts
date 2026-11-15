@@ -16,6 +16,7 @@ import type {
   SiteData,
   SiteFetch,
   SiteView,
+  SignInView,
   ArticleView,
   AddedLink,
   EntryFilter,
@@ -284,6 +285,19 @@ export interface AoideApi {
   forgetSite(host: string): Promise<void>;
   /** Removes the browser's profile: every sign-in and all site data. */
   clearBrowserData(): Promise<void>;
+  /** Opens a browser window on the article's page to sign in or pass a check; the article is
+   *  fetched again once the window shows it whole or `finishSignIn` is called. One at a time;
+   *  refused while the browser is off. Its stages arrive on "signin://state". */
+  startSignIn(bookId: string): Promise<SignInView>;
+  /** The sign-in open or last finished, if any. */
+  signIn(): Promise<SignInView | null>;
+  /** "I'm signed in, fetch again". */
+  finishSignIn(): Promise<void>;
+  cancelSignIn(): Promise<void>;
+  showSignInWindow(): Promise<void>;
+  /** Whether the site's cookies are kept after the fetch. */
+  staySignedIn(stay: boolean): Promise<void>;
+  onSignInState(handler: (signIn: SignInView) => void): Promise<() => void>;
   /** An article's source and where its fetch stands. */
   article(bookId: string): Promise<ArticleView>;
   /** Opens an article's page, as it was kept, in the system's browser. */

@@ -541,21 +541,49 @@ impl Articles {
         loop {
             let job = lock(&self.queue).pop_front();
             match job {
-                Some((id, source)) => self.fetch(&id, source, host).await,
+                Some((id, source)) => {
+                    self.fetch(&id, Getting::Routes(source), host).await;
+                }
                 None => self.wake.notified().await,
             }
         }
     }
 
-    async fn fetch(&self, id: &str, source: ArticleSource, host: &dyn ArticlesHost) {
+    /// Takes `snapshot` (a page the user reached in the browser) as article `id`'s fetch: it is
+    /// kept when fuller than the stored copy, and the article's stage follows. Returns that
+    /// stage; `None` when a fetch of it is already under way.
+    pub async fn receive(
+        &self,
+        id: &str,
+        snapshot: Snapshot,
+        host: &dyn ArticlesHost,
+    ) -> Result<Option<Stage>, String> {
+        let book = BookId(id.into());
+        let row = lock(&self.library)
+            .article(&book)
+            .map_err(|e| e.to_string())?
+            .ok_or("Not an article.")?;
+        let stage = Stage::from_stored(&row.stage, row.reason.as_deref());
+        let queued = next(stage, Event::Retried);
+        if queued != stage {
+            self.store_stage(&book, &row.stage, queued, None);
+        }
+        Ok(self
+            .fetch(id, Getting::Given(Box::new(snapshot)), host)
+            .await)
+    }
+
+    /// Fetches article `id`; returns the stage it ends in, or `None` when it was not waiting
+    /// to be fetched.
+    async fn fetch(&self, id: &str, getting: Getting, host: &dyn ArticlesHost) -> Option<Stage> {
         let book = BookId(id.into());
         let Ok(Some(row)) = lock(&self.library).article(&book) else {
-            return;
+            return None;
         };
         let stage = Stage::from_stored(&row.stage, row.reason.as_deref());
         let fetching = next(stage, Event::Started);
         if fetching == stage {
-            return;
+            return None;
         }
         self.store_stage(&book, &row.stage, fetching, None);
         if let Ok(view) = self.view(id) {
@@ -567,7 +595,13 @@ impl Articles {
         let (to, error, written) = match Url::parse(&row.canonical_url) {
             Ok(url) => {
                 let old = stored.as_deref().map(|html| extract(html, &url));
-                let (best, failures) = self.walk(&url, source, old.as_ref(), host).await;
+                let (best, failures) = match getting {
+                    Getting::Routes(source) => self.walk(&url, source, old.as_ref(), host).await,
+                    Getting::Given(snapshot) => {
+                        let fresh = extract(&snapshot.html, &snapshot.final_url);
+                        (Some((*snapshot, fresh)), Vec::new())
+                    }
+                };
                 tracing::info!(
                     event = "article.fetch",
                     book = crate::logging::book(id),
@@ -596,6 +630,7 @@ impl Articles {
         if let Ok(view) = self.view(id) {
             host.article_changed(view, written);
         }
+        Some(to)
     }
 
     /// Gets `url` along the routes `source` and the settings call for, stopping at the first
@@ -822,6 +857,14 @@ impl Articles {
     }
 }
 
+/// Where a fetch gets the page.
+enum Getting {
+    /// Along the routes this source and the settings call for.
+    Routes(ArticleSource),
+    /// A page already got.
+    Given(Box<Snapshot>),
+}
+
 /// The site an address is listed under (`www.` dropped).
 pub(super) fn site_of(url: &str) -> Option<String> {
     let url = Url::parse(url).ok()?;
@@ -856,7 +899,7 @@ fn lead(extracted: &Extracted) -> Option<String> {
     ))
 }
 
-fn extract(html: &str, url: &Url) -> Extracted {
+pub(super) fn extract(html: &str, url: &Url) -> Extracted {
     aoide_article::extract(html, url, &ExtractOptions::default())
 }
 

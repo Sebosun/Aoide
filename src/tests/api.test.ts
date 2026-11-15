@@ -98,3 +98,26 @@ it("the mock's browser download, as the core's: refused while off, then progress
   expect((await mock.browserStatus()).binary).toEqual({ kind: "missing" });
   expect((await mock.storageReport()).browserBytes).toBe(0);
 });
+
+it("the mock's sign-in, as the core's: waiting, fetched once the user says so, the session kept on the site", async () => {
+  vi.useFakeTimers();
+  const mock = createMockApi("?article=needsyou-signin&browser=ready");
+  const stages: string[] = [];
+  await mock.onSignInState((v) => stages.push(v.stage.kind));
+  const opened = await mock.startSignIn("book-6");
+  expect(opened).toMatchObject({ site: "quay.example", reason: "signIn", staySignedIn: true });
+  await expect(mock.startSignIn("book-6")).rejects.toThrow("already open");
+  await vi.advanceTimersByTimeAsync(300);
+  await mock.finishSignIn();
+  await vi.advanceTimersByTimeAsync(500);
+  expect(stages).toEqual(["waiting", "fetching", "done"]);
+  expect(await mock.signIn()).toMatchObject({ result: { kind: "ready" } });
+  expect(await mock.article("book-6")).toMatchObject({ stage: { kind: "ready" }, via: "browser" });
+  const site = (await mock.sites()).find((s) => s.host === "quay.example");
+  expect(site?.session.kind).toBe("signedIn");
+
+  const preview = createMockApi("?signin=fetching");
+  expect((await preview.signIn())?.stage.kind).toBe("fetching");
+  const off = createMockApi("?article=needsyou-signin");
+  await expect(off.startSignIn("book-6")).rejects.toThrow("The browser is off.");
+});

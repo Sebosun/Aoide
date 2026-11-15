@@ -43,6 +43,7 @@ pub use facets::HomeView;
 pub use feeds::{
     AddedLink, EntryFilter, EntryQuery, EntryView, FeedView, OpmlImport, SubscribeResult,
 };
+pub use signin::SignInView;
 pub use sites::SiteView;
 mod generation;
 mod shelf;
@@ -67,6 +68,7 @@ pub use reading::{ReadState, ReadingMode, Shape};
 mod recording;
 mod recordings;
 mod settings;
+mod signin;
 mod sites;
 mod syncing;
 pub use recording::{
@@ -194,6 +196,8 @@ pub struct Core {
     feeds: Arc<feeds::Feeds>,
     /// The optional browser and the site rules.
     browsing: Arc<browsing::Browsing>,
+    /// A sign-in in a visible browser window.
+    sign_in: signin::SignIn,
 }
 
 impl Core {
@@ -295,6 +299,7 @@ impl Core {
             articles,
             feeds,
             browsing,
+            sign_in: signin::SignIn::default(),
             events,
             reporter,
             show_in_folder,

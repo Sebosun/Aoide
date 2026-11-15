@@ -127,7 +127,6 @@ pub struct Launch {
 }
 
 /// A visible window the user signs in with.
-#[allow(dead_code)] // TODO(6.8): signing in uses it.
 pub trait BrowserWindow: Send + Sync {
     /// Its page and address now.
     fn snapshot(&self) -> Pending<'_, Result<Snapshot, String>>;
@@ -214,13 +213,61 @@ pub(super) struct Browsing {
     /// When the browser last did something.
     last_used: Mutex<Option<i64>>,
     /// Calls on the browser not yet answered; it is not idle while any are.
-    busy: AtomicUsize,
+    busy: Arc<AtomicUsize>,
     /// Where the browser's tasks run, to shut it down from outside them.
     runtime: tokio::runtime::Handle,
     /// The downloaded browser.
     download: Download,
     /// The last program asked for its version, and its answer.
     version: Mutex<Option<(PathBuf, Option<String>)>>,
+}
+
+/// A window that keeps the browser in use until it is closed or dropped.
+struct HeldWindow {
+    window: Option<Box<dyn BrowserWindow>>,
+    busy: Arc<AtomicUsize>,
+}
+
+impl HeldWindow {
+    fn new(window: Box<dyn BrowserWindow>, busy: Arc<AtomicUsize>) -> Self {
+        busy.fetch_add(1, Ordering::SeqCst);
+        Self {
+            window: Some(window),
+            busy,
+        }
+    }
+
+    fn window(&self) -> &dyn BrowserWindow {
+        self.window.as_deref().expect("open until closed")
+    }
+}
+
+impl Drop for HeldWindow {
+    fn drop(&mut self) {
+        self.busy.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
+impl BrowserWindow for HeldWindow {
+    fn snapshot(&self) -> Pending<'_, Result<Snapshot, String>> {
+        self.window().snapshot()
+    }
+
+    fn closed(&self) -> Pending<'_, bool> {
+        self.window().closed()
+    }
+
+    fn show(&self) -> Pending<'_, ()> {
+        self.window().show()
+    }
+
+    fn close(mut self: Box<Self>) -> Pending<'static, ()> {
+        let window = self.window.take().expect("open until closed");
+        Box::pin(async move {
+            window.close().await;
+            drop(self);
+        })
+    }
 }
 
 /// Marks the browser in use for as long as it lives, and when it was last used.
@@ -262,7 +309,7 @@ impl Browsing {
             rules_path,
             rules: Mutex::new(rules),
             last_used: Mutex::new(None),
-            busy: AtomicUsize::new(0),
+            busy: Arc::default(),
             runtime: tokio::runtime::Handle::current(),
             download: Download::new(download, dir.clone()),
             version: Mutex::new(None),
@@ -470,7 +517,6 @@ impl Browsing {
     }
 
     /// Opens a visible window on `url`.
-    #[allow(dead_code)] // TODO(6.8): signing in uses it.
     pub async fn open_window(
         &self,
         host: &dyn BrowsingHost,
@@ -478,7 +524,9 @@ impl Browsing {
     ) -> Result<Box<dyn BrowserWindow>, String> {
         let launch = self.ready(host)?;
         let _in_use = InUse::new(self, host);
-        self.driver.open_window(&launch, url).await
+        let window = self.driver.open_window(&launch, url).await?;
+        // The browser is in use, never idle, while the window is open.
+        Ok(Box::new(HeldWindow::new(window, Arc::clone(&self.busy))))
     }
 
     /// Forgets `host`'s browser data.
@@ -591,7 +639,8 @@ pub struct ChromeDriver {
 }
 
 impl ChromeDriver {
-    /// The running browser, started (or restarted) to be `visible` or not.
+    /// The running browser, started (or restarted) with a window when `visible`. A visible
+    /// one also renders (in a tab of its own), so a sign-in window stays open meanwhile.
     async fn browser(
         &self,
         launch: &Launch,
@@ -599,7 +648,7 @@ impl ChromeDriver {
     ) -> Result<tokio::sync::MutexGuard<'_, Option<(aoide_browser::Browser, bool)>>, String> {
         let mut current = self.current.lock().await;
         let usable = match current.as_ref() {
-            Some((browser, shown)) => *shown == visible && browser.running().await,
+            Some((browser, shown)) => (*shown || !visible) && browser.running().await,
             None => false,
         };
         if !usable {
@@ -630,7 +679,6 @@ impl ChromeDriver {
     }
 }
 
-#[allow(dead_code)] // TODO(6.8): signing in uses it.
 struct ChromeWindow(aoide_browser::Window);
 
 impl BrowserWindow for ChromeWindow {
@@ -684,8 +732,7 @@ impl BrowserDriver for ChromeDriver {
     ) -> Pending<'a, Result<(), String>> {
         Box::pin(async move {
             // Whichever browser runs; a headless one when none does.
-            let visible = matches!(self.current.lock().await.as_ref(), Some((_, true)));
-            let current = self.browser(launch, visible).await?;
+            let current = self.browser(launch, false).await?;
             let (browser, _) = current.as_ref().expect("a browser was started");
             browser.clear_site(host).await.map_err(|e| e.to_string())
         })
@@ -726,6 +773,8 @@ pub(super) mod testing {
         pub started: Mutex<Vec<PathBuf>>,
         /// The sites whose data was cleared.
         pub cleared: Mutex<Vec<String>>,
+        /// The window the user signs in with.
+        pub window: Arc<WindowScript>,
         pub shutdowns: AtomicUsize,
         running: AtomicBool,
     }
@@ -773,9 +822,18 @@ pub(super) mod testing {
         fn open_window<'a>(
             &'a self,
             _: &'a Launch,
-            _: &'a Url,
+            url: &'a Url,
         ) -> Pending<'a, Result<Box<dyn BrowserWindow>, String>> {
-            Box::pin(async { Err("No windows in this test.".into()) })
+            Box::pin(async move {
+                let script = &self.window;
+                if let Some(error) = script.fails.lock().unwrap().clone() {
+                    return Err(error);
+                }
+                self.running.store(true, Ordering::SeqCst);
+                *script.at.lock().unwrap() = Some(url.clone());
+                script.opened.fetch_add(1, Ordering::SeqCst);
+                Ok(Box::new(ScriptedWindow(Arc::clone(script))) as Box<dyn BrowserWindow>)
+            })
         }
 
         fn clear_site<'a>(
@@ -797,6 +855,65 @@ pub(super) mod testing {
             Box::pin(async move {
                 self.running.store(false, Ordering::SeqCst);
                 self.shutdowns.fetch_add(1, Ordering::SeqCst);
+            })
+        }
+    }
+
+    /// What the sign-in window shows, and what was done with it.
+    #[derive(Default)]
+    pub struct WindowScript {
+        /// Why opening it fails.
+        pub fails: Mutex<Option<String>>,
+        /// The address it is on.
+        pub at: Mutex<Option<Url>>,
+        /// The page it shows (a blank one until set).
+        pub page: Mutex<String>,
+        /// The user closed it.
+        pub closed_by_user: AtomicBool,
+        pub opened: AtomicUsize,
+        pub shown: AtomicUsize,
+        /// Aoide closed it.
+        pub closed: AtomicBool,
+    }
+
+    impl WindowScript {
+        /// The user moved to `url`, which shows `html`.
+        pub fn shows(&self, url: &str, html: &str) {
+            *self.at.lock().unwrap() = Some(Url::parse(url).unwrap());
+            *self.page.lock().unwrap() = html.to_owned();
+        }
+    }
+
+    struct ScriptedWindow(Arc<WindowScript>);
+
+    impl BrowserWindow for ScriptedWindow {
+        fn snapshot(&self) -> Pending<'_, Result<Snapshot, String>> {
+            Box::pin(async move {
+                let at = self.0.at.lock().unwrap().clone().ok_or("no page")?;
+                Ok(Snapshot {
+                    requested: at.clone(),
+                    final_url: at,
+                    status: 200,
+                    html: self.0.page.lock().unwrap().clone(),
+                    fetched_at_ms: 3_000,
+                    via: Via::Browser,
+                })
+            })
+        }
+
+        fn closed(&self) -> Pending<'_, bool> {
+            Box::pin(async move { self.0.closed_by_user.load(Ordering::SeqCst) })
+        }
+
+        fn show(&self) -> Pending<'_, ()> {
+            Box::pin(async move {
+                self.0.shown.fetch_add(1, Ordering::SeqCst);
+            })
+        }
+
+        fn close(self: Box<Self>) -> Pending<'static, ()> {
+            Box::pin(async move {
+                self.0.closed.store(true, Ordering::SeqCst);
             })
         }
     }

@@ -107,6 +107,9 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `browser.download.stage` | info | `from`, `to` | `core/browser_download.rs` `step`, where the download stage's `next` is applied |
 | `browser.remove` | info | | `core/browser_download.rs` `remove`, the downloaded browser deleted |
 | `browser.profile` | info | `outcome` (`unlocked`: a lock a crashed browser left; `cleared`: all browser data removed) | `crates/browser` `Browser::launch`; `core/browsing.rs` `clear_profile` |
+| `signin.start` | info | `book` | `core/signin.rs` `begin`, a sign-in window asked for |
+| `signin.stage` | info | `book`, `from`, `to` | `core/signin.rs` `step`, where the sign-in's `next` is applied |
+| `signin.clear` | warn | `error` (the site could not be cleared after a sign-in without "stay signed in") | `core/signin.rs` `run` |
 | `site.rule` | info | (no host: which sites are read is not logged) | `core/sites.rs` `set_site_rule`, written to site-rules.toml |
 | `site.sign_out` | info | (no host: which sites are read is not logged) | `core/sites.rs` `sign_out_site`, its browser data cleared |
 | `site.forget` | info | (no host: which sites are read is not logged) | `core/sites.rs` `forget_site`, its data, row and rule dropped |

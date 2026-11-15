@@ -14,6 +14,7 @@ import type {
   BrowserDownloadView,
   BrowserStatusView,
   SiteView,
+  SignInView,
   SyncReportView,
   PrepareState,
   Preferences,
@@ -611,6 +612,52 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     } as Record<string, ArticleView["stage"]>
   )[query.get("article") ?? ""];
   if (previewArticle) addArticle(previewArticle);
+  /** A sign-in, as the core runs it (core/signin.rs): opening, waiting for the user, fetching
+   *  with the session, done. `?signin=waiting|fetching` opens one on the preview's article. */
+  let signIn: SignInView | null = null;
+  const signInHandlers = new Set<(v: SignInView) => void>();
+  const tellSignIn = (change: Partial<SignInView>) => {
+    signIn = { ...signIn!, ...change };
+    signInHandlers.forEach((h) => h(structuredClone(signIn!)));
+  };
+  const signInOpen = () => signIn !== null && ["opening", "waiting", "fetching"].includes(signIn.stage.kind);
+  const openSignIn = (id: string) => {
+    const article = articles.get(id);
+    if (!article) throw new Error("Not an article.");
+    signIn = {
+      articleId: id,
+      site: new URL(article.canonicalUrl).hostname.replace(/^www\./, ""),
+      reason: article.stage.kind === "needsYou" ? article.stage.reason : null,
+      stage: { kind: "opening" },
+      staySignedIn: true,
+      result: null,
+    };
+  };
+  /** The window's page, fetched as the article: it is whole now. */
+  const fetchSignedIn = () => {
+    tellSignIn({ stage: { kind: "fetching" } });
+    setTimeout(() => {
+      const flow = signIn!;
+      fetched.add(flow.articleId);
+      setArticle(flow.articleId, { stage: { kind: "ready" }, via: "browser", error: null, declaredWords: null });
+      const at = Date.now();
+      const kept = flow.staySignedIn
+        ? flow.reason === "check"
+          ? ({ kind: "checkPassed", at } as const)
+          : ({ kind: "signedIn", at } as const)
+        : ({ kind: "none" } as const);
+      const site = sites.get(flow.site);
+      sites.set(flow.site, { host: flow.site, fetch: null, siteData: "keep", ...site, session: kept });
+      tellSignIn({ stage: { kind: "done" }, result: { kind: "ready" } });
+    }, 400);
+  };
+  const signinParam = query.get("signin");
+  if (signinParam === "waiting" || signinParam === "fetching") {
+    if (!previewArticle) addArticle({ kind: "needsYou", reason: "signIn" });
+    appSettings.browser.use = "fallback";
+    openSignIn(fixtureArticle.summary.id);
+    signIn = { ...signIn!, stage: { kind: signinParam } };
+  }
   /** Feeds, like the app (core/feeds.rs): the subscriptions and entries the core made for the
    *  preview (`feeds.json`, times relative to now). `?feeds=empty` has none; `?feeds=failing`
    *  adds one that stopped answering. Every entry opens as the preview's article (book-6),
@@ -1925,6 +1972,32 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       browserOff();
       sites.delete(siteHost(host));
     },
+    async startSignIn(id) {
+      browserOff();
+      if (signInOpen()) throw new Error("A sign-in is already open. Finish or cancel it first.");
+      openSignIn(id);
+      setTimeout(() => tellSignIn({ stage: { kind: "waiting" } }), 200);
+      return structuredClone(signIn!);
+    },
+    async signIn() {
+      return signIn && structuredClone(signIn);
+    },
+    async finishSignIn() {
+      if (signIn?.stage.kind !== "waiting") throw new Error("No sign-in is open.");
+      fetchSignedIn();
+    },
+    async cancelSignIn() {
+      if (!signInOpen()) throw new Error("No sign-in is open.");
+      if (signIn!.stage.kind !== "fetching") tellSignIn({ stage: { kind: "cancelled" } });
+    },
+    async showSignInWindow() {
+      if (!signInOpen()) throw new Error("No sign-in is open.");
+    },
+    async staySignedIn(stay) {
+      if (!signInOpen()) throw new Error("No sign-in is open.");
+      tellSignIn({ staySignedIn: stay });
+    },
+    onSignInState: (h) => subscribe(signInHandlers, h),
     async clearBrowserData() {
       for (const site of sites.values())
         if (site.session.kind === "signedIn" || site.session.kind === "checkPassed") site.session = { kind: "none" };

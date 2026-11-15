@@ -303,3 +303,159 @@ async fn with_the_browser_off_sites_are_not_cleared_and_clearing_everything_remo
     s.core.clear_browser_data().await.unwrap();
     assert!(!profile.exists());
 }
+
+const SIGN_IN_PAGE: &str =
+    "<html><head><title>Sign in</title></head><body><p>Sign in to keep reading.</p></body></html>";
+
+/// An article left cut short, with the browser on as a fallback that could not get it.
+async fn needing_sign_in() -> (Setup, String) {
+    let s = setup(BrowserUse::Fallback, "");
+    s.pages.set(LIGHTS_URL, Ok(cut_short()));
+    s.browser.set(LIGHTS_URL, Err("timed out"));
+    let id = s.core.save_article(LIGHTS_URL).unwrap();
+    assert_eq!(
+        settled(&s.core, &id).await,
+        Stage::NeedsYou(Reason::CutShort)
+    );
+    (s, id)
+}
+
+async fn sign_in_ends(core: &Core) -> super::signin::SignInView {
+    use super::signin::SignInStage as S;
+    until("the sign-in ends", || {
+        core.sign_in()
+            .is_some_and(|v| matches!(v.stage, S::Done | S::Cancelled | S::Failed { .. }))
+    })
+    .await;
+    core.sign_in().unwrap()
+}
+
+#[tokio::test]
+async fn the_article_is_fetched_once_the_window_shows_it_whole_and_the_sign_in_is_kept() {
+    use super::signin::SignInStage as S;
+    use super::sites::SiteSession;
+    let (s, id) = needing_sign_in().await;
+    let window = &s.browser.window;
+    *window.page.lock().unwrap() = SIGN_IN_PAGE.into();
+    let view = s.core.start_sign_in(&id).unwrap();
+    assert_eq!(
+        (view.site.as_str(), view.reason),
+        ("quay.example", Some(Reason::CutShort))
+    );
+    until("the window is open", || {
+        s.core.sign_in().unwrap().stage == S::Waiting
+    })
+    .await;
+    assert!(s.core.start_sign_in(&id).is_err(), "one at a time");
+    s.core.show_sign_in_window().unwrap();
+    until("the window is shown", || {
+        window.shown.load(std::sync::atomic::Ordering::SeqCst) == 1
+    })
+    .await;
+
+    // The sign-in page on another site (the login host) is not the article.
+    window.shows("https://login.example/", LIGHTS);
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert_eq!(s.core.sign_in().unwrap().stage, S::Waiting);
+    window.shows(LIGHTS_URL, LIGHTS);
+    let done = sign_in_ends(&s.core).await;
+    assert_eq!((done.stage, done.result), (S::Done, Some(Stage::Ready)));
+    assert!(window.closed.load(std::sync::atomic::Ordering::SeqCst));
+    let view = s.core.article(&id).unwrap();
+    assert_eq!(
+        (view.stage, view.via),
+        (Stage::Ready, Some(ArticleSource::Browser))
+    );
+    assert_eq!(s.browser.renders(), 1, "the window's own page was used");
+    let site = s.core.sites().unwrap().pop().unwrap();
+    assert!(
+        matches!(site.session, SiteSession::SignedIn { .. }),
+        "{site:?}"
+    );
+    assert!(
+        s.browser.cleared.lock().unwrap().is_empty(),
+        "stays signed in"
+    );
+}
+
+#[tokio::test]
+async fn saying_signed_in_renders_the_page_and_not_staying_clears_the_site_after() {
+    use super::signin::SignInStage as S;
+    let (s, id) = needing_sign_in().await;
+    *s.browser.window.page.lock().unwrap() = SIGN_IN_PAGE.into();
+    s.core.start_sign_in(&id).unwrap();
+    until("the window is open", || {
+        s.core.sign_in().unwrap().stage == S::Waiting
+    })
+    .await;
+    s.core.stay_signed_in(false).unwrap();
+    s.browser.set(LIGHTS_URL, Ok(LIGHTS));
+    s.core.finish_sign_in().unwrap();
+    let done = sign_in_ends(&s.core).await;
+    assert_eq!((done.stage, done.result), (S::Done, Some(Stage::Ready)));
+    assert_eq!(s.browser.renders(), 2, "one render after the window");
+    let request = s.browser.rendered.lock().unwrap()[1].clone();
+    assert!(!request.clear_site_data);
+    assert_eq!(*s.browser.cleared.lock().unwrap(), ["quay.example"]);
+    assert_eq!(s.core.article(&id).unwrap().stage, Stage::Ready);
+}
+
+#[tokio::test]
+async fn closing_the_window_cancels_and_leaves_the_article_as_it_was() {
+    use super::signin::SignInStage as S;
+    let (s, id) = needing_sign_in().await;
+    let before = s.core.article(&id).unwrap();
+    s.core.start_sign_in(&id).unwrap();
+    until("the window is open", || {
+        s.core.sign_in().unwrap().stage == S::Waiting
+    })
+    .await;
+    s.browser
+        .window
+        .closed_by_user
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(sign_in_ends(&s.core).await.stage, S::Cancelled);
+    assert_eq!(s.core.article(&id).unwrap(), before);
+    assert_eq!(s.browser.renders(), 1);
+    assert!(s.core.finish_sign_in().is_err(), "nothing open");
+
+    // Cancelled from the dialog: the same, and the window is closed by Aoide.
+    s.browser
+        .window
+        .closed_by_user
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    s.core.start_sign_in(&id).unwrap();
+    until("the window is open", || {
+        s.core.sign_in().unwrap().stage == S::Waiting
+    })
+    .await;
+    s.core.cancel_sign_in().unwrap();
+    assert_eq!(sign_in_ends(&s.core).await.stage, S::Cancelled);
+    assert!(s
+        .browser
+        .window
+        .closed
+        .load(std::sync::atomic::Ordering::SeqCst));
+    assert_eq!(s.core.article(&id).unwrap(), before);
+}
+
+#[tokio::test]
+async fn signing_in_is_refused_while_the_browser_is_off_and_fails_when_the_window_cannot_open() {
+    let s = setup(BrowserUse::Off, "");
+    s.pages.set(LIGHTS_URL, Ok(cut_short()));
+    let id = s.core.save_article(LIGHTS_URL).unwrap();
+    settled(&s.core, &id).await;
+    assert_eq!(s.core.start_sign_in(&id).err(), Some(BROWSER_OFF.into()));
+    assert_eq!(s.core.sign_in(), None);
+
+    let (s, id) = needing_sign_in().await;
+    *s.browser.window.fails.lock().unwrap() = Some("Chrome did not start".into());
+    s.core.start_sign_in(&id).unwrap();
+    let ended = sign_in_ends(&s.core).await;
+    assert_eq!(
+        ended.stage,
+        super::signin::SignInStage::Failed {
+            error: "Chrome did not start".into()
+        }
+    );
+}

@@ -249,6 +249,8 @@ pub enum CoreEvent {
     FeedsChanged,
     /// The browser download moved on.
     BrowserDownload(super::browser_download::BrowserDownloadView),
+    /// A sign-in moved on.
+    SignInState(super::signin::SignInView),
 }
 
 impl CoreEvent {
@@ -269,6 +271,7 @@ impl CoreEvent {
     pub const ARTICLE_STATE: &'static str = "article://state";
     pub const FEEDS_CHANGED: &'static str = "feeds://changed";
     pub const BROWSER_DOWNLOAD: &'static str = "browser://download";
+    pub const SIGN_IN_STATE: &'static str = "signin://state";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -289,6 +292,7 @@ impl CoreEvent {
             Self::ArticleState(_) => Self::ARTICLE_STATE,
             Self::FeedsChanged => Self::FEEDS_CHANGED,
             Self::BrowserDownload(_) => Self::BROWSER_DOWNLOAD,
+            Self::SignInState(_) => Self::SIGN_IN_STATE,
         }
     }
 
@@ -311,6 +315,7 @@ impl CoreEvent {
             Self::ArticleState(p) => serde_json::to_value(p),
             Self::FeedsChanged => Ok(serde_json::Value::Null),
             Self::BrowserDownload(p) => serde_json::to_value(p),
+            Self::SignInState(p) => serde_json::to_value(p),
         }
     }
 }

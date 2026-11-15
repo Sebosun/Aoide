@@ -172,6 +172,8 @@ fn contract() -> String {
         aoide_config::SiteData,
         super::sites::SiteSession,
         super::sites::SiteView,
+        super::signin::SignInStage,
+        super::signin::SignInView,
     );
     // Type aliases the commands use.
     names.insert("Params".into(), name::<aoide_tts::Params>(&config));
@@ -232,6 +234,10 @@ fn contract() -> String {
             name::<super::articles::ArticleView>(&config),
         ),
         (CoreEvent::FEEDS_CHANGED, "null".to_owned()),
+        (
+            CoreEvent::SIGN_IN_STATE,
+            name::<super::signin::SignInView>(&config),
+        ),
         (
             CoreEvent::BROWSER_DOWNLOAD,
             name::<super::browser_download::BrowserDownloadView>(&config),
