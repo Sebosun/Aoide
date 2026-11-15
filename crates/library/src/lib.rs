@@ -155,7 +155,6 @@ pub enum LibraryError {
 pub type Result<T> = std::result::Result<T, LibraryError>;
 
 pub struct Library {
-    #[allow(dead_code)]
     conn: rusqlite::Connection,
 }
 

@@ -633,7 +633,7 @@ impl BrowsingHost for super::Core {
 /// (headless to render, with a window to sign in; they share the profile).
 #[derive(Default)]
 pub struct ChromeDriver {
-    current: tokio::sync::Mutex<Option<(aoide_browser::Browser, bool)>>,
+    current: tokio::sync::Mutex<Option<Running>>,
     /// Whether a process runs, readable without waiting for `current`.
     alive: std::sync::atomic::AtomicBool,
 }
@@ -645,15 +645,15 @@ impl ChromeDriver {
         &self,
         launch: &Launch,
         visible: bool,
-    ) -> Result<tokio::sync::MutexGuard<'_, Option<(aoide_browser::Browser, bool)>>, String> {
+    ) -> Result<tokio::sync::MappedMutexGuard<'_, aoide_browser::Browser>, String> {
         let mut current = self.current.lock().await;
         let usable = match current.as_ref() {
-            Some((browser, shown)) => (*shown || !visible) && browser.running().await,
+            Some(running) => (running.visible || !visible) && running.browser.running().await,
             None => false,
         };
         if !usable {
-            if let Some((old, _)) = current.take() {
-                old.shutdown().await;
+            if let Some(old) = current.take() {
+                old.browser.shutdown().await;
             }
             let browser = aoide_browser::Browser::launch(aoide_browser::BrowserOptions {
                 binary: launch.binary.clone(),
@@ -672,11 +672,19 @@ impl ChromeDriver {
                 "Started the browser"
             );
             let browser = browser?;
-            *current = Some((browser, visible));
+            *current = Some(Running { browser, visible });
             self.alive.store(true, std::sync::atomic::Ordering::SeqCst);
         }
-        Ok(current)
+        tokio::sync::MutexGuard::try_map(current, |c| c.as_mut().map(|r| &mut r.browser))
+            .map_err(|_| "the browser is not running".to_owned())
     }
+}
+
+/// The browser process the driver runs, and whether it has a window (it was started to sign
+/// in) or is headless.
+struct Running {
+    browser: aoide_browser::Browser,
+    visible: bool,
 }
 
 struct ChromeWindow(aoide_browser::Window);
@@ -706,8 +714,7 @@ impl BrowserDriver for ChromeDriver {
         request: &'a RenderRequest,
     ) -> Pending<'a, Result<Snapshot, String>> {
         Box::pin(async move {
-            let current = self.browser(launch, false).await?;
-            let (browser, _) = current.as_ref().expect("a browser was started");
+            let browser = self.browser(launch, false).await?;
             browser.render(request).await.map_err(|e| e.to_string())
         })
     }
@@ -718,8 +725,7 @@ impl BrowserDriver for ChromeDriver {
         url: &'a Url,
     ) -> Pending<'a, Result<Box<dyn BrowserWindow>, String>> {
         Box::pin(async move {
-            let current = self.browser(launch, true).await?;
-            let (browser, _) = current.as_ref().expect("a browser was started");
+            let browser = self.browser(launch, true).await?;
             let window = browser.open_window(url).await.map_err(|e| e.to_string())?;
             Ok(Box::new(ChromeWindow(window)) as Box<dyn BrowserWindow>)
         })
@@ -732,8 +738,7 @@ impl BrowserDriver for ChromeDriver {
     ) -> Pending<'a, Result<(), String>> {
         Box::pin(async move {
             // Whichever browser runs; a headless one when none does.
-            let current = self.browser(launch, false).await?;
-            let (browser, _) = current.as_ref().expect("a browser was started");
+            let browser = self.browser(launch, false).await?;
             browser.clear_site(host).await.map_err(|e| e.to_string())
         })
     }
@@ -744,8 +749,8 @@ impl BrowserDriver for ChromeDriver {
 
     fn shutdown(&self) -> Pending<'_, ()> {
         Box::pin(async move {
-            if let Some((browser, _)) = self.current.lock().await.take() {
-                browser.shutdown().await;
+            if let Some(running) = self.current.lock().await.take() {
+                running.browser.shutdown().await;
             }
             self.alive.store(false, std::sync::atomic::Ordering::SeqCst);
         })
