@@ -157,7 +157,7 @@ pub struct Core {
     /// Recordings and their sync.
     recordings: recordings::Recordings,
     /// What "Find audiobooks" found.
-    audiobooks: Mutex<audiobooks::Matches>,
+    audiobooks: Arc<audiobooks::Finder>,
 }
 
 impl Core {
@@ -219,6 +219,11 @@ impl Core {
         let bookmarks = bookmarks::Bookmarks::new(Arc::clone(&library));
         let listening = listening::Listening::new(Arc::clone(&library), reporter.clone());
         let storage = storage::Storage::new(Arc::clone(&library), &paths);
+        let audiobooks = Arc::new(audiobooks::Finder::new(
+            Arc::clone(&library),
+            &paths,
+            Arc::clone(&events),
+        ));
         let discovery = Arc::new(discovery::Discovery::new(
             Arc::clone(&library),
             &paths,
@@ -253,7 +258,7 @@ impl Core {
             aligner,
             settings: config::Settings::new(config),
             recordings,
-            audiobooks: Mutex::new(Default::default()),
+            audiobooks,
         });
         core.recordings
             .load_recordings(core.app_settings().recognition.resume_on_start);

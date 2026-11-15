@@ -145,34 +145,82 @@ enum Then {
     Unpair,
 }
 
-impl Core {
-    /// The matches the last searches found, and where each stands.
-    pub fn audiobook_matches(&self) -> Vec<AudiobookMatch> {
-        lock(&self.audiobooks).list.clone()
+/// What the audiobook finder asks of the rest of the app.
+pub(super) trait FinderHost: Sync {
+    /// Audio files paired with a book, but for book `except`'s.
+    fn paired_files(&self, except: Option<&str>) -> Vec<PathBuf>;
+    /// Pairs book `id` with an audiobook's `paths` (its files, or its folder).
+    fn attach(&self, id: &str, paths: Vec<String>) -> Result<(), String>;
+    /// Unpairs book `id`, none of whose candidates passed.
+    fn unpair(&self, id: &str);
+}
+
+/// How a search goes: where it looks, and whether Aoide verifies what it finds.
+pub(super) struct Search {
+    pub settings: AudiobookSearchSettings,
+    pub verify: bool,
+}
+
+/// Whether `paths` (an audiobook's files, or its folder) hold audio paired with a book other
+/// than `id`.
+fn taken(host: &dyn FinderHost, id: &str, paths: &[String]) -> bool {
+    let paired = host.paired_files(Some(id));
+    paths
+        .iter()
+        .any(|p| paired.iter().any(|f| f.starts_with(p)))
+}
+
+/// "Find audiobooks": searches folders for the audiobooks of books without a recording, and
+/// takes each match through checking and pairing.
+pub(super) struct Finder {
+    library: Arc<Mutex<Library>>,
+    events: Arc<dyn Events>,
+    /// Where a search starts when no folders are set.
+    home_dir: PathBuf,
+    /// Aoide's own folders, never searched.
+    private_dirs: Vec<PathBuf>,
+    matches: Mutex<Matches>,
+}
+
+impl Finder {
+    pub fn new(library: Arc<Mutex<Library>>, paths: &Paths, events: Arc<dyn Events>) -> Self {
+        let mut private_dirs = vec![paths.library_dir.clone(), paths.audio_dir.clone()];
+        private_dirs.extend(paths.db_path.parent().map(Path::to_path_buf));
+        Self {
+            library,
+            events,
+            home_dir: paths.home_dir.clone(),
+            private_dirs,
+            matches: Default::default(),
+        }
     }
 
-    /// Searches the chosen folders for the audiobooks of every book without a recording.
-    pub async fn scan_for_audiobooks(self: &Arc<Self>) -> Result<Vec<AudiobookMatch>, String> {
-        self.search_audiobooks(None).await?;
-        Ok(self.audiobook_matches())
+    /// The matches the last searches found, and where each stands.
+    pub fn matches(&self) -> Vec<AudiobookMatch> {
+        lock(&self.matches).list.clone()
     }
 
     /// After books were added: looks for their audiobooks, if the user wants that. Returns how
     /// many of them have audiobooks waiting for the user (none when Aoide verifies them).
-    pub async fn look_for_audiobooks(self: &Arc<Self>, ids: Vec<String>) -> Result<usize, String> {
-        if ids.is_empty() || !self.app_settings().audiobooks.on_add {
+    pub async fn look_for(
+        self: &Arc<Self>,
+        ids: Vec<String>,
+        search: Search,
+        host: &dyn FinderHost,
+    ) -> Result<usize, String> {
+        if ids.is_empty() || !search.settings.on_add {
             return Ok(0);
         }
-        self.search_audiobooks(Some(ids.clone())).await?;
-        Ok(lock(&self.audiobooks)
+        self.search(Some(ids.clone()), search, host).await?;
+        Ok(lock(&self.matches)
             .list
             .iter()
             .filter(|m| ids.contains(&m.book_id) && m.stage == MatchStage::Found)
             .count())
     }
 
-    pub fn cancel_audiobook_scan(&self) {
-        if let Some(cancel) = lock(&self.audiobooks).cancel.as_ref() {
+    pub fn cancel(&self) {
+        if let Some(cancel) = lock(&self.matches).cancel.as_ref() {
             cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         }
     }
@@ -180,10 +228,10 @@ impl Core {
     /// Pairs the chosen candidates, in order. Each book's pairing succeeds or fails on its own;
     /// an audiobook another book has already is not paired again. A paired audiobook is offered
     /// to no other book.
-    pub fn pair_audiobooks(&self, choices: Vec<AudiobookChoice>) -> Vec<PairOutcome> {
+    pub fn pair(&self, choices: Vec<AudiobookChoice>, host: &dyn FinderHost) -> Vec<PairOutcome> {
         // The candidates as they were chosen, before pairing drops any.
         let chosen: Vec<(AudiobookChoice, Option<Vec<String>>)> = {
-            let matches = lock(&self.audiobooks);
+            let matches = lock(&self.matches);
             choices
                 .into_iter()
                 .map(|choice| {
@@ -203,10 +251,10 @@ impl Core {
                 let book = crate::logging::book(&choice.book_id).to_owned();
                 let error = match paths {
                     None => Some("no such audiobook match".to_owned()),
-                    Some(paths) if self.taken(&choice.book_id, &paths) => {
+                    Some(paths) if taken(host, &choice.book_id, &paths) => {
                         Some("This audiobook is paired with another book".to_owned())
                     }
-                    Some(paths) => match self.attach_recording(&choice.book_id, paths) {
+                    Some(paths) => match host.attach(&choice.book_id, paths) {
                         Ok(_) => {
                             self.match_event(&choice.book_id, MatchEvent::Pair(choice.candidate));
                             None
@@ -224,31 +272,22 @@ impl Core {
                 }
             })
             .collect();
-        self.drop_taken();
+        self.drop_taken(host);
         self.emit_matches();
         outcomes
-    }
-
-    /// Whether `paths` (an audiobook's files, or its folder) hold audio paired with a book
-    /// other than `id`.
-    fn taken(&self, id: &str, paths: &[String]) -> bool {
-        let paired = self.recordings.paired_files(Some(id));
-        paths
-            .iter()
-            .any(|p| paired.iter().any(|f| f.starts_with(p)))
     }
 
     /// Takes audiobooks paired with a book out of the matches waiting for the user (or left
     /// unverified), and the matches left with none out of the list. Matches under way keep
     /// their candidates, which their stages count.
-    fn drop_taken(&self) {
-        let paired = self.recordings.paired_files(None);
+    fn drop_taken(&self, host: &dyn FinderHost) {
+        let paired = host.paired_files(None);
         let taken = |c: &AudiobookSuggestion| {
             c.paths
                 .iter()
                 .any(|p| paired.iter().any(|f| f.starts_with(p)))
         };
-        let mut matches = lock(&self.audiobooks);
+        let mut matches = lock(&self.matches);
         for m in &mut matches.list {
             if matches!(m.stage, MatchStage::Found | MatchStage::NoneVerified) {
                 m.candidates.retain(|c| !taken(c));
@@ -262,31 +301,31 @@ impl Core {
 
     /// The sync job's word on a recording: whether its quick check passed (false too when it
     /// could not be read). A match being verified moves on to its next candidate on a failure.
-    pub(super) fn audiobook_checked(&self, id: &str, passed: bool) {
+    pub fn checked(&self, id: &str, passed: bool, host: &dyn FinderHost) {
         let event = if passed {
             MatchEvent::CheckPassed
         } else {
             MatchEvent::CheckFailed
         };
         if self.match_event(id, event) {
-            self.follow_match(id);
+            self.follow_match(id, host);
             if passed {
-                self.drop_taken();
+                self.drop_taken(host);
             }
             self.emit_matches();
         }
     }
 
     /// The book's recording was removed: its match waits for the user again.
-    pub(super) fn audiobook_unpaired(&self, id: &str) {
+    pub fn unpaired(&self, id: &str) {
         if self.match_event(id, MatchEvent::Unpaired) {
             self.emit_matches();
         }
     }
 
     /// Verifying was turned on: Aoide tries the matches waiting for the user.
-    pub(super) fn verify_found_audiobooks(&self) {
-        let waiting: Vec<String> = lock(&self.audiobooks)
+    pub fn verify_found(&self, host: &dyn FinderHost) {
+        let waiting: Vec<String> = lock(&self.matches)
             .list
             .iter()
             .filter(|m| m.stage == MatchStage::Found)
@@ -294,7 +333,7 @@ impl Core {
             .collect();
         for id in &waiting {
             self.match_event(id, MatchEvent::Verify);
-            self.follow_match(id);
+            self.follow_match(id, host);
         }
         if !waiting.is_empty() {
             self.emit_matches();
@@ -303,7 +342,7 @@ impl Core {
 
     /// Applies `event` to book `id`'s match. Returns whether its stage changed.
     fn match_event(&self, id: &str, event: MatchEvent) -> bool {
-        let mut matches = lock(&self.audiobooks);
+        let mut matches = lock(&self.matches);
         let Some(found) = matches.list.iter_mut().find(|m| m.book_id == id) else {
             return false;
         };
@@ -324,10 +363,10 @@ impl Core {
 
     /// Does what book `id`'s match stage asks for: pairs the candidate being verified (trying
     /// the next while one cannot be paired), or unpairs a book none of whose candidates passed.
-    fn follow_match(&self, id: &str) {
+    fn follow_match(&self, id: &str, host: &dyn FinderHost) {
         loop {
             let then = {
-                let matches = lock(&self.audiobooks);
+                let matches = lock(&self.matches);
                 match matches.list.iter().find(|m| m.book_id == id) {
                     Some(AudiobookMatch {
                         stage: MatchStage::Verifying { candidate },
@@ -344,19 +383,10 @@ impl Core {
             match then {
                 Then::Nothing => return,
                 Then::Unpair => {
-                    self.forget_recording(id);
-                    let removed = lock(&self.library).remove_recording(&BookId(id.into()));
-                    if let Err(error) = removed {
-                        self.report(
-                            "audiobooks.pair",
-                            "Could not unpair an audiobook none of whose files passed",
-                            error,
-                        );
-                    }
-                    self.emit(CoreEvent::LibraryChanged);
+                    host.unpair(id);
                     return;
                 }
-                Then::Attach(paths) if self.taken(id, &paths) => {
+                Then::Attach(paths) if taken(host, id, &paths) => {
                     tracing::info!(
                         event = "audiobooks.pair",
                         book = crate::logging::book(id),
@@ -365,7 +395,7 @@ impl Core {
                     );
                     self.match_event(id, MatchEvent::CheckFailed);
                 }
-                Then::Attach(paths) => match self.attach_recording(id, paths) {
+                Then::Attach(paths) => match host.attach(id, paths) {
                     Ok(_) => return,
                     Err(error) => {
                         tracing::warn!(event = "audiobooks.pair", book = crate::logging::book(id), outcome = "failed", %error, "Could not pair a found audiobook; trying the next");
@@ -377,22 +407,26 @@ impl Core {
     }
 
     fn emit_matches(&self) {
-        self.emit(CoreEvent::AudiobookMatches(self.audiobook_matches()));
+        self.emit(CoreEvent::AudiobookMatches(self.matches()));
     }
 
-    fn audiobook_scan_options(&self) -> aoide_discovery::ScanOptions {
-        let settings = self.app_settings().audiobooks;
+    fn emit(&self, event: CoreEvent) {
+        match event.payload() {
+            Ok(value) => self.events.emit(event.name(), value),
+            Err(error) => {
+                tracing::error!(event = "app.emit", name = event.name(), %error, "Cannot send an event to the window")
+            }
+        }
+    }
+
+    fn scan_options(&self, settings: &AudiobookSearchSettings) -> aoide_discovery::ScanOptions {
         let roots: Vec<PathBuf> = if settings.roots.is_empty() {
-            vec![self.paths.home_dir.clone()]
+            vec![self.home_dir.clone()]
         } else {
             settings.roots.iter().map(PathBuf::from).collect()
         };
         let mut exclude: Vec<PathBuf> = settings.exclude.iter().map(PathBuf::from).collect();
-        exclude.push(self.paths.library_dir.clone());
-        exclude.push(self.paths.audio_dir.clone());
-        if let Some(data) = self.paths.db_path.parent() {
-            exclude.push(data.to_path_buf());
-        }
+        exclude.extend(self.private_dirs.iter().cloned());
         aoide_discovery::ScanOptions {
             roots,
             exclude,
@@ -403,9 +437,14 @@ impl Core {
 
     /// Searches for the audiobooks of books `ids` (every book without a recording when `None`)
     /// and brings their matches up to date; with verifying on, starts on the new ones.
-    async fn search_audiobooks(self: &Arc<Self>, ids: Option<Vec<String>>) -> Result<(), String> {
+    pub async fn search(
+        self: &Arc<Self>,
+        ids: Option<Vec<String>>,
+        search: Search,
+        host: &dyn FinderHost,
+    ) -> Result<(), String> {
         let cancel = {
-            let mut matches = lock(&self.audiobooks);
+            let mut matches = lock(&self.matches);
             if matches.cancel.is_some() {
                 return Err("a search for audiobooks is already running".into());
             }
@@ -413,12 +452,17 @@ impl Core {
             matches.cancel = Some(Arc::clone(&cancel));
             cancel
         };
-        let core = Arc::clone(self);
-        let result = tokio::task::spawn_blocking(move || core.search_blocking(ids, &cancel))
-            .await
-            .map_err(|e| e.to_string())
-            .and_then(|r| r);
-        lock(&self.audiobooks).cancel = None;
+        let this = Arc::clone(self);
+        // Audio already paired with a book is not offered again.
+        let paired = host.paired_files(None);
+        let settings = search.settings;
+        let result = tokio::task::spawn_blocking(move || {
+            this.search_blocking(ids, &settings, &paired, &cancel)
+        })
+        .await
+        .map_err(|e| e.to_string())
+        .and_then(|r| r);
+        lock(&self.matches).cancel = None;
         let stage = match &result {
             Ok(()) => ScanStage::Done,
             Err(error) if error == "cancelled" => ScanStage::Cancelled,
@@ -434,15 +478,21 @@ impl Core {
             error: result.as_ref().err().cloned(),
         }));
         result?;
-        if self.app_settings().verify_audiobooks {
-            self.verify_found_audiobooks();
+        if search.verify {
+            self.verify_found(host);
         }
         self.emit_matches();
         Ok(())
     }
 
-    fn search_blocking(&self, ids: Option<Vec<String>>, cancel: &AtomicBool) -> Result<(), String> {
-        let options = self.audiobook_scan_options();
+    fn search_blocking(
+        &self,
+        ids: Option<Vec<String>>,
+        settings: &AudiobookSearchSettings,
+        paired: &[PathBuf],
+        cancel: &AtomicBool,
+    ) -> Result<(), String> {
+        let options = self.scan_options(settings);
         let started = Instant::now();
         let last_emit = Mutex::new(Instant::now());
         let seen = Mutex::new(aoide_discovery::Progress::default());
@@ -472,8 +522,6 @@ impl Core {
             );
             return Err("cancelled".into());
         }
-        // Audio already paired with a book is not offered again.
-        let paired = self.recordings.paired_files(None);
         let taken = |path: &Path| paired.iter().any(|f| f.starts_with(path));
         let books: Vec<aoide_library::BookRecord> = {
             let library = lock(&self.library);
@@ -547,7 +595,7 @@ impl Core {
             took_ms = crate::logging::took(started),
             "Searched for audiobooks"
         );
-        let mut matches = lock(&self.audiobooks);
+        let mut matches = lock(&self.matches);
         let searched = |id: &str| ids.as_ref().map_or(true, |ids| ids.iter().any(|i| i == id));
         // Matches already under way stay as they are; the ones waiting for the user are
         // replaced by what this search found.
@@ -567,6 +615,84 @@ impl Core {
             kept.into_iter().chain(fresh).collect()
         };
         Ok(())
+    }
+}
+
+impl Core {
+    /// The matches the last searches found, and where each stands.
+    pub fn audiobook_matches(&self) -> Vec<AudiobookMatch> {
+        self.audiobooks.matches()
+    }
+
+    /// Searches the chosen folders for the audiobooks of every book without a recording.
+    pub async fn scan_for_audiobooks(&self) -> Result<Vec<AudiobookMatch>, String> {
+        self.audiobooks
+            .search(None, self.audiobook_search(), self)
+            .await?;
+        Ok(self.audiobook_matches())
+    }
+
+    /// After books were added: looks for their audiobooks, if the user wants that. Returns how
+    /// many of them have audiobooks waiting for the user (none when Aoide verifies them).
+    pub async fn look_for_audiobooks(&self, ids: Vec<String>) -> Result<usize, String> {
+        self.audiobooks
+            .look_for(ids, self.audiobook_search(), self)
+            .await
+    }
+
+    pub fn cancel_audiobook_scan(&self) {
+        self.audiobooks.cancel()
+    }
+
+    /// Pairs the chosen candidates, in order.
+    pub fn pair_audiobooks(&self, choices: Vec<AudiobookChoice>) -> Vec<PairOutcome> {
+        self.audiobooks.pair(choices, self)
+    }
+
+    /// The sync job's word on a recording: whether its quick check passed.
+    pub(super) fn audiobook_checked(&self, id: &str, passed: bool) {
+        self.audiobooks.checked(id, passed, self)
+    }
+
+    /// The book's recording was removed: its match waits for the user again.
+    pub(super) fn audiobook_unpaired(&self, id: &str) {
+        self.audiobooks.unpaired(id)
+    }
+
+    /// Verifying was turned on: Aoide tries the matches waiting for the user.
+    pub(super) fn verify_found_audiobooks(&self) {
+        self.audiobooks.verify_found(self)
+    }
+
+    fn audiobook_search(&self) -> Search {
+        let settings = self.app_settings();
+        Search {
+            settings: settings.audiobooks,
+            verify: settings.verify_audiobooks,
+        }
+    }
+}
+
+impl FinderHost for Core {
+    fn paired_files(&self, except: Option<&str>) -> Vec<PathBuf> {
+        self.recordings.paired_files(except)
+    }
+
+    fn attach(&self, id: &str, paths: Vec<String>) -> Result<(), String> {
+        self.attach_recording(id, paths).map(drop)
+    }
+
+    fn unpair(&self, id: &str) {
+        self.forget_recording(id);
+        let removed = lock(&self.library).remove_recording(&BookId(id.into()));
+        if let Err(error) = removed {
+            self.report(
+                "audiobooks.pair",
+                "Could not unpair an audiobook none of whose files passed",
+                error,
+            );
+        }
+        self.emit(CoreEvent::LibraryChanged);
     }
 }
 
@@ -600,5 +726,79 @@ mod tests {
         );
         assert_eq!(next(Paired { candidate: 0 }, Unpaired, 3), Found);
         assert_eq!(next(Found, CheckPassed, 3), Found);
+    }
+
+    /// Pairs whatever it is asked to, and reports those as paired.
+    #[derive(Default)]
+    struct Host {
+        paired: Mutex<Vec<(String, Vec<String>)>>,
+    }
+
+    impl FinderHost for Host {
+        fn paired_files(&self, except: Option<&str>) -> Vec<PathBuf> {
+            lock(&self.paired)
+                .iter()
+                .filter(|(id, _)| Some(id.as_str()) != except)
+                .flat_map(|(_, paths)| paths.iter().map(PathBuf::from))
+                .collect()
+        }
+        fn attach(&self, id: &str, paths: Vec<String>) -> Result<(), String> {
+            lock(&self.paired).push((id.into(), paths));
+            Ok(())
+        }
+        fn unpair(&self, id: &str) {
+            lock(&self.paired).retain(|(paired, _)| paired != id);
+        }
+    }
+
+    #[tokio::test]
+    async fn a_found_audiobook_once_paired_is_offered_to_no_other_book() {
+        let dir = tempfile::tempdir().unwrap();
+        let audiobooks = dir.path().join("Audiobooks");
+        std::fs::create_dir_all(audiobooks.join("Book lanterns")).unwrap();
+        std::fs::write(audiobooks.join("Book lanterns/part.mp3"), [0u8; 64]).unwrap();
+        let finder = Arc::new(Finder::new(
+            super::super::tests::library_with(&["lanterns"]),
+            &super::super::tests::paths(dir.path()),
+            Arc::new(super::super::tests::Recorder::default()),
+        ));
+        let search = || Search {
+            settings: AudiobookSearchSettings {
+                roots: vec![audiobooks.to_string_lossy().into_owned()],
+                ..Default::default()
+            },
+            verify: false,
+        };
+        let host = Host::default();
+
+        finder.search(None, search(), &host).await.unwrap();
+        let found = finder.matches();
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(
+            (found[0].book_id.as_str(), found[0].stage),
+            ("lanterns", MatchStage::Found)
+        );
+
+        let outcome = finder.pair(
+            vec![AudiobookChoice {
+                book_id: "lanterns".into(),
+                candidate: 0,
+            }],
+            &host,
+        );
+        assert_eq!(outcome[0].error, None);
+        assert_eq!(lock(&host.paired)[0].0, "lanterns");
+        assert_ne!(finder.matches()[0].stage, MatchStage::Found);
+
+        host.unpair("lanterns");
+        lock(&host.paired).push(("other".into(), found[0].candidates[0].paths.clone()));
+        finder.search(None, search(), &host).await.unwrap();
+        assert!(
+            finder
+                .matches()
+                .iter()
+                .all(|m| m.stage != MatchStage::Found),
+            "audio another book has is not offered"
+        );
     }
 }
