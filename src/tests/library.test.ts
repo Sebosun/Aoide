@@ -91,8 +91,12 @@ it("says on each card what it has and how far along it is", async () => {
       .find((card) => card.text().includes(title))!
       .get(".book-card__status")
       .text();
-  expect(line("The Lantern Keeper")).toBe("Text + voice · 12%");
+  expect(line("The Lantern Keeper")).toBe("Text + voice · 12% · <1 min left");
   expect(line("A Map of Quiet Places")).toBe("Text · unread");
+  // A book read silently gives the time left to read it.
+  await mock.setReadingPlace("book-1", 1, "1:1:0");
+  await flushPromises();
+  expect(line("A Map of Quiet Places")).toMatch(/^Text · \d+% · <1 min left to read$/);
   mock.setAudioSourceForTest("book-3", "recording");
   await flushPromises();
   expect(line("An Unfinished Atlas")).toBe("Text + recording · unread");

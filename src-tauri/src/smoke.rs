@@ -313,11 +313,12 @@ async fn play(
     }
     core.stop();
     tokio::time::sleep(Duration::from_millis(200)).await;
-    match core.listening_stats() {
+    match core.activity_stats() {
         Ok(stats) => tracing::info!(
             event = "smoke",
-            "listened total {} ms, days {:?}",
-            stats.total_ms,
+            "listened total {} ms, read {} ms, days {:?}",
+            stats.listening_ms,
+            stats.reading_ms,
             stats.by_day
         ),
         Err(error) => tracing::warn!(event = "smoke", "stats failed: {error}"),

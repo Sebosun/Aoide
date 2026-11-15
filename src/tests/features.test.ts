@@ -244,30 +244,37 @@ it("exports the book and reports where the file went", async () => {
   wrapper.unmount();
 });
 
-it("shows listening for a chosen range with a streak, a calendar, weekdays and books", async () => {
+it("shows reading and listening for a chosen range with a streak, a calendar, weekdays and books", async () => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-11-11T12:00:00"));
   await useLibraryStore().start();
   const wrapper = mount(ActivityView, { attachTo: document.body });
   await flushPromises();
   const tile = (label: string) => wrapper.get(`[aria-label="${label}"]`).text();
+  expect(tile("Read")).toContain("30 min");
   expect(tile("Listened")).toContain("1 h 50 min");
-  expect(tile("Daily average")).toContain("16 min");
+  expect(tile("Daily average")).toContain("20 min");
+  expect(tile("Daily average")).toContain("3 of 7 days");
   expect(tile("Streak")).toContain("3 days");
   expect(tile("Streak")).toContain("best 3");
-  expect(wrapper.findAll('[aria-label="Listening by day"] li')).toHaveLength(7);
+  expect(wrapper.findAll('[aria-label="Reading and listening by day"] li')).toHaveLength(7);
   const range = (name: string) =>
     wrapper.findAll('[role="group"][aria-label="Range"] button').find((b) => b.text() === name)!;
   await range("30 days").trigger("click");
   expect(range("30 days").attributes("aria-pressed")).toBe("true");
-  expect(wrapper.findAll('[aria-label="Listening by day"] li')).toHaveLength(30);
+  expect(wrapper.findAll('[aria-label="Reading and listening by day"] li')).toHaveLength(30);
   await range("12 months").trigger("click");
-  expect(wrapper.findAll('[aria-label="Listening by month"] li')).toHaveLength(12);
+  expect(wrapper.findAll('[aria-label="Reading and listening by month"] li')).toHaveLength(12);
   expect(wrapper.findAll('[aria-label="Last 26 weeks"] [data-day]').length).toBeGreaterThan(170);
   expect(wrapper.get('[aria-label="By weekday"]').text()).toContain("Most on Mondays");
+  // This month, both series stacked.
+  const month = wrapper.findAll('[aria-label="Reading and listening by month"] li').at(-1)!;
+  expect(month.attributes("aria-label")).toContain("30 min reading, 1 h 50 min listening");
   const books = wrapper.findAll('[aria-label="By book"] li');
   expect(books[0].text()).toContain("The Lantern Keeper");
   expect(books[0].text()).toContain("1 h 30 min");
+  expect(books[1].text()).toContain("A Map of Quiet Places");
+  expect(books[1].text()).toContain("50 min"); // 30 read, 20 listened
   await books[1].get("button").trigger("click");
   expect(useNavigationStore().view).toBe("item");
   expect(useNavigationStore().bookId).toBe("book-1");

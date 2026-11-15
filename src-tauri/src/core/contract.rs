@@ -89,8 +89,6 @@ fn contract() -> String {
         aoide_library::DayActivity,
         aoide_library::BookActivity,
         aoide_library::ActivityStats,
-        super::listening::BookListeningView,
-        super::listening::ListeningStatsView,
         aoide_library::BookDetails,
         aoide_metadata::Match,
         // Settings and storage

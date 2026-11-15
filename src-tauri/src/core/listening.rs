@@ -1,28 +1,10 @@
-//! Listening time: counted while playing, saved per book and day, and summed for the stats.
+//! Listening time: counted while playing and saved per book and day (summed with reading time
+//! by `Core::activity_stats`).
 
 use super::*;
 
 /// Listening time is written to the database at least this often while playing.
 const LISTEN_FLUSH_MS: u64 = 15_000;
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(test, derive(ts_rs::TS))]
-pub struct BookListeningView {
-    pub book_id: String,
-    pub title: String,
-    pub ms: u64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(test, derive(ts_rs::TS))]
-#[cfg_attr(test, ts(rename = "ListeningStats"))]
-pub struct ListeningStatsView {
-    pub total_ms: u64,
-    pub by_book: Vec<BookListeningView>,
-    pub by_day: Vec<aoide_library::DayListening>,
-}
 
 /// Listening time not yet saved.
 #[derive(Default)]
@@ -91,40 +73,12 @@ impl Listening {
             .book_listening(&BookId(id.into()))
             .map_err(|e| e.to_string())
     }
-
-    pub fn stats(&self) -> Result<ListeningStatsView, String> {
-        let library = lock(&self.library);
-        let stats = library.listening_stats().map_err(|e| e.to_string())?;
-        let by_book = stats
-            .by_book
-            .into_iter()
-            .map(|b| BookListeningView {
-                title: library
-                    .book(&b.book_id)
-                    .ok()
-                    .flatten()
-                    .and_then(|r| r.title)
-                    .unwrap_or_else(|| "Untitled".into()),
-                book_id: b.book_id.0,
-                ms: b.ms,
-            })
-            .collect();
-        Ok(ListeningStatsView {
-            total_ms: stats.total_ms,
-            by_book,
-            by_day: stats.by_day,
-        })
-    }
 }
 
 impl Core {
     /// One book's listened time per local day, oldest first.
     pub fn book_listening(&self, id: &str) -> Result<Vec<aoide_library::DayListening>, String> {
         self.listening.book(id)
-    }
-
-    pub fn listening_stats(&self) -> Result<ListeningStatsView, String> {
-        self.listening.stats()
     }
 }
 
@@ -168,11 +122,8 @@ mod tests {
         let days = listening.book("a").unwrap();
         assert_eq!(days.len(), 1);
         assert!(days[0].ms >= 40, "{days:?}");
-        let stats = listening.stats().unwrap();
-        assert_eq!(
-            (stats.by_book[0].title.as_str(), stats.total_ms),
-            ("Book a", days[0].ms)
-        );
+        let stats = listening.library.lock().unwrap().activity_stats().unwrap();
+        assert_eq!(stats.listening_ms, days[0].ms);
     }
 
     #[test]
@@ -181,6 +132,6 @@ mod tests {
         listening.track(&heard("a", PlaybackStatus::Paused));
         std::thread::sleep(Duration::from_millis(20));
         listening.track(&heard("a", PlaybackStatus::Paused));
-        assert_eq!(listening.stats().unwrap().total_ms, 0);
+        assert!(listening.book("a").unwrap().is_empty());
     }
 }

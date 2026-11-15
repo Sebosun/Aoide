@@ -942,20 +942,6 @@ export function createMockApi() {
           ]
         : [];
     },
-    async listeningStats() {
-      const byBook = [...listened]
-        .map(([bookId, ms]) => ({ bookId, title: books.find((b) => b.id === bookId)?.title ?? "Removed book", ms }))
-        .sort((a, b) => b.ms - a.ms);
-      return {
-        totalMs: byBook.reduce((t, b) => t + b.ms, 0),
-        byBook,
-        byDay: [
-          { day: "2026-11-08", ms: 2_400_000 },
-          { day: "2026-11-09", ms: 3_000_000 },
-          { day: "2026-11-10", ms: 1_200_000 },
-        ],
-      };
-    },
     async activityStats() {
       const ids = [...new Set([...listened.keys(), ...readMs.keys()])];
       const byBook = ids

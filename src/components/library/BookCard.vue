@@ -24,6 +24,7 @@ import UiMenu from "../ui/UiMenu.vue";
 import type { MenuEntry } from "../ui/types";
 import { useUiStore } from "../../stores/ui";
 import { formatBytes } from "../../bytes";
+import { timeLeft } from "../../estimate";
 import {
   ACTION_ICONS,
   ACTION_LABELS,
@@ -61,7 +62,8 @@ const status = computed(() => {
     return progress?.fraction
       ? `${percent.value}% · ${RECORDING[recording]}`
       : RECORDING[recording].replace(/^./, (c) => c.toUpperCase());
-  return `${HAS[audio]} · ${along}`;
+  const left = progress && props.book.readState === "inProgress" ? timeLeft(props.book, library.readingWpm) : "";
+  return [`${HAS[audio]}`, along, left].filter(Boolean).join(" · ");
 });
 const ui = useUiStore(),
   library = useLibraryStore(),

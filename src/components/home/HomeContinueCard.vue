@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { api } from "../../api";
-import type { BookSummary, BookView } from "../../api/types";
+import { computed } from "vue";
+import type { BookSummary } from "../../api/types";
 import CoverArt from "../CoverArt.vue";
-import { formatDuration, speechMs } from "../../estimate";
+import { timeLeft } from "../../estimate";
+import { useLibraryStore } from "../../stores/library";
 import { usePlayerStore } from "../../stores/player";
 import { useReaderStore } from "../../stores/reader";
 import { useNavigationStore } from "../../stores/navigation";
@@ -11,22 +11,9 @@ import { useNavigationStore } from "../../stores/navigation";
 /** One item to continue, as a card that opens it in the reader. The first is the hero. */
 const props = defineProps<{ book: BookSummary; hero?: boolean }>();
 const player = usePlayerStore(),
+  library = useLibraryStore(),
   reader = useReaderStore(),
   navigation = useNavigationStore();
-const overview = ref<BookView | null>(null);
-watch(
-  () => props.book.id,
-  async (id) => {
-    overview.value = null;
-    try {
-      const view = await api.bookOverview(id);
-      if (props.book.id === id) overview.value = view;
-    } catch {
-      /* the card still shows the summary */
-    }
-  },
-  { immediate: true },
-);
 const kind = computed(() => (props.book.audio === "recording" ? "Book · read-along" : "Book"));
 const chapter = computed(() =>
   player.state.bookId === props.book.id ? player.state.chapter : (props.book.progress?.chapter ?? 0),
@@ -34,8 +21,8 @@ const chapter = computed(() =>
 const fraction = computed(() => props.book.progress?.fraction ?? 0);
 const details = computed(() => {
   const parts = [`Chapter ${chapter.value + 1}`, `${Math.round(fraction.value * 100)}%`];
-  if (overview.value?.wordCount)
-    parts.push(`${formatDuration(speechMs(overview.value.wordCount * (1 - fraction.value), player.state.speed))} left`);
+  const left = timeLeft(props.book, library.readingWpm, player.state.speed);
+  if (left) parts.push(left);
   return parts.join(" · ");
 });
 async function open() {

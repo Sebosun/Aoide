@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { CalendarDays, Clock3, Flame, Gauge } from "@lucide/vue";
+import { BookOpen, Flame, Gauge, Headphones } from "@lucide/vue";
 import { api } from "../api";
-import type { ListeningStats } from "../api/types";
+import type { ActivityStats } from "../api/types";
 import CoverArt from "../components/CoverArt.vue";
 import UiSkeleton from "../components/ui/UiSkeleton.vue";
 import { formatDuration } from "../estimate";
-import { dayKey, heatmap, lastDays, lastMonths, streaks, summary, weekdays, type Day } from "../stats";
+import { dayKey, heatmap, lastDays, lastMonths, series as split, streaks, summary, weekdays } from "../stats";
 import { useLibraryStore } from "../stores/library";
 import { useNavigationStore } from "../stores/navigation";
 
-/** Listening over a chosen range: totals, a streak, a bar per day (or month), a calendar of
- *  the last half year, weekdays, and time per book. */
+/** Reading and listening over a chosen range: a total of each, a streak, a bar per day (or
+ *  month) with both stacked, a calendar of the last half year, weekdays, and time per book.
+ *  Streaks, the calendar and weekdays count any time spent. */
 type Range = "week" | "month" | "year" | "all";
 const RANGES: { id: Range; label: string }[] = [
   { id: "week", label: "7 days" },
@@ -21,20 +22,21 @@ const RANGES: { id: Range; label: string }[] = [
 ];
 const library = useLibraryStore(),
   navigation = useNavigationStore();
-const stats = ref<ListeningStats | null>(null),
+const stats = ref<ActivityStats | null>(null),
   error = ref(""),
   range = ref<Range>("week");
 onMounted(async () => {
   void library.start();
   try {
-    stats.value = await api.listeningStats();
+    stats.value = await api.activityStats();
   } catch (e) {
     error.value = String(e);
   }
 });
 
 const today = new Date();
-const days = computed<Day[]>(() => stats.value?.byDay ?? []);
+const all = computed(() => split(stats.value?.byDay ?? []));
+const days = computed(() => all.value.both);
 const first = computed(() => days.value.find((d) => d.ms > 0)?.day ?? dayKey(today));
 const spanDays = computed(() =>
   Math.max(
@@ -44,27 +46,33 @@ const spanDays = computed(() =>
     ) + 1,
   ),
 );
-const series = computed(() =>
-  lastDays(
-    days.value,
-    today,
-    range.value === "week" ? 7 : range.value === "month" ? 30 : range.value === "year" ? 365 : spanDays.value,
-  ),
+const count = computed(() =>
+  range.value === "week" ? 7 : range.value === "month" ? 30 : range.value === "year" ? 365 : spanDays.value,
 );
+const series = computed(() => lastDays(days.value, today, count.value));
 /** Over 12 months, averages count from the first day of listening, so a new library is not
  *  diluted by months before it existed; 7 and 30 days are always whole. */
 const counted = computed(() =>
   range.value === "year" ? series.value.filter((d) => d.day >= first.value) : series.value,
 );
 const totals = computed(() => summary(counted.value.length ? counted.value : series.value));
+/** Reading and listening in the range. */
+const sums = computed(() => {
+  const from = (counted.value.length ? counted.value : series.value)[0]?.day ?? dayKey(today);
+  const sum = (list: { day: string; ms: number }[]) => list.filter((d) => d.day >= from).reduce((n, d) => n + d.ms, 0);
+  return { reading: sum(all.value.reading), listening: sum(all.value.listening) };
+});
 const streak = computed(() => streaks(days.value, today));
 const monthly = computed(() => range.value === "year" || (range.value === "all" && spanDays.value > 62));
 const bars = computed(() => {
-  if (!monthly.value)
-    return series.value.map((d, i, all) => ({
+  if (!monthly.value) {
+    const reading = lastDays(all.value.reading, today, count.value),
+      listening = lastDays(all.value.listening, today, count.value);
+    return reading.map((d, i, list) => ({
       key: d.day,
-      ms: d.ms,
-      label: dayLabel(d.day, all.length - 1 - i),
+      reading: d.ms,
+      listening: listening[i].ms,
+      label: dayLabel(d.day, list.length - 1 - i),
       title: new Date(`${d.day}T12:00:00`).toLocaleDateString(undefined, {
         weekday: "short",
         day: "numeric",
@@ -72,19 +80,23 @@ const bars = computed(() => {
       }),
       now: d.day === dayKey(today),
     }));
-  const count = range.value === "year" ? 12 : Math.ceil(spanDays.value / 30.4) + 1;
-  return lastMonths(days.value, today, count).map((m) => {
+  }
+  const months = range.value === "year" ? 12 : Math.ceil(spanDays.value / 30.4) + 1;
+  const listening = lastMonths(all.value.listening, today, months);
+  return lastMonths(all.value.reading, today, months).map((m, i) => {
     const date = new Date(`${m.month}-15T12:00:00`);
     return {
       key: m.month,
-      ms: m.ms,
+      reading: m.ms,
+      listening: listening[i].ms,
       label: date.toLocaleDateString(undefined, { month: "narrow" }),
       title: date.toLocaleDateString(undefined, { month: "long", year: "numeric" }),
       now: m.month === dayKey(today).slice(0, 7),
     };
   });
 });
-const barMax = computed(() => Math.max(1, ...bars.value.map((b) => b.ms)));
+const barMax = computed(() => Math.max(1, ...bars.value.map((b) => b.reading + b.listening)));
+const barHeight = (ms: number) => (ms ? `${Math.max(2, (ms / barMax.value) * 100)}%` : "0");
 /** Weekday initials for a week; for longer ranges the date of today and every seventh day back. */
 function dayLabel(day: string, daysAgo: number) {
   const date = new Date(`${day}T12:00:00`);
@@ -113,9 +125,14 @@ const books = computed(() =>
     const book = library.books.find((b) => b.id === entry.bookId);
     return {
       ...entry,
+      ms: entry.readingMs + entry.listeningMs,
       book,
-      title: book?.title ?? entry.title,
-      percent: Math.round((book?.progress?.fraction ?? 0) * 100),
+      title: book?.title ?? "Removed book",
+      state: !book
+        ? "Removed from the library"
+        : book.readState === "finished"
+          ? "Finished"
+          : `${Math.round((book.progress?.fraction ?? 0) * 100)}%`,
     };
   }),
 );
@@ -148,7 +165,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
     <p v-if="error" class="activity__error" role="alert">{{ error }}</p>
 
     <template v-if="!stats && !error">
-      <p class="visually-hidden" role="status" aria-label="Loading listening stats">Loading listening stats…</p>
+      <p class="visually-hidden" role="status" aria-label="Loading activity">Loading activity…</p>
       <div class="activity__tiles" aria-hidden="true">
         <UiSkeleton v-for="n in 4" :key="n" class="activity__ghost-tile" />
       </div>
@@ -159,43 +176,52 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
     </template>
     <template v-if="stats">
       <div class="activity__tiles">
+        <div class="activity__tile activity__tile--hero" role="group" aria-label="Read">
+          <BookOpen :size="18" /><span>Read</span><strong>{{ time(sums.reading) }}</strong
+          ><small><i class="activity__key activity__key--reading" />reading</small>
+        </div>
         <div class="activity__tile activity__tile--hero" role="group" aria-label="Listened">
-          <Clock3 :size="18" /><span>Listened</span><strong>{{ time(totals.totalMs) }}</strong>
+          <Headphones :size="18" /><span>Listened</span><strong>{{ time(sums.listening) }}</strong
+          ><small><i class="activity__key activity__key--listening" />listening</small>
         </div>
         <div class="activity__tile" role="group" aria-label="Daily average">
-          <Gauge :size="18" /><span>Daily average</span><strong>{{ time(totals.averageMs) }}</strong>
+          <Gauge :size="18" /><span>Daily average</span><strong>{{ time(totals.averageMs) }}</strong
+          ><small>{{ totals.activeDays }} of {{ counted.length || series.length }} days</small>
         </div>
         <div class="activity__tile" role="group" aria-label="Streak">
           <Flame :size="18" /><span>Streak</span
           ><strong>{{ streak.current }} {{ streak.current === 1 ? "day" : "days" }}</strong
           ><small>best {{ streak.best }}</small>
         </div>
-        <div class="activity__tile" role="group" aria-label="Active days">
-          <CalendarDays :size="18" /><span>Days listened</span><strong>{{ totals.activeDays }}</strong
-          ><small>of {{ counted.length || series.length }}</small>
-        </div>
       </div>
 
-      <p v-if="!stats.totalMs" class="activity__empty">Nothing yet. Listening time appears here as you play books.</p>
+      <p v-if="!stats.readingMs && !stats.listeningMs" class="activity__empty">
+        Nothing yet. Time appears here as you read and listen.
+      </p>
       <template v-else>
         <section class="activity__card activity__chart">
           <ol
             class="activity__bars"
             :class="{ 'activity__bars--dense': bars.length > 14 }"
-            :aria-label="monthly ? 'Listening by month' : 'Listening by day'"
+            :aria-label="monthly ? 'Reading and listening by month' : 'Reading and listening by day'"
           >
             <li
               v-for="bar in bars"
               :key="bar.key"
               class="activity__bar"
               :class="{ 'activity__bar--now': bar.now }"
-              :title="`${bar.title}: ${time(bar.ms)}`"
-              :aria-label="`${bar.title}: ${time(bar.ms)}`"
+              :title="`${bar.title}: ${time(bar.reading)} reading, ${time(bar.listening)} listening`"
+              :aria-label="`${bar.title}: ${time(bar.reading)} reading, ${time(bar.listening)} listening`"
             >
-              <span
-                class="activity__bar-fill"
-                :style="{ height: bar.ms ? `${Math.max(3, (bar.ms / barMax) * 100)}%` : '0' }"
-              />
+              <span class="activity__stack"
+                ><span
+                  v-if="bar.listening"
+                  class="activity__bar-fill activity__bar-fill--listening"
+                  :style="{ height: barHeight(bar.listening) }" /><span
+                  v-if="bar.reading"
+                  class="activity__bar-fill activity__bar-fill--reading"
+                  :style="{ height: barHeight(bar.reading) }"
+              /></span>
               <span class="activity__bar-label" aria-hidden="true">{{ bar.label }}</span>
             </li>
           </ol>
@@ -252,16 +278,18 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
                 />
                 <span class="activity__book-text"
                   ><b>{{ row.title }}</b
-                  ><small>{{
-                    row.book
-                      ? row.percent >= 99
-                        ? "Finished"
-                        : `${row.percent}% listened`
-                      : "Removed from the library"
-                  }}</small></span
+                  ><small>{{ row.state }}</small></span
                 >
-                <span class="activity__track activity__track--book"
-                  ><i :style="{ width: `${(row.ms / bookMax) * 100}%` }"
+                <span
+                  class="activity__track activity__track--book activity__track--split"
+                  :title="`${time(row.readingMs)} reading, ${time(row.listeningMs)} listening`"
+                  ><i
+                    v-if="row.readingMs"
+                    class="activity__part--reading"
+                    :style="{ width: `${(row.readingMs / bookMax) * 100}%` }" /><i
+                    v-if="row.listeningMs"
+                    class="activity__part--listening"
+                    :style="{ width: `${(row.listeningMs / bookMax) * 100}%` }"
                 /></span>
                 <span class="activity__book-time">{{ time(row.ms) }}</span>
               </button>
@@ -416,18 +444,47 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   justify-items: center;
   gap: 6px;
 }
-.activity__bar-fill {
+.activity__stack {
   width: 100%;
   max-width: 46px;
-  border-radius: 6px 6px 3px 3px;
-  background: var(--hero);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.activity__bar-fill {
+  display: block;
+  border-radius: 4px;
   transition: height var(--dur-2) var(--ease);
 }
-.activity__bar:hover .activity__bar-fill {
+.activity__bar-fill--reading,
+.activity__key--reading,
+.activity__part--reading {
+  background: var(--ink);
+}
+.activity__bar-fill--listening,
+.activity__key--listening,
+.activity__part--listening {
   background: var(--faint);
 }
-.activity__bar--now .activity__bar-fill {
-  background: var(--accent);
+.activity__bar:hover .activity__stack {
+  opacity: 0.8;
+}
+.activity__bar--now .activity__bar-label {
+  color: var(--ink);
+  font-weight: 800;
+}
+.activity__key {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 2px;
+}
+.activity__track--split {
+  display: flex;
+  gap: 2px;
 }
 .activity__bar-label {
   font-size: 11px;
@@ -519,6 +576,16 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   border-radius: 4px;
   background: var(--ink);
 }
+.activity__track--split i {
+  position: static;
+  flex: none;
+}
+.activity__track--split .activity__part--reading {
+  background: var(--ink);
+}
+.activity__track--split .activity__part--listening {
+  background: var(--faint);
+}
 .activity__books {
   display: grid;
   gap: 4px;
@@ -561,9 +628,6 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 .activity__book-text small {
   color: var(--dim);
   font-weight: 500;
-}
-.activity__track--book i {
-  background: var(--accent);
 }
 .activity__book-time {
   text-align: right;

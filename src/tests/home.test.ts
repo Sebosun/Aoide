@@ -88,14 +88,21 @@ it("invites the first add when there is nothing to show", async () => {
   wrapper.unmount();
 });
 
-it("sums the last 7 days of listening with one bar per day", async () => {
+it("sums the last 7 days of reading and listening with one stacked bar per day", async () => {
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-11-11T12:00:00"));
   const wrapper = mount(App);
   await flushPromises();
   const week = wrapper.get('[aria-labelledby="home-week"] [aria-label="Last 7 days"]');
-  expect(week.text()).toContain("1 h 50 min");
-  expect(week.findAll(".week-card__bar")).toHaveLength(7);
+  expect(week.text()).toContain("30 min reading");
+  expect(week.text()).toContain("1 h 50 min listening");
+  const days = week.findAll(".week-card__day");
+  expect(days).toHaveLength(7);
+  // The 9th has both; today has neither.
+  const ninth = days.find((d) => d.attributes("title")?.includes("20 min reading"))!;
+  expect(ninth.findAll(".week-card__bar--reading")).toHaveLength(1);
+  expect(ninth.findAll(".week-card__bar--listening")).toHaveLength(1);
+  expect(days[6].findAll(".week-card__bar--none")).toHaveLength(1);
   wrapper.unmount();
   vi.useRealTimers();
 });

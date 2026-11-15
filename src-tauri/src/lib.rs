@@ -13,8 +13,8 @@ use tauri::{Manager, State};
 use crate::book::ChapterView;
 use crate::core::{
     AppInfo, AppSettings, AppSettingsPatch, BookProgressView, BookSettings, BookSummary, BookView,
-    Core, CoreError, EngineOptions, EngineStatusView, HomeView, ImportResult, ListeningStatsView,
-    Paths, PreferencesView, ReadingMode,
+    Core, CoreError, EngineOptions, EngineStatusView, HomeView, ImportResult, Paths,
+    PreferencesView, ReadingMode,
 };
 
 type CoreState<'a> = State<'a, Arc<Core>>;
@@ -374,12 +374,6 @@ async fn book_listening(
 async fn activity_stats(core: CoreState<'_>) -> Result<aoide_library::ActivityStats, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.activity_stats()).await
-}
-
-#[tauri::command]
-async fn listening_stats(core: CoreState<'_>) -> Result<ListeningStatsView, CoreError> {
-    let core = Arc::clone(&core);
-    blocking(move || core.listening_stats()).await
 }
 
 #[tauri::command]
@@ -835,7 +829,6 @@ pub fn run() {
             add_bookmark,
             update_bookmark_note,
             delete_bookmark,
-            listening_stats,
             book_listening,
             book_details,
             app_settings,

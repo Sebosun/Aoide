@@ -108,7 +108,6 @@ export const tauriApi: AoideApi = {
   addBookmark: (bookId, note) => call("add_bookmark", { bookId, note }),
   updateBookmarkNote: (id, note) => call("update_bookmark_note", { id, note }),
   deleteBookmark: (id) => call("delete_bookmark", { id }),
-  listeningStats: () => call("listening_stats"),
   activityStats: () => call("activity_stats"),
   bookListening: (bookId) => call("book_listening", { bookId }),
   bookDetails: (bookId) => call("book_details", { bookId }),

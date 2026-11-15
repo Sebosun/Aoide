@@ -25,7 +25,7 @@ afterEach(() => {
 });
 
 /** Holds back one API call until `release()`. */
-function hold<K extends "listBooks" | "bookOverview" | "listeningStats">(method: K) {
+function hold<K extends "listBooks" | "bookOverview" | "activityStats">(method: K) {
   const real = mock[method].bind(mock) as (...args: unknown[]) => Promise<unknown>;
   let release = () => {};
   const gate = new Promise<void>((resolve) => {
@@ -81,20 +81,20 @@ it("shows the book's title at once and placeholders for its details until they l
   wrapper.unmount();
 });
 
-it("shows placeholders while listening stats load, and the error if they fail", async () => {
-  const release = hold("listeningStats");
+it("shows placeholders while activity loads, and the error if they fail", async () => {
+  const release = hold("activityStats");
   const wrapper = mount(ActivityView, { attachTo: document.body });
   await flushPromises();
-  expect(placeholder(wrapper, "Loading listening stats").exists()).toBe(true);
+  expect(placeholder(wrapper, "Loading activity").exists()).toBe(true);
   await release();
-  expect(placeholder(wrapper, "Loading listening stats").exists()).toBe(false);
+  expect(placeholder(wrapper, "Loading activity").exists()).toBe(false);
   expect(wrapper.get('[aria-label="Listened"]').text()).toContain("Listened");
   wrapper.unmount();
 
-  vi.spyOn(mock, "listeningStats").mockRejectedValue(new Error("stats unavailable"));
+  vi.spyOn(mock, "activityStats").mockRejectedValue(new Error("stats unavailable"));
   const failed = mount(ActivityView, { attachTo: document.body });
   await flushPromises();
-  expect(placeholder(failed, "Loading listening stats").exists()).toBe(false);
+  expect(placeholder(failed, "Loading activity").exists()).toBe(false);
   expect(failed.get('[role="alert"]').text()).toContain("stats unavailable");
   failed.unmount();
 });

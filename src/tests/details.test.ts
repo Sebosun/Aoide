@@ -6,6 +6,7 @@ import App from "../App.vue";
 import { useRecordingsStore } from "../stores/recordings";
 import { usePlayerStore } from "../stores/player";
 import { useNavigationStore } from "../stores/navigation";
+import { useReaderStore } from "../stores/reader";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("../api", () => ({
@@ -166,5 +167,27 @@ it("marks the book finished, and unread again, from its page", async () => {
   await flushPromises();
   expect(about.get(".item-page__kind").text()).toBe("Book · unread");
   expect(about.findAll("button").some((b) => b.text() === "Mark as finished")).toBe(true);
+  wrapper.unmount();
+});
+
+it("leads with Read for a book read silently and with Listen for one listened to", async () => {
+  const wrapper = await app();
+  await wrapper.get('[aria-label="Open A Map of Quiet Places"]').trigger("click");
+  await flushPromises();
+  let about = page(wrapper);
+  expect(about.get('[aria-label="Read"]').classes()).toContain("item-page__primary");
+  expect(about.get('[aria-label="Listen"]').classes()).toContain("item-page__secondary");
+  expect(about.get('[aria-labelledby="item-text"]').text()).toMatch(/About .+ to read/);
+
+  await mock.setMode("book-1", "listen");
+  await flushPromises();
+  about = page(wrapper);
+  expect(about.get('[aria-label="Listen"]').classes()).toContain("item-page__primary");
+  // Read from here reads silently again.
+  const setMode = vi.spyOn(mock, "setMode");
+  await about.get('[aria-label="Read"]').trigger("click");
+  await flushPromises();
+  expect(setMode).toHaveBeenCalledWith("book-1", "read");
+  expect(useReaderStore().shape).toBe("read");
   wrapper.unmount();
 });

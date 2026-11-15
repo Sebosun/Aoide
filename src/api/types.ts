@@ -15,7 +15,6 @@ import type {
   BlockView,
   BookDetails,
   BookId,
-  BookListeningView,
   BookProgress,
   BookSettings,
   BookStatus,
@@ -49,7 +48,6 @@ import type {
   PairOutcome,
   LaunchCommand,
   LibrarySort,
-  ListeningStats,
   MetadataMatch,
   NetworkScope,
   NoteMarker,
@@ -195,7 +193,6 @@ export interface AoideApi {
   addBookmark(bookId: string, note: string): Promise<Bookmark>;
   updateBookmarkNote(id: number, note: string): Promise<void>;
   deleteBookmark(id: number): Promise<void>;
-  listeningStats(): Promise<ListeningStats>;
   /** Reading and listening time, per day and per book. */
   activityStats(): Promise<ActivityStats>;
   /** One book's listened time per local day, oldest first. */

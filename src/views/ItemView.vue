@@ -26,7 +26,7 @@ import BookNarration from "../components/book/BookNarration.vue";
 import { useCollections } from "../composables/useCollections";
 import { useRecordingsStore } from "../stores/recordings";
 import { formatBytes } from "../bytes";
-import { formatDuration, speechMs } from "../estimate";
+import { formatDuration, readingMs, speechMs } from "../estimate";
 import { useLibraryStore } from "../stores/library";
 import { useNavigationStore } from "../stores/navigation";
 import { usePlayerStore } from "../stores/player";
@@ -172,8 +172,16 @@ async function prepareOne(index: number) {
 const longDescription = computed(() => (details.value?.description?.length ?? 0) > 420);
 const notes = computed(() => (overview.value?.warnings.length ?? 0) + (overview.value?.excluded.length ?? 0));
 
-/** Read opens the text where it was left, without playing. */
+/** The item is listened to: Listen is the main action. */
+const listened = computed(() => (summary.value?.mode ?? overview.value?.mode) === "listen");
+/** Read opens the text where it was left, to be read silently (pausing it if it plays). */
 async function read() {
+  try {
+    if (listened.value) await api.setMode(props.bookId, "read");
+  } catch (e) {
+    error.value = String(e);
+    return;
+  }
   await reader.open(props.bookId);
 }
 /** Listen opens the text and plays from the saved place. */
@@ -223,10 +231,20 @@ const collectionItems = computed<MenuEntry[]>(() => {
         >
         <UiSkeleton v-else-if="loading" class="item-page__ghost-title" />
         <div class="item-page__actions">
-          <button type="button" class="item-page__primary" aria-label="Read" @click="read">
+          <button
+            type="button"
+            :class="listened ? 'item-page__secondary' : 'item-page__primary'"
+            aria-label="Read"
+            @click="read"
+          >
             <BookOpen :size="18" aria-hidden="true" /> Read
           </button>
-          <button type="button" class="item-page__secondary" aria-label="Listen" @click="listen">
+          <button
+            type="button"
+            :class="listened ? 'item-page__primary' : 'item-page__secondary'"
+            aria-label="Listen"
+            @click="listen"
+          >
             <Headphones :size="18" aria-hidden="true" /> Listen
           </button>
           <UiMenu v-if="summary" v-slot="{ toggle, trigger }" label="Collections" :items="collectionItems" :width="260">
@@ -281,7 +299,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
           <span class="item-page__badge item-page__badge--ok"><i aria-hidden="true" />EPUB</span>
         </div>
         <b class="item-page__lead">{{
-          words ? `About ${formatDuration(speechMs(words, 1))} read aloud` : "No readable words"
+          words ? `About ${formatDuration(readingMs(words, library.readingWpm))} to read` : "No readable words"
         }}</b>
         <span class="item-page__facts">{{ textFacts.join(" · ") }}</span>
         <button

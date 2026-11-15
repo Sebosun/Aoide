@@ -311,10 +311,6 @@ byDay: Array<DayActivity>,
  */
 byBook: Array<BookActivity>, };
 
-export type BookListeningView = { bookId: string, title: string, ms: number, };
-
-export type ListeningStats = { totalMs: number, byBook: Array<BookListeningView>, byDay: Array<DayListening>, };
-
 export type BookDetails = { description: string | null, publisher: string | null, isbn: string | null, published: string | null, subjects: Array<string>, 
 /**
  * Open Library work or edition key (e.g. "/works/OL45883W") once the user picked a match.
@@ -747,7 +743,6 @@ export type Commands = {
   "delete_bookmark": { args: { id: number }; result: void };
   "book_listening": { args: { bookId: string }; result: DayListening[] };
   "activity_stats": { args: Record<string, never>; result: ActivityStats };
-  "listening_stats": { args: Record<string, never>; result: ListeningStats };
   "book_details": { args: { bookId: string }; result: BookDetails };
   "app_settings": { args: Record<string, never>; result: AppSettings };
   "update_app_settings": { args: { patch: AppSettingsPatch }; result: AppSettings };

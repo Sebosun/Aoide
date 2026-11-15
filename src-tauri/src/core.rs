@@ -79,7 +79,6 @@ mod recording_tests;
 #[cfg(test)]
 mod tests;
 pub use error::CoreError;
-pub use listening::ListeningStatsView;
 use preparation::Plan;
 pub use preparation::{PrepareView, Stage as PrepareStage};
 pub use settings::{AlignerSettings, AppSettings, AppSettingsPatch};

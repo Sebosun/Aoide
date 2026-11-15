@@ -96,3 +96,13 @@ export function heatmap(
     week.map((cell) => ({ ...cell, level: cell.ms && busiest ? Math.max(1, Math.ceil((cell.ms / busiest) * 4)) : 0 })),
   );
 }
+
+/** Per-day reading and listening (`activity_stats`), as three day series: each alone and both
+ *  added up (for streaks, the calendar and weekdays, which count any time spent). */
+export function series(byDay: { day: string; readingMs: number; listeningMs: number }[]) {
+  return {
+    reading: byDay.map((d) => ({ day: d.day, ms: d.readingMs })),
+    listening: byDay.map((d) => ({ day: d.day, ms: d.listeningMs })),
+    both: byDay.map((d) => ({ day: d.day, ms: d.readingMs + d.listeningMs })),
+  };
+}
