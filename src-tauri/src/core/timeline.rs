@@ -117,14 +117,17 @@ impl Timeline {
             .collect()
     }
 
-    /// The stretch holding `at_ms` and how far into it that is; past the end, the end.
+    /// The stretch holding `at_ms` and how far into it that is; past the end, the end (the
+    /// start, for a recording with no length).
     pub fn locate(&self, at_ms: u64) -> (usize, u32) {
         let last = self.chunks.len().saturating_sub(1);
         let index = self
             .chunks
             .partition_point(|chunk| chunk.end <= at_ms)
             .min(last);
-        let chunk = &self.chunks[index];
+        let Some(chunk) = self.chunks.get(index) else {
+            return (0, 0);
+        };
         (
             index,
             at_ms
@@ -234,6 +237,9 @@ impl Core {
             .map_err(|e| e.to_string())?
             .ok_or("book not found")?;
         let source = self.recordings.timeline_source(id)?;
+        if source.total_ms == 0 {
+            return Err("The recording has no audio to play.".into());
+        }
         Ok(Timeline::new(
             id.to_owned(),
             record.title.unwrap_or_default(),
@@ -442,6 +448,14 @@ mod tests {
         assert_eq!(t.time_at(2, 1_500), 13_500);
         assert_eq!(t.part_at(11_999), 0);
         assert_eq!(t.part_at(12_000), 1);
+    }
+
+    #[test]
+    fn a_recording_with_no_length_has_no_stretches_and_finds_every_time_at_its_start() {
+        let t = timeline(0, &[("One", 0)]);
+        assert!(t.chunks.is_empty());
+        assert_eq!(t.locate(5_000), (0, 0));
+        assert_eq!(t.part_at(5_000), 0);
     }
 
     // ---------------------------------------------------------------- playing it

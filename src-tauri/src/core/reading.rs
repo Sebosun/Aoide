@@ -336,10 +336,7 @@ impl super::Core {
 
     /// Forgets that item `id` was finished, and where the user was in it.
     pub fn mark_unread(&self, id: &str) -> Result<(), String> {
-        self.read_event(id, ReadEvent::MarkedUnread)?;
-        // The place it is in no longer counts: the library shows it without one.
-        self.emit(CoreEvent::LibraryChanged);
-        Ok(())
+        self.read_event(id, ReadEvent::MarkedUnread).map(drop)
     }
 
     /// The user is reading item `id` silently at `segment_id` in `chapter`: stores that place
