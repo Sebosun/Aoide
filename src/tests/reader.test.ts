@@ -27,9 +27,9 @@ afterEach(() => {
   mock.dispose();
 });
 
-async function openReader(options: { attach?: boolean } = {}) {
+async function openReader(options: { attach?: boolean; book?: string } = {}) {
   await useLibraryStore().start();
-  await useReaderStore().open("book-0");
+  await useReaderStore().open(options.book ?? "book-0");
   await usePlayerStore().start();
   const wrapper = mount(ReaderView, options.attach ? { attachTo: document.body } : {});
   await flushPromises();
@@ -286,5 +286,77 @@ it("sets the volume from the dock, and mutes and unmutes to the same level", asy
   expect(volume().value).toBe("0");
   await press("Unmute");
   expect(usePlayerStore().state.volume).toBe(0.4);
+  wrapper.unmount();
+});
+
+it("reads a silent book as a page with its progress underneath, and no player", async () => {
+  const play = vi.spyOn(mock, "play");
+  const wrapper = await openReader({ book: "book-1" });
+  expect(wrapper.find('[aria-label="Player"]').exists()).toBe(false);
+  const progress = wrapper.get('[role="progressbar"][aria-label="Reading progress"]');
+  expect(progress.attributes("aria-valuenow")).toBe("0");
+  expect(wrapper.get(".sheet__foot").text()).toMatch(/0%.*left to read/);
+  expect(wrapper.get('[aria-label="About this book"]').text()).toMatch(/min to read/);
+  expect(wrapper.find('[aria-label="Reader mode"]').exists()).toBe(false);
+  const listen = wrapper.get("button.listen-button");
+  expect([listen.text(), listen.attributes("aria-pressed")]).toEqual(["Listen", "false"]);
+  // Sentences are only read: clicking one plays nothing.
+  const sentence = wrapper.get('[data-segment-id="0:1:0"]');
+  expect(sentence.attributes("role")).toBeUndefined();
+  await sentence.trigger("click");
+  expect(play).not.toHaveBeenCalled();
+  wrapper.unmount();
+});
+
+it("listens from where the reader is and reads on silently when Listening is pressed again", async () => {
+  const setMode = vi.spyOn(mock, "setMode"),
+    play = vi.spyOn(mock, "play");
+  const wrapper = await openReader({ book: "book-1" });
+  useReaderStore().place = { chapter: 1, segmentId: "1:1:0" };
+  await wrapper.get("button.listen-button").trigger("click");
+  await flushPromises();
+  expect(setMode).toHaveBeenCalledWith("book-1", "listen");
+  expect(play).toHaveBeenCalledWith("book-1", 1, "1:1:0");
+  const listening = wrapper.get("button.listen-button");
+  expect([listening.text(), listening.attributes("aria-pressed")]).toEqual(["Listening", "true"]);
+  expect(wrapper.find('[aria-label="Player"]').exists()).toBe(true);
+  expect(wrapper.find('[aria-label="Reader mode"]').exists()).toBe(true);
+
+  await listening.trigger("click");
+  await flushPromises();
+  expect(setMode).toHaveBeenLastCalledWith("book-1", "read");
+  expect(usePlayerStore().state.status).toBe("paused");
+  expect(wrapper.find('[aria-label="Player"]').exists()).toBe(false);
+  wrapper.unmount();
+});
+
+it("shows Lines only while listening, and a silent book in Lines mode as a page", async () => {
+  mock.emitConfig({ appearance: { readerMode: "lines" } });
+  await usePreferencesStore().start();
+  const wrapper = await openReader({ book: "book-1" });
+  expect(wrapper.find(".sheet").exists()).toBe(true);
+  expect(wrapper.find('[aria-label="Spoken sentence"]').exists()).toBe(false);
+  wrapper.unmount();
+  const along = await openReader();
+  expect(along.find('[aria-label="Reader mode"]').exists()).toBe(true);
+  along.unmount();
+});
+
+it("offers ways to give the book a voice when nothing could narrate it", async () => {
+  const play = vi.spyOn(mock, "play");
+  const wrapper = await openReader({ book: "book-1", attach: true });
+  mock.emitEngine({ profileName: "Local Chatterbox", state: "offline", detail: null });
+  await flushPromises();
+  const listen = wrapper.get("button.listen-button");
+  expect(listen.attributes("aria-haspopup")).toBe("menu");
+  await listen.trigger("click");
+  await flushPromises();
+  const items = [...document.body.querySelectorAll('[role="menu"] [role^="menuitem"]')].map((i) =>
+    i.textContent?.trim(),
+  );
+  expect(items).toEqual(["Narrate with a voice", "Pair an audiobook…", "Speech engine settings"]);
+  expect(play).not.toHaveBeenCalled();
+  await pickMenuItem("Narrate with a voice");
+  expect(play).toHaveBeenCalledWith("book-1", null, null);
   wrapper.unmount();
 });

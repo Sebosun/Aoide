@@ -3,15 +3,19 @@ import { computed, ref } from "vue";
 import type { BlockView, ChapterView, NoteMarker, SegmentView } from "../../api/types";
 
 /** A chapter set as a page: headings and paragraphs, the spoken sentence washed and the
- *  current word underlined (nothing changes size, so lines never reflow). Clicking a sentence
- *  plays from it. Footnotes sit in the margin beside their paragraph (`marginNotes`) or open
- *  as popovers on their marker. */
-const props = defineProps<{
-  chapter: ChapterView;
-  currentSegment: string | null;
-  currentWord: number | null;
-  marginNotes: boolean;
-}>();
+ *  current word underlined (nothing changes size, so lines never reflow). When `playable`,
+ *  clicking a sentence plays from it. Footnotes sit in the margin beside their paragraph
+ *  (`marginNotes`) or open as popovers on their marker. */
+const props = withDefaults(
+  defineProps<{
+    chapter: ChapterView;
+    currentSegment: string | null;
+    currentWord: number | null;
+    marginNotes: boolean;
+    playable?: boolean;
+  }>(),
+  { playable: true },
+);
 const emit = defineEmits<{ play: [segmentId: string] }>();
 const openNote = ref<string | null>(null);
 
@@ -38,8 +42,9 @@ function marker(segment: SegmentView, note: NoteMarker) {
   openNote.value = openNote.value === key ? null : key;
 }
 const play = (segment: SegmentView) => {
-  if (segment.speakable) emit("play", segment.id);
+  if (props.playable && segment.speakable) emit("play", segment.id);
 };
+const clickable = (segment: SegmentView) => props.playable && segment.speakable;
 /** Sentences the book's recording has no audio for (playback skips them). */
 const unnarrated = computed(() => new Set(props.chapter.notNarrated ?? []));
 const chapterMissing = computed(
@@ -50,7 +55,7 @@ const chapterMissing = computed(
 </script>
 
 <template>
-  <article class="chapter-text" aria-label="Chapter text">
+  <article class="chapter-text" :class="{ 'chapter-text--still': !playable }" aria-label="Chapter text">
     <p v-if="chapterMissing" class="chapter-text__missing" role="note">
       This chapter is not in the recording, so playing skips it. To hear it, turn on
       <strong>Speak what the recording lacks</strong> under Narration in the book tools, or choose
@@ -68,8 +73,8 @@ const chapterMissing = computed(
             'chapter-text__segment--current': segment.id === currentSegment,
           }"
           :data-segment-id="segment.id"
-          :role="segment.speakable ? 'button' : undefined"
-          :tabindex="segment.speakable ? 0 : undefined"
+          :role="clickable(segment) ? 'button' : undefined"
+          :tabindex="clickable(segment) ? 0 : undefined"
           @click="play(segment)"
           @keydown.enter.prevent="play(segment)"
           @keydown.space.prevent="play(segment)"
@@ -169,8 +174,12 @@ h3.chapter-text__block--heading {
   color: var(--dim);
   cursor: default;
 }
-.chapter-text__segment--quiet:hover {
+.chapter-text__segment--quiet:hover,
+.chapter-text--still .chapter-text__segment:hover {
   background: none;
+}
+.chapter-text--still .chapter-text__segment {
+  cursor: auto;
 }
 .chapter-text__segment--unnarrated {
   color: var(--dim);

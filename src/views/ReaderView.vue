@@ -5,6 +5,7 @@ import ReaderSheet from "../components/reader/ReaderSheet.vue";
 import ReaderLines from "../components/reader/ReaderLines.vue";
 import ReaderTools from "../components/reader/ReaderTools.vue";
 import ChapterMenu from "../components/reader/ChapterMenu.vue";
+import ListenButton from "../components/reader/ListenButton.vue";
 import { usePlayerControls } from "../composables/usePlayerControls";
 import { prepareChapter } from "../preparation";
 import { usePreferencesStore } from "../stores/preferences";
@@ -39,6 +40,8 @@ onUnmounted(() => navigation.closeTools());
 const backLabel = computed(() => VIEW_NAMES[navigation.readerFrom]);
 const { bookmark } = usePlayerControls();
 const playingHere = computed(() => player.state.bookId === reader.book?.id);
+/** Lines follows the narration, so it is offered only while listening. */
+const lines = computed(() => reader.shape === "readAlong" && preferences.appearance.readerMode === "lines");
 </script>
 
 <template>
@@ -59,7 +62,8 @@ const playingHere = computed(() => player.state.bookId === reader.book?.id);
         @prepare="prepareChapter(reader.book.id, $event)"
       />
       <div class="reader__actions">
-        <ReaderTools />
+        <ListenButton />
+        <ReaderTools :lines="reader.shape === 'readAlong'" />
         <button
           type="button"
           class="reader__round"
@@ -82,8 +86,8 @@ const playingHere = computed(() => player.state.bookId === reader.book?.id);
         </button>
       </div>
     </header>
-    <ReaderLines v-if="preferences.appearance.readerMode === 'lines'" @tools="openTools(undefined)" />
-    <ReaderSheet v-else @tools="openTools" />
+    <ReaderLines v-if="lines" @tools="openTools(undefined)" />
+    <ReaderSheet v-else :shape="reader.shape" @tools="openTools" />
     <Transition name="reader__chip">
       <p v-if="offText" class="reader__chip" role="status">
         <Headphones :size="14" aria-hidden="true" /> Not in the text

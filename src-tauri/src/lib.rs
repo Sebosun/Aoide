@@ -12,9 +12,9 @@ use tauri::{Manager, State};
 
 use crate::book::ChapterView;
 use crate::core::{
-    AppInfo, AppSettings, AppSettingsPatch, BookSettings, BookSummary, BookView, Core, CoreError,
-    EngineOptions, EngineStatusView, HomeView, ImportResult, ListeningStatsView, Paths,
-    PreferencesView, ReadingMode,
+    AppInfo, AppSettings, AppSettingsPatch, BookProgressView, BookSettings, BookSummary, BookView,
+    Core, CoreError, EngineOptions, EngineStatusView, HomeView, ImportResult, ListeningStatsView,
+    Paths, PreferencesView, ReadingMode,
 };
 
 type CoreState<'a> = State<'a, Arc<Core>>;
@@ -94,14 +94,14 @@ async fn mark_unread(core: CoreState<'_>, book_id: String) -> Result<(), CoreErr
     blocking(move || core.mark_unread(&book_id)).await
 }
 
-/// Where the user is reading silently; ignored while that book plays.
+/// Where the user is reading silently, and the progress it makes; ignored while that book plays.
 #[tauri::command]
 async fn set_reading_place(
     core: CoreState<'_>,
     book_id: String,
     chapter: usize,
     segment_id: String,
-) -> Result<(), CoreError> {
+) -> Result<Option<BookProgressView>, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.set_reading_place(&book_id, chapter, &segment_id)).await
 }

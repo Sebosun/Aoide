@@ -5,6 +5,9 @@ export const WORDS_PER_MINUTE = 160;
 
 export const speechMs = (words: number, speed = 1) => ((words / WORDS_PER_MINUTE) * 60_000) / Math.max(0.1, speed);
 
+/** Reading silently at `wpm` words a minute. */
+export const readingMs = (words: number, wpm: number) => (words / Math.max(1, wpm)) * 60_000;
+
 export function formatDuration(ms: number): string {
   const minutes = Math.round(ms / 60_000);
   if (ms < 60_000 || minutes < 1) return "<1 min";

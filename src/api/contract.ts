@@ -708,7 +708,7 @@ export type Commands = {
   "book_overview": { args: { bookId: string }; result: BookView };
   "mark_finished": { args: { bookId: string }; result: void };
   "mark_unread": { args: { bookId: string }; result: void };
-  "set_reading_place": { args: { bookId: string; chapter: number; segmentId: string }; result: void };
+  "set_reading_place": { args: { bookId: string; chapter: number; segmentId: string }; result: BookProgress | null };
   "reading_activity": { args: { bookId: string }; result: void };
   "set_mode": { args: { bookId: string; mode: ReadingMode }; result: BookView };
   "chapter": { args: { bookId: string; chapter: number }; result: ChapterView };

@@ -340,23 +340,24 @@ impl super::Core {
     }
 
     /// The user is reading item `id` silently at `segment_id` in `chapter`: stores that place
-    /// as its progress, as playback would. Ignored while the item is playing, since playback
-    /// owns the place then.
+    /// as its progress, as playback would, and returns it. Ignored (`None`) while the item is
+    /// playing, since playback owns the place then.
     pub fn set_reading_place(
         &self,
         id: &str,
         chapter: usize,
         segment_id: &str,
-    ) -> Result<(), String> {
+    ) -> Result<Option<super::BookProgressView>, String> {
         if self.playback.is_book(id) && self.playback.is_playing() {
-            return Ok(());
+            return Ok(None);
         }
         let book = self.load_book(id)?;
         let index = book
             .index_of(segment_id)
             .filter(|&index| book.locate(index).is_some_and(|(c, _)| c == chapter))
             .ok_or("that place is not in the book")?;
-        self.store_place(super::playback::Place { book, index })
+        self.store_place(super::playback::Place { book, index })?;
+        Ok(self.shelf.progress(&BookId(id.into())))
     }
 
     /// The user is reading item `id` silently now; the window says so every few seconds.

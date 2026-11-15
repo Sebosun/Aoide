@@ -792,8 +792,11 @@ async fn reading_silently_saves_the_place_and_the_last_sentence_finishes_the_boo
     assert_eq!(read_state(&core), ReadState::Unread);
 
     let second = spoken(&core, &id, 1);
-    core.set_reading_place(&id, 1, &second[0]).unwrap();
-    let progress = core.book_overview(&id).unwrap().progress.unwrap();
+    let progress = core.set_reading_place(&id, 1, &second[0]).unwrap().unwrap();
+    assert_eq!(
+        core.book_overview(&id).unwrap().progress,
+        Some(progress.clone())
+    );
     assert_eq!(
         (progress.chapter, progress.segment_id.as_deref()),
         (1, Some(second[0].as_str()))
@@ -856,7 +859,7 @@ async fn the_playing_book_keeps_its_place_and_playing_it_to_the_end_finishes_it(
         .await
         .unwrap();
     // Playback owns the place while the book plays: a reading place is ignored.
-    core.set_reading_place(&id, 0, &first[0]).unwrap();
+    assert_eq!(core.set_reading_place(&id, 0, &first[0]).unwrap(), None);
     until("playback to reach the end", || {
         core.list_books().unwrap()[0].read_state == ReadState::Finished
     })

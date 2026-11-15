@@ -662,7 +662,7 @@ export function createMockApi() {
     },
     async setReadingPlace(id, chapter, segmentId) {
       const b = getBook(id);
-      if (state.bookId === id && state.status === "playing") return;
+      if (state.bookId === id && state.status === "playing") return null;
       // As the core does: the place's share of the book's spoken segments.
       const all = chapters[Number(id.split("-")[1])].flatMap((c, n) =>
         c.blocks.flatMap((block) => block.segments.filter((s) => s.speakable).map((s) => `${n}/${s.id}`)),
@@ -673,6 +673,7 @@ export function createMockApi() {
       if (index === all.length - 1) b.readState = "finished";
       else if (b.readState === "unread") b.readState = "inProgress";
       changed();
+      return structuredClone(b.progress);
     },
     async readingActivity(id) {
       getBook(id);

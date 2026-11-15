@@ -139,8 +139,9 @@ export interface AoideApi {
   markFinished(bookId: string): Promise<void>;
   /** Also forgets where the user was in it. */
   markUnread(bookId: string): Promise<void>;
-  /** Where the user is reading silently; ignored while that book plays. */
-  setReadingPlace(bookId: string, chapter: number, segmentId: string): Promise<void>;
+  /** Where the user is reading silently; returns the book's progress now, or null when
+   *  ignored because that book is playing. */
+  setReadingPlace(bookId: string, chapter: number, segmentId: string): Promise<BookProgress | null>;
   /** The user is reading the book silently now; send every 15 s at most. */
   readingActivity(bookId: string): Promise<void>;
   /** Starts playback at a segment (or the saved position when segmentId is null). */

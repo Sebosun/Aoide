@@ -7,14 +7,18 @@ import PlayerDock from "../player/PlayerDock.vue";
 import { useFollow } from "../../composables/useFollow";
 import { useMediaQuery } from "../../composables/useMediaQuery";
 import { usePlayerControls } from "../../composables/usePlayerControls";
-import { formatDuration, speechMs, wordsLeft } from "../../estimate";
+import { formatDuration, readingMs, speechMs, wordsLeft } from "../../estimate";
+import type { Shape } from "../../api/types";
 import { useLibraryStore } from "../../stores/library";
 import { useReaderStore } from "../../stores/reader";
 import { useNavigationStore } from "../../stores/navigation";
 import { prepareChapter } from "../../preparation";
 
 /** Page mode: a full-width sheet with the text in a 640px column, the book in the left
- *  margin, footnotes and tools in the right margin, and the transport docked underneath. */
+ *  margin and footnotes and tools in the right margin. Listening (`readAlong`) docks the
+ *  transport underneath and follows the playhead; reading silently (`read`) shows the progress
+ *  through the book there instead, and the text is only read. */
+const props = defineProps<{ shape: Shape }>();
 const emit = defineEmits<{ tools: [tab?: "details" | "voice"] }>();
 const reader = useReaderStore(),
   library = useLibraryStore(),
@@ -23,7 +27,8 @@ const { player, timeLeftMs } = usePlayerControls();
 const wide = useMediaQuery("(min-width: 1000px)");
 const scroller = ref<HTMLElement>();
 
-const playingHere = computed(() => Boolean(reader.book) && player.state.bookId === reader.book?.id);
+const along = computed(() => props.shape === "readAlong");
+const playingHere = computed(() => along.value && Boolean(reader.book) && player.state.bookId === reader.book?.id);
 const onPage = computed(() => playingHere.value && player.state.chapter === reader.currentChapter);
 const { following, follow, backToPlayhead, restart, listeners } = useFollow(
   scroller,
@@ -51,12 +56,23 @@ watch(
 const coverUrl = computed(() => library.books.find((b) => b.id === reader.book?.id)?.coverUrl ?? null);
 const chapterLeft = computed(() => {
   if (onPage.value && timeLeftMs.value !== null) return `${formatDuration(timeLeftMs.value)} left`;
-  return reader.chapter
-    ? `${formatDuration(speechMs(wordsLeft(reader.chapter, null, null), player.state.speed))} left`
-    : "";
+  if (!reader.chapter) return "";
+  const words = wordsLeft(reader.chapter, null, null);
+  return along.value
+    ? `${formatDuration(speechMs(words, player.state.speed))} left`
+    : `${formatDuration(readingMs(words, library.readingWpm))} to read`;
+});
+/** Through the whole book, as the core last reported it. */
+const fraction = computed(() => {
+  const summary = library.books.find((b) => b.id === reader.book?.id);
+  return Math.min(1, Math.max(0, summary?.progress?.fraction ?? reader.book?.progress?.fraction ?? 0));
+});
+const bookLeft = computed(() => {
+  const words = (reader.book?.wordCount ?? 0) * (1 - fraction.value);
+  return `${formatDuration(readingMs(words, library.readingWpm))} left to read`;
 });
 async function play(segmentId: string) {
-  if (reader.book) await player.play(reader.book.id, reader.currentChapter, segmentId);
+  if (along.value && reader.book) await player.play(reader.book.id, reader.currentChapter, segmentId);
 }
 const jump = (index: number) => reader.startChapter(index);
 </script>
@@ -95,6 +111,7 @@ const jump = (index: number) => reader.startChapter(index);
           :current-segment="onPage ? player.state.segmentId : null"
           :current-word="onPage ? player.state.wordIndex : null"
           :margin-notes="wide"
+          :playable="along"
           @play="play"
         />
       </div>
@@ -108,7 +125,22 @@ const jump = (index: number) => reader.startChapter(index);
     >
       <LocateFixed :size="16" /> Back to playhead
     </button>
-    <PlayerDock @tools="emit('tools')" />
+    <PlayerDock v-if="along" @tools="emit('tools')" />
+    <footer v-else class="sheet__foot">
+      <div
+        class="sheet__progress"
+        role="progressbar"
+        aria-label="Reading progress"
+        :aria-valuenow="Math.round(fraction * 100)"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        <i :style="{ width: `${fraction * 100}%` }" />
+      </div>
+      <div class="sheet__facts">
+        <span>{{ Math.round(fraction * 100) }}%</span><span>{{ bookLeft }}</span>
+      </div>
+    </footer>
   </section>
 </template>
 
@@ -173,6 +205,30 @@ const jump = (index: number) => reader.startChapter(index);
 }
 .sheet__error ~ .sheet__text {
   margin-top: 3em;
+}
+.sheet__foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 28px 14px;
+}
+.sheet__progress {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--wash);
+}
+.sheet__progress i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--ink);
+}
+.sheet__facts {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
 }
 .sheet__back {
   position: absolute;

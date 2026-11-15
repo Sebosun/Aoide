@@ -6,7 +6,8 @@ import { TEXT_SCALES } from "../../theme";
 import { useMenu } from "../../composables/useMenu";
 import { usePreferencesStore } from "../../stores/preferences";
 
-/** Text size ("Aa") and the Page / Lines switch. */
+/** Text size ("Aa") and, with `lines`, the Page / Lines switch. */
+defineProps<{ lines: boolean }>();
 const preferences = usePreferencesStore();
 const root = ref<HTMLElement>(),
   panel = ref<HTMLElement>(),
@@ -65,7 +66,7 @@ const modes: { value: ReaderMode; label: string }[] = [
         </button>
       </div>
     </div>
-    <div class="reader-tools__mode" role="group" aria-label="Reader mode">
+    <div v-if="lines" class="reader-tools__mode" role="group" aria-label="Reader mode">
       <button
         v-for="mode in modes"
         :key="mode.value"

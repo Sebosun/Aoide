@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api } from "../api";
 import { useNavigationStore } from "./navigation";
-import type { BookSummary, Collection, ImportResult, LibrarySort } from "../api/types";
+import type { BookProgress, BookSummary, Collection, ImportResult, LibrarySort } from "../api/types";
 
 export type BuiltInFilter = "all" | "unread" | "progress" | "listen" | "preparing";
 /** A built-in filter, or one collection. */
@@ -28,6 +28,8 @@ export const useLibraryStore = defineStore("library", () => {
     sort = ref<LibrarySort>("recent"),
     filter = ref<LibraryFilter>("all");
   const collections = ref<Collection[]>([]);
+  /** Reading speed for time estimates, in words a minute (an app setting). */
+  const readingWpm = ref(230);
   /** Books whose file could not be read: listed apart, never among the books to open. */
   const failed = computed(() => books.value.filter((b) => b.status.kind === "error"));
   const usable = computed(() => books.value.filter((b) => b.status.kind !== "error"));
@@ -74,6 +76,14 @@ export const useLibraryStore = defineStore("library", () => {
     } catch (e) {
       error.value = String(e);
     }
+  }
+  async function setReadingWpm(wpm: number) {
+    readingWpm.value = (await api.updateAppSettings({ readingWpm: wpm })).readingWpm;
+  }
+  /** The progress the core reported for a book read silently, until the next refresh. */
+  function setProgress(id: string, progress: BookProgress) {
+    const book = books.value.find((b) => b.id === id);
+    if (book) book.progress = progress;
   }
   let startup: Promise<void> | undefined;
   let unlisten: (() => void) | undefined;
@@ -124,7 +134,9 @@ export const useLibraryStore = defineStore("library", () => {
           void refresh();
         });
         folder.value = (await api.appInfo()).libraryFolder;
-        sort.value = (await api.appSettings()).librarySort ?? "recent";
+        const settings = await api.appSettings();
+        sort.value = settings.librarySort ?? "recent";
+        readingWpm.value = settings.readingWpm ?? 230;
         await refresh();
       } catch (e) {
         error.value = String(e);
@@ -175,6 +187,9 @@ export const useLibraryStore = defineStore("library", () => {
     counts,
     collections,
     collection,
+    readingWpm,
+    setReadingWpm,
+    setProgress,
     createCollection,
     renameCollection,
     deleteCollection,
