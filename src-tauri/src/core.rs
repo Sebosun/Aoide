@@ -22,6 +22,8 @@ mod align;
 mod articles;
 mod audiobook;
 mod audiobooks;
+mod browser_download;
+mod browsing;
 mod config;
 mod controls;
 pub use config::PreferencesView;
@@ -77,6 +79,8 @@ pub use wire::*;
 
 #[cfg(test)]
 mod article_tests;
+#[cfg(test)]
+mod browser_tests;
 #[cfg(test)]
 mod contract;
 #[cfg(test)]
@@ -185,6 +189,8 @@ pub struct Core {
     articles: Arc<articles::Articles>,
     /// Feeds subscribed to and their checks.
     feeds: Arc<feeds::Feeds>,
+    /// The optional browser and the site rules.
+    browsing: Arc<browsing::Browsing>,
 }
 
 impl Core {
@@ -199,6 +205,7 @@ impl Core {
             open_link,
             transcribers,
             fetcher,
+            browser,
         } = environment;
         for dir in [&paths.library_dir, &paths.covers_dir, &paths.audio_dir] {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -274,9 +281,15 @@ impl Core {
             Arc::clone(&fetcher),
         ));
         let feeds = Arc::new(feeds::Feeds::new(Arc::clone(&library), fetcher));
+        let browsing = Arc::new(browsing::Browsing::new(
+            browser,
+            paths.browser_dir.clone(),
+            &paths.config_dir,
+        ));
         let core = Arc::new(Self {
             articles,
             feeds,
+            browsing,
             events,
             reporter,
             show_in_folder,
@@ -310,6 +323,8 @@ impl Core {
             let checking = Arc::clone(&core);
             tokio::spawn(async move { checking.feeds.run(&*checking).await });
         }
+        let idling = Arc::clone(&core);
+        tokio::spawn(async move { idling.browsing.run(&*idling).await });
         if background {
             core.spawn_sync_runner();
         }
@@ -614,5 +629,6 @@ impl Core {
         self.output.close();
         self.engine.shutdown();
         self.stop_aligner();
+        self.browsing.stop();
     }
 }

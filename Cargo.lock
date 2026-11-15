@@ -66,6 +66,7 @@ dependencies = [
  "aoide-aligner",
  "aoide-article",
  "aoide-audio",
+ "aoide-browser",
  "aoide-chatterbox",
  "aoide-config",
  "aoide-discovery",

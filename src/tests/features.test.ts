@@ -118,6 +118,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     verifyAudiobooks: false,
     readingWpm: 230,
     feeds: { checkMinutes: 60, keepReadDays: 30, keepUnreadDays: 90 },
+    browser: { use: "off", path: null, idleSeconds: 60 },
   });
   wrapper.unmount();
 });

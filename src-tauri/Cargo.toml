@@ -32,6 +32,7 @@ aoide-epub = { path = "../crates/epub-parser" }
 aoide-article = { path = "../crates/article" }
 aoide-document = { path = "../crates/document" }
 aoide-fetch = { path = "../crates/fetch" }
+aoide-browser = { path = "../crates/browser" }
 aoide-feeds = { path = "../crates/feeds" }
 url = "2"
 aoide-text = { path = "../crates/segmenter" }

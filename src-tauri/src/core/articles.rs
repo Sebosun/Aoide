@@ -18,6 +18,7 @@ use aoide_library::{ArticleRow, BookId, ItemKind, Library, NewBook};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use super::browsing::{plan_fetch, BrowserUse, Pending, Route};
 use super::feeds::{DiscoveredFeed, ItemShelf};
 use super::fetching::{next, Event, Stage};
 use super::lock;
@@ -111,6 +112,8 @@ pub enum ArticleSource {
     Archive,
     /// The whole text a feed carried (fetching "from the feed" again fetches the page).
     Feed,
+    /// The page rendered in the browser.
+    Browser,
 }
 
 impl ArticleSource {
@@ -119,6 +122,7 @@ impl ArticleSource {
             ArticleSource::Http => "http",
             ArticleSource::Archive => "archive",
             ArticleSource::Feed => "feed",
+            ArticleSource::Browser => "browser",
         }
     }
 
@@ -126,6 +130,7 @@ impl ArticleSource {
         match via {
             Via::Http => ArticleSource::Http,
             Via::Archive => ArticleSource::Archive,
+            Via::Browser => ArticleSource::Browser,
         }
     }
 
@@ -134,6 +139,7 @@ impl ArticleSource {
             "http" => Some(ArticleSource::Http),
             "archive" => Some(ArticleSource::Archive),
             "feed" => Some(ArticleSource::Feed),
+            "browser" => Some(ArticleSource::Browser),
             _ => None,
         }
     }
@@ -182,6 +188,13 @@ pub struct ArticleSummary {
 pub(super) trait ArticlesHost: Send + Sync {
     /// Article `view.id` changed; `snapshot` when its text did too.
     fn article_changed(&self, view: ArticleView, snapshot: bool);
+    /// Whether the browser is used, and the rule for the site at `url`.
+    fn fetch_rules(&self, url: &Url) -> (BrowserUse, Option<aoide_config::SiteRule>);
+    /// The page rendered in the browser.
+    fn render<'a>(
+        &'a self,
+        request: &'a aoide_browser::RenderRequest,
+    ) -> Pending<'a, Result<Snapshot, String>>;
 }
 
 pub(super) struct Articles {
@@ -549,72 +562,27 @@ impl Articles {
             host.article_changed(view, false);
         }
         let started = Instant::now();
-        let url = Url::parse(&row.canonical_url);
-        let got = match &url {
-            Ok(url) => self.get(url, source).await,
-            Err(e) => Err(FetchError::Refused(e.to_string())),
-        };
-        let outcome = if got.is_ok() { "ok" } else { "failed" };
-        tracing::info!(
-            event = "article.fetch",
-            book = crate::logging::book(id),
-            outcome,
-            took_ms = started.elapsed().as_millis() as u64,
-            "Fetched an article"
-        );
         let path = self.snapshot_path(id);
         let stored = std::fs::read_to_string(&path).ok();
-        let base = url.unwrap_or_else(|_| Url::parse("https://invalid.example/").unwrap());
-        let (to, error, written) = match got {
-            Ok(snapshot) => {
-                let fresh = extract(&snapshot.html, &snapshot.final_url);
-                let old = stored.as_deref().map(|html| extract(html, &base));
-                // A copy is replaced only by a fuller one: more of the text, or all of it.
-                let better = match &old {
-                    None => true,
-                    Some(old) => {
-                        fresh.meta.word_count > old.meta.word_count
-                            || (fresh.completeness == Completeness::Complete
-                                && old.completeness != Completeness::Complete)
-                    }
-                };
-                if better {
-                    let source = ArticleSource::of(snapshot.via);
-                    match self.keep(id, &row, &snapshot, &fresh, &path, source) {
-                        Ok(()) => {
-                            if let Some(lead) = &fresh.meta.lead_image {
-                                self.keep_cover(id, lead).await;
-                            }
-                            (next(fetching, Event::Got(fresh.completeness)), None, true)
-                        }
-                        Err(error) => match old {
-                            Some(old) => (
-                                next(fetching, Event::Got(old.completeness)),
-                                Some(error),
-                                false,
-                            ),
-                            None => (next(fetching, Event::FetchFailed), Some(error), false),
-                        },
-                    }
-                } else {
-                    let old = old.expect("a stored copy to compare with");
-                    self.keep_feeds(id, &old);
-                    (next(fetching, Event::Got(old.completeness)), None, false)
-                }
+        let (to, error, written) = match Url::parse(&row.canonical_url) {
+            Ok(url) => {
+                let old = stored.as_deref().map(|html| extract(html, &url));
+                let (best, failures) = self.walk(&url, source, old.as_ref(), host).await;
+                tracing::info!(
+                    event = "article.fetch",
+                    book = crate::logging::book(id),
+                    outcome = if best.is_some() { "ok" } else { "failed" },
+                    took_ms = started.elapsed().as_millis() as u64,
+                    "Fetched an article"
+                );
+                self.settle(id, &row, fetching, &path, best, old, failures)
+                    .await
             }
-            Err(error) => match stored.as_deref().map(|html| extract(html, &base)) {
-                // A copy is kept: it stays readable and the failure is said.
-                Some(old) => (
-                    next(fetching, Event::Got(old.completeness)),
-                    Some(format!("Could not fetch it again. {error}")),
-                    false,
-                ),
-                None => (
-                    next(fetching, Event::FetchFailed),
-                    Some(error.to_string()),
-                    false,
-                ),
-            },
+            Err(error) => (
+                next(fetching, Event::FetchFailed),
+                Some(error.to_string()),
+                false,
+            ),
         };
         let (from, _) = fetching.names();
         self.store_stage(&book, from, to, error.as_deref());
@@ -623,22 +591,118 @@ impl Articles {
         }
     }
 
-    /// The page at `url`, or the archive's copy of it.
-    async fn get(&self, url: &Url, source: ArticleSource) -> Result<Snapshot, FetchError> {
-        match source {
-            ArticleSource::Http | ArticleSource::Feed => self.fetcher.page(url).await,
-            ArticleSource::Archive => {
-                let copy = self.fetcher.archived(url).await?.ok_or_else(|| {
-                    FetchError::Refused("No archived copy of this page was found.".into())
-                })?;
-                let mut snapshot = self.fetcher.page(&copy).await?;
-                // The copy is read as the page it was taken from.
-                snapshot.requested = url.clone();
-                snapshot.final_url = url.clone();
-                snapshot.via = Via::Archive;
-                Ok(snapshot)
+    /// Gets `url` along the routes `source` and the settings call for, stopping at the first
+    /// whole article. Returns the fullest copy got, and why each route that failed did.
+    async fn walk(
+        &self,
+        url: &Url,
+        source: ArticleSource,
+        old: Option<&Extracted>,
+        host: &dyn ArticlesHost,
+    ) -> (Option<(Snapshot, Extracted)>, Vec<String>) {
+        let (use_, rule) = host.fetch_rules(url);
+        let routes = match source {
+            ArticleSource::Archive => vec![Route::Archive],
+            ArticleSource::Browser => vec![Route::Browser],
+            ArticleSource::Http | ArticleSource::Feed => {
+                plan_fetch(use_, rule.as_ref(), old.map(|o| o.completeness))
+            }
+        };
+        let mut best: Option<(Snapshot, Extracted)> = None;
+        let mut failures = Vec::new();
+        if super::browsing::browser_wanted_but_off(use_, rule.as_ref()) {
+            failures.push("This site's rule asks for the browser, which is off.".to_owned());
+        }
+        for route in routes {
+            let got = match route {
+                Route::Http => self.fetcher.page(url).await.map_err(|e| e.to_string()),
+                Route::Archive => self.archived(url).await.map_err(|e| e.to_string()),
+                Route::Browser => {
+                    let request = super::browsing::render_request(url, rule.as_ref());
+                    host.render(&request)
+                        .await
+                        .map_err(|e| format!("The browser could not get it: {e}"))
+                }
+            };
+            match got {
+                Ok(snapshot) => {
+                    let fresh = extract(&snapshot.html, &snapshot.final_url);
+                    let whole = fresh.completeness == Completeness::Complete;
+                    if best.as_ref().map_or(true, |(_, kept)| better(&fresh, kept)) {
+                        best = Some((snapshot, fresh));
+                    }
+                    if whole {
+                        break;
+                    }
+                }
+                Err(error) => failures.push(error),
             }
         }
+        (best, failures)
+    }
+
+    /// Stores what a fetch got (when it is fuller than the copy kept) and says where the
+    /// article stands: its stage, what went wrong, and whether its text changed.
+    #[allow(clippy::too_many_arguments)]
+    async fn settle(
+        &self,
+        id: &str,
+        row: &ArticleRow,
+        fetching: Stage,
+        path: &Path,
+        best: Option<(Snapshot, Extracted)>,
+        old: Option<Extracted>,
+        failures: Vec<String>,
+    ) -> (Stage, Option<String>, bool) {
+        let failed = (!failures.is_empty()).then(|| failures.join(" "));
+        let Some((snapshot, fresh)) = best else {
+            return match old {
+                // A copy is kept: it stays readable and the failure is said.
+                Some(old) => (
+                    next(fetching, Event::Got(old.completeness)),
+                    failed.map(|e| format!("Could not fetch it again. {e}")),
+                    false,
+                ),
+                None => (next(fetching, Event::FetchFailed), failed, false),
+            };
+        };
+        // A copy is replaced only by a fuller one: more of the text, or all of it.
+        if old.as_ref().is_some_and(|old| !better(&fresh, old)) {
+            let old = old.expect("checked");
+            self.keep_feeds(id, &old);
+            return (next(fetching, Event::Got(old.completeness)), failed, false);
+        }
+        let source = ArticleSource::of(snapshot.via);
+        match self.keep(id, row, &snapshot, &fresh, path, source) {
+            Ok(()) => {
+                if let Some(lead) = &fresh.meta.lead_image {
+                    self.keep_cover(id, lead).await;
+                }
+                // Once the whole article is got, earlier routes' failures do not matter.
+                let failed = failed.filter(|_| fresh.completeness != Completeness::Complete);
+                (next(fetching, Event::Got(fresh.completeness)), failed, true)
+            }
+            Err(error) => match old {
+                Some(old) => (
+                    next(fetching, Event::Got(old.completeness)),
+                    Some(error),
+                    false,
+                ),
+                None => (next(fetching, Event::FetchFailed), Some(error), false),
+            },
+        }
+    }
+
+    /// The archive's copy of `url`, read as the page it was taken from.
+    async fn archived(&self, url: &Url) -> Result<Snapshot, FetchError> {
+        let copy = self.fetcher.archived(url).await?.ok_or_else(|| {
+            FetchError::Refused("No archived copy of this page was found.".into())
+        })?;
+        let mut snapshot = self.fetcher.page(&copy).await?;
+        snapshot.requested = url.clone();
+        snapshot.final_url = url.clone();
+        snapshot.via = Via::Archive;
+        Ok(snapshot)
     }
 
     /// Downloads the page's lead image as article `id`'s cover. A failure leaves the cover
@@ -751,6 +815,13 @@ impl Articles {
     }
 }
 
+/// Whether `fresh` is a fuller copy than `kept`: more of the text, or all of it.
+fn better(fresh: &Extracted, kept: &Extracted) -> bool {
+    fresh.meta.word_count > kept.meta.word_count
+        || (fresh.completeness == Completeness::Complete
+            && kept.completeness != Completeness::Complete)
+}
+
 /// The page's own summary, else its first paragraph, cut at about 200 characters.
 fn lead(extracted: &Extracted) -> Option<String> {
     let text = extracted.document.description.clone().or_else(|| {
@@ -785,6 +856,18 @@ impl ArticlesHost for super::Core {
         self.emit(super::CoreEvent::LibraryChanged);
         self.emit(super::CoreEvent::ArticleState(self.completed(view)));
     }
+
+    fn fetch_rules(&self, url: &Url) -> (BrowserUse, Option<aoide_config::SiteRule>) {
+        let rule = url.host_str().and_then(|host| self.browsing.rule_for(host));
+        (self.app_settings().browser.use_, rule)
+    }
+
+    fn render<'a>(
+        &'a self,
+        request: &'a aoide_browser::RenderRequest,
+    ) -> Pending<'a, Result<Snapshot, String>> {
+        Box::pin(self.browsing.render(self, request))
+    }
 }
 
 impl super::Core {
@@ -802,8 +885,11 @@ impl super::Core {
         Ok(id)
     }
 
-    /// Fetches article `id` again, from the page or an archived copy.
+    /// Fetches article `id` again: from the page, an archived copy, or in the browser.
     pub fn refetch_article(&self, id: &str, source: ArticleSource) -> Result<(), String> {
+        if source == ArticleSource::Browser && self.app_settings().browser.use_ == BrowserUse::Off {
+            return Err(super::browsing::BROWSER_OFF.into());
+        }
         if let Some(view) = self.articles.queue_fetch(id, source)? {
             self.emit(super::CoreEvent::ArticleState(self.completed(view)));
         }

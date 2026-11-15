@@ -1,0 +1,188 @@
+//! Articles fetched with the optional browser, through the core, with a scripted fetcher and
+//! a scripted browser.
+
+use std::sync::Arc;
+
+use aoide_fetch::FetchError;
+use aoide_tts::testing::FakeEngine;
+
+use super::article_tests::{cut_short, Pages, LIGHTS, LIGHTS_URL};
+use super::articles::ArticleSource;
+use super::browsing::testing::{fake_program, ScriptedBrowser};
+use super::browsing::{BrowserSettings, BrowserUse, BROWSER_OFF};
+use super::fetching::{Reason, Stage};
+use super::tests::{library_folder, start_browsing, until};
+use super::{AppSettingsPatch, Core};
+
+struct Setup {
+    dir: tempfile::TempDir,
+    core: Arc<Core>,
+    pages: Arc<Pages>,
+    browser: Arc<ScriptedBrowser>,
+}
+
+/// A core with the browser used as `use_`, and `rules` in site-rules.toml.
+fn setup(use_: BrowserUse, rules: &str) -> Setup {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let config = dir.path().join("config");
+    std::fs::create_dir_all(&config).unwrap();
+    std::fs::write(config.join(aoide_config::SITE_RULES_FILE), rules).unwrap();
+    let program = fake_program(dir.path());
+    let (pages, browser) = (Pages::with(&[]), Arc::new(ScriptedBrowser::default()));
+    let (core, _) = start_browsing(
+        dir.path(),
+        &FakeEngine::new(),
+        pages.clone(),
+        browser.clone(),
+    );
+    core.update_app_settings(AppSettingsPatch {
+        browser: Some(BrowserSettings {
+            use_,
+            path: Some(program.to_string_lossy().into_owned()),
+            idle_seconds: 60,
+        }),
+        ..Default::default()
+    })
+    .unwrap();
+    Setup {
+        dir,
+        core,
+        pages,
+        browser,
+    }
+}
+
+fn stage(core: &Core, id: &str) -> Option<Stage> {
+    core.article(id).ok().map(|view| view.stage)
+}
+
+async fn settled(core: &Core, id: &str) -> Stage {
+    until("the fetch settles", || {
+        !matches!(
+            stage(core, id),
+            Some(Stage::Queued | Stage::Fetching) | None
+        )
+    })
+    .await;
+    stage(core, id).unwrap()
+}
+
+#[tokio::test]
+async fn with_the_browser_off_it_is_never_started_even_for_a_site_that_asks() {
+    let s = setup(BrowserUse::Off, "[\"quay.example\"]\nfetch = \"browser\"\n");
+    s.pages.set(LIGHTS_URL, Ok(cut_short()));
+    s.browser.set(LIGHTS_URL, Ok(LIGHTS));
+    let id = s.core.save_article(LIGHTS_URL).unwrap();
+    assert_eq!(
+        settled(&s.core, &id).await,
+        Stage::NeedsYou(Reason::CutShort)
+    );
+    let view = s.core.article(&id).unwrap();
+    assert_eq!(view.via, Some(ArticleSource::Http));
+    assert!(view
+        .error
+        .unwrap()
+        .contains("asks for the browser, which is off"));
+    assert_eq!(
+        s.core.refetch_article(&id, ArticleSource::Browser),
+        Err(BROWSER_OFF.into())
+    );
+    assert_eq!(s.browser.renders(), 0);
+    assert!(s.browser.started.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn as_a_fallback_the_browser_renders_what_plain_fetching_cut_short() {
+    let s = setup(BrowserUse::Fallback, "");
+    s.pages.set(LIGHTS_URL, Ok(cut_short()));
+    s.browser.set(
+        LIGHTS_URL,
+        Ok(&LIGHTS.replace("lights the lamps", "lights the oil lamps")),
+    );
+    let id = s.core.save_article(LIGHTS_URL).unwrap();
+    assert_eq!(settled(&s.core, &id).await, Stage::Ready);
+    let view = s.core.article(&id).unwrap();
+    assert_eq!(view.via, Some(ArticleSource::Browser));
+    assert_eq!(view.error, None);
+    assert_eq!((s.pages.asks(), s.browser.renders()), (1, 1));
+    let kept = std::fs::read_to_string(
+        s.dir
+            .path()
+            .join(format!("data/articles/{id}/snapshot.html")),
+    );
+    assert!(kept.unwrap().contains("lights the oil lamps"));
+    // The program set in Settings was the one started.
+    assert!(s.browser.started.lock().unwrap()[0].ends_with("fake-chrome"));
+
+    // A page plain fetching gets whole is not rendered.
+    s.pages.set("https://quay.example/whole", Ok(LIGHTS.into()));
+    let whole = s.core.save_article("https://quay.example/whole").unwrap();
+    assert_eq!(settled(&s.core, &whole).await, Stage::Ready);
+    assert_eq!(
+        s.core.article(&whole).unwrap().via,
+        Some(ArticleSource::Http)
+    );
+    assert_eq!(s.browser.renders(), 1);
+}
+
+#[tokio::test]
+async fn first_renders_every_article_with_the_sites_rule_and_skips_plain_fetching() {
+    let rules = "[\"quay.example\"]\nblock = [\"*/ads/*\"]\nwait_for = \"article\"\n\
+                 site_data = \"clear_before_fetch\"\n";
+    let s = setup(BrowserUse::First, rules);
+    s.browser.set(LIGHTS_URL, Ok(LIGHTS));
+    let id = s.core.save_article(LIGHTS_URL).unwrap();
+    assert_eq!(settled(&s.core, &id).await, Stage::Ready);
+    assert_eq!(s.pages.asks(), 0);
+    let request = s.browser.rendered.lock().unwrap()[0].clone();
+    assert_eq!(request.block, vec!["*/ads/*".to_owned()]);
+    assert_eq!(request.wait_for.as_deref(), Some("article"));
+    assert!(request.clear_site_data);
+}
+
+#[tokio::test]
+async fn when_the_browser_fails_the_plain_copy_is_kept_and_the_failure_said() {
+    let s = setup(BrowserUse::Fallback, "");
+    s.pages.set(LIGHTS_URL, Ok(cut_short()));
+    s.browser
+        .set(LIGHTS_URL, Err("The page did not load: timed out"));
+    let id = s.core.save_article(LIGHTS_URL).unwrap();
+    assert_eq!(
+        settled(&s.core, &id).await,
+        Stage::NeedsYou(Reason::CutShort)
+    );
+    let view = s.core.article(&id).unwrap();
+    assert_eq!(view.via, Some(ArticleSource::Http));
+    assert_eq!(
+        view.error.as_deref(),
+        Some("The browser could not get it: The page did not load: timed out")
+    );
+    assert!(s.core.chapter(&id, 0).is_ok());
+
+    // Fetched again once plain fetching fell short: straight to the browser, and its whole
+    // copy replaces the partial one.
+    s.browser.set(LIGHTS_URL, Ok(LIGHTS));
+    s.core.refetch_article(&id, ArticleSource::Http).unwrap();
+    until("the browser is asked again", || s.browser.renders() == 2).await;
+    assert_eq!(settled(&s.core, &id).await, Stage::Ready);
+    assert_eq!(s.pages.asks(), 1);
+    let view = s.core.article(&id).unwrap();
+    assert_eq!((view.via, view.error), (Some(ArticleSource::Browser), None));
+}
+
+#[tokio::test]
+async fn a_failed_plain_fetch_falls_back_to_the_browser_and_asked_for_it_goes_straight_there() {
+    let s = setup(BrowserUse::Fallback, "");
+    s.pages.set(LIGHTS_URL, Err(FetchError::Status(403)));
+    s.browser.set(LIGHTS_URL, Ok(LIGHTS));
+    let id = s.core.save_article(LIGHTS_URL).unwrap();
+    assert_eq!(settled(&s.core, &id).await, Stage::Ready);
+    // The plain failure does not matter once the browser got it all.
+    assert_eq!(s.core.article(&id).unwrap().error, None);
+
+    s.core.refetch_article(&id, ArticleSource::Browser).unwrap();
+    until("the browser is asked again", || s.browser.renders() == 2).await;
+    assert_eq!(settled(&s.core, &id).await, Stage::Ready);
+    assert_eq!(s.pages.asks(), 1);
+}

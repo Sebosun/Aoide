@@ -210,6 +210,8 @@ pub(super) trait ConfigHost {
     ) -> Result<(), String>;
     /// The window shows `preferences` from now on.
     fn preferences_changed(&self, preferences: PreferencesView);
+    /// Something in the config folder changed (the site rules may have).
+    fn folder_changed(&self);
 }
 
 /// The settings file, shared by everything that reads or saves a section.
@@ -261,6 +263,13 @@ impl Settings {
                 "Feeds are checked every {} to {} minutes",
                 super::feeds::CHECK_MINUTES.start(),
                 super::feeds::CHECK_MINUTES.end()
+            ));
+        }
+        if !super::browsing::IDLE_SECONDS.contains(&settings.browser.idle_seconds) {
+            return Err(format!(
+                "The browser is shut down after {} to {} idle seconds",
+                super::browsing::IDLE_SECONDS.start(),
+                super::browsing::IDLE_SECONDS.end()
             ));
         }
         if let Some(aligner) = &settings.aligner {
@@ -315,6 +324,7 @@ impl Settings {
                     .map(|e| format!("[engine] in settings.toml was not applied: {e}"));
             }
             host.preferences_changed(self.preferences());
+            host.folder_changed();
         }
         drop(watcher);
     }
@@ -352,6 +362,10 @@ impl ConfigHost for Core {
 
     fn preferences_changed(&self, preferences: PreferencesView) {
         self.emit(CoreEvent::ConfigChanged(preferences));
+    }
+
+    fn folder_changed(&self) {
+        self.browsing.reload_rules();
     }
 }
 

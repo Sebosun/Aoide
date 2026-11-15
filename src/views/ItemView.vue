@@ -135,6 +135,7 @@ const articleFacts = computed(() => {
         `Fetched ${new Date(view.fetchedAt).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}`,
       );
     if (view.via === "archive") list.push("from an archived copy");
+    if (view.via === "browser") list.push("rendered in the browser");
   }
   return list;
 });

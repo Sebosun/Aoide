@@ -131,6 +131,9 @@ fn contract() -> String {
         super::feeds::OpmlImport,
         super::feeds::EntryFilter,
         super::feeds::EntryView,
+        // The browser
+        super::browsing::BrowserUse,
+        super::browsing::BrowserSettings,
         // Appearance
         aoide_config::Mode,
         aoide_config::ReaderMode,

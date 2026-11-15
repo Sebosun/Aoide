@@ -30,6 +30,8 @@ pub struct AppSettings {
     pub reading_wpm: u32,
     /// How often feeds are checked and how long their entries are kept.
     pub feeds: super::feeds::FeedSettings,
+    /// Whether and how a browser fetches articles plain HTTP cannot read.
+    pub browser: super::browsing::BrowserSettings,
 }
 
 /// Reading speeds Settings offers, in words per minute.
@@ -66,6 +68,8 @@ pub struct AppSettingsPatch {
     pub reading_wpm: Option<u32>,
     #[cfg_attr(test, ts(optional))]
     pub feeds: Option<super::feeds::FeedSettings>,
+    #[cfg_attr(test, ts(optional))]
+    pub browser: Option<super::browsing::BrowserSettings>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -96,6 +100,7 @@ impl AppSettingsPatch {
         set(&mut settings.verify_audiobooks, self.verify_audiobooks);
         set(&mut settings.reading_wpm, self.reading_wpm);
         set(&mut settings.feeds, self.feeds);
+        set(&mut settings.browser, self.browser);
         settings
     }
 }
@@ -115,6 +120,7 @@ impl From<AppSettings> for AppSettingsPatch {
             verify_audiobooks,
             reading_wpm,
             feeds,
+            browser,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -128,6 +134,7 @@ impl From<AppSettings> for AppSettingsPatch {
             verify_audiobooks: Some(verify_audiobooks),
             reading_wpm: Some(reading_wpm),
             feeds: Some(feeds),
+            browser: Some(browser),
         }
     }
 }
@@ -160,6 +167,7 @@ impl Default for AppSettings {
             verify_audiobooks: false,
             reading_wpm: 230,
             feeds: Default::default(),
+            browser: Default::default(),
         }
     }
 }

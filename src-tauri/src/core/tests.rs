@@ -54,6 +54,7 @@ pub(super) fn paths(root: &Path) -> Paths {
         config_dir: root.join("config"),
         models_dir: root.join("data/models"),
         articles_dir: root.join("data/articles"),
+        browser_dir: root.join("data/browser"),
     }
 }
 
@@ -133,7 +134,13 @@ pub(super) fn start_with(
     engine: &Arc<FakeEngine>,
     transcribers: super::recording::TranscriberFactory,
 ) -> (Arc<Core>, Arc<Recorder>) {
-    start_full(root, engine, transcribers, super::articles::offline())
+    start_full(
+        root,
+        engine,
+        transcribers,
+        super::articles::offline(),
+        Arc::new(super::browsing::testing::ScriptedBrowser::default()),
+    )
 }
 
 /// A core whose articles are fetched by `fetcher`.
@@ -142,11 +149,22 @@ pub(super) fn start_fetching(
     engine: &Arc<FakeEngine>,
     fetcher: Arc<dyn super::articles::Fetcher>,
 ) -> (Arc<Core>, Arc<Recorder>) {
+    start_browsing(root, engine, fetcher, Arc::default())
+}
+
+/// A core whose articles are fetched by `fetcher`, and rendered by `browser`.
+pub(super) fn start_browsing(
+    root: &Path,
+    engine: &Arc<FakeEngine>,
+    fetcher: Arc<dyn super::articles::Fetcher>,
+    browser: Arc<super::browsing::testing::ScriptedBrowser>,
+) -> (Arc<Core>, Arc<Recorder>) {
     start_full(
         root,
         engine,
         Arc::new(|_| Err("no speech recognition in this test".into())),
         fetcher,
+        browser,
     )
 }
 
@@ -155,6 +173,7 @@ fn start_full(
     engine: &Arc<FakeEngine>,
     transcribers: super::recording::TranscriberFactory,
     fetcher: Arc<dyn super::articles::Fetcher>,
+    browser: Arc<dyn super::browsing::BrowserDriver>,
 ) -> (Arc<Core>, Arc<Recorder>) {
     let events = Arc::new(Recorder::default());
     let mut engines = aoide_tts::Registry::new();
@@ -177,6 +196,7 @@ fn start_full(
         }),
         transcribers,
         fetcher,
+        browser,
     };
     (Core::start(environment, paths(root)).unwrap(), events)
 }

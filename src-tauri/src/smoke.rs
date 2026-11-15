@@ -23,6 +23,7 @@ pub fn paths(home: &Path) -> Paths {
         config_dir: home.join("config").join("aoide"),
         models_dir: home.join("data").join("models"),
         articles_dir: home.join("data").join("articles"),
+        browser_dir: home.join("data").join("browser"),
     }
 }
 

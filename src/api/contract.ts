@@ -442,9 +442,13 @@ readingWpm: number,
 /**
  * How often feeds are checked and how long their entries are kept.
  */
-feeds: FeedSettings, };
+feeds: FeedSettings, 
+/**
+ * Whether and how a browser fetches articles plain HTTP cannot read.
+ */
+browser: BrowserSettings, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -581,7 +585,7 @@ export type FetchReason = "signIn" | "paywall" | "check" | "cutShort" | "empty";
 
 export type FetchStage = { "kind": "queued" } | { "kind": "fetching" } | { "kind": "ready" } | { "kind": "needsYou", "reason": FetchReason } | { "kind": "failed" };
 
-export type ArticleSource = "http" | "archive" | "feed";
+export type ArticleSource = "http" | "archive" | "feed" | "browser";
 
 export type DiscoveredFeed = { url: string, title: string | null, subscribed: boolean, };
 
@@ -676,6 +680,18 @@ hasFullText: boolean,
  * The item it was opened as.
  */
 bookId: string | null, inLibrary: boolean, };
+
+export type BrowserUse = "off" | "fallback" | "first";
+
+export type BrowserSettings = { use: BrowserUse, 
+/**
+ * The Chrome or Chromium to run; found on its own when unset.
+ */
+path: string | null, 
+/**
+ * Seconds without work after which the browser is shut down.
+ */
+idleSeconds: number, };
 
 export type AppearanceMode = "auto" | "light" | "dark";
 

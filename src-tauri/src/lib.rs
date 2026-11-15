@@ -885,6 +885,7 @@ pub fn run() {
                 db_path: data.join("library.sqlite3"),
                 models_dir: data.join("models"),
                 articles_dir: data.join("articles"),
+                browser_dir: data.join("browser"),
                 config_dir: aoide_config::config_dir(
                     std::env::var_os("XDG_CONFIG_HOME").as_deref(),
                     &path.home_dir()?,

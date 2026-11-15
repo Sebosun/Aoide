@@ -249,6 +249,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     verifyAudiobooks: false,
     readingWpm: 230,
     feeds: { checkMinutes: 60, keepReadDays: 30, keepUnreadDays: 90 },
+    browser: { use: "off", path: null, idleSeconds: 60 },
   };
   /** Minutes read silently, per book. */
   const readMs = new Map<string, number>([["book-1", 1_800_000]]);
@@ -1532,6 +1533,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async refetchArticle(id, source) {
       const view = articles.get(id);
       if (!view) throw new Error("Not an article.");
+      if (source === "browser" && appSettings.browser.use === "off")
+        throw new Error("The browser is off. Turn it on in Settings › Sites.");
       if (view.stage.kind === "queued" || view.stage.kind === "fetching") return;
       fetchArticle(id, { kind: "ready" }, source);
     },

@@ -75,6 +75,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `config.save` | warn | `kind`, `error`, `repeat` (reported); `section`, `outcome` from the first-run migration | `core.rs` (player), `core/config.rs` (migration) |
 | `config.problem` | warn | `error` | `core.rs`, a settings file Aoide cannot read |
 | `config.watch` | warn | `error` | `core/config.rs`, watching settings files |
+| `config.reload` | info | `file` (`site-rules.toml`) | `core/browsing.rs` `reload_rules`, a hand edit read again (a broken file logs `config.problem` and the old rules stay) |
 | **Window** | | | |
 | `ipc.error` | warn | `command`, `took_ms` (`msg` is the error) | `src/api/tauri.ts` `call`; cancelled scans left out |
 | `ipc.slow` | info | `command`, `took_ms` | `src/api/tauri.ts`, answers over 2 s (long jobs left out) |
@@ -98,6 +99,13 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `item.shelf` | info | `book`, `from`, `to` (`library`, `feed`) | `core/feeds.rs` `move_shelf`: an entry saved, or removed from the library while its feed lists it |
 | `feed.import` | info | `added`, `skipped` (feeds) | `core/feeds.rs` `import` (OPML) |
 | `feed.export` | info | `feeds` | `core/feeds.rs` `export` (OPML) |
+| **Browser** (optional, off by default) | | | |
+| `browser.start` | info | `visible`, `outcome` (`ok`, `failed`), `error` | `core/browsing.rs` `ChromeDriver`, a browser process started (headless to render, visible to sign in) |
+| `browser.render` | info | `outcome` (`ok`, `failed`), `took_ms`, `error` | `core/browsing.rs` `render`, one page rendered for an article |
+| `browser.stop` | info | `outcome` (`idle`, `off` when turned off, `quit`, `failed`) | `core/browsing.rs` `idle` / `stop` |
+| `browser.profile` | info | `outcome` (`unlocked`: a lock a crashed browser left) | `crates/browser` `Browser::launch` |
+| `browser.clear` | debug | `error` (an origin's storage that could not be cleared) | `crates/browser` `clear_site` |
+| `browser.proxy` | debug | `error` (a proxied connection that ended badly) | `crates/browser` `proxy.rs` |
 | `feed.clean` | info / warn | `removed` (entries), `orphans` (items no entry needs), `book`, `error` | `core/feeds.rs` `clean`, daily and after Check now |
 | `feed.stage` | info | `feed`, `from`, `to` (`idle`, `checking`, `failing`) | `core/feeds.rs` `check`: a feed starts or stops failing |
 | `article.cover` | info / warn | `book`, `outcome` (`ok`, `failed`), `error` | `core/articles.rs` `keep_cover`: the page's lead image stored as the cover |

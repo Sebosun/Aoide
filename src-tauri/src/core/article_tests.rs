@@ -317,7 +317,7 @@ async fn an_unfinished_fetch_is_queued_again_after_a_restart() {
 }
 
 /// `LIGHTS` declaring far more words than it has.
-fn cut_short() -> String {
+pub(super) fn cut_short() -> String {
     LIGHTS.replace(
         "</head>",
         r#"<script type="application/ld+json">{"@type":"NewsArticle","headline":"The Quay Lights","wordCount":2000}</script></head>"#,

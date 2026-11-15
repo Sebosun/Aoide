@@ -33,6 +33,8 @@ pub struct Paths {
     pub models_dir: PathBuf,
     /// Saved articles: a folder each, holding its snapshot and cover.
     pub articles_dir: PathBuf,
+    /// The optional browser's profile and a downloaded browser.
+    pub browser_dir: PathBuf,
 }
 
 /// Where Core's events go: Tauri's app handle in the app, a recorder in tests.
@@ -67,6 +69,8 @@ pub struct Environment {
     pub transcribers: TranscriberFactory,
     /// Gets articles' pages from the web.
     pub fetcher: Arc<dyn super::articles::Fetcher>,
+    /// Drives the optional browser (started only when the user turned it on).
+    pub browser: Arc<dyn super::browsing::BrowserDriver>,
 }
 
 impl Environment {
@@ -85,6 +89,7 @@ impl Environment {
             }),
             transcribers: app_transcribers(),
             fetcher: super::articles::web_fetcher(),
+            browser: Arc::new(super::browsing::ChromeDriver::default()),
         }
     }
 

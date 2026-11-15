@@ -274,3 +274,16 @@ it("shows why an article could not be fetched, and fetches it again", async () =
   expect(about().get('[aria-labelledby="item-text"]').text()).toContain("93 words");
   wrapper.unmount();
 });
+
+it("says an article was rendered in the browser, which the mock, like the core, refuses while it is off", async () => {
+  const { wrapper, about } = await articlePage("failed");
+  await expect(mock.refetchArticle("book-6", "browser")).rejects.toThrow("The browser is off.");
+  await mock.updateAppSettings({ browser: { use: "fallback", path: null, idleSeconds: 60 } });
+  vi.useFakeTimers();
+  await mock.refetchArticle("book-6", "browser");
+  await vi.advanceTimersByTimeAsync(1500);
+  vi.useRealTimers();
+  await flushPromises();
+  expect(about().get('[aria-labelledby="item-text"]').text()).toContain("rendered in the browser");
+  wrapper.unmount();
+});

@@ -205,6 +205,7 @@ pub(super) async fn start(
         open_link: Arc::new(|_| Ok(())),
         transcribers: Arc::new(|_| Err("no speech recognition in this test".into())),
         fetcher: super::articles::offline(),
+        browser: Arc::new(super::browsing::testing::ScriptedBrowser::default()),
     };
     let core = Core::start(environment, paths(root)).unwrap();
     until("the library scan", || {
