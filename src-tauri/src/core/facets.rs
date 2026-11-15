@@ -185,6 +185,7 @@ mod tests {
             last_opened_at: opened,
             collections: vec![],
             recording: None,
+            article: None,
         }
     }
 

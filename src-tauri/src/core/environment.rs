@@ -31,6 +31,8 @@ pub struct Paths {
     pub config_dir: PathBuf,
     /// Speech-recognition models.
     pub models_dir: PathBuf,
+    /// Saved articles: a folder each, holding its snapshot and cover.
+    pub articles_dir: PathBuf,
 }
 
 /// Where Core's events go: Tauri's app handle in the app, a recorder in tests.
@@ -59,6 +61,8 @@ pub struct Environment {
     pub show_in_folder: ShowInFolder,
     /// Speech recognition for syncing recordings.
     pub transcribers: TranscriberFactory,
+    /// Gets articles' pages from the web.
+    pub fetcher: Arc<dyn super::articles::Fetcher>,
 }
 
 impl Environment {
@@ -73,6 +77,7 @@ impl Environment {
                 tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| e.to_string())
             }),
             transcribers: app_transcribers(),
+            fetcher: super::articles::web_fetcher(),
         }
     }
 

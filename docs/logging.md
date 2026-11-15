@@ -88,6 +88,10 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `library.audiobook` | info | `book`, `outcome` (`ok`, `refused`), `error` | `core/audiobook.rs` `add_audiobook` |
 | `library.merge` | info | `book`, `from` (the audiobook), `outcome` (`ok`, `failed`), `error` | `core/audiobook.rs` `merge_audiobook` |
 | `progress.pending` | info / warn | `book`, `outcome` (`settled` into progress once the sync reached it, `dropped` when read or played first), `error` | `core/audiobook.rs` |
+| `article.save` | info | `book`, `outcome` (`ok`) | `core/articles.rs` `save` |
+| `article.stage` | info | `book`, `from`, `to`, `reason` (when it needs the user) | `core/articles.rs`, where the fetch stage's `next` is applied |
+| `article.fetch` | info | `book`, `outcome` (`ok`, `failed`), `took_ms` | `core/articles.rs` `fetch` |
+| `article.forget` | warn | `book`, `error` (its folder could not be deleted) | `core/articles.rs` `forget` |
 | `library.word_count` | warn | `book`, `error` | `core/shelf.rs` `load`, storing a parsed book's length |
 | `reading.mode` | info | `book`, `from`, `to` | `core/reading.rs` `choose_mode`, a book switched between read and listen |
 | `reading.state` | info | `book`, `from`, `to` | `core/reading.rs` `Reading::apply`, unread / in progress / finished |

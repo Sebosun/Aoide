@@ -48,6 +48,8 @@ pub struct BookSummary {
     pub collections: Vec<i64>,
     /// The sync stage of the book's recording, if it has one.
     pub recording: Option<syncing::Stage>,
+    /// An article's site and fetch.
+    pub article: Option<super::ArticleSummary>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -241,6 +243,8 @@ pub enum CoreEvent {
     AudiobookMatches(Vec<audiobooks::AudiobookMatch>),
     /// A failure in the background the user should know about.
     Problem(error::ProblemView),
+    /// An article's fetch changed.
+    ArticleState(super::ArticleView),
 }
 
 impl CoreEvent {
@@ -258,6 +262,7 @@ impl CoreEvent {
     pub const AUDIOBOOK_SCAN: &'static str = "audiobooks://progress";
     pub const AUDIOBOOK_MATCHES: &'static str = "audiobooks://matches";
     pub const PROBLEM: &'static str = "core://problem";
+    pub const ARTICLE_STATE: &'static str = "article://state";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -275,6 +280,7 @@ impl CoreEvent {
             Self::AudiobookScan(_) => Self::AUDIOBOOK_SCAN,
             Self::AudiobookMatches(_) => Self::AUDIOBOOK_MATCHES,
             Self::Problem(_) => Self::PROBLEM,
+            Self::ArticleState(_) => Self::ARTICLE_STATE,
         }
     }
 
@@ -294,6 +300,7 @@ impl CoreEvent {
             Self::AudiobookScan(p) => serde_json::to_value(p),
             Self::AudiobookMatches(p) => serde_json::to_value(p),
             Self::Problem(p) => serde_json::to_value(p),
+            Self::ArticleState(p) => serde_json::to_value(p),
         }
     }
 }

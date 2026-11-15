@@ -69,6 +69,7 @@ dependencies = [
  "aoide-chatterbox",
  "aoide-config",
  "aoide-discovery",
+ "aoide-document",
  "aoide-epub",
  "aoide-fetch",
  "aoide-generation",
@@ -103,6 +104,7 @@ dependencies = [
  "tracing-log",
  "tracing-subscriber",
  "ts-rs",
+ "url",
  "zip",
 ]
 

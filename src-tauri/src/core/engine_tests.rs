@@ -203,6 +203,7 @@ pub(super) async fn start(
         background: false,
         show_in_folder: Arc::new(|_| Ok(())),
         transcribers: Arc::new(|_| Err("no speech recognition in this test".into())),
+        fetcher: super::articles::offline(),
     };
     let core = Core::start(environment, paths(root)).unwrap();
     until("the library scan", || {

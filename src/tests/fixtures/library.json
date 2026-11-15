@@ -28,7 +28,8 @@
     "addedAt": 100,
     "lastOpenedAt": 500,
     "collections": [],
-    "recording": null
+    "recording": null,
+    "article": null
   },
   {
     "id": "book-1",
@@ -54,7 +55,8 @@
     "addedAt": 101,
     "lastOpenedAt": null,
     "collections": [],
-    "recording": null
+    "recording": null,
+    "article": null
   },
   {
     "id": "book-2",
@@ -80,7 +82,8 @@
     "addedAt": 102,
     "lastOpenedAt": null,
     "collections": [],
-    "recording": null
+    "recording": null,
+    "article": null
   },
   {
     "id": "book-3",
@@ -106,7 +109,8 @@
     "addedAt": 103,
     "lastOpenedAt": null,
     "collections": [],
-    "recording": null
+    "recording": null,
+    "article": null
   },
   {
     "id": "book-4",
@@ -131,6 +135,7 @@
     "addedAt": 104,
     "lastOpenedAt": null,
     "collections": [],
-    "recording": null
+    "recording": null,
+    "article": null
   }
 ]

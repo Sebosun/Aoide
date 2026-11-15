@@ -33,6 +33,10 @@ pub(super) trait ShelfHost {
     fn narrates_recording(&self, id: &str) -> bool;
     /// The mode the user chose for book `id`, if they did.
     fn chosen_mode(&self, id: &str) -> Option<super::ReadingMode>;
+    /// Article `id`'s stored page, read.
+    fn article_document(&self, id: &str) -> Result<aoide_document::ParsedBook, String>;
+    /// Article `id`'s site and fetch, as its summary shows them.
+    fn article_of(&self, id: &str) -> Option<super::ArticleSummary>;
 }
 
 pub(super) struct Shelf {
@@ -331,12 +335,20 @@ impl Shelf {
     /// Takes book `id` off the shelf and keeps it out of later scans; returns its audio
     /// files, relative to the audio folder.
     pub fn remove(&self, id: &str) -> Result<Vec<PathBuf>, String> {
+        let kind = lock(&self.library)
+            .book(&BookId(id.into()))
+            .ok()
+            .flatten()
+            .map(|r| r.kind);
         let files = lock(&self.library)
             .remove_book(&BookId(id.into()))
             .map_err(|e| e.to_string())?;
-        let mut ignored = self.ignored();
-        ignored.insert(id.into());
-        self.set_ignored(&ignored);
+        // Only EPUBs in the library folder come back by themselves; keep them out of scans.
+        if kind == Some(aoide_library::ItemKind::Book) {
+            let mut ignored = self.ignored();
+            ignored.insert(id.into());
+            self.set_ignored(&ignored);
+        }
         self.unload(id);
         Ok(files)
     }
@@ -422,6 +434,9 @@ impl Shelf {
             ),
             word_count: record.word_count,
             recording: host.recording_of(&record.id.0),
+            article: (record.kind == aoide_library::ItemKind::Article)
+                .then(|| host.article_of(&record.id.0))
+                .flatten(),
             progress,
             id: record.id.0,
             title: record.title.unwrap_or_else(|| "Untitled".into()),
@@ -453,8 +468,13 @@ impl Shelf {
             BookStatus::Missing => return Err("the book file is missing".into()),
             BookStatus::Error(message) => return Err(message),
         }
-        let bytes = std::fs::read(&record.path).map_err(|e| e.to_string())?;
-        let book = Arc::new(BookModel::parse(id, &bytes, host.reads_notes(id))?);
+        let book = if record.kind == aoide_library::ItemKind::Article {
+            let document = host.article_document(id)?;
+            Arc::new(BookModel::from_parsed(id, document, host.reads_notes(id)))
+        } else {
+            let bytes = std::fs::read(&record.path).map_err(|e| e.to_string())?;
+            Arc::new(BookModel::parse(id, &bytes, host.reads_notes(id))?)
+        };
         // Its length, for reading-time estimates in lists that do not parse it.
         let words = u32::try_from(book.word_count()).unwrap_or(u32::MAX);
         if record.word_count != Some(words) {
@@ -621,6 +641,14 @@ impl ShelfHost for super::Core {
     fn chosen_mode(&self, id: &str) -> Option<super::ReadingMode> {
         self.book_settings(id).mode
     }
+
+    fn article_document(&self, id: &str) -> Result<aoide_document::ParsedBook, String> {
+        self.articles.document(id)
+    }
+
+    fn article_of(&self, id: &str) -> Option<super::ArticleSummary> {
+        self.articles.summary(id)
+    }
 }
 
 impl super::Core {
@@ -745,6 +773,7 @@ impl super::Core {
         self.plan(super::PlanEvent::BookForgotten(id.into()));
         self.forget_recording(id);
         let files = self.shelf.remove(id)?;
+        self.articles.forget(id);
         self.storage.delete_audio(id, files);
         self.emit(CoreEvent::LibraryChanged);
         Ok(())
@@ -779,6 +808,12 @@ mod tests {
             false
         }
         fn chosen_mode(&self, _: &str) -> Option<super::super::ReadingMode> {
+            None
+        }
+        fn article_document(&self, _: &str) -> Result<aoide_document::ParsedBook, String> {
+            Err("no articles in this test".into())
+        }
+        fn article_of(&self, _: &str) -> Option<super::super::ArticleSummary> {
             None
         }
     }

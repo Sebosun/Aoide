@@ -63,7 +63,11 @@ collections: Array<number>,
 /**
  * The sync stage of the book's recording, if it has one.
  */
-recording: SyncStage | null, };
+recording: SyncStage | null, 
+/**
+ * An article's site and fetch.
+ */
+article: ArticleSummary | null, };
 
 export type HomeView = { 
 /**
@@ -565,6 +569,34 @@ candidate: number, };
 
 export type PairOutcome = { bookId: string, error: string | null, };
 
+export type FetchReason = "signIn" | "paywall" | "check" | "cutShort" | "empty";
+
+export type FetchStage = { "kind": "queued" } | { "kind": "fetching" } | { "kind": "ready" } | { "kind": "needsYou", "reason": FetchReason } | { "kind": "failed" };
+
+export type ArticleSource = "http" | "archive";
+
+export type FeedView = { url: string, title: string | null, };
+
+export type ArticleView = { id: string, 
+/**
+ * As the user gave it.
+ */
+url: string, canonicalUrl: string, siteName: string | null, byline: string | null, publishedAt: number | null, stage: FetchStage, 
+/**
+ * Why the last fetch failed, when it did.
+ */
+error: string | null, 
+/**
+ * How the stored copy was got.
+ */
+via: ArticleSource | null, fetchedAt: number | null, capturedWords: number, declaredWords: number | null, 
+/**
+ * Feeds the page links to.
+ */
+feeds: Array<FeedView>, };
+
+export type ArticleSummary = { siteName: string | null, stage: FetchStage, error: string | null, };
+
 export type AppearanceMode = "auto" | "light" | "dark";
 
 export type ReaderMode = "page" | "lines";
@@ -720,6 +752,7 @@ export type CoreEvents = {
   "audiobooks://progress": ScanProgress,
   "audiobooks://matches": Array<AudiobookMatch>,
   "core://problem": ProblemView,
+  "article://state": ArticleView,
 };
 
 /** Every command Core answers, by name, with its arguments and result. */
@@ -793,6 +826,9 @@ export type Commands = {
   "scan_for_audiobooks": { args: Record<string, never>; result: AudiobookMatch[] };
   "audiobook_matches": { args: Record<string, never>; result: AudiobookMatch[] };
   "merge_audiobook": { args: { audiobookId: string; bookId: string }; result: void };
+  "save_article": { args: { url: string }; result: string };
+  "refetch_article": { args: { bookId: string; source: ArticleSource }; result: void };
+  "article": { args: { bookId: string }; result: ArticleView };
   "unmatched_audiobooks": { args: Record<string, never>; result: AudiobookSuggestion[] };
   "cancel_audiobook_scan": { args: Record<string, never>; result: void };
   "look_for_audiobooks": { args: { ids: string[] }; result: number };

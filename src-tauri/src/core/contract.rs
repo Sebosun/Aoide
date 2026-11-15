@@ -115,6 +115,13 @@ fn contract() -> String {
         super::audiobooks::AudiobookMatch,
         super::audiobooks::AudiobookChoice,
         super::audiobooks::PairOutcome,
+        // Articles
+        super::fetching::Reason,
+        super::fetching::Stage,
+        super::articles::ArticleSource,
+        super::articles::FeedView,
+        super::articles::ArticleView,
+        super::articles::ArticleSummary,
         // Appearance
         aoide_config::Mode,
         aoide_config::ReaderMode,
@@ -199,6 +206,10 @@ fn contract() -> String {
         (
             CoreEvent::PROBLEM,
             name::<super::error::ProblemView>(&config),
+        ),
+        (
+            CoreEvent::ARTICLE_STATE,
+            name::<super::articles::ArticleView>(&config),
         ),
     ];
     out.push_str(

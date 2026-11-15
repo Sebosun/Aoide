@@ -528,6 +528,25 @@ fn merge_audiobook(
 }
 
 #[tauri::command]
+fn save_article(core: CoreState<'_>, url: String) -> Result<String, CoreError> {
+    Ok(core.save_article(&url)?)
+}
+
+#[tauri::command]
+fn refetch_article(
+    core: CoreState<'_>,
+    book_id: String,
+    source: crate::core::ArticleSource,
+) -> Result<(), CoreError> {
+    Ok(core.refetch_article(&book_id, source)?)
+}
+
+#[tauri::command]
+fn article(core: CoreState<'_>, book_id: String) -> Result<crate::core::ArticleView, CoreError> {
+    Ok(core.article(&book_id)?)
+}
+
+#[tauri::command]
 fn unmatched_audiobooks(core: CoreState<'_>) -> Vec<crate::core::AudiobookSuggestion> {
     core.unmatched_audiobooks()
 }
@@ -734,6 +753,7 @@ pub fn run() {
                 audio_dir: path.app_cache_dir()?.join("audio"),
                 db_path: data.join("library.sqlite3"),
                 models_dir: data.join("models"),
+                articles_dir: data.join("articles"),
                 config_dir: aoide_config::config_dir(
                     std::env::var_os("XDG_CONFIG_HOME").as_deref(),
                     &path.home_dir()?,
@@ -890,6 +910,9 @@ pub fn run() {
             audiobook_matches,
             unmatched_audiobooks,
             merge_audiobook,
+            save_article,
+            refetch_article,
+            article,
             cancel_audiobook_scan,
             look_for_audiobooks,
             pair_audiobooks,

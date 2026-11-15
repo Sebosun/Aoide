@@ -53,6 +53,7 @@ pub(super) fn paths(root: &Path) -> Paths {
         db_path: root.join("data/library.sqlite3"),
         config_dir: root.join("config"),
         models_dir: root.join("data/models"),
+        articles_dir: root.join("data/articles"),
     }
 }
 
@@ -132,6 +133,29 @@ pub(super) fn start_with(
     engine: &Arc<FakeEngine>,
     transcribers: super::recording::TranscriberFactory,
 ) -> (Arc<Core>, Arc<Recorder>) {
+    start_full(root, engine, transcribers, super::articles::offline())
+}
+
+/// A core whose articles are fetched by `fetcher`.
+pub(super) fn start_fetching(
+    root: &Path,
+    engine: &Arc<FakeEngine>,
+    fetcher: Arc<dyn super::articles::Fetcher>,
+) -> (Arc<Core>, Arc<Recorder>) {
+    start_full(
+        root,
+        engine,
+        Arc::new(|_| Err("no speech recognition in this test".into())),
+        fetcher,
+    )
+}
+
+fn start_full(
+    root: &Path,
+    engine: &Arc<FakeEngine>,
+    transcribers: super::recording::TranscriberFactory,
+    fetcher: Arc<dyn super::articles::Fetcher>,
+) -> (Arc<Core>, Arc<Recorder>) {
     let events = Arc::new(Recorder::default());
     let mut engines = aoide_tts::Registry::new();
     engine.register(&mut engines);
@@ -147,6 +171,7 @@ pub(super) fn start_with(
             Ok(())
         }),
         transcribers,
+        fetcher,
     };
     (Core::start(environment, paths(root)).unwrap(), events)
 }

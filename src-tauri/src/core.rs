@@ -19,6 +19,7 @@ use serde::Serialize;
 
 /// Spoken by voice previews: original text, long enough to hear the voice's pace and tone.
 mod align;
+mod articles;
 mod audiobook;
 mod audiobooks;
 mod config;
@@ -32,8 +33,8 @@ use environment::{default_profile, OUTPUT_RATE};
 pub use environment::{Environment, Events, Paths, ShowInFolder};
 mod error;
 mod facets;
-#[allow(dead_code)] // Until the article worker (slice 4.7) uses it.
 mod fetching;
+pub use articles::{ArticleSource, ArticleSummary, ArticleView};
 pub use facets::HomeView;
 mod generation;
 mod shelf;
@@ -70,6 +71,8 @@ mod voicing;
 mod wire;
 pub use wire::*;
 
+#[cfg(test)]
+mod article_tests;
 #[cfg(test)]
 mod contract;
 #[cfg(test)]
@@ -171,6 +174,8 @@ pub struct Core {
     recordings: recordings::Recordings,
     /// What "Find audiobooks" found.
     audiobooks: Arc<audiobooks::Finder>,
+    /// Articles saved from the web and their fetches.
+    articles: Arc<articles::Articles>,
 }
 
 impl Core {
@@ -183,6 +188,7 @@ impl Core {
             background,
             show_in_folder,
             transcribers,
+            fetcher,
         } = environment;
         for dir in [&paths.library_dir, &paths.covers_dir, &paths.audio_dir] {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -251,7 +257,13 @@ impl Core {
             paths.covers_dir.clone(),
             reporter.clone(),
         );
+        let articles = Arc::new(articles::Articles::new(
+            Arc::clone(&library),
+            paths.articles_dir.clone(),
+            fetcher,
+        ));
         let core = Arc::new(Self {
+            articles,
             events,
             reporter,
             show_in_folder,
@@ -277,6 +289,9 @@ impl Core {
         });
         core.recordings
             .load_recordings(core.app_settings().recognition.resume_on_start);
+        core.articles.load();
+        let fetching = Arc::clone(&core);
+        tokio::spawn(async move { fetching.articles.run(&*fetching).await });
         if background {
             core.spawn_sync_runner();
         }

@@ -22,6 +22,7 @@ pub fn paths(home: &Path) -> Paths {
         db_path: home.join("data").join("library.sqlite3"),
         config_dir: home.join("config").join("aoide"),
         models_dir: home.join("data").join("models"),
+        articles_dir: home.join("data").join("articles"),
     }
 }
 
