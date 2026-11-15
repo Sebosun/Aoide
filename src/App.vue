@@ -33,15 +33,17 @@ const library = useLibraryStore(),
   preferences = usePreferencesStore();
 const recordings = useRecordingsStore(),
   reader = useReaderStore();
-/** Dropped EPUBs join the library; dropped audio (files or a folder) is paired with a book: the
- *  one whose page or reader is open, unless the person picks another. */
+/** Dropped EPUBs join the library; dropped audio (files or a folder) is paired with the book whose
+ *  page or reader is open, else added on its own unless its name comes close to a book's. */
 function dropped(paths: string[]) {
   const books = paths.filter((path) => /\.epub$/i.test(path)),
     audio = paths.filter(isAudioPath);
   if (audio.length) {
     const open =
       navigation.view === "item" ? navigation.bookId : navigation.view === "reader" ? (reader.book?.id ?? null) : null;
-    recordings.openPairing(audio, open);
+    // An audiobook on its own has no text to pair audio with.
+    const book = library.books.find((b) => b.id === open && b.kind !== "audiobook")?.id ?? null;
+    void recordings.receive(audio, book);
   }
   if (books.length) {
     navigation.closeAdd();

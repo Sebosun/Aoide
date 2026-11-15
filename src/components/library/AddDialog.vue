@@ -23,7 +23,7 @@ async function chooseBooks() {
   navigation.view = "library";
   await library.importFiles(paths);
 }
-/** An audiobook (files or a folder) is paired with a book, as when it is dropped. */
+/** An audiobook (files or a folder) is paired with a book or added on its own, as when dropped. */
 async function chooseAudio(folder: boolean) {
   const paths = await api.chooseAudio(folder).catch((e) => {
     library.error = String(e);
@@ -31,7 +31,8 @@ async function chooseAudio(folder: boolean) {
   });
   if (!paths?.length) return;
   close();
-  recordings.openPairing(paths, navigation.view === "item" ? navigation.bookId : null);
+  const open = navigation.view === "item" ? navigation.bookId : null;
+  await recordings.receive(paths, library.books.find((b) => b.id === open && b.kind !== "audiobook")?.id ?? null);
 }
 function go(view: "find" | "audiobooks") {
   close();
@@ -58,7 +59,7 @@ function rescan() {
         <div class="add-dialog__drop">
           <b class="add-dialog__drop-title">Drop books or audiobooks anywhere on this window</b>
           <p class="add-dialog__hint">
-            EPUB for text. M4B, MP3, FLAC or Ogg for audio: an audiobook is paired with one of your books.
+            EPUB for text. M4B, MP3, FLAC or Ogg for audio: an audiobook is paired with its book, or added on its own.
           </p>
           <div class="add-dialog__buttons">
             <button type="button" class="add-dialog__button add-dialog__button--main" @click="chooseBooks">

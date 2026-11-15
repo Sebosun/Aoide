@@ -131,6 +131,7 @@ export const tauriApi: AoideApi = {
   onScanProgress: (h) => on("discovery://progress", h),
   scanForAudiobooks: () => call("scan_for_audiobooks"),
   audiobookMatches: () => call("audiobook_matches"),
+  unmatchedAudiobooks: () => call("unmatched_audiobooks"),
   cancelAudiobookScan: () => call("cancel_audiobook_scan"),
   lookForAudiobooks: (ids) => call("look_for_audiobooks", { ids }),
   pairAudiobooks: (choices) => call("pair_audiobooks", { choices }),

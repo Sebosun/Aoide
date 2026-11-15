@@ -7,6 +7,7 @@ import FindAudiobooksView from "../views/FindAudiobooksView.vue";
 import SettingsDialog from "../components/settings/SettingsDialog.vue";
 import { useLibraryStore } from "../stores/library";
 import { useNavigationStore } from "../stores/navigation";
+import { useUiStore } from "../stores/ui";
 import { pickMenuItem } from "./helpers";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
@@ -126,5 +127,18 @@ it("turns verifying on from Settings → Recordings", async () => {
   await wrapper.get('[aria-label="Let Aoide verify audiobook matches"]').setValue(true);
   await flushPromises();
   expect((await mock.appSettings()).verifyAudiobooks).toBe(true);
+  wrapper.unmount();
+});
+
+it("lists audiobooks that match no book, and adds one on its own", async () => {
+  const wrapper = await scanned();
+  const section = wrapper.get('[aria-labelledby="find-unmatched"]');
+  expect(section.text()).toContain("Ines Morrow - Winter Radio");
+  expect(section.text()).toContain("Folder · 2 files");
+  await section.get('[aria-label="Add Ines Morrow - Winter Radio on its own"]').trigger("click");
+  await flushPromises();
+  expect(useLibraryStore().books.find((b) => b.id === "book-5")?.kind).toBe("audiobook");
+  expect(useUiStore().toasts.map((t) => t.text)).toContain("Added “Winter Radio” as an audiobook");
+  expect(wrapper.find('[aria-labelledby="find-unmatched"]').exists(), "added, so no longer listed").toBe(false);
   wrapper.unmount();
 });

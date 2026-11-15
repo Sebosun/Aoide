@@ -304,3 +304,32 @@ fn among_several_books_an_audiobook_goes_only_to_the_books_it_comes_closest_to()
         "alone, the close book is offered it"
     );
 }
+
+#[test]
+fn every_audiobook_found_is_listed_once_by_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "Glass Harbour/01.mp3");
+    touch(root, "Glass Harbour/02.mp3");
+    // A folder of one book's audio is that book, however many files it holds.
+    touch(root, "Loose/Night Ferry.m4b");
+    let all: Vec<(Vec<String>, usize)> = AudiobookFolder::read(root)
+        .all()
+        .iter()
+        .map(|s| {
+            let paths = s
+                .paths
+                .iter()
+                .map(|p| p.strip_prefix(root).unwrap().to_string_lossy().into_owned())
+                .collect();
+            (paths, s.files.len())
+        })
+        .collect();
+    assert_eq!(
+        all,
+        [
+            (vec!["Glass Harbour".to_string()], 2),
+            (vec!["Loose".to_string()], 1)
+        ]
+    );
+}

@@ -10,6 +10,7 @@ import { useNavigationStore } from "../stores/navigation";
 import { usePlayerStore } from "../stores/player";
 import { useReaderStore } from "../stores/reader";
 import { useRecordingsStore } from "../stores/recordings";
+import { useUiStore } from "../stores/ui";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("../api", () => ({
@@ -275,4 +276,50 @@ it("exports a synced book as a read-along EPUB from its card and its recording p
   expect(exportReadAlong).toHaveBeenCalledTimes(2);
   panel.unmount();
   host.unmount();
+});
+
+const toasts = () => useUiStore().toasts.map((t) => t.text);
+const added = () => useLibraryStore().books.find((b) => b.id === "book-5");
+
+it("adds dropped audio that matches no book on its own and names it, and pairs audio that does", async () => {
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  const drop = (name: string) =>
+    wrapper.get(".app").trigger("drop", { dataTransfer: { types: ["Files"], files: [{ name }] } });
+  await drop("Winter Radio.m4b");
+  await flushPromises();
+  expect(dialog("Pair an audiobook")).toBeNull();
+  expect(added()?.kind).toBe("audiobook");
+  expect(toasts()).toContain("Added “Winter Radio” as an audiobook");
+
+  await drop("the-lantern-keeper.m4b");
+  await flushPromises();
+  expect(dialog("Pair an audiobook"), "its name comes close to a book's").not.toBeNull();
+  wrapper.unmount();
+});
+
+it("adds a chosen audiobook that matches no book on its own, from the Add dialog", async () => {
+  vi.spyOn(mock, "chooseAudio").mockResolvedValue(["~/Audiobooks/Winter Radio"]);
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await wrapper.get('nav [aria-label="Add"]').trigger("click");
+  await flushPromises();
+  await click(byText(document.body, '[role="dialog"] button', "Choose an audiobook…"));
+  expect(added()?.title).toBe("Winter Radio");
+  expect(toasts()).toContain("Added “Winter Radio” as an audiobook");
+  wrapper.unmount();
+});
+
+it("adds audio on its own from the pairing dialog instead of pairing it", async () => {
+  mount(App, { attachTo: document.body });
+  await flushPromises();
+  useRecordingsStore().openPairing(["~/Audiobooks/the-lantern-keeper.m4b"]);
+  await flushPromises();
+  const pair = dialog("Pair an audiobook")!;
+  await click(byText(pair, "button", "Add on its own"));
+  expect(dialog("Pair an audiobook")).toBeNull();
+  expect(added()?.kind).toBe("audiobook");
+  expect(useNavigationStore().view).toBe("item");
+  expect(useNavigationStore().bookId).toBe("book-5");
+  expect(toasts()).toContain("Added “Winter Radio” as an audiobook");
 });

@@ -7,7 +7,8 @@ import { Upload } from "@lucide/vue";
     <span class="drop-overlay__icon"><Upload :size="30" /></span>
     <strong class="drop-overlay__title">Drop to add to your library</strong>
     <span class="drop-overlay__hint"
-      >EPUB files are added to your library; an audiobook (audio files or their folder) is paired with a book</span
+      >EPUB files are added to your library; an audiobook (audio files or their folder) is paired with its book, or
+      added on its own</span
     >
   </div>
 </template>

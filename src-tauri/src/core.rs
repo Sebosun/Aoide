@@ -37,7 +37,7 @@ mod generation;
 mod shelf;
 use generation::PlanEvent;
 mod storage;
-pub use audiobooks::{AudiobookChoice, AudiobookMatch, PairOutcome};
+pub use audiobooks::{AudiobookChoice, AudiobookMatch, AudiobookSuggestion, PairOutcome};
 #[cfg(any(test, debug_assertions))]
 pub use discovery::CandidateStatus;
 pub use discovery::{Candidate, ImportChoice};

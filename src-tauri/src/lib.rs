@@ -519,6 +519,11 @@ fn audiobook_matches(core: CoreState<'_>) -> Vec<crate::core::AudiobookMatch> {
 }
 
 #[tauri::command]
+fn unmatched_audiobooks(core: CoreState<'_>) -> Vec<crate::core::AudiobookSuggestion> {
+    core.unmatched_audiobooks()
+}
+
+#[tauri::command]
 fn cancel_audiobook_scan(core: CoreState<'_>) {
     core.cancel_audiobook_scan();
 }
@@ -871,6 +876,7 @@ pub fn run() {
             choose_books,
             scan_for_audiobooks,
             audiobook_matches,
+            unmatched_audiobooks,
             cancel_audiobook_scan,
             look_for_audiobooks,
             pair_audiobooks,

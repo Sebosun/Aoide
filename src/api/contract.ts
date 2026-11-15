@@ -788,6 +788,7 @@ export type Commands = {
   "discovered_books": { args: Record<string, never>; result: Candidate[] };
   "scan_for_audiobooks": { args: Record<string, never>; result: AudiobookMatch[] };
   "audiobook_matches": { args: Record<string, never>; result: AudiobookMatch[] };
+  "unmatched_audiobooks": { args: Record<string, never>; result: AudiobookSuggestion[] };
   "cancel_audiobook_scan": { args: Record<string, never>; result: void };
   "look_for_audiobooks": { args: { ids: string[] }; result: number };
   "pair_audiobooks": { args: { choices: AudiobookChoice[] }; result: PairOutcome[] };

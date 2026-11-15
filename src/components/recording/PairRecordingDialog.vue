@@ -12,7 +12,8 @@ import { formatDuration } from "../../estimate";
 import { describeFiles } from "../../recording";
 
 /** Pairing dropped or chosen audio with a book: what the files are, which book they read, and
- *  any that cannot be used. "Check and sync" attaches them; the sync runs in the background. */
+ *  any that cannot be used. "Check and sync" attaches them; the sync runs in the background.
+ *  "Add on its own" adds them as an audiobook with no book instead. */
 const recordings = useRecordingsStore(),
   library = useLibraryStore(),
   navigation = useNavigationStore();
@@ -33,7 +34,7 @@ onMounted(async () => {
 });
 const books = computed(() =>
   library.books
-    .filter((b) => b.status.kind === "present")
+    .filter((b) => b.status.kind === "present" && b.kind !== "audiobook")
     .map((b) => ({ value: b.id, label: b.title, hint: b.authors.join(", ") || undefined })),
 );
 /** The files in the order they will play; Aoide's order unless moved by hand. */
@@ -70,6 +71,16 @@ async function pair() {
   } finally {
     busy.value = false;
   }
+}
+/** Adds the audio as an audiobook of its own, and opens its page. */
+async function addOnItsOwn() {
+  if (!usable.value) return;
+  busy.value = true;
+  const id = await recordings.addOnItsOwn(moved.value ? files.value.map((f) => f.path) : pairing.paths);
+  busy.value = false;
+  if (!id) return;
+  recordings.closePairing();
+  navigation.openItem(id);
 }
 </script>
 
@@ -130,6 +141,16 @@ async function pair() {
         <div class="pair__field">
           <span>Book</span
           ><UiSelect v-model="bookId" label="The book it reads" :options="books" placeholder="Choose the book…" />
+          <span class="pair__or">or</span>
+          <button
+            type="button"
+            class="pair__button"
+            :disabled="!usable || busy"
+            title="Listen to it without a book; you can add the EPUB later"
+            @click="addOnItsOwn"
+          >
+            Add on its own
+          </button>
         </div>
         <p class="pair__hint">
           Aoide first checks three short samples against the book's text, then listens to the whole recording in the
@@ -246,13 +267,17 @@ async function pair() {
 }
 .pair__field {
   display: grid;
-  grid-template-columns: 60px minmax(0, 1fr);
+  grid-template-columns: 60px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   font-size: 13px;
 }
 .pair__field > span {
   color: var(--dim);
+}
+.pair__button:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .pair__hint {
   font-size: 12px;

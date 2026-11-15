@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api } from "../api";
-import type { AudiobookMatch, MatchStage, ScanProgress } from "../api/types";
+import type { AudiobookMatch, AudiobookSuggestion, MatchStage, ScanProgress } from "../api/types";
 import { useRecordingsStore } from "./recordings";
 
 /** Find audiobooks' tabs: the core's match stages, as the screen groups them. */
@@ -19,6 +19,12 @@ const groupOf: Record<MatchStage["kind"], MatchGroup> = {
 export const useAudiobooksStore = defineStore("audiobooks", () => {
   const matches = ref<AudiobookMatch[]>([]),
     progress = ref<ScanProgress | null>(null);
+  /** What the last search found that matches no book, to add on its own. */
+  const unmatched = ref<AudiobookSuggestion[]>([]),
+    adding = ref(false);
+  async function loadUnmatched() {
+    unmatched.value = await api.unmatchedAudiobooks();
+  }
   const scanning = ref(false),
     pairing = ref(false),
     error = ref(""),
@@ -58,6 +64,7 @@ export const useAudiobooksStore = defineStore("audiobooks", () => {
         );
         unlisteners.push(await api.onAudiobookMatches(put));
         put(await api.audiobookMatches());
+        await loadUnmatched();
       } catch (e) {
         error.value = String(e);
       }
@@ -69,6 +76,7 @@ export const useAudiobooksStore = defineStore("audiobooks", () => {
     progress.value = null;
     try {
       put(await api.scanForAudiobooks());
+      await loadUnmatched();
     } catch (e) {
       if (!String(e).includes("cancelled")) error.value = String(e);
     } finally {
@@ -92,6 +100,18 @@ export const useAudiobooksStore = defineStore("audiobooks", () => {
       pairing.value = false;
     }
   }
+  /** Adds an audiobook that matches no book as an item of its own. */
+  async function addUnmatched(audiobook: AudiobookSuggestion) {
+    adding.value = true;
+    try {
+      await useRecordingsStore().addOnItsOwn(audiobook.paths);
+      await loadUnmatched();
+    } catch (e) {
+      error.value = String(e);
+    } finally {
+      adding.value = false;
+    }
+  }
   function toggle(id: string, on: boolean) {
     const next = new Set(selected.value);
     if (on) next.add(id);
@@ -111,6 +131,9 @@ export const useAudiobooksStore = defineStore("audiobooks", () => {
   }
   return {
     matches,
+    unmatched,
+    adding,
+    addUnmatched,
     progress,
     scanning,
     pairing,

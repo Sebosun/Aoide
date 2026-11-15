@@ -94,7 +94,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `metadata.apply` | warn | `book`, `error` | `core/discovery.rs` |
 | `http` | debug, warn | `service`, `op`, `found`, `took_ms`, `outcome`, `error` | `core/metadata.rs` (Open Library) |
 | **Audiobooks** | | | |
-| `audiobooks.scan` | info | `roots`, `only_added`, `dirs`, `files`, `audio`, `matches`, `took_ms`, `outcome` | `core/audiobooks.rs` |
+| `audiobooks.scan` | info | `roots`, `only_added`, `dirs`, `files`, `audio`, `matches`, `unmatched` (whole searches), `took_ms`, `outcome` | `core/audiobooks.rs` |
 | `audiobooks.pair` | info, warn | `book`, `candidate`, `outcome` (`ok`, `failed`, `skipped`: another book has it), `error` | `core/audiobooks.rs` |
 | `match.stage` | info | `book`, `cause`, `from`, `to` | `core/audiobooks.rs`, each match transition |
 | **Sync** (`core/recordings.rs`) | | | |

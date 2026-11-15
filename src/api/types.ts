@@ -239,6 +239,8 @@ export interface AoideApi {
   scanForAudiobooks(): Promise<AudiobookMatch[]>;
   /** The matches the last searches found, and where each stands. */
   audiobookMatches(): Promise<AudiobookMatch[]>;
+  /** What the last whole search found that comes close to no book, to add on its own. */
+  unmatchedAudiobooks(): Promise<AudiobookSuggestion[]>;
   cancelAudiobookScan(): Promise<void>;
   /** After books were added: how many have audiobooks waiting for the user (0 when looking on
    *  adding is off or Aoide verifies them). */

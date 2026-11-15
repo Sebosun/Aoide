@@ -3,6 +3,8 @@ import { computed, ref } from "vue";
 import { api } from "../api";
 import type { Narration, RecordingView, SyncAction } from "../api/types";
 import { useReaderStore } from "./reader";
+import { useLibraryStore } from "./library";
+import { useUiStore } from "./ui";
 
 /** Books' recordings, kept current from "sync://state", and the pairing dialog and sync report
  *  that are open over any screen. */
@@ -62,6 +64,38 @@ export const useRecordingsStore = defineStore("recordings", () => {
   function openPairing(paths: string[], bookId: string | null = null) {
     pairing.value = { paths, bookId };
   }
+  /** Audio dropped or chosen: paired with `bookId` (a book's page or reader is open); else added
+   *  on its own, unless its name comes close to a book's, when the pairing dialog offers both. */
+  async function receive(paths: string[], bookId: string | null) {
+    if (bookId) return openPairing(paths, bookId);
+    const suggested = await api.inspectRecording(paths).then(
+      (found) => found.suggestedBook,
+      () => null,
+    );
+    if (suggested) openPairing(paths, null);
+    else await addOnItsOwn(paths);
+  }
+  /** Adds an audiobook with no book as an item of its own; a toast names it, or says why not.
+   *  Returns its id. */
+  async function addOnItsOwn(paths: string[]): Promise<string | null> {
+    const ui = useUiStore(),
+      library = useLibraryStore();
+    try {
+      const added = await api.addAudiobook(paths);
+      if (!added.bookId) {
+        ui.toast(added.error ?? "Could not add the audiobook.", "error");
+        return null;
+      }
+      await library.refresh();
+      const title = library.books.find((b) => b.id === added.bookId)?.title ?? "The audiobook";
+      ui.toast(`Added “${title}” as an audiobook`);
+      void load(added.bookId);
+      return added.bookId;
+    } catch (e) {
+      ui.toast(String(e), "error");
+      return null;
+    }
+  }
   function dispose() {
     unlisten?.();
     startup = undefined;
@@ -79,6 +113,8 @@ export const useRecordingsStore = defineStore("recordings", () => {
     remove,
     setNarration,
     openPairing,
+    receive,
+    addOnItsOwn,
     closePairing: () => {
       pairing.value = null;
     },

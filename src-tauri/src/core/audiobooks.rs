@@ -134,6 +134,8 @@ pub struct PairOutcome {
 #[derive(Default)]
 pub(super) struct Matches {
     list: Vec<AudiobookMatch>,
+    /// What the last whole search found that comes close to no book.
+    unmatched: Vec<AudiobookSuggestion>,
     /// Set while a search runs; setting the flag stops it.
     cancel: Option<Arc<AtomicBool>>,
 }
@@ -170,6 +172,19 @@ fn taken(host: &dyn FinderHost, id: &str, paths: &[String]) -> bool {
         .any(|p| paired.iter().any(|f| f.starts_with(p)))
 }
 
+impl From<aoide_discovery::Suggestion> for AudiobookSuggestion {
+    fn from(s: aoide_discovery::Suggestion) -> Self {
+        let text = |p: &PathBuf| p.to_string_lossy().into_owned();
+        Self {
+            folder: s.paths.len() == 1 && !s.files.contains(&s.paths[0]),
+            paths: s.paths.iter().map(text).collect(),
+            exact: s.exact,
+            files: s.files.iter().map(text).collect(),
+            bytes: s.bytes,
+        }
+    }
+}
+
 /// "Find audiobooks": searches folders for the audiobooks of books without a recording, and
 /// takes each match through checking and pairing.
 pub(super) struct Finder {
@@ -198,6 +213,22 @@ impl Finder {
     /// The matches the last searches found, and where each stands.
     pub fn matches(&self) -> Vec<AudiobookMatch> {
         lock(&self.matches).list.clone()
+    }
+
+    /// What the last whole search found that comes close to no book, but for what is paired
+    /// with a book (or added on its own) since.
+    pub fn unmatched(&self, host: &dyn FinderHost) -> Vec<AudiobookSuggestion> {
+        let paired = host.paired_files(None);
+        lock(&self.matches)
+            .unmatched
+            .iter()
+            .filter(|s| {
+                !s.paths
+                    .iter()
+                    .any(|p| paired.iter().any(|f| f.starts_with(p)))
+            })
+            .cloned()
+            .collect()
     }
 
     /// After books were added: looks for their audiobooks, if the user wants that. Returns how
@@ -546,6 +577,18 @@ impl Finder {
                 .iter()
                 .map(|b| (b.path.as_path(), b.title.as_deref(), b.authors.as_slice())),
         );
+        // A whole search also lists what comes close to no book, to add on its own.
+        let unmatched: Option<Vec<AudiobookSuggestion>> = ids.is_none().then(|| {
+            folder
+                .all()
+                .into_iter()
+                .filter(|a| {
+                    !a.paths.iter().any(|p| taken(p))
+                        && !suggested.iter().flatten().any(|s| s.paths == a.paths)
+                })
+                .map(AudiobookSuggestion::from)
+                .collect()
+        });
         let mut found: Vec<(String, AudiobookMatch)> = books
             .into_iter()
             .zip(suggested)
@@ -553,21 +596,7 @@ impl Finder {
                 let candidates: Vec<AudiobookSuggestion> = suggested
                     .into_iter()
                     .filter(|s| !s.paths.iter().any(|p| taken(p)))
-                    .map(|s| AudiobookSuggestion {
-                        folder: s.paths.len() == 1 && !s.files.contains(&s.paths[0]),
-                        paths: s
-                            .paths
-                            .iter()
-                            .map(|p| p.to_string_lossy().into_owned())
-                            .collect(),
-                        exact: s.exact,
-                        files: s
-                            .files
-                            .iter()
-                            .map(|p| p.to_string_lossy().into_owned())
-                            .collect(),
-                        bytes: s.bytes,
-                    })
+                    .map(AudiobookSuggestion::from)
                     .collect();
                 (!candidates.is_empty()).then(|| {
                     let title = book.title.clone().unwrap_or_default();
@@ -592,10 +621,14 @@ impl Finder {
             files = seen.files,
             audio = seen.found,
             matches = found.len(),
+            unmatched = unmatched.as_ref().map(Vec::len),
             took_ms = crate::logging::took(started),
             "Searched for audiobooks"
         );
         let mut matches = lock(&self.matches);
+        if let Some(unmatched) = unmatched {
+            matches.unmatched = unmatched;
+        }
         let searched = |id: &str| ids.as_ref().map_or(true, |ids| ids.iter().any(|i| i == id));
         // Matches already under way stay as they are; the ones waiting for the user are
         // replaced by what this search found.
@@ -638,6 +671,11 @@ impl Core {
         self.audiobooks
             .look_for(ids, self.audiobook_search(), self)
             .await
+    }
+
+    /// What the last search found that comes close to no book, to add on its own.
+    pub fn unmatched_audiobooks(&self) -> Vec<AudiobookSuggestion> {
+        self.audiobooks.unmatched(self)
     }
 
     pub fn cancel_audiobook_scan(&self) {
@@ -800,5 +838,51 @@ mod tests {
                 .all(|m| m.stage != MatchStage::Found),
             "audio another book has is not offered"
         );
+    }
+
+    #[tokio::test]
+    async fn audiobooks_close_to_no_book_are_listed_until_added() {
+        let dir = tempfile::tempdir().unwrap();
+        let audiobooks = dir.path().join("Audiobooks");
+        for name in ["Book lanterns", "Winter Radio"] {
+            std::fs::create_dir_all(audiobooks.join(name)).unwrap();
+            std::fs::write(audiobooks.join(name).join("part.mp3"), [0u8; 64]).unwrap();
+        }
+        let finder = Arc::new(Finder::new(
+            super::super::tests::library_with(&["lanterns"]),
+            &super::super::tests::paths(dir.path()),
+            Arc::new(super::super::tests::Recorder::default()),
+        ));
+        let search = || Search {
+            settings: AudiobookSearchSettings {
+                roots: vec![audiobooks.to_string_lossy().into_owned()],
+                ..Default::default()
+            },
+            verify: false,
+        };
+        let host = Host::default();
+        assert!(finder.unmatched(&host).is_empty(), "nothing searched yet");
+
+        finder.search(None, search(), &host).await.unwrap();
+        let radio = audiobooks
+            .join("Winter Radio")
+            .to_string_lossy()
+            .into_owned();
+        let unmatched = finder.unmatched(&host);
+        assert_eq!(unmatched.len(), 1, "the one close to a book is its match");
+        assert_eq!(
+            (unmatched[0].paths.clone(), unmatched[0].folder),
+            (vec![radio.clone()], true)
+        );
+
+        // A search for books just added leaves the list as it was.
+        finder
+            .search(Some(vec!["lanterns".into()]), search(), &host)
+            .await
+            .unwrap();
+        assert_eq!(finder.unmatched(&host).len(), 1);
+        // Added on its own: its files are paired with it, so it is no longer listed.
+        lock(&host.paired).push(("radio".into(), vec![radio]));
+        assert!(finder.unmatched(&host).is_empty());
     }
 }

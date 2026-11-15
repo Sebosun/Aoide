@@ -1,6 +1,7 @@
 import type {
   ProblemView,
   AudiobookMatch,
+  AudiobookSuggestion,
   RecordingView,
   SyncStage,
   InspectionView,
@@ -405,6 +406,9 @@ export function createMockApi() {
   const audiobookScanHandlers = new Set<(p: ScanProgress) => void>();
   const matchHandlers = new Set<(m: AudiobookMatch[]) => void>();
   let audiobookMatches: AudiobookMatch[] = [];
+  /** What a search finds that comes close to no book: the preview's audiobook on its own. */
+  const WINTER_RADIO = "~/Audiobooks/Ines Morrow - Winter Radio";
+  let unmatched: AudiobookSuggestion[] = [];
   const kept: Record<string, AudiobookMatch["candidates"]> = {
     "book-1": [
       {
@@ -1249,6 +1253,15 @@ export function createMockApi() {
       for (const m of audiobookMatches)
         if (m.stage.kind === "verifying" && !recordings.has(m.bookId))
           await api.attachRecording(m.bookId, m.candidates[0].paths);
+      unmatched = [
+        {
+          paths: [WINTER_RADIO],
+          exact: false,
+          folder: true,
+          files: [`${WINTER_RADIO}/01 Part One.mp3`, `${WINTER_RADIO}/02 Part Two.mp3`],
+          bytes: 61_400_000,
+        },
+      ];
       audiobookScanHandlers.forEach((h) =>
         h({ stage: "done", dirs: 0, files: 0, found: 0, read: 0, toRead: 0, error: null }),
       );
@@ -1257,6 +1270,10 @@ export function createMockApi() {
     },
     async audiobookMatches() {
       return structuredClone(audiobookMatches);
+    },
+    async unmatchedAudiobooks() {
+      const added = books.some((b) => b.id === fixtureAudiobook.summary.id);
+      return structuredClone(unmatched.filter((u) => !(added && u.paths[0] === WINTER_RADIO)));
     },
     async cancelAudiobookScan() {},
     async lookForAudiobooks(ids) {

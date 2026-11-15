@@ -308,7 +308,41 @@ function openSettings() {
         </button>
       </footer>
     </template>
-    <div v-else-if="!audiobooks.scanning" class="find-audiobooks__empty">
+    <section v-if="audiobooks.unmatched.length" class="find-audiobooks__unmatched" aria-labelledby="find-unmatched">
+      <h2 id="find-unmatched" class="find-audiobooks__heading">
+        Not in your library <span class="find-audiobooks__count">{{ audiobooks.unmatched.length }}</span>
+      </h2>
+      <p class="find-audiobooks__hint">
+        These match none of your books by name. Add one to listen to it on its own; you can add its EPUB later.
+      </p>
+      <ul class="find-audiobooks__others">
+        <li
+          v-for="c in audiobooks.unmatched"
+          :key="c.paths[0]"
+          class="find-audiobooks__other"
+          :title="c.files.join('\n')"
+        >
+          <component :is="c.folder ? Folder : Headphones" :size="14" class="find-audiobooks__kind" aria-hidden="true" />
+          <span class="find-audiobooks__label"
+            ><span class="find-audiobooks__name">{{ nameOf(c) }}</span
+            ><span class="find-audiobooks__meta">{{ holds(c) }}</span></span
+          >
+          <button
+            type="button"
+            class="find-audiobooks__button"
+            :aria-label="`Add ${nameOf(c)} on its own`"
+            :disabled="audiobooks.adding"
+            @click="audiobooks.addUnmatched(c)"
+          >
+            Add
+          </button>
+        </li>
+      </ul>
+    </section>
+    <div
+      v-if="!audiobooks.matches.length && !audiobooks.unmatched.length && !audiobooks.scanning"
+      class="find-audiobooks__empty"
+    >
       <Headphones :size="36" :stroke-width="1.2" />
       <p>Scan to find audiobooks for the books in your library that don't have one yet.</p>
     </div>
@@ -631,6 +665,37 @@ function openSettings() {
   font-weight: 600;
 }
 .find-audiobooks__footer .find-audiobooks__button {
+  background: var(--ground);
+}
+.find-audiobooks__unmatched {
+  display: grid;
+  gap: 8px;
+  margin-top: 28px;
+}
+.find-audiobooks__heading {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.find-audiobooks__others {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.find-audiobooks__other {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--page);
+}
+.find-audiobooks__other .find-audiobooks__label {
+  flex: 1;
+}
+.find-audiobooks__other .find-audiobooks__button {
   background: var(--ground);
 }
 .find-audiobooks__empty {

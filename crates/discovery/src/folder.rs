@@ -161,6 +161,22 @@ impl AudiobookFolder {
             .collect()
     }
 
+    /// Every audiobook found, by path (not suggested to any book: `exact` is false).
+    pub fn all(&self) -> Vec<Suggestion> {
+        let mut all: Vec<Suggestion> = self
+            .audiobooks
+            .iter()
+            .map(|audiobook| Suggestion {
+                paths: audiobook.paths.clone(),
+                exact: false,
+                files: audiobook.files.clone(),
+                bytes: audiobook.bytes,
+            })
+            .collect();
+        all.sort_by(|a, b| a.paths.cmp(&b.paths));
+        all
+    }
+
     /// Every audiobook that comes close to `book` (by its index), closest first: by closeness,
     /// then those in a folder named for the book's author, then by path.
     fn ranked(&self, book: &Book) -> Vec<(Closeness, bool, usize)> {
