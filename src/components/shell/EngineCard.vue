@@ -7,8 +7,9 @@ import { usePlayerStore } from "../../stores/player";
 import { useRecordingsStore } from "../../stores/recordings";
 
 /** The speech engine in the sidebar, only while it matters: books are being narrated ahead,
- *  recordings are syncing, or the engine has failed. Clicking it shows what the engine is
- *  working on; Escape, a click outside or opening something from the panel closes it. */
+ *  recordings are syncing, or the engine has failed after the user asked for audio (someone
+ *  only reading never sees its problems). Clicking it shows what the engine is working on;
+ *  Escape, a click outside or opening something from the panel closes it. */
 const player = usePlayerStore(),
   library = useLibraryStore(),
   recordings = useRecordingsStore();
@@ -23,7 +24,7 @@ const queue = computed(() =>
     .filter((b) => b.prepare && b.prepare.state !== "done")
     .sort((a, b) => (a.prepare!.position ?? Infinity) - (b.prepare!.position ?? Infinity)),
 );
-const failed = computed(() => player.engine.state === "error");
+const failed = computed(() => player.engine.state === "error" && player.engine.wanted);
 const shown = computed(() => failed.value || queue.value.length > 0 || recordings.syncing.length > 0);
 const title = computed(() => {
   if (failed.value) return `${player.engine.profileName} has a problem`;

@@ -322,3 +322,51 @@ async fn the_engine_status_is_sent_only_when_it_changes() {
     assert_eq!(sent.len(), 2, "{sent:?}");
     assert_eq!(sent[1]["state"], "loading");
 }
+
+#[tokio::test]
+async fn a_book_is_read_to_the_end_with_a_failing_engine_and_its_problem_waits_for_listening() {
+    use super::ReadState;
+    let dir = tempfile::tempdir().unwrap();
+    let engine = Scripted::new(
+        "broken",
+        EngineStatus::Error("the model did not load".into()),
+        &[],
+        false,
+    );
+    let (core, events, id) = start(dir.path(), &[&engine], "").await;
+    until_rounds("a look at the engine", || {
+        engine.status_calls.load(Ordering::SeqCst) >= 1
+    })
+    .await;
+
+    core.open_book(&id).unwrap();
+    let mut last = None;
+    for chapter in 0..core.book_overview(&id).unwrap().chapters.len() {
+        let view = core.chapter(&id, chapter).unwrap();
+        for segment in view.blocks.iter().flat_map(|b| &b.segments) {
+            last = Some((chapter, segment.id.clone()));
+            core.set_reading_place(&id, chapter, &segment.id).unwrap();
+        }
+    }
+    let (chapter, segment) = last.unwrap();
+    assert!(core.set_reading_place(&id, chapter, &segment).is_ok());
+    assert_eq!(
+        core.list_books().unwrap()[0].read_state,
+        ReadState::Finished
+    );
+    assert_eq!(events.count(CoreEvent::PROBLEM), 0);
+    let sent = events.payloads(CoreEvent::ENGINE_STATUS);
+    assert!(!sent.is_empty());
+    assert!(
+        sent.iter().all(|s| s["wanted"] == false),
+        "the engine's problem is not shown to someone only reading: {sent:?}"
+    );
+    assert!(!core.engine_status().wanted);
+
+    // Asking to listen makes the problem the user's.
+    let _ = core.play(&id, Some(0), None).await;
+    let sent = events.payloads(CoreEvent::ENGINE_STATUS);
+    assert_eq!(sent.last().unwrap()["wanted"], true, "{sent:?}");
+    assert_eq!(sent.last().unwrap()["state"], "error");
+    core.stop();
+}

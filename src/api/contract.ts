@@ -196,7 +196,12 @@ waitingForSync: boolean, };
 
 export type EngineState = "offline" | "loading" | "ready" | "busy" | "error";
 
-export type EngineStatusView = { profileName: string, state: EngineState, detail: string | null, };
+export type EngineStatusView = { profileName: string, state: EngineState, detail: string | null, 
+/**
+ * Something in this run has needed the engine (the user listened, prepared a book or
+ * tried a voice). Until then its problems are not the user's: they are only reading.
+ */
+wanted: boolean, };
 
 export type PreparingView = { bookId: string, done: number, total: number, };
 

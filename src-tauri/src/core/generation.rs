@@ -548,6 +548,7 @@ impl GenerationHost for super::Core {
 
 impl super::Core {
     pub async fn prepare_book(&self, id: &str) -> Result<(), String> {
+        self.engine.want();
         self.load_book(id)?;
         self.ensure_voice().await?;
         self.ensure_model().await;

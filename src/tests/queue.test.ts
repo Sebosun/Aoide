@@ -5,6 +5,8 @@ import { createMockApi } from "../api/mock";
 import { initialGeneration } from "../api/initial";
 import App from "../App.vue";
 import { useNavigationStore } from "../stores/navigation";
+import { usePlayerStore } from "../stores/player";
+import { useReaderStore } from "../stores/reader";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("../api", () => ({
@@ -176,5 +178,27 @@ it("says in the reader's player when the speech engine cannot speak", async () =
   mock.emitEngine({ profileName: "Local Chatterbox", state: "busy", detail: null });
   await flushPromises();
   expect(status()).toBe("");
+  wrapper.unmount();
+});
+
+it("keeps the engine's problem out of sight while a book is only read, until the user listens", async () => {
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  mock.emitEngine({ profileName: "Local Chatterbox", state: "error", detail: "The server stopped", wanted: false });
+  await useReaderStore().open("book-1");
+  await flushPromises();
+  expect(useNavigationStore().view).toBe("reader");
+  expect(wrapper.find("nav .engine-card").exists()).toBe(false);
+  expect(document.body.querySelector('[role="alert"]')).toBeNull();
+  expect(wrapper.find('[aria-label="Player"]').exists()).toBe(false);
+  useNavigationStore().leaveReader();
+  await flushPromises();
+  expect(wrapper.find("nav .engine-card").exists()).toBe(false);
+
+  await usePlayerStore().play("book-1", 0, null);
+  mock.emitEngine({ profileName: "Local Chatterbox", state: "error", detail: "The server stopped" });
+  useNavigationStore().leaveReader();
+  await flushPromises();
+  expect(wrapper.get("nav .engine-card").text()).toContain("Local Chatterbox has a problem");
   wrapper.unmount();
 });

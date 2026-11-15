@@ -73,6 +73,8 @@ pub(super) struct Engine {
     status: Mutex<Option<EngineStatusView>>,
     /// The launch command runs at most once per run of Aoide.
     launched_once: AtomicBool,
+    /// Something in this run has needed the engine (see [`EngineStatusView::wanted`]).
+    wanted: AtomicBool,
     events: Arc<dyn Events>,
 }
 
@@ -95,6 +97,7 @@ impl Engine {
             }),
             status: Mutex::new(None),
             launched_once: AtomicBool::new(false),
+            wanted: AtomicBool::new(false),
             events,
         }
     }
@@ -340,16 +343,20 @@ impl Engine {
             profile_name: name,
             state,
             detail,
+            wanted: false,
         });
         polled
     }
 
     /// The engine started making audio.
     pub fn mark_busy(&self) {
+        // Making audio is always for something the user asked for.
+        self.wanted.store(true, Ordering::SeqCst);
         self.set_status(EngineStatusView {
             profile_name: self.profile_name(),
             state: EngineState::Busy,
             detail: None,
+            wanted: true,
         });
     }
 
@@ -361,7 +368,20 @@ impl Engine {
                 profile_name: self.profile_name(),
                 state: EngineState::Offline,
                 detail: Some("checking…".into()),
+                wanted: self.wanted.load(Ordering::SeqCst),
             })
+    }
+
+    /// The user asked for something the engine does (listening, preparing, a voice sample):
+    /// from now on its status, problems included, is theirs to see.
+    pub fn want(&self) {
+        if self.wanted.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let last = lock(&self.status).clone();
+        if let Some(status) = last {
+            self.set_status(status);
+        }
     }
 
     /// Speaks a short sample sentence with a profile that may not be saved yet (the settings
@@ -374,6 +394,7 @@ impl Engine {
         params: Params,
         language: Option<String>,
     ) -> Result<Vec<u8>, String> {
+        self.want();
         let engine = self.registry.create(&profile).map_err(|e| e.to_string())?;
         let descriptor = engine.descriptor().clone();
         let book = BookSettings {
@@ -416,7 +437,8 @@ impl Engine {
         }
     }
 
-    fn set_status(&self, status: EngineStatusView) {
+    fn set_status(&self, mut status: EngineStatusView) {
+        status.wanted = self.wanted.load(Ordering::SeqCst);
         let mut last = lock(&self.status);
         let before = last.as_ref().map(|s| s.state);
         if before != Some(status.state) {

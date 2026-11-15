@@ -126,6 +126,9 @@ pub struct EngineStatusView {
     pub profile_name: String,
     pub state: EngineState,
     pub detail: Option<String>,
+    /// Something in this run has needed the engine (the user listened, prepared a book or
+    /// tried a voice). Until then its problems are not the user's: they are only reading.
+    pub wanted: bool,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Default)]

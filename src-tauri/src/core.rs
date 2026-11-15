@@ -356,6 +356,7 @@ impl Core {
         let book = self.load_book(book_id)?;
         // Playing an item by any route means listening to it.
         self.choose_mode(book_id, reading::ModeEvent::ListenChosen)?;
+        self.engine.want();
         let same_book = self.playback.is_book(book_id);
         let start = segment_id
             .as_deref()

@@ -68,6 +68,7 @@ export function createMockApi() {
     profileName: "Local Chatterbox",
     state: "ready",
     detail: "Browser preview · simulated audio",
+    wanted: false,
   };
   const books = coreBooks();
   /** Home as the core made it for these books; `setHome` replaces it (an empty library). */
@@ -433,6 +434,12 @@ export function createMockApi() {
   const exportHandlers = new Set<(p: ExportProgress) => void>();
   const playerHandlers = new Set<(s: PlayerState) => void>();
   const engineHandlers = new Set<(s: EngineStatusView) => void>();
+  /** As the core does: once the user asks for audio, the engine's status is theirs to see. */
+  const wantEngine = () => {
+    if (engine.wanted) return;
+    engine.wanted = true;
+    engineHandlers.forEach((h) => h({ ...engine }));
+  };
   const generationHandlers = new Set<(s: GenerationState) => void>();
   const libraryHandlers = new Set<() => void>();
   let state = structuredClone(fixturePlayer) as PlayerState;
@@ -681,6 +688,7 @@ export function createMockApi() {
     },
     async play(id, chapter, segmentId) {
       const book = getBook(id);
+      wantEngine();
       // Playing a book by any route means listening to it.
       if (book.mode !== "listen") {
         book.mode = "listen";
@@ -780,6 +788,7 @@ export function createMockApi() {
       if (recording) emitSync(recording); // Whether it narrates the book may have changed.
     },
     async prepareBook(id) {
+      wantEngine();
       const b = getBook(id);
       const entry = prepareEntry(id) ?? prepareQueue[prepareQueue.push({ id, stage: "waiting", chapters: null }) - 1];
       entry.chapters = null;
@@ -1377,6 +1386,8 @@ export function createMockApi() {
     emitGeneration,
     emitConfig,
     emitProblem: (p: ProblemView) => problemHandlers.forEach((h) => h({ ...p })),
-    emitEngine: (s: EngineStatusView) => engineHandlers.forEach((h) => h({ ...s })),
+    /** A status from the core; `wanted` defaults to true (the user has asked to listen). */
+    emitEngine: (s: Omit<EngineStatusView, "wanted"> & { wanted?: boolean }) =>
+      engineHandlers.forEach((h) => h({ wanted: true, ...s })),
   });
 }
