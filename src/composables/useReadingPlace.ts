@@ -14,7 +14,8 @@ export function useReadingPlace(container: Ref<HTMLElement | undefined>, active:
     library = useLibraryStore();
   let timer: ReturnType<typeof setTimeout> | undefined,
     lastAt = -Infinity,
-    restored: string | null = null;
+    restored: string | null = null,
+    restoring = false;
 
   function top(): string | null {
     const box = container.value;
@@ -49,7 +50,7 @@ export function useReadingPlace(container: Ref<HTMLElement | undefined>, active:
     );
   }
   function schedule() {
-    if (timer || !active()) return;
+    if (timer || restoring || !active()) return;
     timer = setTimeout(report, Math.max(0, lastAt + 1000 - Date.now()));
   }
   // Another chapter picked while reading: the reader is at its start now.
@@ -67,12 +68,30 @@ export function useReadingPlace(container: Ref<HTMLElement | undefined>, active:
     restored = id;
     const place = reader.place;
     if (place?.chapter !== chapter.index) return;
-    [...box.querySelectorAll<HTMLElement>("[data-segment-id]")]
-      .find((element) => element.dataset.segmentId === place.segmentId)
-      ?.scrollIntoView?.({ block: "start" });
+    const element = [...box.querySelectorAll<HTMLElement>("[data-segment-id]")].find(
+      (element) => element.dataset.segmentId === place.segmentId,
+    );
+    if (!element) return;
+    // The reading font may still be loading: text set in it grows, and WebKit does not keep
+    // the scroll anchored, so scroll once it is in, and report nothing before.
+    restoring = true;
+    const show = () => {
+      element.scrollIntoView?.({ block: "start" });
+      // The scroll this makes is not the reader's: a place near the chapter's end lands at the
+      // bottom, which would otherwise count as having read to the end.
+      setTimeout(() => {
+        restoring = false;
+      }, 400);
+    };
+    const fonts = typeof document.fonts?.ready?.then === "function" ? document.fonts.ready : null;
+    if (fonts) void fonts.then(show, show);
+    else show();
   }
   watch(() => [reader.book?.id, reader.chapter, container.value], restore, { flush: "post" });
   onMounted(restore);
-  onUnmounted(() => clearTimeout(timer));
+  onUnmounted(() => {
+    clearTimeout(timer);
+    restoring = false;
+  });
   return { schedule };
 }

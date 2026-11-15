@@ -177,3 +177,18 @@ Done: the smoke home with no speech engine can be used as a plain e-reader.
 - Playback saves its place at once when the playhead reaches the book's last entry (otherwise
   every 3 s), so playing to the end finishes the book.
 - `books.word_count` is filled when a book is parsed (`Shelf::load`), not at import.
+- The engine status gained `wanted` (the user listened, prepared a book or tried a voice in this
+  run); the sidebar shows engine failures only once it is set. This is how "engine errors
+  surface only after the user asks to listen" is decided in the core.
+- Read on the item page also chooses the Read mode, and the end of each chapter offers the next
+  while reading silently (otherwise a book could not be read through without the chapter menu).
+- Restoring the saved place waits for the reading font, and the scroll it makes is never
+  reported: a place near a chapter's end lands at the bottom, which the "scrolled to the end"
+  rule would otherwise take for having read the chapter (found in the native check).
+- `listening_stats` (command and views) is gone; `Library::listening_stats` stays, since the
+  shelf uses it for each book's listened flag.
+- Native check (synthetic book, no engine, then the local Chatterbox): read two chapters, the
+  place survived a cold restart, Listen with no engine offered narrate / pair / settings, with
+  the engine it played on from the reading place, and Listening turned it back into silent
+  reading. The smoke window had no focus, so the window's reading-time sender stayed quiet as
+  designed; Activity's reading time came from `reading_activity` called directly.

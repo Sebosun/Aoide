@@ -426,6 +426,12 @@ it("opens a book read silently at its saved place, and picking a chapter only sh
   const wrapper = await openReader({ book: "book-1" });
   expect(useReaderStore().currentChapter).toBe(1);
   expect(scrolled).toEqual(["1:1:0"]);
+  // The scroll that shows the saved place is not the reader's: nothing is reported for it.
+  const reported = vi.spyOn(mock, "setReadingPlace");
+  layOut(wrapper, 0);
+  wrapper.get(".sheet__scroll").element.dispatchEvent(new Event("scroll"));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(reported).not.toHaveBeenCalled();
 
   await wrapper.get("button.sheet__next").trigger("click");
   await flushPromises();
