@@ -234,7 +234,7 @@ fixtures and keeps only scripted event sequences and in-memory edits.
 **Done when:** the mock constructs none of those five types by hand; the fixture command is
 documented next to the contract command in `AGENTS.md`; `npm run test:ui` passes.
 
-### - [ ] 13. Formatter for the UI (ask the user first)
+### - [x] 13. Formatter for the UI (ask the user first)
 
 No formatter is configured and the stores, composables and API files have many lines over 160
 characters. This is a taste call: ask whether the dense style is deliberate before doing
