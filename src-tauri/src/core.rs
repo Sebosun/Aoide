@@ -207,11 +207,25 @@ pub struct Core {
 impl Core {
     /// Must be called inside the async runtime (spawns background tasks).
     pub fn start(environment: Environment, paths: Paths) -> Result<Arc<Self>, String> {
+        let background = environment.background;
+        let (core, worker_events) = Self::build(environment, paths)?;
+        core.recordings
+            .load_recordings(core.app_settings().recognition.resume_on_start);
+        core.articles.load();
+        core.spawn_tasks(worker_events, background);
+        Ok(core)
+    }
+
+    /// Opens the library and settings and builds every component, wired to one another.
+    fn build(
+        environment: Environment,
+        paths: Paths,
+    ) -> Result<(Arc<Self>, tokio::sync::mpsc::UnboundedReceiver<WorkerEvent>), String> {
         let Environment {
             events,
             engines: registry,
             audio,
-            background,
+            background: _,
             show_in_folder,
             open_link,
             transcribers,
@@ -328,38 +342,27 @@ impl Core {
             recordings,
             audiobooks,
         });
-        core.recordings
-            .load_recordings(core.app_settings().recognition.resume_on_start);
-        core.articles.load();
-        let fetching = Arc::clone(&core);
+        Ok((core, worker_events))
+    }
+
+    /// Starts the work that runs for the life of the app. `background` is off in tests: no
+    /// feed checks, sync runner, media keys, startup scan, file watching or settings watching.
+    fn spawn_tasks(
+        self: &Arc<Self>,
+        worker_events: tokio::sync::mpsc::UnboundedReceiver<WorkerEvent>,
+        background: bool,
+    ) {
+        let core = self;
+        let fetching = Arc::clone(core);
         tokio::spawn(async move { fetching.articles.run(&*fetching).await });
-        if background {
-            let checking = Arc::clone(&core);
-            tokio::spawn(async move { checking.feeds.run(&*checking).await });
-        }
-        let idling = Arc::clone(&core);
+        let idling = Arc::clone(core);
         tokio::spawn(async move { idling.browsing.run(&*idling).await });
-        if background {
-            core.spawn_sync_runner();
-        }
-        if background {
-            core.controls.attach_media(crate::media::spawn(&core));
-        }
-        if background && core.app_settings().scan.on_startup {
-            let scanner = Arc::clone(&core);
-            tokio::spawn(async move {
-                tokio::time::sleep(Duration::from_secs(8)).await;
-                if let Err(error) = scanner.scan_for_books().await {
-                    tracing::warn!(event = "discovery.scan", outcome = "failed", %error, "Startup scan for books failed");
-                }
-            });
-        }
-        tokio::spawn(Arc::clone(&core).worker_events(worker_events));
-        tokio::spawn(Arc::clone(&core).tick_loop());
-        tokio::spawn(Arc::clone(&core).engine_loop());
-        let aligning = Arc::clone(&core);
+        tokio::spawn(Arc::clone(core).worker_events(worker_events));
+        tokio::spawn(Arc::clone(core).tick_loop());
+        tokio::spawn(Arc::clone(core).engine_loop());
+        let aligning = Arc::clone(core);
         tokio::spawn(async move { aligning.aligner.run(&*aligning).await });
-        let scanner = Arc::clone(&core);
+        let scanner = Arc::clone(core);
         let runtime = tokio::runtime::Handle::current();
         tokio::task::spawn_blocking(move || {
             if let Err(error) = scanner.rescan() {
@@ -378,12 +381,25 @@ impl Core {
                 scanner.shelf.watch();
             }
         });
-        if background {
-            let watcher = Arc::clone(&core);
-            let runtime = tokio::runtime::Handle::current();
-            std::thread::spawn(move || watcher.settings.watch(&*watcher, &runtime));
+        if !background {
+            return;
         }
-        Ok(core)
+        let checking = Arc::clone(core);
+        tokio::spawn(async move { checking.feeds.run(&*checking).await });
+        core.spawn_sync_runner();
+        core.controls.attach_media(crate::media::spawn(core));
+        if core.app_settings().scan.on_startup {
+            let scanner = Arc::clone(core);
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(8)).await;
+                if let Err(error) = scanner.scan_for_books().await {
+                    tracing::warn!(event = "discovery.scan", outcome = "failed", %error, "Startup scan for books failed");
+                }
+            });
+        }
+        let watcher = Arc::clone(core);
+        let runtime = tokio::runtime::Handle::current();
+        std::thread::spawn(move || watcher.settings.watch(&*watcher, &runtime));
     }
 
     /// Logs a failure Aoide carried on from and tells the user; see [`error::Reporter`].
@@ -406,10 +422,6 @@ impl Core {
             library_folder: self.paths.library_dir.to_string_lossy().into_owned(),
         }
     }
-
-    // ------------------------------------------------------------ library
-
-    // ------------------------------------------------------------ books
 
     // ------------------------------------------------------------ playback
 
@@ -438,8 +450,6 @@ impl Core {
             self.playback.play();
             return self.ensure_output();
         }
-        let settings = self.book_settings(book_id);
-        let recording = self.plays_recording(book_id, &settings);
         let start = start
             .or_else(|| {
                 let progress = lock(&self.library)
@@ -450,6 +460,17 @@ impl Core {
             })
             .or_else(|| book.chapter_start(0))
             .ok_or("the book has no readable text")?;
+        let target = self.narration_target(book).await?;
+        self.playback.start(target, start);
+        self.plan(PlanEvent::ListeningChanged { jump: true });
+        self.ensure_output()
+    }
+
+    /// What narrates `book`: its synced recording when it has one and it is chosen (with the
+    /// speech engine for what the recording lacks, if asked), else the speech engine.
+    async fn narration_target(&self, book: Arc<BookModel>) -> Result<Target, String> {
+        let settings = self.book_settings(&book.id);
+        let recording = self.plays_recording(&book.id, &settings);
         if recording && settings.speak_missing {
             // The speech engine speaks what the recording lacks; without it, that is passed over.
             if let Err(error) = self.ensure_voice().await {
@@ -466,21 +487,16 @@ impl Core {
         } else {
             None
         };
-        let target = match recorded {
-            Some(target) => target,
-            None => {
-                self.ensure_voice().await?;
-                self.ensure_model().await;
-                let plan = self.speech_plan(&book)?;
-                Target {
-                    narration: narration::NarrationPlan::speech(&book, plan),
-                    book: Arc::clone(&book),
-                }
-            }
-        };
-        self.playback.start(target, start);
-        self.plan(PlanEvent::ListeningChanged { jump: true });
-        self.ensure_output()
+        if let Some(target) = recorded {
+            return Ok(target);
+        }
+        self.ensure_voice().await?;
+        self.ensure_model().await;
+        let plan = self.speech_plan(&book)?;
+        Ok(Target {
+            narration: narration::NarrationPlan::speech(&book, plan),
+            book,
+        })
     }
 
     // ------------------------------------------------------------ settings
@@ -503,8 +519,6 @@ impl Core {
         }
         Ok(())
     }
-
-    // ------------------------------------------------------------ preparation
 
     // ------------------------------------------------------------ background loops
 
