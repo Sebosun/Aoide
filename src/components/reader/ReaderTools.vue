@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { ref } from "vue";
 import { Minus, Plus } from "@lucide/vue";
 import type { ReaderMode } from "@/api/types";
@@ -26,9 +27,11 @@ const modes: { value: ReaderMode; label: string }[] = [
 <template>
   <div class="reader-tools">
     <div ref="root" class="reader-tools__size">
-      <button
+      <UiButton
+        variant="glass"
+        size="lg"
+        icon
         ref="button"
-        type="button"
         class="reader-tools__aa"
         aria-label="Text size"
         title="Text size"
@@ -37,17 +40,18 @@ const modes: { value: ReaderMode; label: string }[] = [
         @click="open = !open"
       >
         Aa
-      </button>
+      </UiButton>
       <div v-if="open" ref="panel" class="reader-tools__panel" role="group" aria-label="Text size" @keydown="onKeydown">
-        <button
-          type="button"
+        <UiButton
+          size="sm"
+          icon
           class="reader-tools__step"
           aria-label="Smaller text"
           :disabled="preferences.appearance.textSize <= 0"
           @click="size(-1)"
         >
           <Minus :size="15" />
-        </button>
+        </UiButton>
         <span class="reader-tools__dots" aria-hidden="true"
           ><i
             v-for="(_, i) in TEXT_SCALES"
@@ -55,15 +59,16 @@ const modes: { value: ReaderMode; label: string }[] = [
             :class="{ 'reader-tools__dot--on': i === preferences.appearance.textSize }"
             class="reader-tools__dot"
         /></span>
-        <button
-          type="button"
+        <UiButton
+          size="sm"
+          icon
           class="reader-tools__step"
           aria-label="Larger text"
           :disabled="preferences.appearance.textSize >= TEXT_SCALES.length - 1"
           @click="size(1)"
         >
           <Plus :size="15" />
-        </button>
+        </UiButton>
       </div>
     </div>
     <div v-if="lines" class="reader-tools__mode" role="group" aria-label="Reader mode">
@@ -92,15 +97,6 @@ const modes: { value: ReaderMode; label: string }[] = [
 .reader-tools__size {
   position: relative;
 }
-.reader-tools__aa {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--glass);
-  font: 500 17px/1 var(--font-read);
-}
 .reader-tools__panel {
   position: absolute;
   right: 0;
@@ -115,14 +111,6 @@ const modes: { value: ReaderMode; label: string }[] = [
   box-shadow:
     0 14px 34px -14px var(--shadow),
     0 0 0 1px var(--line);
-}
-.reader-tools__step {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--ground);
 }
 .reader-tools__dots {
   display: flex;

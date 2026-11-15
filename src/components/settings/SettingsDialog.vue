@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, nextTick, onMounted, ref, type Component } from "vue";
 import { AudioLines, Globe, HardDrive, Headphones, Highlighter, Info, Library, Palette, Rss, X } from "@lucide/vue";
 import UiDialog from "@/components/ui/UiDialog.vue";
@@ -99,9 +100,15 @@ function onKey(event: KeyboardEvent) {
         </div>
       </nav>
       <div ref="body" class="settings__body">
-        <button type="button" class="settings__close" aria-label="Close settings" @click="navigation.closeSettings()">
+        <UiButton
+          size="sm"
+          icon
+          class="settings__close"
+          aria-label="Close settings"
+          @click="navigation.closeSettings()"
+        >
           <X :size="17" />
-        </button>
+        </UiButton>
         <ul v-if="problems.length" class="settings__problems" role="alert">
           <li v-for="problem in problems" :key="problem">{{ problem }}</li>
         </ul>
@@ -176,13 +183,7 @@ function onKey(event: KeyboardEvent) {
   top: 0;
   float: right;
   z-index: 1;
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
   margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-5)) 0 var(--space-6);
-  border-radius: 50%;
-  background: var(--ground);
 }
 .settings__problems {
   margin: 0 0 var(--space-9);

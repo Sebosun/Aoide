@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { AudioLines, RefreshCw } from "@lucide/vue";
 import { api } from "@/api";
@@ -185,15 +186,16 @@ async function save() {
           placeholder="Voice id"
           @input="profile.voiceId = ($event.target as HTMLInputElement).value"
         />
-        <button
-          type="button"
+        <UiButton
+          size="sm"
+          icon
           class="engine-settings__icon"
           aria-label="Reload voices"
           title="Reload voices"
           @click="loadVoices"
         >
           <RefreshCw :size="14" />
-        </button>
+        </UiButton>
       </SettingsField>
       <SettingsNote v-if="voiceError">Voices are listed once the engine is running.</SettingsNote>
       <VoicePreview :request="{ profile: draft, voiceId: draft.voiceId, params: {}, language: null }" />
@@ -259,15 +261,6 @@ async function save() {
   align-items: center;
   gap: var(--space-5);
   font-size: 13px;
-}
-.engine-settings__icon {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--ground);
-  color: var(--dim);
 }
 .engine-settings__error {
   font-size: 12.5px;

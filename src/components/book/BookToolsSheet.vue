@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { nextTick, ref, watch } from "vue";
 import { Bookmark, Info, Search, SlidersHorizontal, X } from "@lucide/vue";
 import BookSearch from "@/components/book/BookSearch.vue";
@@ -86,9 +87,16 @@ function moveTab(delta: number) {
           </button>
         </div>
         <span class="book-tools__book" :title="reader.book.title">{{ reader.book.title }}</span>
-        <button type="button" class="book-tools__close" aria-label="Close book tools" @click="emit('close')">
+        <UiButton
+          variant="glass"
+          size="sm"
+          icon
+          class="book-tools__close"
+          aria-label="Close book tools"
+          @click="emit('close')"
+        >
           <X :size="17" />
-        </button>
+        </UiButton>
       </header>
       <div
         :id="`book-tools-${tab}`"
@@ -160,12 +168,6 @@ function moveTab(delta: number) {
   text-align: right;
 }
 .book-tools__close {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  background: var(--glass);
   flex-shrink: 0;
 }
 .book-tools__body {

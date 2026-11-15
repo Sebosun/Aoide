@@ -102,9 +102,9 @@ function rescan() {
     <div class="add-dialog">
       <div class="add-dialog__head">
         <h1 class="add-dialog__title">Add to your library</h1>
-        <button type="button" class="add-dialog__close" aria-label="Close" @click="close">
+        <UiButton size="lg" icon class="add-dialog__close" aria-label="Close" @click="close">
           <X :size="18" aria-hidden="true" />
-        </button>
+        </UiButton>
       </div>
       <form class="add-dialog__section" novalidate @submit.prevent="submitLink">
         <label for="add-link" class="add-dialog__label">{{
@@ -224,14 +224,6 @@ function rescan() {
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.01em;
-}
-.add-dialog__close {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--ground);
 }
 .add-dialog__section {
   display: flex;

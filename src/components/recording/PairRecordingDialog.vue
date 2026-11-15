@@ -91,9 +91,16 @@ async function addOnItsOwn() {
       <header class="pair__head">
         <Headphones :size="18" aria-hidden="true" />
         <h2 class="pair__title">Pair an audiobook</h2>
-        <button type="button" class="pair__close" aria-label="Close" @click="recordings.closePairing()">
+        <UiButton
+          variant="glass"
+          size="sm"
+          icon
+          class="pair__close"
+          aria-label="Close"
+          @click="recordings.closePairing()"
+        >
           <X :size="16" />
-        </button>
+        </UiButton>
       </header>
       <p v-if="!found && !error" class="pair__hint" role="status">Looking at the files…</p>
       <template v-if="found">
@@ -195,15 +202,6 @@ async function addOnItsOwn() {
   font-size: 16px;
   color: var(--ink);
   margin: 0;
-}
-.pair__close {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--glass);
-  color: var(--ink);
 }
 .pair__summary {
   font-size: 13px;

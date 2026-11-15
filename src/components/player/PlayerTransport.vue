@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed } from "vue";
 import { Bookmark, Pause, Play, SkipBack, SkipForward, SlidersHorizontal, Square } from "@lucide/vue";
 import PlayerScrubber from "@/components/player/PlayerScrubber.vue";
@@ -69,8 +70,10 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
         </button>
       </div>
       <div class="transport__side transport__side--end">
-        <button
-          type="button"
+        <UiButton
+          variant="glass"
+          size="sm"
+          icon
           class="transport__round"
           aria-label="Add bookmark"
           title="Bookmark this sentence"
@@ -78,9 +81,11 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
           @click="bookmark"
         >
           <Bookmark :size="16" />
-        </button>
-        <button
-          type="button"
+        </UiButton>
+        <UiButton
+          variant="glass"
+          size="sm"
+          icon
           class="transport__round"
           aria-label="Book tools"
           aria-haspopup="dialog"
@@ -88,9 +93,11 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
           @click="emit('tools')"
         >
           <SlidersHorizontal :size="16" />
-        </button>
-        <button
-          type="button"
+        </UiButton>
+        <UiButton
+          variant="glass"
+          size="sm"
+          icon
           class="transport__round"
           aria-label="Stop"
           title="Stop"
@@ -98,7 +105,7 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
           @click="player.stop"
         >
           <Square :size="15" />
-        </button>
+        </UiButton>
       </div>
     </div>
   </section>
@@ -170,14 +177,6 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
   background: var(--accent);
   color: var(--on-accent);
   box-shadow: 0 12px 30px -10px var(--accent);
-}
-.transport__round {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--glass);
 }
 @media (max-width: 620px) {
   .transport__row {

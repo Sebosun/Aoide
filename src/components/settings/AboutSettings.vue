@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { onMounted, ref } from "vue";
 import { Copy, FileCog, Keyboard } from "@lucide/vue";
 import { getVersion } from "@tauri-apps/api/app";
@@ -37,15 +38,16 @@ async function copy(text: string) {
     <SettingsSection title="Config files" :icon="FileCog">
       <SettingsField label="Config folder" as="div">
         <code class="about-settings__path">{{ preferences.configDir }}</code>
-        <button
-          type="button"
+        <UiButton
+          size="sm"
+          icon
           class="about-settings__icon"
           aria-label="Copy config folder path"
           title="Copy path"
           @click="copy(preferences.configDir)"
         >
           <Copy :size="14" />
-        </button>
+        </UiButton>
       </SettingsField>
       <SettingsNote
         ><code>settings.toml</code> holds these settings. You can edit it while Aoide runs; changes apply when you save
@@ -100,15 +102,6 @@ ground = "#101326"</code></pre>
   background: var(--ground);
   font-size: 12.5px;
   overflow-wrap: anywhere;
-}
-.about-settings__icon {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--ground);
-  color: var(--dim);
 }
 .about-settings__themes {
   display: grid;

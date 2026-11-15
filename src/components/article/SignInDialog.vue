@@ -64,9 +64,9 @@ function close() {
           <h2 class="signin__title">{{ title }}</h2>
           <p v-if="article" class="signin__for">For “{{ article }}”</p>
         </div>
-        <button type="button" class="signin__close" aria-label="Close" @click="close">
+        <UiButton size="sm" icon class="signin__close" aria-label="Close" @click="close">
           <X :size="14" aria-hidden="true" />
-        </button>
+        </UiButton>
       </header>
 
       <p v-if="failed" class="signin__failed" role="alert">{{ failed }}</p>
@@ -160,15 +160,6 @@ function close() {
   margin: var(--space-2) 0 0;
   color: var(--dim);
   font-size: 13px;
-}
-.signin__close {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--ground);
 }
 .signin__steps {
   display: grid;

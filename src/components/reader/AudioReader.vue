@@ -94,9 +94,16 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
       </div>
       <div class="audio-reader__transport">
         <SpeedPill class="audio-reader__pill" />
-        <button type="button" class="audio-reader__skip" aria-label="Back 30 seconds" @click="skip(-SKIP_MS)">
+        <UiButton
+          variant="raised"
+          size="lg"
+          icon
+          class="audio-reader__skip"
+          aria-label="Back 30 seconds"
+          @click="skip(-SKIP_MS)"
+        >
           −30
-        </button>
+        </UiButton>
         <button
           type="button"
           class="audio-reader__play"
@@ -107,9 +114,16 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
           <Pause v-if="active" :size="26" fill="currentColor" aria-hidden="true" />
           <Play v-else :size="26" fill="currentColor" aria-hidden="true" />
         </button>
-        <button type="button" class="audio-reader__skip" aria-label="Forward 30 seconds" @click="skip(SKIP_MS)">
+        <UiButton
+          variant="raised"
+          size="lg"
+          icon
+          class="audio-reader__skip"
+          aria-label="Forward 30 seconds"
+          @click="skip(SKIP_MS)"
+        >
           +30
-        </button>
+        </UiButton>
         <SleepPill class="audio-reader__pill" />
       </div>
       <p class="audio-reader__overall">{{ overall }}</p>
@@ -215,12 +229,6 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
   justify-content: center;
 }
 .audio-reader__skip {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--page);
-  font-weight: 700;
-  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 .audio-reader__play {

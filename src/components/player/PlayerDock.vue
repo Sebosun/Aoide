@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed } from "vue";
 import { Bookmark, Headphones, Pause, Play, SkipBack, SkipForward, SlidersHorizontal, Square } from "@lucide/vue";
 import CoverArt from "@/components/CoverArt.vue";
@@ -94,8 +95,10 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
       <SleepPill />
       <VolumeControl />
       <span class="dock__divider" aria-hidden="true" />
-      <button
-        type="button"
+      <UiButton
+        variant="glass"
+        size="sm"
+        icon
         class="dock__round"
         aria-label="Add bookmark"
         title="Bookmark this sentence"
@@ -103,9 +106,11 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
         @click="bookmark"
       >
         <Bookmark :size="16" />
-      </button>
-      <button
-        type="button"
+      </UiButton>
+      <UiButton
+        variant="glass"
+        size="sm"
+        icon
         class="dock__round"
         aria-label="Book tools"
         aria-haspopup="dialog"
@@ -113,9 +118,11 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
         @click="emit('tools')"
       >
         <SlidersHorizontal :size="16" />
-      </button>
-      <button
-        type="button"
+      </UiButton>
+      <UiButton
+        variant="glass"
+        size="sm"
+        icon
         class="dock__round"
         aria-label="Stop"
         title="Stop"
@@ -123,7 +130,7 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
         @click="player.stop"
       >
         <Square :size="15" />
-      </button>
+      </UiButton>
     </div>
   </section>
 </template>
@@ -213,14 +220,6 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
   height: 20px;
   margin: 0 var(--space-1);
   background: var(--line);
-}
-.dock__round {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--glass);
 }
 @media (max-width: 999px) {
   .dock__thumb {

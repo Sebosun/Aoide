@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed } from "vue";
 import {
   BookDown,
@@ -270,15 +271,17 @@ const items = computed<MenuEntry[]>(() => {
       :items="items"
       align="end"
     >
-      <button
-        type="button"
+      <UiButton
+        variant="glass"
+        size="sm"
+        icon
         class="book-card__more-button"
         :aria-label="`More for ${book.title}`"
         v-bind="trigger"
         @click="toggle"
       >
         <Ellipsis :size="16" />
-      </button>
+      </UiButton>
     </UiMenu>
   </li>
 </template>
@@ -392,14 +395,7 @@ const items = computed<MenuEntry[]>(() => {
   right: 8px;
 }
 .book-card__more-button {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--glass);
   opacity: 0;
-  transition: opacity 0.15s;
 }
 .book-card:hover .book-card__more-button,
 .book-card:focus-within .book-card__more-button,

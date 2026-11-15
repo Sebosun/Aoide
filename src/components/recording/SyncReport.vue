@@ -73,9 +73,16 @@ async function remove() {
         <h2 class="sync-report__title">
           Sync report<span v-if="title"> · {{ title }}</span>
         </h2>
-        <button type="button" class="sync-report__close" aria-label="Close" @click="recordings.closeReport()">
+        <UiButton
+          variant="glass"
+          size="sm"
+          icon
+          class="sync-report__close"
+          aria-label="Close"
+          @click="recordings.closeReport()"
+        >
           <X :size="16" />
-        </button>
+        </UiButton>
       </header>
       <p v-if="error" class="sync-report__error" role="alert">{{ error }}</p>
       <template v-if="report">
@@ -193,15 +200,6 @@ async function remove() {
 .sync-report__title span {
   color: var(--dim);
   font-weight: 600;
-}
-.sync-report__close {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--glass);
-  color: var(--ink);
 }
 .sync-report__summary {
   font-size: 13.5px;

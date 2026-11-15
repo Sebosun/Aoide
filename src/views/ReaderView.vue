@@ -85,17 +85,21 @@ const { isArticle } = useOpenArticle();
           <ListenButton />
           <ReaderTools :lines="reader.shape === 'readAlong'" />
         </template>
-        <button
-          type="button"
+        <UiButton
+          variant="glass"
+          size="lg"
+          icon
           class="reader__round"
           :aria-label="audio ? 'Bookmark this moment' : 'Bookmark this place'"
           :title="audio ? 'Bookmark this moment' : 'Bookmark this place'"
           @click="bookmark"
         >
           <Bookmark :size="18" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
+        </UiButton>
+        <UiButton
+          variant="glass"
+          size="lg"
+          icon
           class="reader__round"
           aria-label="Search and more"
           :title="audio ? 'Bookmarks and details' : 'Bookmarks, search, narration and details'"
@@ -104,7 +108,7 @@ const { isArticle } = useOpenArticle();
           @click="openTools(undefined)"
         >
           <Ellipsis :size="18" aria-hidden="true" />
-        </button>
+        </UiButton>
       </div>
     </header>
     <AudioReader v-if="audio" />
@@ -148,14 +152,6 @@ const { isArticle } = useOpenArticle();
   display: flex;
   align-items: center;
   gap: var(--space-4);
-}
-.reader__round {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: var(--glass);
 }
 .reader__round[aria-expanded="true"] {
   background: var(--ink);
