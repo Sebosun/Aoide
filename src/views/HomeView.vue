@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { api } from "@/api";
 import type { BookSummary, HomeView } from "@/api/types";
@@ -46,9 +47,9 @@ const added = (at: number) => dayName(at);
     <section v-if="empty" class="home__welcome" aria-labelledby="home-welcome">
       <h1 id="home-welcome" class="home__title">Nothing to read yet</h1>
       <p class="home__lead">Add books to start reading, or listen to them with a voice.</p>
-      <button type="button" class="home__add" aria-label="Add" @click="navigation.openAdd()">
+      <UiButton variant="primary" size="lg" class="home__add" aria-label="Add" @click="navigation.openAdd()">
         <Plus :size="16" aria-hidden="true" /> Add books
-      </button>
+      </UiButton>
     </section>
     <template v-else>
       <section v-if="continuing.length" class="home__section" aria-labelledby="home-continue">
@@ -266,17 +267,6 @@ const added = (at: number) => dayName(at);
 .home__lead {
   margin: 0 0 var(--space-3);
   color: var(--dim);
-}
-.home__add {
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: 0 var(--space-10);
-  border-radius: var(--radius-xl);
-  background: var(--ink);
-  color: var(--ground);
-  font-weight: 600;
 }
 .home__error {
   margin: 0;

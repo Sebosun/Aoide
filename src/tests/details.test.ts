@@ -175,14 +175,14 @@ it("leads with Read for a book read silently and with Listen for one listened to
   await wrapper.get('[aria-label="Open A Map of Quiet Places"]').trigger("click");
   await flushPromises();
   let about = page(wrapper);
-  expect(about.get('[aria-label="Read"]').classes()).toContain("item-page__primary");
-  expect(about.get('[aria-label="Listen"]').classes()).toContain("item-page__secondary");
+  expect(about.get('[aria-label="Read"]').classes()).toContain("ui-button--accent");
+  expect(about.get('[aria-label="Listen"]').classes()).toContain("ui-button--raised");
   expect(about.get('[aria-labelledby="item-text"]').text()).toMatch(/About .+ to read/);
 
   await mock.setMode("book-1", "listen");
   await flushPromises();
   about = page(wrapper);
-  expect(about.get('[aria-label="Listen"]').classes()).toContain("item-page__primary");
+  expect(about.get('[aria-label="Listen"]').classes()).toContain("ui-button--accent");
   // Read from here reads silently again.
   const setMode = vi.spyOn(mock, "setMode");
   await about.get('[aria-label="Read"]').trigger("click");
@@ -200,7 +200,7 @@ it("shows an audiobook's page: Listen only, no text, its length, parts and files
   const about = wrapper.get('[aria-label="About Winter Radio"]');
   expect(about.get(".item-page__kind").text()).toBe("Audiobook · unplayed");
   expect(about.find('[aria-label="Read"]').exists()).toBe(false);
-  expect(about.get('[aria-label="Listen"]').classes()).toContain("item-page__primary");
+  expect(about.get('[aria-label="Listen"]').classes()).toContain("ui-button--accent");
   expect(about.get('[aria-labelledby="item-text"]').text()).toContain("No text");
   const audio = about.get('[aria-labelledby="item-audio"]');
   expect(audio.text()).toContain("2 parts · 2 files");

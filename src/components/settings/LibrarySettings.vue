@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { onMounted } from "vue";
 import { FolderSearch, Library } from "@lucide/vue";
 import SettingsSection from "@/components/settings/SettingsSection.vue";
@@ -31,9 +32,9 @@ function findBooks() {
         >Books you drop on the window or import are copied here. Aoide never changes the EPUB files.</SettingsNote
       >
       <div>
-        <button type="button" class="library-settings__button" @click="findBooks">
+        <UiButton size="sm" class="library-settings__button" @click="findBooks">
           <FolderSearch :size="15" /> Find books on this computer…
-        </button>
+        </UiButton>
       </div>
     </SettingsSection>
     <SettingsSection title="Book details">
@@ -81,17 +82,6 @@ function findBooks() {
   background: var(--ground);
   font-size: 12.5px;
   overflow-wrap: anywhere;
-}
-.library-settings__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 36px;
-  padding: 0 var(--space-8);
-  border-radius: var(--radius-pill);
-  background: var(--ground);
-  font-weight: 700;
-  font-size: 13px;
 }
 .library-settings__check {
   display: flex;

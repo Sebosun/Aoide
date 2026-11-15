@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   AudioLines,
@@ -317,53 +318,41 @@ const collectionItems = computed<MenuEntry[]>(() => {
         >
         <UiSkeleton v-else-if="loading" class="item-page__ghost-title" />
         <div class="item-page__actions">
-          <button
+          <UiButton
             v-if="!audiobook && !unfetched"
-            type="button"
-            :class="listened ? 'item-page__secondary' : 'item-page__primary'"
+            size="lg"
+            :variant="listened ? 'raised' : 'accent'"
             aria-label="Read"
             @click="read"
           >
             <BookOpen :size="18" aria-hidden="true" /> Read
-          </button>
-          <button
+          </UiButton>
+          <UiButton
             v-if="!unfetched"
-            type="button"
-            :class="listened || audiobook ? 'item-page__primary' : 'item-page__secondary'"
+            size="lg"
+            :variant="listened || audiobook ? 'accent' : 'raised'"
             aria-label="Listen"
             @click="listen"
           >
             <Headphones :size="18" aria-hidden="true" /> Listen
-          </button>
+          </UiButton>
           <UiMenu v-if="summary" v-slot="{ toggle, trigger }" label="Collections" :items="collectionItems" :width="260">
-            <button
-              type="button"
-              class="item-page__secondary"
-              aria-label="Add to collection"
-              v-bind="trigger"
-              @click="toggle"
-            >
+            <UiButton variant="raised" size="lg" aria-label="Add to collection" v-bind="trigger" @click="toggle">
               <Library :size="17" aria-hidden="true" /> Add to collection
-            </button>
+            </UiButton>
           </UiMenu>
           <template v-if="isArticle">
-            <button type="button" class="item-page__secondary" aria-label="Open original" @click="openOriginal">
+            <UiButton variant="raised" size="lg" aria-label="Open original" @click="openOriginal">
               <ExternalLink :size="17" aria-hidden="true" /> Open original
-            </button>
-            <button
-              type="button"
-              class="item-page__secondary"
-              aria-label="Fetch again"
-              :disabled="busy"
-              @click="refetch"
-            >
+            </UiButton>
+            <UiButton variant="raised" size="lg" aria-label="Fetch again" :disabled="busy" @click="refetch">
               <RefreshCw :size="17" aria-hidden="true" /> Fetch again
-            </button>
+            </UiButton>
           </template>
-          <button v-if="summary" type="button" class="item-page__secondary" @click="markRead">
+          <UiButton variant="raised" size="lg" v-if="summary" @click="markRead">
             <component :is="finished ? RotateCcw : CircleCheck" :size="17" aria-hidden="true" />
             {{ finished ? "Mark as unread" : "Mark as finished" }}
-          </button>
+          </UiButton>
         </div>
         <template v-if="loading">
           <p class="visually-hidden" role="status" aria-label="Loading book details">Loading book details…</p>
@@ -668,24 +657,6 @@ const collectionItems = computed<MenuEntry[]>(() => {
   flex-wrap: wrap;
   gap: var(--space-5);
   margin-top: var(--space-4);
-}
-.item-page__primary,
-.item-page__secondary {
-  height: 48px;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-5);
-  padding: 0 var(--space-11);
-  border-radius: var(--radius-xl);
-  font-size: 15px;
-  font-weight: 600;
-  background: var(--page);
-}
-.item-page__primary {
-  padding: 0 var(--space-12);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 700;
 }
 .item-page__about {
   margin-top: var(--space-5);

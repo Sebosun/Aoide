@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, ref, watch } from "vue";
 import { Pause, Play, Plus } from "@lucide/vue";
 import CoverArt from "@/components/CoverArt.vue";
@@ -144,9 +145,9 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
           Add the EPUB of this book and the words are highlighted as they are spoken. You can also read it silently and
           pick the recording up where you stopped.
         </p>
-        <button type="button" class="audio-reader__add" @click="recordings.addText(book.id)">
+        <UiButton size="lg" class="audio-reader__add" @click="recordings.addText(book.id)">
           <Plus :size="16" aria-hidden="true" /> Add the EPUB…
-        </button>
+        </UiButton>
       </section>
     </div>
   </div>
@@ -311,14 +312,6 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
 }
 .audio-reader__add {
   align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 44px;
-  padding: 0 var(--space-9);
-  border-radius: var(--radius-xl);
-  background: var(--ground);
-  font-weight: 600;
 }
 .audio-reader__copy {
   margin: 0;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, ref } from "vue";
 import { Download, Rss, Upload } from "@lucide/vue";
 import type { FeedSettings } from "@/api/types";
@@ -113,12 +114,12 @@ const exportList = () =>
     </SettingsSection>
     <SettingsSection title="Subscription lists">
       <div class="feed-settings__buttons">
-        <button type="button" class="feed-settings__button" :disabled="busy" @click="importList">
+        <UiButton size="sm" class="feed-settings__button" :disabled="busy" @click="importList">
           <Download :size="15" aria-hidden="true" />Import…
-        </button>
-        <button type="button" class="feed-settings__button" :disabled="busy" @click="exportList">
+        </UiButton>
+        <UiButton size="sm" class="feed-settings__button" :disabled="busy" @click="exportList">
           <Upload :size="15" aria-hidden="true" />Export…
-        </button>
+        </UiButton>
       </div>
       <p v-if="result" class="feed-settings__result" role="status">{{ result }}</p>
       <SettingsNote>OPML files, as other feed readers import and export them.</SettingsNote>
@@ -136,17 +137,6 @@ const exportList = () =>
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-4);
-}
-.feed-settings__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 36px;
-  padding: 0 var(--space-8);
-  border-radius: var(--radius-pill);
-  background: var(--ground);
-  font-weight: 700;
-  font-size: 13px;
 }
 .feed-settings__result {
   margin: 0;

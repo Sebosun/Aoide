@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref } from "vue";
 import { ChevronDown, ChevronUp, FileAudio, Headphones, ShieldAlert, X } from "@lucide/vue";
 import { api } from "@/api";
@@ -142,15 +143,15 @@ async function addOnItsOwn() {
           <span>Book</span
           ><UiSelect v-model="bookId" label="The book it reads" :options="books" placeholder="Choose the book…" />
           <span class="pair__or">or</span>
-          <button
-            type="button"
+          <UiButton
+            size="sm"
             class="pair__button"
             :disabled="!usable || busy"
             title="Listen to it without a book; you can add the EPUB later"
             @click="addOnItsOwn"
           >
             Add on its own
-          </button>
+          </UiButton>
         </div>
         <p class="pair__hint">
           Aoide first checks three short samples against the book's text, then listens to the whole recording in the
@@ -161,15 +162,16 @@ async function addOnItsOwn() {
       </template>
       <p v-if="error" class="pair__error" role="alert">{{ error }}</p>
       <footer class="pair__actions">
-        <button type="button" class="pair__button" @click="recordings.closePairing()">Cancel</button>
-        <button
-          type="button"
+        <UiButton size="sm" class="pair__button" @click="recordings.closePairing()">Cancel</UiButton>
+        <UiButton
+          variant="accent"
+          size="sm"
           class="pair__button pair__button--primary"
           :disabled="!bookId || !usable || busy"
           @click="pair"
         >
           Check and sync
-        </button>
+        </UiButton>
       </footer>
     </div>
   </UiDialog>
@@ -275,10 +277,6 @@ async function addOnItsOwn() {
 .pair__field > span {
   color: var(--dim);
 }
-.pair__button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
 .pair__hint {
   font-size: 12px;
   color: var(--dim);
@@ -299,16 +297,5 @@ async function addOnItsOwn() {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-4);
-}
-.pair__button {
-  border-radius: var(--radius-pill);
-  padding: var(--space-4) var(--space-9);
-  font-size: 13px;
-  font-weight: 700;
-  background: var(--ground);
-}
-.pair__button--primary {
-  background: var(--accent);
-  color: var(--on-accent);
 }
 </style>

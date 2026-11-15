@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { onMounted, ref } from "vue";
 import { FilePlus, FolderOpen, FolderSearch, Headphones, RefreshCw, Rss, X } from "@lucide/vue";
 import type { DiscoveredFeed } from "@/api/types";
@@ -123,9 +124,15 @@ function rescan() {
             :aria-invalid="linkError ? 'true' : undefined"
             @input="linkError = ''"
           />
-          <button type="submit" class="add-dialog__button add-dialog__button--accent" :disabled="saving">
+          <UiButton
+            variant="accent"
+            size="lg"
+            type="submit"
+            class="add-dialog__button add-dialog__button--accent"
+            :disabled="saving"
+          >
             {{ subscribing ? "Subscribe" : "Save article" }}
-          </button>
+          </UiButton>
         </div>
         <p v-if="linkError" class="add-dialog__error" role="alert">{{ linkError }}</p>
         <p id="add-link-note" class="add-dialog__hint add-dialog__hint--wide">
@@ -142,14 +149,15 @@ function rescan() {
               <b class="add-dialog__choice-title">{{ feed.title ?? feed.url }}</b>
               <span class="add-dialog__choice-url">{{ feed.url }}</span>
             </span>
-            <button
-              type="button"
+            <UiButton
+              variant="primary"
+              size="lg"
               class="add-dialog__button add-dialog__button--main"
               :disabled="saving || feed.subscribed"
               @click="choose(feed)"
             >
               {{ feed.subscribed ? "Subscribed" : "Subscribe" }}
-            </button>
+            </UiButton>
           </li>
         </ul>
       </form>
@@ -161,30 +169,35 @@ function rescan() {
             EPUB for text. M4B, MP3, FLAC or Ogg for audio: an audiobook is paired with its book, or added on its own.
           </p>
           <div class="add-dialog__buttons">
-            <button type="button" class="add-dialog__button add-dialog__button--main" @click="chooseBooks">
+            <UiButton
+              variant="primary"
+              size="lg"
+              class="add-dialog__button add-dialog__button--main"
+              @click="chooseBooks"
+            >
               <FilePlus :size="16" aria-hidden="true" /> Choose books…
-            </button>
-            <button type="button" class="add-dialog__button" @click="chooseAudio(false)">
+            </UiButton>
+            <UiButton size="lg" class="add-dialog__button" @click="chooseAudio(false)">
               <Headphones :size="16" aria-hidden="true" /> Choose an audiobook…
-            </button>
-            <button type="button" class="add-dialog__button" @click="chooseAudio(true)">
+            </UiButton>
+            <UiButton size="lg" class="add-dialog__button" @click="chooseAudio(true)">
               <FolderOpen :size="16" aria-hidden="true" /> Choose an audiobook folder…
-            </button>
+            </UiButton>
           </div>
         </div>
       </section>
       <section class="add-dialog__section" aria-labelledby="add-find">
         <h2 id="add-find" class="add-dialog__label">Find on this computer</h2>
         <div class="add-dialog__buttons add-dialog__buttons--start">
-          <button type="button" class="add-dialog__button" @click="go('find')">
+          <UiButton size="lg" class="add-dialog__button" @click="go('find')">
             <FolderSearch :size="16" aria-hidden="true" /> Scan for books…
-          </button>
-          <button type="button" class="add-dialog__button" @click="go('audiobooks')">
+          </UiButton>
+          <UiButton size="lg" class="add-dialog__button" @click="go('audiobooks')">
             <Headphones :size="16" aria-hidden="true" /> Find audiobooks…
-          </button>
-          <button type="button" class="add-dialog__button" :disabled="library.loading" @click="rescan">
+          </UiButton>
+          <UiButton size="lg" class="add-dialog__button" :disabled="library.loading" @click="rescan">
             <RefreshCw :size="16" aria-hidden="true" /> Rescan library folder
-          </button>
+          </UiButton>
         </div>
       </section>
     </div>
@@ -263,16 +276,6 @@ function rescan() {
 .add-dialog__buttons--start {
   justify-content: flex-start;
 }
-.add-dialog__button {
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: 0 var(--space-9);
-  border-radius: var(--radius-xl);
-  background: var(--wash);
-  font-weight: 600;
-}
 .add-dialog__row {
   display: flex;
   gap: var(--space-4);
@@ -328,17 +331,5 @@ function rescan() {
 }
 .add-dialog__hint--wide {
   max-width: none;
-}
-.add-dialog__button--accent {
-  height: 48px;
-  padding: 0 var(--space-11);
-  border-radius: var(--radius-xl);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 700;
-}
-.add-dialog__button--main {
-  background: var(--ink);
-  color: var(--ground);
 }
 </style>

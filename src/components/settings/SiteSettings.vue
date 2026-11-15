@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { Download, Globe, Trash2, X } from "@lucide/vue";
 import { api } from "@/api";
@@ -196,39 +197,54 @@ const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start
           <span v-else-if="status" class="site-settings__dim">No Chrome or Chromium was found.</span>
         </div>
         <div class="site-settings__buttons">
-          <button type="button" class="site-settings__button" :disabled="off || busy" @click="choosePath">
+          <UiButton
+            variant="outline"
+            size="sm"
+            class="site-settings__button"
+            :disabled="off || busy"
+            @click="choosePath"
+          >
             Change…
-          </button>
-          <button
+          </UiButton>
+          <UiButton
+            variant="outline"
+            size="sm"
             v-if="browser?.path"
-            type="button"
             class="site-settings__button"
             :disabled="off || busy"
             @click="forgetPath"
           >
             Find on its own
-          </button>
-          <button
+          </UiButton>
+          <UiButton
+            variant="primary"
+            size="sm"
             v-if="!downloading && status?.offeredVersion && !status.downloaded && !found"
-            type="button"
             class="site-settings__button site-settings__button--primary"
             :disabled="off || busy"
             @click="startDownload"
           >
             <Download :size="15" aria-hidden="true" />Download Chrome
-          </button>
-          <button v-if="downloading" type="button" class="site-settings__button" @click="api.cancelBrowserDownload()">
+          </UiButton>
+          <UiButton
+            variant="outline"
+            size="sm"
+            v-if="downloading"
+            class="site-settings__button"
+            @click="api.cancelBrowserDownload()"
+          >
             <X :size="15" aria-hidden="true" />Cancel download
-          </button>
-          <button
+          </UiButton>
+          <UiButton
+            variant="outline"
+            size="sm"
             v-if="status?.downloaded && !downloading"
-            type="button"
             class="site-settings__button"
             :disabled="busy"
             @click="removeBrowser"
           >
             <Trash2 :size="15" aria-hidden="true" />Remove downloaded browser
-          </button>
+          </UiButton>
         </div>
         <p v-if="downloadText" class="site-settings__progress" role="status">{{ downloadText }}</p>
         <progress
@@ -293,50 +309,55 @@ const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start
               />
             </td>
             <td class="site-settings__action">
-              <button
+              <UiButton
+                variant="outline"
+                size="sm"
                 v-if="signedIn(site)"
-                type="button"
                 class="site-settings__button"
                 :disabled="off || busy"
                 :aria-label="`Sign out of ${site.host}`"
                 @click="signOut(site)"
               >
                 Sign out
-              </button>
-              <button
+              </UiButton>
+              <UiButton
+                variant="primary"
+                size="sm"
                 v-else-if="site.waitingArticle"
-                type="button"
                 class="site-settings__button site-settings__button--primary"
                 :disabled="off || busy || signIn.open"
                 :aria-label="`Sign in to ${site.host}`"
                 @click="startSignIn(site)"
               >
                 Sign in…
-              </button>
-              <button
+              </UiButton>
+              <UiButton
+                variant="outline"
+                size="sm"
                 v-else
-                type="button"
                 class="site-settings__button"
                 :disabled="off || busy"
                 :aria-label="`Forget ${site.host}`"
                 @click="forget(site)"
               >
                 Forget
-              </button>
+              </UiButton>
             </td>
           </tr>
         </tbody>
       </table>
       <div class="site-settings__remove">
         <SettingsNote>Removing all site data signs you out everywhere and repeats any checks.</SettingsNote>
-        <button
-          type="button"
+        <UiButton
+          variant="outline"
+          size="sm"
+          danger
           class="site-settings__button site-settings__button--danger"
           :disabled="busy"
           @click="removeAll"
         >
           Remove all site data
-        </button>
+        </UiButton>
       </div>
       <SettingsNote>Other rules (pages to wait for, addresses to block) are kept in site-rules.toml.</SettingsNote>
     </SettingsSection>
@@ -374,31 +395,6 @@ const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-4);
-}
-.site-settings__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 36px;
-  padding: 0 var(--space-8);
-  border-radius: var(--radius-pill);
-  background: var(--page);
-  border: 1px solid var(--line);
-  font-weight: 700;
-  font-size: 13px;
-  white-space: nowrap;
-}
-.site-settings__button--primary {
-  background: var(--ink);
-  color: var(--page);
-  border-color: transparent;
-}
-.site-settings__button--danger {
-  color: var(--accent);
-}
-.site-settings__button:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 .site-settings__progress {
   margin: 0;

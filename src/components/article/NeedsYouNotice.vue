@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed } from "vue";
 import { TriangleAlert } from "@lucide/vue";
 import type { ArticleView, FetchReason } from "@/api/types";
@@ -61,18 +62,21 @@ const copy = computed(() => {
     <h2 class="needs-you__heading">{{ copy.heading }}</h2>
     <p class="needs-you__body">{{ copy.body }}</p>
     <div class="needs-you__actions">
-      <button
-        type="button"
+      <UiButton
+        variant="primary"
+        size="lg"
         class="needs-you__button needs-you__button--main"
         :disabled="busy"
         @click="browserOn ? emit('signIn') : emit('turnOn')"
       >
         {{ primary }}
-      </button>
-      <button type="button" class="needs-you__button" :disabled="busy" @click="emit('archive')">
+      </UiButton>
+      <UiButton variant="raised" size="lg" class="needs-you__button" :disabled="busy" @click="emit('archive')">
         Try an archived copy
-      </button>
-      <button type="button" class="needs-you__button" :disabled="busy" @click="emit('fetch')">Fetch again</button>
+      </UiButton>
+      <UiButton variant="raised" size="lg" class="needs-you__button" :disabled="busy" @click="emit('fetch')"
+        >Fetch again</UiButton
+      >
     </div>
     <p v-if="busy" class="needs-you__status" role="status">Fetching again…</p>
     <p v-else-if="article.error" class="needs-you__status" role="alert">{{ article.error }}</p>
@@ -119,23 +123,6 @@ const copy = computed(() => {
   flex-wrap: wrap;
   gap: var(--space-5);
   margin-top: var(--space-3);
-}
-.needs-you__button {
-  height: 48px;
-  padding: 0 var(--space-10);
-  border-radius: var(--radius-xl);
-  background: var(--page);
-  font-weight: 600;
-}
-.needs-you__button--main {
-  padding: 0 var(--space-11);
-  background: var(--ink);
-  color: var(--ground);
-  font-weight: 700;
-}
-.needs-you__button:disabled {
-  opacity: 0.55;
-  cursor: default;
 }
 .needs-you__status {
   margin: 0;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref } from "vue";
 import { ArrowLeft, BookOpen, FolderSearch, Globe, Download, Headphones, X } from "@lucide/vue";
 import { useNavigationStore } from "@/stores/navigation";
@@ -72,9 +73,15 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 
 <template>
   <section class="find">
-    <button type="button" class="find__back" aria-label="Back to library" @click="navigation.view = 'library'">
+    <UiButton
+      variant="glass"
+      size="sm"
+      class="find__back"
+      aria-label="Back to library"
+      @click="navigation.view = 'library'"
+    >
       <ArrowLeft :size="15" /> Library
-    </button>
+    </UiButton>
     <header class="find__header">
       <div>
         <h1>Find books</h1>
@@ -83,24 +90,25 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
         </p>
       </div>
       <div class="find__actions">
-        <button
+        <UiButton
+          variant="glass"
+          size="sm"
           v-if="discovery.scanning"
-          type="button"
           class="find__button"
           aria-label="Cancel scan"
           @click="discovery.cancel()"
         >
           <X :size="15" /> Cancel
-        </button>
-        <button
-          type="button"
+        </UiButton>
+        <UiButton
+          variant="accent"
           class="find__primary"
           aria-label="Scan for books"
           :disabled="discovery.scanning"
           @click="discovery.scan()"
         >
           <FolderSearch :size="16" /> {{ discovery.scanning ? "Scanning…" : "Scan this computer" }}
-        </button>
+        </UiButton>
       </div>
     </header>
     <p v-if="status" class="find__status" role="status">{{ status }}</p>
@@ -132,7 +140,7 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
           read, never changed.
         </p>
         <div class="find__row">
-          <button type="submit" class="find__button">Save folders</button
+          <UiButton size="sm" type="submit" class="find__button">Save folders</UiButton
           ><span v-if="foldersMessage" class="find__ok" role="status">{{ foldersMessage }}</span>
         </div>
       </form>
@@ -156,8 +164,8 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
           </button>
         </div>
         <div v-if="discovery.filter === 'new'" class="find__row">
-          <button
-            type="button"
+          <UiButton
+            size="sm"
             class="find__button"
             aria-label="Fetch details online"
             :disabled="!discovery.needingDetails.length || !!discovery.fetching"
@@ -169,7 +177,7 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
                 ? `Fetching ${discovery.fetching.done} / ${discovery.fetching.total}`
                 : `Fetch details for ${discovery.needingDetails.length} books`
             }}
-          </button>
+          </UiButton>
           <label class="find__check"
             ><input v-model="discovery.applyDetails" type="checkbox" aria-label="Use online details when importing" />
             Use online details when importing</label
@@ -247,25 +255,25 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
           >Importing {{ discovery.importing.done + 1 }} of {{ discovery.importing.total
           }}{{ discovery.importing.current ? ` · ${discovery.importing.current}` : "" }}</span
         >
-        <button
-          type="button"
+        <UiButton
+          size="sm"
           class="find__button"
           aria-label="Import selected books"
           :disabled="!discovery.selected.size || !!discovery.importing"
           @click="discovery.importBooks([...discovery.selected])"
         >
           <Download :size="14" /> Import selected ({{ discovery.selected.size }})
-        </button>
-        <button
+        </UiButton>
+        <UiButton
+          variant="accent"
           v-if="discovery.filter === 'new'"
-          type="button"
           class="find__primary"
           aria-label="Import all new books"
           :disabled="!!discovery.importing"
           @click="discovery.importBooks(discovery.visible.map((c) => c.id))"
         >
           <Download :size="14" /> Import all {{ discovery.visible.length }}
-        </button>
+        </UiButton>
       </footer>
     </template>
     <div v-else-if="!discovery.scanning" class="find__empty">
@@ -282,15 +290,7 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   padding: var(--space-4) var(--space-14) 0;
 }
 .find__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
   margin: var(--space-4) 0 var(--space-9);
-  padding: var(--space-3) var(--space-6);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  font-weight: 700;
-  font-size: 13px;
 }
 .find__header {
   display: flex;
@@ -315,28 +315,6 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-5);
-}
-.find__primary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 42px;
-  padding: 0 var(--space-10);
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 800;
-}
-.find__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  height: 36px;
-  padding: 0 var(--space-7);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  font-size: 13px;
-  font-weight: 700;
 }
 .find__status {
   font-size: 13px;
@@ -374,9 +352,6 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.find__settings .find__button {
-  background: var(--ground);
 }
 .find__folders {
   display: grid;
@@ -551,9 +526,6 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   box-shadow: 0 18px 40px -16px var(--shadow);
   font-size: 13px;
   font-weight: 600;
-}
-.find__footer .find__button {
-  background: var(--ground);
 }
 .find__empty {
   text-align: center;

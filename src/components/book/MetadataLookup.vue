@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { ref } from "vue";
 import { Globe } from "@lucide/vue";
 import { api } from "@/api";
@@ -43,15 +44,9 @@ async function apply(match: MetadataMatch) {
 <template>
   <div class="lookup">
     <p v-if="error" class="lookup__error" role="alert">{{ error }}</p>
-    <button
-      type="button"
-      class="lookup__button"
-      aria-label="Find details online"
-      :disabled="searching"
-      @click="lookup()"
-    >
+    <UiButton size="sm" class="lookup__button" aria-label="Find details online" :disabled="searching" @click="lookup()">
       <Globe :size="14" /> {{ searching ? "Searching…" : matched ? "Pick a different match" : "Find details online" }}
-    </button>
+    </UiButton>
     <p class="lookup__hint">
       Searches Open Library by ISBN, then title and author. Nothing changes until you choose a match.
     </p>
@@ -80,9 +75,9 @@ async function apply(match: MetadataMatch) {
           <strong>{{ match.title }}</strong><span>{{ match.authors.join(", ") }}</span
           ><span>{{ [match.published, match.publisher].filter(Boolean).join(" · ") }}</span>
         </div>
-        <button type="button" class="lookup__button" :disabled="applying !== null" @click="apply(match)">
+        <UiButton size="sm" class="lookup__button" :disabled="applying !== null" @click="apply(match)">
           Use this
-        </button>
+        </UiButton>
       </li>
     </ul>
   </div>
@@ -93,17 +88,6 @@ async function apply(match: MetadataMatch) {
   display: grid;
   gap: var(--space-3);
   justify-items: start;
-}
-.lookup__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--ground);
-  font-size: 12.5px;
-  font-weight: 700;
-  padding: var(--space-4) var(--space-7);
-  white-space: nowrap;
 }
 .lookup__link {
   font-size: 11px;

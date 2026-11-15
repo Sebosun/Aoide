@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref } from "vue";
 import { Check, FileText, Play, Trash2, X } from "@lucide/vue";
 import { api } from "@/api";
@@ -152,12 +153,12 @@ async function remove() {
           <p class="sync-report__hint">
             Little of the text was found. The recording may be abridged, or of another edition or translation.
           </p>
-          <button type="button" class="sync-report__button" @click="remove">
+          <UiButton size="sm" class="sync-report__button" @click="remove">
             <Trash2 :size="14" /> Remove recording
-          </button>
-          <button type="button" class="sync-report__button sync-report__button--primary" @click="accept">
+          </UiButton>
+          <UiButton variant="accent" size="sm" class="sync-report__button sync-report__button--primary" @click="accept">
             <Check :size="14" /> Use it anyway
-          </button>
+          </UiButton>
         </footer>
       </template>
     </div>
@@ -304,19 +305,5 @@ async function remove() {
 }
 .sync-report__actions .sync-report__hint {
   flex-basis: 100%;
-}
-.sync-report__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  border-radius: var(--radius-pill);
-  padding: var(--space-4) var(--space-8);
-  font-size: 13px;
-  font-weight: 700;
-  background: var(--ground);
-}
-.sync-report__button--primary {
-  background: var(--accent);
-  color: var(--on-accent);
 }
 </style>

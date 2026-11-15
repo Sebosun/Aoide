@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { useId } from "vue";
 import UiDialog from "@/components/ui/UiDialog.vue";
 import type { ConfirmOptions } from "@/stores/ui";
@@ -22,18 +23,18 @@ const id = useId();
       <h2 class="confirm__title">{{ options.title }}</h2>
       <p v-if="options.body" :id="`${id}-body`" class="confirm__body">{{ options.body }}</p>
       <div class="confirm__actions">
-        <button type="button" class="confirm__button" data-confirm="no" @click="emit('answer', false)">
+        <UiButton variant="outline" class="confirm__button" data-confirm="no" @click="emit('answer', false)">
           {{ options.cancelLabel ?? "Cancel" }}
-        </button>
-        <button
-          type="button"
+        </UiButton>
+        <UiButton
+          variant="primary"
           class="confirm__button confirm__button--yes"
-          :class="{ 'confirm__button--danger': options.danger }"
+          :danger="options.danger"
           data-confirm="yes"
           @click="emit('answer', true)"
         >
           {{ options.confirmLabel ?? "OK" }}
-        </button>
+        </UiButton>
       </div>
     </div>
   </UiDialog>
@@ -61,22 +62,5 @@ const id = useId();
   justify-content: flex-end;
   gap: var(--space-4);
   margin-top: var(--space-5);
-}
-.confirm__button {
-  height: 38px;
-  padding: 0 var(--space-9);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  box-shadow: inset 0 0 0 1px var(--line);
-  font-weight: 700;
-}
-.confirm__button--yes {
-  background: var(--ink);
-  color: var(--ground);
-  box-shadow: none;
-}
-.confirm__button--danger {
-  background: var(--accent);
-  color: var(--on-accent);
 }
 </style>

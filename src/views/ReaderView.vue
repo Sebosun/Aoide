@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onUnmounted, watch } from "vue";
 import { ArrowLeft, Bookmark, Ellipsis, Headphones } from "@lucide/vue";
 import ReaderSheet from "@/components/reader/ReaderSheet.vue";
@@ -57,9 +58,15 @@ const { isArticle } = useOpenArticle();
 <template>
   <div v-if="reader.book" class="reader">
     <header class="reader__header">
-      <button type="button" class="reader__back" :aria-label="`Back to ${backLabel}`" @click="navigation.leaveReader()">
+      <UiButton
+        variant="glass"
+        size="lg"
+        class="reader__back"
+        :aria-label="`Back to ${backLabel}`"
+        @click="navigation.leaveReader()"
+      >
         <ArrowLeft :size="16" aria-hidden="true" />{{ backLabel }}
-      </button>
+      </UiButton>
       <ArticleOutline v-if="isArticle" class="reader__outline" :title="reader.book.title" :chapter="reader.chapter" />
       <ChapterMenu
         v-else-if="!audio"
@@ -130,14 +137,6 @@ const { isArticle } = useOpenArticle();
 }
 .reader__back {
   justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 44px;
-  padding: 0 var(--space-8) 0 var(--space-6);
-  border-radius: var(--radius-xl);
-  background: var(--glass);
-  font-weight: 600;
 }
 .reader__chapters,
 .reader__outline {

@@ -2,6 +2,7 @@ import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { defineComponent, h, ref } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
+import UiButton from "@/components/ui/UiButton.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiMenu from "@/components/ui/UiMenu.vue";
 import type { MenuEntry } from "@/components/ui/types";
@@ -265,4 +266,27 @@ it("moves through a menu with the arrow keys, skipping disabled items, and close
   expect(menuList()).toBeNull();
   expect(picked).toEqual([]);
   wrapper.unmount();
+});
+
+it("draws a button that never submits a form, passes its attributes on, and is clicked like one", async () => {
+  const clicked = vi.fn();
+  const button = mount(UiButton, {
+    props: { variant: "primary", size: "lg" },
+    attrs: { "aria-label": "Save", class: "settings__save", onClick: clicked },
+    slots: { default: "Save" },
+  });
+  const element = button.get("button");
+  expect(element.attributes("type")).toBe("button");
+  expect(element.attributes("aria-label")).toBe("Save");
+  expect(element.classes()).toEqual(
+    expect.arrayContaining(["ui-button", "ui-button--primary", "ui-button--lg", "settings__save"]),
+  );
+  await element.trigger("click");
+  expect(clicked).toHaveBeenCalledOnce();
+
+  await button.setProps({ variant: "outline", size: "sm", icon: true, danger: true, type: "submit" });
+  expect(element.attributes("type")).toBe("submit");
+  expect(element.classes()).toEqual(
+    expect.arrayContaining(["ui-button--outline", "ui-button--sm", "ui-button--icon", "ui-button--danger"]),
+  );
 });

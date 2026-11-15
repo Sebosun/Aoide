@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { ref } from "vue";
 import { api } from "@/api";
 import type { SearchHit } from "@/api/types";
@@ -41,7 +42,7 @@ function parts(hit: SearchHit) {
 <template>
   <form class="book-search__form" role="search" @submit.prevent="search">
     <input v-model="query" type="search" aria-label="Search in book" placeholder="Search this book…" />
-    <button type="submit" class="book-search__button" :disabled="searching">Search</button>
+    <UiButton size="sm" type="submit" class="book-search__button" :disabled="searching">Search</UiButton>
   </form>
   <p v-if="error" class="book-search__error" role="alert">{{ error }}</p>
   <p v-if="hits && !hits.length" class="book-search__empty">No matches.</p>
@@ -67,17 +68,6 @@ function parts(hit: SearchHit) {
 }
 .book-search__form input {
   flex: 1;
-}
-.book-search__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--ground);
-  font-size: 12.5px;
-  font-weight: 700;
-  padding: var(--space-4) var(--space-7);
-  white-space: nowrap;
 }
 .book-search__list {
   list-style: none;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref } from "vue";
 import { BookmarkPlus, Trash2 } from "@lucide/vue";
 import { api } from "@/api";
@@ -75,7 +76,9 @@ const when = (seconds: number) => new Date(seconds * 1000).toLocaleDateString();
 <template>
   <form class="book-bookmarks__add" @submit.prevent="add">
     <input v-model="note" type="text" aria-label="Bookmark note" placeholder="Optional note" />
-    <button type="submit" class="book-bookmarks__button"><BookmarkPlus :size="15" /> Bookmark here</button>
+    <UiButton size="sm" type="submit" class="book-bookmarks__button"
+      ><BookmarkPlus :size="15" /> Bookmark here</UiButton
+    >
   </form>
   <p class="book-bookmarks__hint">
     {{ audio ? "Marks the moment playing" : "Marks the sentence being read" }}, or where you left off.
@@ -123,17 +126,6 @@ const when = (seconds: number) => new Date(seconds * 1000).toLocaleDateString();
 }
 .book-bookmarks__add input {
   flex: 1;
-}
-.book-bookmarks__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--ground);
-  font-size: 12.5px;
-  font-weight: 700;
-  padding: var(--space-4) var(--space-7);
-  white-space: nowrap;
 }
 .book-bookmarks__hint {
   font-size: 11px;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, useId } from "vue";
 import { Check, X } from "@lucide/vue";
 import UiDialog from "@/components/ui/UiDialog.vue";
@@ -109,23 +110,24 @@ function close() {
       <p v-if="signIn.error" class="signin__failed" role="alert">{{ signIn.error }}</p>
 
       <div class="signin__actions">
-        <button v-if="failed" type="button" class="signin__button" @click="signIn.dismiss()">Close</button>
+        <UiButton size="lg" v-if="failed" class="signin__button" @click="signIn.dismiss()">Close</UiButton>
         <template v-else>
-          <button type="button" class="signin__button" :disabled="stage === 'fetching'" @click="signIn.cancel()">
+          <UiButton size="lg" class="signin__button" :disabled="stage === 'fetching'" @click="signIn.cancel()">
             Cancel
-          </button>
-          <button type="button" class="signin__button" :disabled="!waiting" @click="signIn.showWindow()">
+          </UiButton>
+          <UiButton size="lg" class="signin__button" :disabled="!waiting" @click="signIn.showWindow()">
             Show the window
-          </button>
-          <button
-            type="button"
+          </UiButton>
+          <UiButton
+            variant="primary"
+            size="lg"
             class="signin__button signin__button--main"
             data-signin="done"
             :disabled="!waiting"
             @click="signIn.finish()"
           >
             I’m signed in, fetch again
-          </button>
+          </UiButton>
         </template>
       </div>
     </div>
@@ -242,21 +244,5 @@ function close() {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-5);
-}
-.signin__button {
-  height: 44px;
-  padding: 0 var(--space-9);
-  border-radius: var(--radius-xl);
-  background: var(--ground);
-  font-weight: 600;
-}
-.signin__button--main {
-  background: var(--ink);
-  color: var(--page);
-  font-weight: 700;
-}
-.signin__button:disabled {
-  opacity: 0.5;
-  cursor: default;
 }
 </style>

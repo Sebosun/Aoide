@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Copy, Ellipsis, ExternalLink, Plus, TriangleAlert, Trash2 } from "@lucide/vue";
 import type { EntryView, FeedView } from "@/api/types";
@@ -106,19 +107,26 @@ onBeforeUnmount(() => watcher?.disconnect());
       </div>
       <div class="feeds__actions">
         <template v-if="feeds.feeds.length">
-          <button type="button" class="feeds__button" @click="feeds.checkNow()">Check now</button>
-          <button type="button" class="feeds__button" :disabled="!feeds.unread" @click="feeds.markAllRead()">
+          <UiButton variant="raised" size="lg" class="feeds__button" @click="feeds.checkNow()">Check now</UiButton>
+          <UiButton
+            variant="raised"
+            size="lg"
+            class="feeds__button"
+            :disabled="!feeds.unread"
+            @click="feeds.markAllRead()"
+          >
             Mark all read
-          </button>
+          </UiButton>
         </template>
-        <button
-          type="button"
+        <UiButton
+          variant="primary"
+          size="lg"
           class="feeds__button feeds__button--main"
           aria-haspopup="dialog"
           @click="navigation.openAdd('', 'subscribe')"
         >
           <Plus :size="16" aria-hidden="true" />Subscribe
-        </button>
+        </UiButton>
       </div>
     </header>
     <p v-if="feeds.error" class="feeds__error" role="alert">{{ feeds.error }}</p>
@@ -126,14 +134,15 @@ onBeforeUnmount(() => watcher?.disconnect());
     <div v-if="feeds.loaded && !feeds.feeds.length" class="feeds__empty feeds__empty--start">
       <h2 class="feeds__empty-title">No subscriptions yet</h2>
       <p>Subscribe to a site's feed and its new articles arrive here, ready to read or listen to.</p>
-      <button
-        type="button"
+      <UiButton
+        variant="primary"
+        size="lg"
         class="feeds__button feeds__button--main"
         aria-haspopup="dialog"
         @click="navigation.openAdd('', 'subscribe')"
       >
         <Plus :size="16" aria-hidden="true" />Subscribe
-      </button>
+      </UiButton>
       <button type="button" class="feeds__link" @click="importList">
         Or import a subscription list from another feed reader…
       </button>
@@ -258,25 +267,6 @@ onBeforeUnmount(() => watcher?.disconnect());
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-5);
-}
-.feeds__button {
-  height: 44px;
-  padding: 0 var(--space-8);
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  border-radius: var(--radius-xl);
-  background: var(--page);
-  font-weight: 600;
-}
-.feeds__button:disabled {
-  color: var(--faint);
-  cursor: default;
-}
-.feeds__button--main {
-  padding: 0 var(--space-9);
-  background: var(--ink);
-  color: var(--ground);
 }
 .feeds__error {
   margin: 0;

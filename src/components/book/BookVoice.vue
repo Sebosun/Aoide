@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { Download, RotateCcw } from "@lucide/vue";
 import { api } from "@/api";
@@ -180,7 +181,7 @@ async function prepareAction(action: PrepareAction) {
       @update:model-value="setParam(spec.key, $event)"
     />
     <div class="book-voice__actions">
-      <button type="submit" class="book-voice__primary">Save</button
+      <UiButton variant="accent" size="sm" type="submit" class="book-voice__primary">Save</UiButton
       ><span v-if="message" class="book-voice__ok" role="status">{{ message }}</span>
     </div>
   </form>
@@ -203,31 +204,33 @@ async function prepareAction(action: PrepareAction) {
     </template>
     <p v-else-if="preparation.state === 'done'" class="book-voice__ok">The whole book is ready to play offline.</p>
     <div v-if="preparation.actions.length" class="book-voice__actions">
-      <button
+      <UiButton
+        size="sm"
         v-for="action in preparation.actions"
         :key="action"
-        type="button"
         class="book-voice__button"
         :aria-label="ACTION_LABELS[action]"
         @click="prepareAction(action)"
       >
         <component :is="ACTION_ICONS[action]" :size="14" /> {{ ACTION_LABELS[action] }}
-      </button>
+      </UiButton>
     </div>
 
     <button type="button" class="book-voice__button" aria-label="Regenerate audio" @click="regenerate">
+      <RotateCcw :size="14" /> Regenerate audio</button
+    ><UiButton size="sm" class="book-voice__button" aria-label="Regenerate audio" @click="regenerate">
       <RotateCcw :size="14" /> Regenerate audio
-    </button>
+    </UiButton>
 
-    <button
-      type="button"
+    <UiButton
+      size="sm"
       class="book-voice__button"
       aria-label="Export audiobook"
       :disabled="exporting?.stage === 'generating' || exporting?.stage === 'encoding'"
       @click="exportBook"
     >
       <Download :size="14" /> Export as M4B audiobook
-    </button>
+    </UiButton>
     <template v-if="exporting">
       <template v-if="exporting.stage === 'generating' || exporting.stage === 'encoding'">
         <progress :value="exporting.done" :max="Math.max(1, exporting.total)" aria-label="Export progress" />
@@ -290,25 +293,6 @@ async function prepareAction(action: PrepareAction) {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-5);
-}
-.book-voice__primary {
-  background: var(--accent);
-  color: var(--on-accent);
-  border-radius: var(--radius-pill);
-  padding: var(--space-4) var(--space-9);
-  font-size: 13px;
-  font-weight: 800;
-}
-.book-voice__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--ground);
-  font-size: 12.5px;
-  font-weight: 700;
-  padding: var(--space-4) var(--space-7);
-  white-space: nowrap;
 }
 .book-voice__ok {
   font-size: 12px;

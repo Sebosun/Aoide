@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { Check, Download, Headphones } from "@lucide/vue";
 import { api } from "@/api";
@@ -186,9 +187,9 @@ function submit() {
         the next one, and leaves the book unpaired if none do.</SettingsNote
       >
       <div>
-        <button type="button" class="recording-settings__find" @click="findAudiobooks">
+        <UiButton size="sm" class="recording-settings__find" @click="findAudiobooks">
           <Headphones :size="15" /> Find audiobooks…
-        </button>
+        </UiButton>
       </div>
     </SettingsSection>
 
@@ -211,15 +212,15 @@ function submit() {
               :aria-label="`Downloading ${model.id}`"
             />
           </template>
-          <button
+          <UiButton
+            size="sm"
             v-else
-            type="button"
             class="recording-settings__download"
             :aria-label="`Download ${model.id}`"
             @click="download(model.id)"
           >
             <Download :size="14" /> Download
-          </button>
+          </UiButton>
         </li>
       </ul>
       <p v-if="downloadError" class="recording-settings__error" role="alert">{{ downloadError }}</p>
@@ -241,17 +242,6 @@ function submit() {
   display: flex;
   align-items: center;
   gap: var(--space-5);
-  font-size: 13px;
-}
-.recording-settings__find {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 36px;
-  padding: 0 var(--space-8);
-  border-radius: var(--radius-pill);
-  background: var(--ground);
-  font-weight: 700;
   font-size: 13px;
 }
 .recording-settings__models {
@@ -286,16 +276,6 @@ function submit() {
   color: var(--ok);
   font-weight: 600;
   font-size: 12.5px;
-}
-.recording-settings__download {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  border-radius: var(--radius-pill);
-  background: var(--ground);
-  font-size: 12.5px;
-  font-weight: 700;
-  padding: var(--space-3) var(--space-7);
 }
 .recording-settings__model progress {
   width: 140px;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { LoaderCircle, Square, Volume2 } from "@lucide/vue";
 import { useVoicePreview, type PreviewRequest } from "@/composables/useVoicePreview";
 
@@ -10,18 +11,19 @@ const { state, error, play, stop } = useVoicePreview();
 
 <template>
   <div class="voice-preview">
-    <button
+    <UiButton
+      size="sm"
       v-if="state === 'idle'"
-      type="button"
       class="voice-preview__button"
       aria-label="Preview voice"
       @click="play(props.request)"
     >
       <Volume2 :size="15" /> Preview voice
-    </button>
-    <button
+    </UiButton>
+    <UiButton
+      variant="primary"
+      size="sm"
       v-else
-      type="button"
       class="voice-preview__button voice-preview__button--on"
       aria-label="Stop preview"
       @click="stop"
@@ -32,7 +34,7 @@ const { state, error, play, stop } = useVoicePreview();
         fill="currentColor"
       />
       {{ state === "loading" ? "Preparing…" : "Stop" }}
-    </button>
+    </UiButton>
     <span v-if="error" class="voice-preview__error" role="alert">Preview failed: {{ error }}</span>
     <span v-else-if="state === 'loading'" class="voice-preview__hint"
       >The engine speaks one request at a time, so this may wait for audio being generated.</span
@@ -47,22 +49,6 @@ const { state, error, play, stop } = useVoicePreview();
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4) var(--space-6);
-}
-.voice-preview__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  height: 36px;
-  padding: 0 var(--space-7);
-  border-radius: var(--radius-pill);
-  background: var(--ground);
-  font-weight: 700;
-  font-size: 13px;
-  white-space: nowrap;
-}
-.voice-preview__button--on {
-  background: var(--ink);
-  color: var(--ground);
 }
 .voice-preview__spin {
   animation: voice-preview-spin 1s linear infinite;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { Eraser, HardDrive, Sparkle, Trash2 } from "@lucide/vue";
 import { api } from "@/api";
@@ -159,35 +160,43 @@ function submit() {
               ? `${report.unusedFiles} ${report.unusedFiles === 1 ? "file" : "files"} · ${formatBytes(report.unusedBytes)}`
               : "Nothing to clean up"
           }}</b>
-          <button type="button" class="storage__button" :disabled="busy || !report.unusedFiles" @click="cleanUnused">
+          <UiButton
+            variant="raised"
+            size="sm"
+            class="storage__button"
+            :disabled="busy || !report.unusedFiles"
+            @click="cleanUnused"
+          >
             <Eraser :size="14" /> Clean up
-          </button>
+          </UiButton>
         </article>
         <article class="storage__card" aria-label="Audio of finished books">
           <h3>Finished books</h3>
           <p>Generated audio of books you have listened to the end.</p>
           <b>{{ finished.length ? `${books(finished.length)} · ${formatBytes(sum(finished))}` : "None" }}</b>
-          <button
-            type="button"
+          <UiButton
+            variant="raised"
+            size="sm"
             class="storage__button"
             :disabled="busy || !finished.length"
             @click="deleteAudio(finished, `Delete the audio of ${books(finished.length)} you finished?`)"
           >
             <Trash2 :size="14" /> Delete audio
-          </button>
+          </UiButton>
         </article>
         <article class="storage__card" aria-label="Audio of books not opened recently">
           <h3>Not opened in {{ STALE_DAYS }} days</h3>
           <p>Generated audio of books you have not opened for a while.</p>
           <b>{{ stale.length ? `${books(stale.length)} · ${formatBytes(sum(stale))}` : "None" }}</b>
-          <button
-            type="button"
+          <UiButton
+            variant="raised"
+            size="sm"
             class="storage__button"
             :disabled="busy || !stale.length"
             @click="deleteAudio(stale, `Delete the audio of ${books(stale.length)} not opened in ${STALE_DAYS} days?`)"
           >
             <Trash2 :size="14" /> Delete audio
-          </button>
+          </UiButton>
         </article>
       </div>
       <SettingsNote>Audio of the book that is playing, being prepared or exported is never deleted here.</SettingsNote>
@@ -372,17 +381,7 @@ function submit() {
 }
 .storage__button {
   justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
   margin-top: var(--space-3);
-  height: 32px;
-  padding: 0 var(--space-7);
-  border-radius: var(--radius-pill);
-  background: var(--page);
-  font-weight: 700;
-  font-size: 12.5px;
-  box-shadow: inset 0 0 0 1px var(--line);
 }
 .storage__empty {
   font-size: 13px;

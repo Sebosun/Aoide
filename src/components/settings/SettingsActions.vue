@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 /** The submit button of a settings form, with its result. */
 withDefaults(defineProps<{ label?: string; busy?: boolean; message?: string; error?: string }>(), {
   label: "Save",
@@ -10,7 +11,7 @@ withDefaults(defineProps<{ label?: string; busy?: boolean; message?: string; err
 
 <template>
   <div class="settings-actions">
-    <button class="settings-actions__save" type="submit" :disabled="busy">{{ label }}</button>
+    <UiButton variant="accent" class="settings-actions__save" type="submit" :disabled="busy">{{ label }}</UiButton>
     <slot />
     <span v-if="message" class="settings-actions__ok" role="status">{{ message }}</span>
     <span v-if="error" class="settings-actions__error" role="alert">{{ error }}</span>
@@ -23,14 +24,6 @@ withDefaults(defineProps<{ label?: string; busy?: boolean; message?: string; err
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-6);
-}
-.settings-actions__save {
-  height: 38px;
-  padding: 0 var(--space-10);
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 800;
 }
 .settings-actions__ok {
   font-size: 12.5px;

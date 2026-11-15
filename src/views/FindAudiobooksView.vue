@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref } from "vue";
 import { ArrowLeft, BookOpen, Folder, Headphones, Link2, Settings, X } from "@lucide/vue";
 import { api } from "@/api";
@@ -96,14 +97,15 @@ function openSettings() {
 
 <template>
   <section class="find-audiobooks">
-    <button
-      type="button"
+    <UiButton
+      variant="glass"
+      size="sm"
       class="find-audiobooks__back"
       aria-label="Back to library"
       @click="navigation.view = 'library'"
     >
       <ArrowLeft :size="15" /> Library
-    </button>
+    </UiButton>
     <header class="find-audiobooks__header">
       <div>
         <h1>Find audiobooks</h1>
@@ -112,24 +114,25 @@ function openSettings() {
         </p>
       </div>
       <div class="find-audiobooks__actions">
-        <button
+        <UiButton
+          variant="glass"
+          size="sm"
           v-if="audiobooks.scanning"
-          type="button"
           class="find-audiobooks__button"
           aria-label="Cancel search"
           @click="audiobooks.cancel()"
         >
           <X :size="15" /> Cancel
-        </button>
-        <button
-          type="button"
+        </UiButton>
+        <UiButton
+          variant="accent"
           class="find-audiobooks__primary"
           aria-label="Scan for audiobooks"
           :disabled="audiobooks.scanning"
           @click="audiobooks.scan()"
         >
           <Headphones :size="16" /> {{ audiobooks.scanning ? "Searching…" : "Scan for audiobooks" }}
-        </button>
+        </UiButton>
       </div>
     </header>
     <p v-if="status" class="find-audiobooks__status" role="status">{{ status }}</p>
@@ -184,7 +187,7 @@ function openSettings() {
           Only file and folder names are read. Audio files are never changed or copied.
         </p>
         <div class="find-audiobooks__row">
-          <button type="submit" class="find-audiobooks__button">Save folders</button
+          <UiButton size="sm" type="submit" class="find-audiobooks__button">Save folders</UiButton
           ><span v-if="foldersMessage" class="find-audiobooks__ok" role="status">{{ foldersMessage }}</span>
         </div>
       </form>
@@ -288,24 +291,24 @@ function openSettings() {
         </li>
       </ul>
       <footer v-if="pairableIds.length" class="find-audiobooks__footer">
-        <button
-          type="button"
+        <UiButton
+          size="sm"
           class="find-audiobooks__button"
           aria-label="Pair selected audiobooks"
           :disabled="!audiobooks.selected.size || audiobooks.pairing"
           @click="audiobooks.pair([...audiobooks.selected])"
         >
           <Link2 :size="14" /> Pair selected ({{ audiobooks.selected.size }})
-        </button>
-        <button
-          type="button"
+        </UiButton>
+        <UiButton
+          variant="accent"
           class="find-audiobooks__primary"
           aria-label="Pair all found audiobooks"
           :disabled="audiobooks.pairing"
           @click="audiobooks.pair(pairableIds)"
         >
           <Link2 :size="14" /> Pair all {{ pairableIds.length }}
-        </button>
+        </UiButton>
       </footer>
     </template>
     <section v-if="audiobooks.unmatched.length" class="find-audiobooks__unmatched" aria-labelledby="find-unmatched">
@@ -327,15 +330,15 @@ function openSettings() {
             ><span class="find-audiobooks__name">{{ nameOf(c) }}</span
             ><span class="find-audiobooks__meta">{{ holds(c) }}</span></span
           >
-          <button
-            type="button"
+          <UiButton
+            size="sm"
             class="find-audiobooks__button"
             :aria-label="`Add ${nameOf(c)} on its own`"
             :disabled="audiobooks.adding"
             @click="audiobooks.addUnmatched(c)"
           >
             Add
-          </button>
+          </UiButton>
         </li>
       </ul>
     </section>
@@ -356,15 +359,7 @@ function openSettings() {
   padding: var(--space-4) var(--space-14) 0;
 }
 .find-audiobooks__back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
   margin: var(--space-4) 0 var(--space-9);
-  padding: var(--space-3) var(--space-6);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  font-weight: 700;
-  font-size: 13px;
 }
 .find-audiobooks__header {
   display: flex;
@@ -389,28 +384,6 @@ function openSettings() {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-5);
-}
-.find-audiobooks__primary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  height: 42px;
-  padding: 0 var(--space-10);
-  border-radius: var(--radius-pill);
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 800;
-}
-.find-audiobooks__button {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  height: 36px;
-  padding: 0 var(--space-7);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  font-size: 13px;
-  font-weight: 700;
 }
 .find-audiobooks__status {
   font-size: 13px;
@@ -472,9 +445,6 @@ function openSettings() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-.find-audiobooks__settings .find-audiobooks__button {
-  background: var(--ground);
 }
 .find-audiobooks__folders {
   display: grid;
@@ -664,9 +634,6 @@ function openSettings() {
   font-size: 13px;
   font-weight: 600;
 }
-.find-audiobooks__footer .find-audiobooks__button {
-  background: var(--ground);
-}
 .find-audiobooks__unmatched {
   display: grid;
   gap: var(--space-4);
@@ -694,9 +661,6 @@ function openSettings() {
 }
 .find-audiobooks__other .find-audiobooks__label {
   flex: 1;
-}
-.find-audiobooks__other .find-audiobooks__button {
-  background: var(--ground);
 }
 .find-audiobooks__empty {
   text-align: center;

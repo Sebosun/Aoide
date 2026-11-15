@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from "@/components/ui/UiButton.vue";
 import { onMounted, ref } from "vue";
 import UiDialog from "@/components/ui/UiDialog.vue";
 import type { PromptOptions } from "@/stores/ui";
@@ -27,10 +28,10 @@ onMounted(() => requestAnimationFrame(() => input.value?.select()));
           spellcheck="false"
       /></label>
       <div class="prompt__actions">
-        <button type="button" class="prompt__button" @click="emit('answer', null)">Cancel</button>
-        <button type="submit" class="prompt__button prompt__button--yes" :disabled="!text.trim()">
+        <UiButton variant="outline" class="prompt__button" @click="emit('answer', null)">Cancel</UiButton>
+        <UiButton variant="primary" type="submit" class="prompt__button prompt__button--yes" :disabled="!text.trim()">
           {{ options.confirmLabel ?? "OK" }}
-        </button>
+        </UiButton>
       </div>
     </form>
   </UiDialog>
@@ -65,18 +66,5 @@ onMounted(() => requestAnimationFrame(() => input.value?.select()));
   justify-content: flex-end;
   gap: var(--space-4);
   margin-top: var(--space-2);
-}
-.prompt__button {
-  height: 38px;
-  padding: 0 var(--space-9);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  box-shadow: inset 0 0 0 1px var(--line);
-  font-weight: 700;
-}
-.prompt__button--yes {
-  background: var(--ink);
-  color: var(--ground);
-  box-shadow: none;
 }
 </style>
