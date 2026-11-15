@@ -4,19 +4,11 @@ use rusqlite::{Connection, Row};
 
 use crate::{BookId, BookRecord, BookStatus, ItemKind, Library, LibraryError, Result};
 
-impl Library {
-    pub(super) fn initialize(mut conn: Connection) -> Result<Self> {
-        conn.pragma_update(None, "foreign_keys", true)?;
-        let tx = conn.transaction()?;
-        let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if !(0..=12).contains(&version) {
-            return Err(LibraryError::Corrupt(format!(
-                "unsupported schema version {version}"
-            )));
-        }
-        if version == 0 {
-            tx.execute_batch(
-                "CREATE TABLE books (
+/// The schema, one step per version: step `n` (counting from one) takes a database at
+/// version `n - 1` to version `n`. A new version is a new step at the end.
+const MIGRATIONS: &[&str] = &[
+    // Version 1.
+    "CREATE TABLE books (
                         id TEXT PRIMARY KEY NOT NULL,
                         path TEXT NOT NULL,
                         status TEXT NOT NULL CHECK(status IN ('present', 'missing', 'error')),
@@ -50,12 +42,8 @@ impl Library {
                         key TEXT PRIMARY KEY NOT NULL,
                         value TEXT NOT NULL
                     );",
-            )?;
-            tx.pragma_update(None, "user_version", 1)?;
-        }
-        if version <= 1 {
-            tx.execute_batch(
-                "CREATE TABLE bookmarks (
+    // Version 2.
+    "CREATE TABLE bookmarks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     chapter INTEGER NOT NULL CHECK(chapter >= 0),
@@ -76,22 +64,14 @@ impl Library {
                     json TEXT NOT NULL
                 );
                 CREATE INDEX segments_created_at ON segments(created_at);",
-            )?;
-            tx.pragma_update(None, "user_version", 2)?;
-        }
-        if version <= 2 {
-            tx.execute_batch(
-                "CREATE TABLE metadata_cache (
+    // Version 3.
+    "CREATE TABLE metadata_cache (
                     query TEXT PRIMARY KEY NOT NULL,
                     json TEXT NOT NULL,
                     fetched_at INTEGER NOT NULL
                 );",
-            )?;
-            tx.pragma_update(None, "user_version", 3)?;
-        }
-        if version <= 3 {
-            tx.execute_batch(
-                "CREATE TABLE discovered_files (
+    // Version 4.
+    "CREATE TABLE discovered_files (
                     path TEXT PRIMARY KEY NOT NULL,
                     size INTEGER NOT NULL,
                     modified_ns INTEGER NOT NULL,
@@ -106,12 +86,8 @@ impl Library {
                     seen_at INTEGER NOT NULL
                 );
                 CREATE INDEX discovered_files_hash ON discovered_files(hash);",
-            )?;
-            tx.pragma_update(None, "user_version", 4)?;
-        }
-        if version <= 4 {
-            tx.execute_batch(
-                "CREATE TABLE collections (
+    // Version 5.
+    "CREATE TABLE collections (
                     id INTEGER PRIMARY KEY,
                     name TEXT NOT NULL COLLATE NOCASE UNIQUE,
                     created_at INTEGER NOT NULL
@@ -122,12 +98,8 @@ impl Library {
                     PRIMARY KEY (book_id, collection_id)
                 );
                 CREATE INDEX book_collections_collection ON book_collections(collection_id);",
-            )?;
-            tx.pragma_update(None, "user_version", 5)?;
-        }
-        if version <= 5 {
-            tx.execute_batch(
-                "CREATE TABLE recordings (
+    // Version 6.
+    "CREATE TABLE recordings (
                     book_id TEXT PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     files TEXT NOT NULL,
                     total_ms INTEGER NOT NULL CHECK(total_ms >= 0),
@@ -152,16 +124,12 @@ impl Library {
                     report TEXT NOT NULL,
                     created_at INTEGER NOT NULL
                 );",
-            )?;
-            tx.pragma_update(None, "user_version", 6)?;
-        }
-        if version <= 6 {
-            // Values that belong to a book and go with it when it is removed. Asked on
-            // 2026-11-15, the user chose that a book removed and added again keeps its voice
-            // settings and its place, so `BookKey::Settings` and `BookKey::ProgressFraction`
-            // stay in `settings`; only the prepared mark moves here.
-            tx.execute_batch(
-                "CREATE TABLE book_values (
+    // Version 7.
+    // Values that belong to a book and go with it when it is removed. Asked on
+    // 2026-11-15, the user chose that a book removed and added again keeps its voice
+    // settings and its place, so `BookKey::Settings` and `BookKey::ProgressFraction`
+    // stay in `settings`; only the prepared mark moves here.
+    "CREATE TABLE book_values (
                     book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     key TEXT NOT NULL,
                     value TEXT NOT NULL,
@@ -172,14 +140,10 @@ impl Library {
                     WHERE key LIKE 'book.%.prepared'
                     AND substr(key, 6, length(key) - 14) IN (SELECT id FROM books);
                 DELETE FROM settings WHERE key LIKE 'book.%.prepared';",
-            )?;
-            tx.pragma_update(None, "user_version", 7)?;
-        }
-        if version <= 7 {
-            // Reading without listening: when a book was finished, its length in words (known
-            // once it has been parsed), and time spent reading per local day.
-            tx.execute_batch(
-                "ALTER TABLE books ADD COLUMN finished_at INTEGER;
+    // Version 8.
+    // Reading without listening: when a book was finished, its length in words (known
+    // once it has been parsed), and time spent reading per local day.
+    "ALTER TABLE books ADD COLUMN finished_at INTEGER;
                 ALTER TABLE books ADD COLUMN word_count INTEGER CHECK(word_count >= 0);
                 CREATE TABLE reading (
                     book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
@@ -187,24 +151,16 @@ impl Library {
                     ms INTEGER NOT NULL CHECK(ms >= 0),
                     PRIMARY KEY (book_id, day)
                 );",
-            )?;
-            tx.pragma_update(None, "user_version", 8)?;
-        }
-        if version <= 8 {
-            // Items that are not EPUBs: an audiobook on its own (and, later, an article). An
-            // audiobook's place is a time on its recording, not a character offset.
-            tx.execute_batch(
-                "ALTER TABLE books ADD COLUMN kind TEXT NOT NULL DEFAULT 'book'
+    // Version 9.
+    // Items that are not EPUBs: an audiobook on its own (and, later, an article). An
+    // audiobook's place is a time on its recording, not a character offset.
+    "ALTER TABLE books ADD COLUMN kind TEXT NOT NULL DEFAULT 'book'
                     CHECK(kind IN ('book', 'audiobook', 'article'));
                 ALTER TABLE progress ADD COLUMN position_ms INTEGER CHECK(position_ms >= 0);
                 ALTER TABLE bookmarks ADD COLUMN position_ms INTEGER CHECK(position_ms >= 0);",
-            )?;
-            tx.pragma_update(None, "user_version", 9)?;
-        }
-        if version <= 9 {
-            // Articles saved from the web: their source and their fetch.
-            tx.execute_batch(
-                "CREATE TABLE articles (
+    // Version 10.
+    // Articles saved from the web: their source and their fetch.
+    "CREATE TABLE articles (
                     book_id TEXT PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     url TEXT NOT NULL,
                     canonical_url TEXT NOT NULL,
@@ -220,14 +176,10 @@ impl Library {
                     declared_words INTEGER CHECK(declared_words >= 0),
                     lead TEXT
                 );",
-            )?;
-            tx.pragma_update(None, "user_version", 10)?;
-        }
-        if version <= 10 {
-            // Feeds and their entries; an entry opened without being saved is an item on the
-            // feed shelf, out of the library's lists.
-            tx.execute_batch(
-                "ALTER TABLE books ADD COLUMN shelf TEXT NOT NULL DEFAULT 'library'
+    // Version 11.
+    // Feeds and their entries; an entry opened without being saved is an item on the
+    // feed shelf, out of the library's lists.
+    "ALTER TABLE books ADD COLUMN shelf TEXT NOT NULL DEFAULT 'library'
                     CHECK(shelf IN ('library', 'feed'));
                 CREATE TABLE feeds (
                     id INTEGER PRIMARY KEY,
@@ -260,21 +212,31 @@ impl Library {
                     UNIQUE(feed_id, guid)
                 );
                 CREATE INDEX feed_entries_feed ON feed_entries(feed_id, published_at);",
-            )?;
-            tx.pragma_update(None, "user_version", 11)?;
-        }
-        if version <= 11 {
-            // Sites that needed the user (a sign-in, a check) and whether they are passed.
-            tx.execute_batch(
-                "CREATE TABLE sites (
+    // Version 12.
+    // Sites that needed the user (a sign-in, a check) and whether they are passed.
+    "CREATE TABLE sites (
                     host TEXT PRIMARY KEY NOT NULL,
                     signed_in_at INTEGER,
                     check_passed_at INTEGER,
                     last_wall TEXT,
                     last_wall_at INTEGER
                 );",
-            )?;
-            tx.pragma_update(None, "user_version", 12)?;
+];
+
+impl Library {
+    pub(super) fn initialize(mut conn: Connection) -> Result<Self> {
+        conn.pragma_update(None, "foreign_keys", true)?;
+        let tx = conn.transaction()?;
+        let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
+        let latest = MIGRATIONS.len() as i64;
+        if !(0..=latest).contains(&version) {
+            return Err(LibraryError::Corrupt(format!(
+                "unsupported schema version {version}"
+            )));
+        }
+        for (done, step) in MIGRATIONS.iter().enumerate().skip(version as usize) {
+            tx.execute_batch(step)?;
+            tx.pragma_update(None, "user_version", done as i64 + 1)?;
         }
         tx.commit()?;
         Ok(Self { conn })
