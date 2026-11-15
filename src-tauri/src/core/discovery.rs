@@ -350,10 +350,51 @@ impl Discovery {
     }
 
     fn scan_blocking(&self, cancel: &AtomicBool, settings: ScanSettings) -> Result<(), String> {
+        let cancelled = || cancel.load(std::sync::atomic::Ordering::Relaxed);
         let options = self.scan_options(settings);
         let started = Instant::now();
+        let found = self.walk(&options, cancel);
+        if cancelled() {
+            return Err("cancelled".into());
+        }
+        let scan_started = now_ms();
+        let (unchanged, changed) = self.set_aside_unchanged(found, scan_started)?;
+        let records = self.read_files(&changed, scan_started, cancel);
+        if cancelled() {
+            return Err("cancelled".into());
+        }
+        self.store(&records, scan_started)?;
+        let found = (unchanged + records.len()) as u64;
+        let read = changed.len() as u64;
+        tracing::info!(
+            event = "discovery.scan",
+            outcome = "ok",
+            roots = options.roots.len(),
+            epubs = found,
+            read,
+            took_ms = crate::logging::took(started),
+            "Searched for EPUBs"
+        );
+        self.emit_scan(ScanProgress {
+            stage: ScanStage::Done,
+            dirs: 0,
+            files: 0,
+            found,
+            read,
+            to_read: read,
+            error: None,
+        });
+        Ok(())
+    }
+
+    /// Walks the folders for EPUBs, telling the window how far it got every 150 ms.
+    fn walk(
+        &self,
+        options: &aoide_discovery::ScanOptions,
+        cancel: &AtomicBool,
+    ) -> Vec<aoide_discovery::Found> {
         let last_emit = Mutex::new(Instant::now());
-        let found = aoide_discovery::find_epubs(&options, cancel, &|p| {
+        aoide_discovery::find_epubs(options, cancel, &|p| {
             let mut last = lock(&last_emit);
             if last.elapsed() >= Duration::from_millis(150) {
                 *last = Instant::now();
@@ -367,32 +408,44 @@ impl Discovery {
                     error: None,
                 });
             }
-        });
-        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            return Err("cancelled".into());
-        }
-        let scan_started = now_ms();
-        // Unchanged files keep what we learned last time.
-        let (unchanged, changed): (Vec<_>, Vec<_>) = {
-            let library = lock(&self.library);
-            found.into_iter().partition(|f| {
-                library.discovered(&f.path).ok().flatten().is_some_and(|d| {
-                    d.size == f.size && d.modified_ns == f.modified_ns && d.inode == f.inode
-                })
+        })
+    }
+
+    /// Files unchanged since the last scan keep what was learned then (they are only marked
+    /// seen); returns how many there were, and the files to read again.
+    fn set_aside_unchanged(
+        &self,
+        found: Vec<aoide_discovery::Found>,
+        seen_at: i64,
+    ) -> Result<(usize, Vec<aoide_discovery::Found>), String> {
+        let library = lock(&self.library);
+        let (unchanged, changed): (Vec<_>, Vec<_>) = found.into_iter().partition(|f| {
+            library.discovered(&f.path).ok().flatten().is_some_and(|d| {
+                d.size == f.size && d.modified_ns == f.modified_ns && d.inode == f.inode
             })
-        };
-        lock(&self.library)
+        });
+        library
             .mark_discovered_seen(
                 &unchanged.iter().map(|f| f.path.clone()).collect::<Vec<_>>(),
-                scan_started,
+                seen_at,
             )
             .map_err(|e| e.to_string())?;
-        let total = changed.len() as u64;
+        Ok((unchanged.len(), changed))
+    }
+
+    /// Reads each file's details and cover, a few at a time, telling the window every eighth.
+    fn read_files(
+        &self,
+        files: &[aoide_discovery::Found],
+        seen_at: i64,
+        cancel: &AtomicBool,
+    ) -> Vec<DiscoveredFile> {
+        let total = files.len() as u64;
         let read = std::sync::atomic::AtomicU64::new(0);
         let covers = self.covers_dir.join("discovered");
         let _ = std::fs::create_dir_all(&covers);
         let process = |f: &aoide_discovery::Found| {
-            let record = describe_file(f, &covers, scan_started);
+            let record = describe_file(f, &covers, seen_at);
             let n = read.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
             if n & 7 == 0 || n == total {
                 self.emit_scan(ScanProgress {
@@ -407,29 +460,30 @@ impl Discovery {
             }
             record
         };
-        let records: Vec<DiscoveredFile> = match rayon::ThreadPoolBuilder::new()
+        match rayon::ThreadPoolBuilder::new()
             .num_threads(READ_THREADS)
             .build()
         {
             Ok(pool) => pool.install(|| {
-                changed
+                files
                     .par_iter()
                     .filter(|_| !cancel.load(std::sync::atomic::Ordering::Relaxed))
                     .map(process)
                     .collect()
             }),
-            Err(_) => changed.iter().map(process).collect(),
-        };
-        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            return Err("cancelled".into());
+            Err(_) => files.iter().map(process).collect(),
         }
+    }
+
+    /// Stores what was read, and forgets files not seen in this scan.
+    fn store(&self, records: &[DiscoveredFile], seen_at: i64) -> Result<(), String> {
         let library = lock(&self.library);
-        for record in &records {
+        for record in records {
             library
                 .upsert_discovered(record)
                 .map_err(|e| e.to_string())?;
         }
-        let forgot = library.forget_discovered_before(scan_started);
+        let forgot = library.forget_discovered_before(seen_at);
         drop(library);
         if let Err(error) = forgot {
             self.reporter.report(
@@ -438,25 +492,6 @@ impl Discovery {
                 error,
             );
         }
-        let found = (unchanged.len() + records.len()) as u64;
-        tracing::info!(
-            event = "discovery.scan",
-            outcome = "ok",
-            roots = options.roots.len(),
-            epubs = found,
-            read = total,
-            took_ms = crate::logging::took(started),
-            "Searched for EPUBs"
-        );
-        self.emit_scan(ScanProgress {
-            stage: ScanStage::Done,
-            dirs: 0,
-            files: 0,
-            found,
-            read: total,
-            to_read: total,
-            error: None,
-        });
         Ok(())
     }
 

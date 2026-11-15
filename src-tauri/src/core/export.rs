@@ -238,6 +238,69 @@ impl Exports {
     }
 }
 
+/// Chapter marks from each entry's exact length and pause, so they match the audio. Chapters
+/// with no audio get none.
+fn chapter_marks(book: &BookModel, segments: &[Option<CachedSegment>]) -> Vec<ChapterMark> {
+    let mut chapters = Vec::new();
+    let mut cursor_ms = 0u64;
+    for (index, chapter) in book.chapters.iter().enumerate() {
+        let start = cursor_ms;
+        for (local, segment) in chapter.segments.iter().enumerate() {
+            let audio = segments[chapter.first_entry + local]
+                .as_ref()
+                .map_or(0, |s| s.duration_ms);
+            cursor_ms += audio + u64::from(segment.pause_after_ms);
+        }
+        if cursor_ms > start {
+            chapters.push(ChapterMark {
+                title: if chapter.title.trim().is_empty() {
+                    format!("Chapter {}", index + 1)
+                } else {
+                    chapter.title.clone()
+                },
+                start_ms: start,
+                end_ms: cursor_ms,
+            });
+        }
+    }
+    chapters
+}
+
+/// ffmpeg reading mono PCM on its input, with the chapters from `metadata` and the `cover`
+/// as the attached picture, writing an M4B to `output`.
+fn ffmpeg_command(metadata: &Path, cover: Option<&Path>, output: &Path) -> Command {
+    let mut command = Command::new("ffmpeg");
+    command.args(["-hide_banner", "-loglevel", "error", "-y", "-f", "s16le"]);
+    command.args(["-ar", &EXPORT_RATE.to_string(), "-ac", "1", "-i", "pipe:0"]);
+    command.arg("-i").arg(metadata);
+    if let Some(cover) = cover {
+        command.arg("-i").arg(cover);
+    }
+    command.args(["-map", "0:a", "-map_metadata", "1", "-map_chapters", "1"]);
+    if cover.is_some() {
+        command.args([
+            "-map",
+            "2:v",
+            "-c:v",
+            "copy",
+            "-disposition:v:0",
+            "attached_pic",
+        ]);
+    }
+    command.args([
+        "-c:a",
+        "aac",
+        "-b:a",
+        "64k",
+        "-movflags",
+        "+faststart",
+        "-f",
+        "ipod",
+    ]);
+    command.arg(output);
+    command
+}
+
 /// Logs how an export ended.
 fn log_export(kind: &str, id: &str, started: Instant, result: &Result<String, String>) {
     let book = crate::logging::book(id);
@@ -313,27 +376,7 @@ impl Encoder {
                 })
                 .collect()
         };
-        let mut chapters = Vec::new();
-        let mut cursor_ms = 0u64;
-        for (index, chapter) in book.chapters.iter().enumerate() {
-            let start = cursor_ms;
-            for local in 0..chapter.segments.len() {
-                let global = chapter.first_entry + local;
-                let audio = segments[global].as_ref().map_or(0, |s| s.duration_ms);
-                cursor_ms += audio + u64::from(chapter.segments[local].pause_after_ms);
-            }
-            if cursor_ms > start {
-                chapters.push(ChapterMark {
-                    title: if chapter.title.trim().is_empty() {
-                        format!("Chapter {}", index + 1)
-                    } else {
-                        chapter.title.clone()
-                    },
-                    start_ms: start,
-                    end_ms: cursor_ms,
-                });
-            }
-        }
+        let chapters = chapter_marks(book, &segments);
         if chapters.is_empty() {
             return Err("the book has no audio to export".into());
         }
@@ -368,35 +411,7 @@ impl Encoder {
                     )
             });
 
-        let mut command = Command::new("ffmpeg");
-        command.args(["-hide_banner", "-loglevel", "error", "-y", "-f", "s16le"]);
-        command.args(["-ar", &EXPORT_RATE.to_string(), "-ac", "1", "-i", "pipe:0"]);
-        command.arg("-i").arg(&metadata_path);
-        if let Some(cover) = &cover {
-            command.arg("-i").arg(cover);
-        }
-        command.args(["-map", "0:a", "-map_metadata", "1", "-map_chapters", "1"]);
-        if cover.is_some() {
-            command.args([
-                "-map",
-                "2:v",
-                "-c:v",
-                "copy",
-                "-disposition:v:0",
-                "attached_pic",
-            ]);
-        }
-        command.args([
-            "-c:a",
-            "aac",
-            "-b:a",
-            "64k",
-            "-movflags",
-            "+faststart",
-            "-f",
-            "ipod",
-        ]);
-        command.arg(&partial);
+        let mut command = ffmpeg_command(&metadata_path, cover.as_deref(), &partial);
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
@@ -409,30 +424,11 @@ impl Encoder {
             let total = book.chapters.len();
             for (index, chapter) in book.chapters.iter().enumerate() {
                 self.progress(id, ExportStage::Encoding, index, total);
-                let mut pcm: Vec<i16> = Vec::new();
-                for (local, segment) in chapter.segments.iter().enumerate() {
-                    let global = chapter.first_entry + local;
-                    if let Some(cached) = &segments[global] {
-                        let bytes = std::fs::read(self.audio_dir.join(&cached.file))
-                            .map_err(|e| format!("cannot read audio: {e}"))?;
-                        let decoded = codec::decode(&bytes).map_err(|e| e.to_string())?;
-                        let decoded = aoide_audio::resample(&decoded, EXPORT_RATE);
-                        let wanted = samples_for(cached.duration_ms);
-                        pcm.extend(
-                            decoded
-                                .samples
-                                .iter()
-                                .chain(std::iter::repeat(&0.0))
-                                .take(wanted)
-                                .map(|s| (s.clamp(-1.0, 1.0) * 32767.0) as i16),
-                        );
-                    }
-                    pcm.resize(
-                        pcm.len() + samples_for(u64::from(segment.pause_after_ms)),
-                        0,
-                    );
-                }
-                let bytes: Vec<u8> = pcm.iter().flat_map(|s| s.to_le_bytes()).collect();
+                let bytes: Vec<u8> = self
+                    .chapter_pcm(chapter, &segments)?
+                    .iter()
+                    .flat_map(|s| s.to_le_bytes())
+                    .collect();
                 stdin
                     .write_all(&bytes)
                     .map_err(|e| format!("ffmpeg stopped accepting audio: {e}"))?;
@@ -456,6 +452,37 @@ impl Encoder {
         }
         std::fs::rename(&partial, &output).map_err(|e| e.to_string())?;
         Ok(output.to_string_lossy().into_owned())
+    }
+
+    /// A chapter's audio at the export rate: each entry's speech, padded or cut to its
+    /// recorded length, then its pause.
+    fn chapter_pcm(
+        &self,
+        chapter: &crate::book::ChapterModel,
+        segments: &[Option<CachedSegment>],
+    ) -> Result<Vec<i16>, String> {
+        let mut pcm: Vec<i16> = Vec::new();
+        for (local, segment) in chapter.segments.iter().enumerate() {
+            if let Some(cached) = &segments[chapter.first_entry + local] {
+                let bytes = std::fs::read(self.audio_dir.join(&cached.file))
+                    .map_err(|e| format!("cannot read audio: {e}"))?;
+                let decoded = codec::decode(&bytes).map_err(|e| e.to_string())?;
+                let decoded = aoide_audio::resample(&decoded, EXPORT_RATE);
+                pcm.extend(
+                    decoded
+                        .samples
+                        .iter()
+                        .chain(std::iter::repeat(&0.0))
+                        .take(samples_for(cached.duration_ms))
+                        .map(|s| (s.clamp(-1.0, 1.0) * 32767.0) as i16),
+                );
+            }
+            pcm.resize(
+                pcm.len() + samples_for(u64::from(segment.pause_after_ms)),
+                0,
+            );
+        }
+        Ok(pcm)
     }
 }
 

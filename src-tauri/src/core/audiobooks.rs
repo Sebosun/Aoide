@@ -525,9 +525,46 @@ impl Finder {
     ) -> Result<(), String> {
         let options = self.scan_options(settings);
         let started = Instant::now();
+        let (folder, seen) = self.walk(&options, cancel);
+        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            tracing::info!(
+                event = "audiobooks.scan",
+                outcome = "cancelled",
+                took_ms = crate::logging::took(started),
+                "Search for audiobooks cancelled"
+            );
+            return Err("cancelled".into());
+        }
+        let ids = ids.as_deref();
+        let books = self.books_to_match(ids)?;
+        let taken = |path: &Path| paired.iter().any(|f| f.starts_with(path));
+        let (found, unmatched) = suggest(&folder, books, &taken, ids.is_none());
+        tracing::info!(
+            event = "audiobooks.scan",
+            outcome = "ok",
+            roots = options.roots.len(),
+            only_added = ids.is_some(),
+            dirs = seen.dirs,
+            files = seen.files,
+            audio = seen.found,
+            matches = found.len(),
+            unmatched = unmatched.as_ref().map(Vec::len),
+            took_ms = crate::logging::took(started),
+            "Searched for audiobooks"
+        );
+        self.keep_matches(found, unmatched, ids);
+        Ok(())
+    }
+
+    /// Walks the folders for audio, telling the window how far it got every 150 ms.
+    fn walk(
+        &self,
+        options: &aoide_discovery::ScanOptions,
+        cancel: &AtomicBool,
+    ) -> (aoide_discovery::AudiobookFolder, aoide_discovery::Progress) {
         let last_emit = Mutex::new(Instant::now());
         let seen = Mutex::new(aoide_discovery::Progress::default());
-        let folder = aoide_discovery::AudiobookFolder::scan(&options, cancel, &|p| {
+        let folder = aoide_discovery::AudiobookFolder::scan(options, cancel, &|p| {
             *lock(&seen) = p;
             let mut last = lock(&last_emit);
             if last.elapsed() >= Duration::from_millis(150) {
@@ -544,102 +581,52 @@ impl Finder {
             }
         });
         let seen = *lock(&seen);
-        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            tracing::info!(
-                event = "audiobooks.scan",
-                outcome = "cancelled",
-                took_ms = crate::logging::took(started),
-                "Search for audiobooks cancelled"
-            );
-            return Err("cancelled".into());
-        }
-        let taken = |path: &Path| paired.iter().any(|f| f.starts_with(path));
-        let books: Vec<aoide_library::BookRecord> = {
-            let library = lock(&self.library);
-            let with_recording: Vec<BookId> = library
-                .recordings()
-                .map_err(|e| e.to_string())?
-                .into_iter()
-                .map(|r| r.book_id)
-                .collect();
-            library
-                .books()
-                .map_err(|e| e.to_string())?
-                .into_iter()
-                .filter(|b| !matches!(b.status, BookStatus::Error(_)))
-                .filter(|b| b.kind == aoide_library::ItemKind::Book)
-                .filter(|b| !with_recording.contains(&b.id))
-                .filter(|b| ids.as_ref().map_or(true, |ids| ids.contains(&b.id.0)))
-                .collect()
-        };
-        // Each audiobook goes to the books it comes closest to.
-        let suggested = folder.suggest_each(
-            books
-                .iter()
-                .map(|b| (b.path.as_path(), b.title.as_deref(), b.authors.as_slice())),
-        );
-        // A whole search also lists what comes close to no book, to add on its own.
-        let unmatched: Option<Vec<AudiobookSuggestion>> = ids.is_none().then(|| {
-            folder
-                .all()
-                .into_iter()
-                .filter(|a| {
-                    !a.paths.iter().any(|p| taken(p))
-                        && !suggested.iter().flatten().any(|s| s.paths == a.paths)
-                })
-                .map(AudiobookSuggestion::from)
-                .collect()
-        });
-        let mut found: Vec<(String, AudiobookMatch)> = books
+        (folder, seen)
+    }
+
+    /// The books an audiobook may be found for: readable books with no recording yet, of
+    /// `ids` when given.
+    fn books_to_match(
+        &self,
+        ids: Option<&[String]>,
+    ) -> Result<Vec<aoide_library::BookRecord>, String> {
+        let library = lock(&self.library);
+        let with_recording: Vec<BookId> = library
+            .recordings()
+            .map_err(|e| e.to_string())?
             .into_iter()
-            .zip(suggested)
-            .filter_map(|(book, suggested)| {
-                let candidates: Vec<AudiobookSuggestion> = suggested
-                    .into_iter()
-                    .filter(|s| !s.paths.iter().any(|p| taken(p)))
-                    .map(AudiobookSuggestion::from)
-                    .collect();
-                (!candidates.is_empty()).then(|| {
-                    let title = book.title.clone().unwrap_or_default();
-                    (
-                        title,
-                        AudiobookMatch {
-                            book_id: book.id.0,
-                            candidates,
-                            stage: MatchStage::Found,
-                        },
-                    )
-                })
-            })
+            .map(|r| r.book_id)
             .collect();
-        found.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
-        tracing::info!(
-            event = "audiobooks.scan",
-            outcome = "ok",
-            roots = options.roots.len(),
-            only_added = ids.is_some(),
-            dirs = seen.dirs,
-            files = seen.files,
-            audio = seen.found,
-            matches = found.len(),
-            unmatched = unmatched.as_ref().map(Vec::len),
-            took_ms = crate::logging::took(started),
-            "Searched for audiobooks"
-        );
+        Ok(library
+            .books()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter(|b| !matches!(b.status, BookStatus::Error(_)))
+            .filter(|b| b.kind == aoide_library::ItemKind::Book)
+            .filter(|b| !with_recording.contains(&b.id))
+            .filter(|b| ids.map_or(true, |ids| ids.contains(&b.id.0)))
+            .collect())
+    }
+
+    /// Lists what a search found. Matches already under way stay as they are; the ones
+    /// waiting for the user are replaced by what this search found for their books.
+    fn keep_matches(
+        &self,
+        found: Vec<AudiobookMatch>,
+        unmatched: Option<Vec<AudiobookSuggestion>>,
+        ids: Option<&[String]>,
+    ) {
         let mut matches = lock(&self.matches);
         if let Some(unmatched) = unmatched {
             matches.unmatched = unmatched;
         }
-        let searched = |id: &str| ids.as_ref().map_or(true, |ids| ids.iter().any(|i| i == id));
-        // Matches already under way stay as they are; the ones waiting for the user are
-        // replaced by what this search found.
+        let searched = |id: &str| ids.map_or(true, |ids| ids.iter().any(|i| i == id));
         let kept: Vec<AudiobookMatch> = std::mem::take(&mut matches.list)
             .into_iter()
             .filter(|m| m.stage != MatchStage::Found || !searched(&m.book_id))
             .collect();
         let fresh: Vec<AudiobookMatch> = found
             .into_iter()
-            .map(|(_, m)| m)
             .filter(|m| !kept.iter().any(|k| k.book_id == m.book_id))
             .collect();
         // Books just added come first; a whole scan lists by title.
@@ -648,7 +635,6 @@ impl Finder {
         } else {
             kept.into_iter().chain(fresh).collect()
         };
-        Ok(())
     }
 }
 
@@ -733,6 +719,55 @@ impl FinderHost for Core {
         }
         self.emit(CoreEvent::LibraryChanged);
     }
+}
+
+/// Each book's closest audiobooks not `taken` (already paired), by title; with `unmatched`,
+/// also the audiobooks close to no book, to add on their own.
+fn suggest(
+    folder: &aoide_discovery::AudiobookFolder,
+    books: Vec<aoide_library::BookRecord>,
+    taken: &dyn Fn(&Path) -> bool,
+    unmatched: bool,
+) -> (Vec<AudiobookMatch>, Option<Vec<AudiobookSuggestion>>) {
+    // Each audiobook goes to the books it comes closest to.
+    let suggested = folder.suggest_each(
+        books
+            .iter()
+            .map(|b| (b.path.as_path(), b.title.as_deref(), b.authors.as_slice())),
+    );
+    let unmatched = unmatched.then(|| {
+        folder
+            .all()
+            .into_iter()
+            .filter(|a| {
+                !a.paths.iter().any(|p| taken(p))
+                    && !suggested.iter().flatten().any(|s| s.paths == a.paths)
+            })
+            .map(AudiobookSuggestion::from)
+            .collect()
+    });
+    let mut found: Vec<(String, AudiobookMatch)> = books
+        .into_iter()
+        .zip(suggested)
+        .filter_map(|(book, suggested)| {
+            let candidates: Vec<AudiobookSuggestion> = suggested
+                .into_iter()
+                .filter(|s| !s.paths.iter().any(|p| taken(p)))
+                .map(AudiobookSuggestion::from)
+                .collect();
+            (!candidates.is_empty()).then(|| {
+                let title = book.title.clone().unwrap_or_default().to_lowercase();
+                let found = AudiobookMatch {
+                    book_id: book.id.0,
+                    candidates,
+                    stage: MatchStage::Found,
+                };
+                (title, found)
+            })
+        })
+        .collect();
+    found.sort_by(|a, b| a.0.cmp(&b.0));
+    (found.into_iter().map(|(_, m)| m).collect(), unmatched)
 }
 
 #[cfg(test)]

@@ -560,70 +560,41 @@ impl Playback {
             let player = lock(&self.player);
             (player.position(), player.speed(), player.volume())
         };
-        let error = lock(&self.error).clone();
-        let status = match position.status {
-            Status::Stopped | Status::Finished => PlaybackStatus::Stopped,
-            Status::Paused => PlaybackStatus::Paused,
-            Status::Playing => PlaybackStatus::Playing,
-            Status::Buffering => PlaybackStatus::Buffering,
+        let stopped = PlayerStateView {
+            book_id: None,
+            status: PlaybackStatus::Stopped,
+            chapter: 0,
+            segment_id: None,
+            word_index: None,
+            speed,
+            volume,
+            chapter_fraction: 0.0,
+            error: lock(&self.error).clone(),
+            sleep: None,
+            source: Narration::Speech,
+            off_text: false,
+            chapter_left_ms: None,
+            waiting_for_sync: false,
+            position_ms: None,
+            duration_ms: None,
+            part_position_ms: None,
         };
         let playing = lock(&self.playing);
-        let session = match playing.as_ref() {
-            None => {
-                return PlayerStateView {
-                    book_id: None,
-                    status: PlaybackStatus::Stopped,
-                    chapter: 0,
-                    segment_id: None,
-                    word_index: None,
-                    speed,
-                    volume,
-                    chapter_fraction: 0.0,
-                    error,
-                    sleep: None,
-                    source: Narration::Speech,
-                    off_text: false,
-                    chapter_left_ms: None,
-                    waiting_for_sync: false,
-                    position_ms: None,
-                    duration_ms: None,
-                    part_position_ms: None,
-                }
-            }
-            Some(Playing::Timeline(session)) => {
-                let timeline = &session.timeline;
-                let at = timeline.time_at(position.index, position.offset_ms);
-                let part_index = timeline.part_at(at);
-                let part = &timeline.parts[part_index];
-                let into = at.saturating_sub(part.start_ms);
-                let length = part.end_ms.saturating_sub(part.start_ms);
-                let left = part.end_ms.saturating_sub(at);
-                return PlayerStateView {
-                    book_id: Some(timeline.id.clone()),
-                    status,
-                    chapter: part_index,
-                    segment_id: None,
-                    word_index: None,
-                    speed,
-                    volume,
-                    chapter_fraction: if length == 0 {
-                        0.0
-                    } else {
-                        into as f64 / length as f64
-                    },
-                    error,
-                    sleep: None,
-                    source: Narration::Recording,
-                    off_text: false,
-                    chapter_left_ms: Some((left as f64 / f64::from(speed.max(0.1))) as u64),
-                    waiting_for_sync: false,
-                    position_ms: Some(at),
-                    duration_ms: Some(timeline.total_ms),
-                    part_position_ms: Some(into),
-                };
-            }
-            Some(Playing::Entries(session)) => session,
-        };
+        match playing.as_ref() {
+            None => stopped,
+            Some(Playing::Timeline(session)) => timeline_state(session, &position, stopped),
+            Some(Playing::Entries(session)) => self.entries_state(session, &position, stopped),
+        }
+    }
+
+    /// Where a book's entries are being narrated (by speech or a synced recording).
+    fn entries_state(
+        &self,
+        session: &Session,
+        position: &Position,
+        base: PlayerStateView,
+    ) -> PlayerStateView {
+        let speed = base.speed;
         let book = &session.target.book;
         let narration = &session.target.narration;
         let index = position.index.min(book.total_entries().saturating_sub(1));
@@ -635,38 +606,77 @@ impl Playback {
         let word = (position.status == Status::Playing && !off_text)
             .then(|| session.word_at(index, heard_at))
             .flatten();
+        let chapter_left_ms = recording.and_then(|_| {
+            let entries = book
+                .chapters
+                .get(chapter)
+                .map_or(index..index, |c| index..c.first_entry + c.segments.len());
+            let audio = narration.playing_ms(entries)?;
+            let left = audio.saturating_sub(u64::from(position.offset_ms));
+            Some(at_speed(left, speed))
+        });
         PlayerStateView {
             book_id: Some(book.id.clone()),
-            status,
+            status: status_of(position.status),
             chapter,
             segment_id: book.segment(index).map(|s| s.id.clone()),
             word_index: word,
-            speed,
-            volume,
             chapter_fraction: book.chapter_fraction(index),
-            error,
-            sleep: None,
             source: if recording.is_some() {
                 Narration::Recording
             } else {
                 Narration::Speech
             },
             off_text,
-            chapter_left_ms: recording.and_then(|_| {
-                let entries = book
-                    .chapters
-                    .get(chapter)
-                    .map_or(index..index, |c| index..c.first_entry + c.segments.len());
-                let audio = narration.playing_ms(entries)?;
-                let left = audio.saturating_sub(u64::from(position.offset_ms));
-                Some((left as f64 / f64::from(speed.max(0.1))) as u64)
-            }),
+            chapter_left_ms,
             waiting_for_sync: narration.waits_for_sync(index),
-            position_ms: None,
-            duration_ms: None,
-            part_position_ms: None,
+            ..base
         }
     }
+}
+
+/// Where an audiobook with no text is: a time in its recording.
+fn timeline_state(
+    session: &TimelineSession,
+    position: &Position,
+    base: PlayerStateView,
+) -> PlayerStateView {
+    let timeline = &session.timeline;
+    let at = timeline.time_at(position.index, position.offset_ms);
+    let part_index = timeline.part_at(at);
+    let part = &timeline.parts[part_index];
+    let into = at.saturating_sub(part.start_ms);
+    let length = part.end_ms.saturating_sub(part.start_ms);
+    PlayerStateView {
+        book_id: Some(timeline.id.clone()),
+        status: status_of(position.status),
+        chapter: part_index,
+        chapter_fraction: if length == 0 {
+            0.0
+        } else {
+            into as f64 / length as f64
+        },
+        source: Narration::Recording,
+        chapter_left_ms: Some(at_speed(part.end_ms.saturating_sub(at), base.speed)),
+        position_ms: Some(at),
+        duration_ms: Some(timeline.total_ms),
+        part_position_ms: Some(into),
+        ..base
+    }
+}
+
+fn status_of(status: Status) -> PlaybackStatus {
+    match status {
+        Status::Stopped | Status::Finished => PlaybackStatus::Stopped,
+        Status::Paused => PlaybackStatus::Paused,
+        Status::Playing => PlaybackStatus::Playing,
+        Status::Buffering => PlaybackStatus::Buffering,
+    }
+}
+
+/// How long `ms` of audio takes to play at `speed`.
+fn at_speed(ms: u64, speed: f32) -> u64 {
+    (ms as f64 / f64::from(speed.max(0.1))) as u64
 }
 
 /// Made speech, read from the library's audio files.
