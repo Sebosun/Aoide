@@ -114,7 +114,7 @@ it("searches the library by title or author", async () => {
 });
 
 it("sorts the library and remembers the order", async () => {
-  const save = vi.spyOn(mock, "saveAppSettings");
+  const save = vi.spyOn(mock, "updateAppSettings");
   const wrapper = await library();
   expect(titles(wrapper)[0]).toBe("The Lantern Keeper");
   await choose(wrapper, "Sort library", "Title");

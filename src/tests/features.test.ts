@@ -61,22 +61,23 @@ it("warns before sending book text over the home network and shows save errors",
 });
 
 it("saves metadata lookup from Library and the audio cache limit from Storage, keeping other settings", async () => {
-  const save = vi.spyOn(mock, "saveAppSettings");
+  const save = vi.spyOn(mock, "updateAppSettings");
   const wrapper = await settings("Library");
   await wrapper.get('[aria-label="Look up book details online"]').setValue(false);
   await flushPromises();
-  expect(save).toHaveBeenLastCalledWith({ metadataLookup: false, cacheLimitBytes: null, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { engine: "builtIn", server: { baseUrl: "http://127.0.0.1:8000", model: "", network: "loopback" }, modelSize: "base", device: "auto", threads: 0, resumeOnStart: true }, audiobooks: { roots: [], exclude: [], includeHidden: [], onAdd: true }, verifyAudiobooks: false });
+  expect(save).toHaveBeenLastCalledWith({ metadataLookup: false });
   await wrapper.findAll('[role="tab"]').find(t => t.text() === "Storage")!.trigger("click");
   await flushPromises();
   await wrapper.get('[aria-label="Audio cache limit in GB"]').setValue("2");
   await submit(wrapper, "Save limit");
   await flushPromises();
-  expect(save).toHaveBeenLastCalledWith({ metadataLookup: false, cacheLimitBytes: 2 * 1024 ** 3, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { engine: "builtIn", server: { baseUrl: "http://127.0.0.1:8000", model: "", network: "loopback" }, modelSize: "base", device: "auto", threads: 0, resumeOnStart: true }, audiobooks: { roots: [], exclude: [], includeHidden: [], onAdd: true }, verifyAudiobooks: false });
+  expect(save).toHaveBeenLastCalledWith({ cacheLimitBytes: 2 * 1024 ** 3 });
+  expect(await mock.appSettings()).toEqual({ metadataLookup: false, cacheLimitBytes: 2 * 1024 ** 3, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { engine: "builtIn", server: { baseUrl: "http://127.0.0.1:8000", model: "", network: "loopback" }, modelSize: "base", device: "auto", threads: 0, resumeOnStart: true }, audiobooks: { roots: [], exclude: [], includeHidden: [], onAdd: true }, verifyAudiobooks: false });
   wrapper.unmount();
 });
 
 it("turns on exact word timing with an aligner address and launch command", async () => {
-  const save = vi.spyOn(mock, "saveAppSettings");
+  const save = vi.spyOn(mock, "updateAppSettings");
   const wrapper = await settings("Word highlighting");
   expect(wrapper.find('[aria-label="Aligner address"]').exists()).toBe(false);
   await wrapper.get('[aria-label="Exact word timing"]').setValue(true);
@@ -249,14 +250,14 @@ it("reuses cached lookups unless asked to search again", async () => {
 });
 
 it("turns off continuing preparation at startup from Library, keeping other settings", async () => {
-  const save = vi.spyOn(mock, "saveAppSettings");
+  const save = vi.spyOn(mock, "updateAppSettings");
   const wrapper = await settings("Library");
   const box = wrapper.get<HTMLInputElement>('[aria-label="Continue preparing books when Aoide starts"]');
   expect(box.element.checked).toBe(true);
   await box.setValue(false);
   await flushPromises();
-  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ resumePrepare: false, metadataLookup: true }));
-  expect((await mock.appSettings()).resumePrepare).toBe(false);
+  expect(save).toHaveBeenLastCalledWith({ resumePrepare: false });
+  expect(await mock.appSettings()).toEqual(expect.objectContaining({ resumePrepare: false, metadataLookup: true }));
   wrapper.unmount();
 });
 

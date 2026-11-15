@@ -26,9 +26,8 @@ const lines = (text: string) => text.split("\n").map(l => l.trim()).filter(Boole
 async function saveFolders() {
   foldersMessage.value = "";
   try {
-    const latest = await api.appSettings();
-    const next: AppSettings = { ...latest, audiobooks: { roots: lines(roots.value), exclude: lines(exclude.value), includeHidden: lines(includeHidden.value), onAdd: onAdd.value } };
-    await api.saveAppSettings(next); settings.value = next; foldersMessage.value = "Saved.";
+    const audiobooks = { roots: lines(roots.value), exclude: lines(exclude.value), includeHidden: lines(includeHidden.value), onAdd: onAdd.value };
+    settings.value = await api.updateAppSettings({ audiobooks }); foldersMessage.value = "Saved.";
   } catch (e) { audiobooks.error = String(e); }
 }
 const groups: { group: MatchGroup; label: string; aria: string }[] = [

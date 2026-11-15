@@ -63,7 +63,7 @@ mod recording_tests;
 mod tests;
 #[cfg(debug_assertions)]
 pub use extras::AlignerSettings;
-pub use extras::{AppSettings, ListeningStatsView};
+pub use extras::{AppSettings, AppSettingsPatch, ListeningStatsView};
 use preparation::{Plan, Preparation};
 pub use preparation::{PrepareView, Stage as PrepareStage};
 

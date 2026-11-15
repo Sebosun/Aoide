@@ -52,7 +52,7 @@ whole workspace including `aoide` with `-D warnings`; both pass.
 **Done when:** both live in `src/api/initial.ts`; no file outside `src/api/index.ts`,
 `src/preview.ts` and `src/tests/` imports `api/mock`.
 
-### - [ ] 3. Merge app-settings changes in the core
+### - [x] 3. Merge app-settings changes in the core
 
 Four UI sites read all of `AppSettings`, spread one change into it and save the whole struct:
 `stores/library.ts` (`setSort`), `composables/useAppSettings.ts`, `views/FindBooksView.vue`,

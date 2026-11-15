@@ -65,7 +65,7 @@ it("imports the selected books, applying chosen online details, and refreshes th
 });
 
 it("saves which folders are searched", async () => {
-  const save = vi.spyOn(mock, "saveAppSettings");
+  const save = vi.spyOn(mock, "updateAppSettings");
   const wrapper = mount(FindBooksView);
   await flushPromises();
   await wrapper.get('[aria-label="Folders to search"]').setValue("/home/me/Books\n/media/shelf");

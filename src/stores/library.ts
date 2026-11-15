@@ -47,7 +47,7 @@ export const useLibraryStore = defineStore("library", () => {
   });
   async function setSort(next: LibrarySort) {
     sort.value = next;
-    try { const settings = await api.appSettings(); await api.saveAppSettings({ ...settings, librarySort: next }); } catch (e) { error.value = String(e); }
+    try { await api.updateAppSettings({ librarySort: next }); } catch (e) { error.value = String(e); }
   }
   let startup: Promise<void> | undefined;
   let unlisten: (() => void) | undefined;

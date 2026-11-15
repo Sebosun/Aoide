@@ -12,8 +12,8 @@ use tauri::{Manager, State};
 
 use crate::book::ChapterView;
 use crate::core::{
-    AppInfo, AppSettings, BookSettings, BookSummary, BookView, Core, EngineOptions,
-    EngineStatusView, ImportResult, ListeningStatsView, Paths, PreferencesView,
+    AppInfo, AppSettings, AppSettingsPatch, BookSettings, BookSummary, BookView, Core,
+    EngineOptions, EngineStatusView, ImportResult, ListeningStatsView, Paths, PreferencesView,
 };
 
 type CoreState<'a> = State<'a, Arc<Core>>;
@@ -331,10 +331,14 @@ fn app_settings(core: CoreState<'_>) -> AppSettings {
     core.app_settings()
 }
 
+/// Merges a change into the app settings; returns the settings now saved.
 #[tauri::command]
-async fn save_app_settings(core: CoreState<'_>, settings: AppSettings) -> Result<(), String> {
+async fn update_app_settings(
+    core: CoreState<'_>,
+    patch: AppSettingsPatch,
+) -> Result<AppSettings, String> {
     let core = Arc::clone(&core);
-    blocking(move || core.save_app_settings(settings)).await
+    blocking(move || core.update_app_settings(patch)).await
 }
 
 #[tauri::command]
@@ -756,7 +760,7 @@ pub fn run() {
             book_listening,
             book_details,
             app_settings,
-            save_app_settings,
+            update_app_settings,
             preferences,
             save_appearance,
             export_book,

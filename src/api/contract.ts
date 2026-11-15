@@ -327,6 +327,8 @@ audiobooks: AudiobookSearchSettings,
  */
 verifyAudiobooks: boolean, };
 
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, };
+
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
  * Unix milliseconds when the newest segment was generated.
@@ -659,7 +661,7 @@ export type Commands = {
   "listening_stats": { args: Record<string, never>; result: ListeningStats };
   "book_details": { args: { bookId: string }; result: BookDetails };
   "app_settings": { args: Record<string, never>; result: AppSettings };
-  "save_app_settings": { args: { settings: AppSettings }; result: void };
+  "update_app_settings": { args: { patch: AppSettingsPatch }; result: AppSettings };
   "preferences": { args: Record<string, never>; result: Preferences };
   "save_appearance": { args: { appearance: Appearance }; result: void };
   "lookup_metadata": { args: { bookId: string; refresh: boolean }; result: MetadataMatch[] };

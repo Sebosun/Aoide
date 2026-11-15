@@ -9,6 +9,7 @@ use std::time::Duration;
 use aoide_library::Library;
 use aoide_tts::testing::FakeEngine;
 
+use super::extras::{AppSettingsPatch, LibrarySort};
 use super::preparation::Preparation;
 use super::{BookSettings, Core, CoreEvent, Environment, Events, Paths, PrepareStage};
 
@@ -482,4 +483,43 @@ async fn volume_is_reported_saved_and_restored_with_the_speed() {
     let (core, _events) = start(dir.path(), &engine);
     assert_eq!(core.player_state().volume, 0.4);
     assert_eq!(core.player_state().speed, 1.5);
+}
+
+#[tokio::test]
+async fn patches_to_different_app_settings_both_survive() {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    let limit = AppSettingsPatch {
+        cache_limit_bytes: Some(Some(5_000_000_000)),
+        ..Default::default()
+    };
+    core.update_app_settings(limit).unwrap();
+
+    // A second window's change, sent without having read the first.
+    let merged = core
+        .update_app_settings(AppSettingsPatch {
+            library_sort: Some(LibrarySort::Title),
+            ..Default::default()
+        })
+        .unwrap();
+
+    assert_eq!(merged.cache_limit_bytes, Some(5_000_000_000));
+    assert_eq!(merged.library_sort, LibrarySort::Title);
+    assert_eq!(core.app_settings(), merged);
+    let cleared = core
+        .update_app_settings(serde_json::from_str(r#"{"cacheLimitBytes":null}"#).unwrap())
+        .unwrap();
+    assert_eq!(cleared.cache_limit_bytes, None, "null clears a setting");
+    assert_eq!(cleared.library_sort, LibrarySort::Title);
+    let invalid = core.update_app_settings(
+        serde_json::from_str(r#"{"aligner":{"baseUrl":"not a url"}}"#).unwrap(),
+    );
+    assert!(invalid.is_err());
+    assert_eq!(
+        core.app_settings(),
+        cleared,
+        "an invalid patch changes nothing"
+    );
 }

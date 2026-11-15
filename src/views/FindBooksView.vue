@@ -22,8 +22,8 @@ const lines = (text: string) => text.split("\n").map(l => l.trim()).filter(Boole
 async function saveFolders() {
   if (!settings.value) return;
   foldersMessage.value = "";
-  const next: AppSettings = { ...settings.value, scan: { roots: lines(roots.value), exclude: lines(exclude.value), includeHidden: lines(includeHidden.value), onStartup: onStartup.value } };
-  try { await api.saveAppSettings(next); settings.value = next; foldersMessage.value = "Saved."; } catch (e) { discovery.error = String(e); }
+  const scan = { roots: lines(roots.value), exclude: lines(exclude.value), includeHidden: lines(includeHidden.value), onStartup: onStartup.value };
+  try { settings.value = await api.updateAppSettings({ scan }); foldersMessage.value = "Saved."; } catch (e) { discovery.error = String(e); }
 }
 const groups: { status: CandidateStatus; label: string; aria: string }[] = [
   { status: "new", label: "New", aria: "Show new books" },

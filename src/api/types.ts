@@ -8,6 +8,7 @@ import type {
   AlignerSettings,
   AppInfo,
   AppSettings,
+  AppSettingsPatch,
   Appearance,
   AppearanceMode,
   BlockKind,
@@ -182,7 +183,8 @@ export interface AoideApi {
   /** Stores the picked match's details (and cover when the book has none). */
   applyMetadata(bookId: string, match: MetadataMatch): Promise<BookDetails>;
   appSettings(): Promise<AppSettings>;
-  saveAppSettings(settings: AppSettings): Promise<void>;
+  /** Merges a change into the app settings; resolves with the settings now saved. */
+  updateAppSettings(patch: AppSettingsPatch): Promise<AppSettings>;
   /** Appearance, themes and config problems from ~/.config/aoide. */
   preferences(): Promise<Preferences>;
   saveAppearance(appearance: Appearance): Promise<void>;

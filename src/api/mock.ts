@@ -376,7 +376,7 @@ export function createMockApi() {
       details.set(id, next); changed(); return structuredClone(next);
     },
     async appSettings() { return { ...appSettings }; },
-    async saveAppSettings(next) { appSettings = JSON.parse(JSON.stringify(next)); },
+    async updateAppSettings(patch) { appSettings = JSON.parse(JSON.stringify({ ...appSettings, ...patch })); return JSON.parse(JSON.stringify(appSettings)); },
     async preferences() { return structuredClone(preferences); },
     async saveAppearance(next) { preferences = { ...preferences, appearance: { ...next } }; },
     onConfigChanged: h => subscribe(configHandlers, h),

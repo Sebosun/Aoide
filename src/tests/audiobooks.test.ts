@@ -74,7 +74,7 @@ it("pairs every book's closest audiobook at once", async () => {
 });
 
 it("with verifying on, says Aoide checks the matches itself and lists them as being checked", async () => {
-  await mock.saveAppSettings({ ...(await mock.appSettings()), verifyAudiobooks: true });
+  await mock.updateAppSettings({ verifyAudiobooks: true });
   const pair = vi.spyOn(mock, "pairAudiobooks");
   const wrapper = await scanned();
   expect(wrapper.text()).toContain("Aoide pairs each book's closest audiobook");

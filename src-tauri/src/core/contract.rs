@@ -87,6 +87,7 @@ fn contract() -> String {
         super::extras::AlignerSettings,
         super::discovery::ScanSettings,
         super::extras::AppSettings,
+        super::extras::AppSettingsPatch,
         super::storage::BookStorage,
         super::storage::StorageReport,
         super::storage::CleanResult,
