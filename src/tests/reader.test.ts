@@ -12,10 +12,20 @@ import { usePreferencesStore } from "../stores/preferences";
 import { choose, pickMenuItem } from "./helpers";
 import { useUiStore } from "../stores/ui";
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+});
 
 async function openReader(options: { attach?: boolean } = {}) {
   await useLibraryStore().start();
@@ -25,7 +35,14 @@ async function openReader(options: { attach?: boolean } = {}) {
   await flushPromises();
   return wrapper;
 }
-const playing = (extra: Partial<ReturnType<typeof initialPlayer>> = {}) => ({ ...initialPlayer(), bookId: "book-0", status: "playing" as const, segmentId: "0:1:0", wordIndex: 0, ...extra });
+const playing = (extra: Partial<ReturnType<typeof initialPlayer>> = {}) => ({
+  ...initialPlayer(),
+  bookId: "book-0",
+  status: "playing" as const,
+  segmentId: "0:1:0",
+  wordIndex: 0,
+  ...extra,
+});
 
 it("sets the chapter as a page with the book in the margin", async () => {
   const wrapper = await openReader();
@@ -134,12 +151,19 @@ it("shows a footnote from its coral marker without starting playback", async () 
 
 it("lists footnotes in the margin beside their paragraph on wide windows", async () => {
   const matchMedia = window.matchMedia;
-  window.matchMedia = ((query: string) => ({ matches: query.includes("min-width"), media: query, addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+  window.matchMedia = ((query: string) => ({
+    matches: query.includes("min-width"),
+    media: query,
+    addEventListener() {},
+    removeEventListener() {},
+  })) as unknown as typeof window.matchMedia;
   const wrapper = await openReader();
   const note = wrapper.get(".chapter-text__margin-note");
   expect(note.text()).toContain("Note 1");
   expect(note.text()).toContain("original note");
-  expect(note.element.closest(".chapter-text__row")?.contains(wrapper.get('[data-segment-id="0:1:0"]').element)).toBe(true);
+  expect(note.element.closest(".chapter-text__row")?.contains(wrapper.get('[data-segment-id="0:1:0"]').element)).toBe(
+    true,
+  );
   window.matchMedia = matchMedia;
   wrapper.unmount();
 });
@@ -147,7 +171,14 @@ it("lists footnotes in the margin beside their paragraph on wide windows", async
 it("docks the transport: progress, time left, buffer status and errors", async () => {
   const wrapper = await openReader();
   mock.emitPlayer(playing({ status: "buffering", chapterFraction: 0.4 }));
-  mock.emitGeneration({ bookId: "book-0", generatingSegmentId: "0:2:0", bufferedAheadMs: 12500, pending: 3, error: "Generation paused", preparing: null });
+  mock.emitGeneration({
+    bookId: "book-0",
+    generatingSegmentId: "0:2:0",
+    bufferedAheadMs: 12500,
+    pending: 3,
+    error: "Generation paused",
+    preparing: null,
+  });
   await flushPromises();
   const dock = wrapper.get('[aria-label="Player"]');
   expect(dock.get('[role="slider"]').attributes("aria-valuenow")).toBe("40");
@@ -162,7 +193,8 @@ it("docks the transport: progress, time left, buffer status and errors", async (
 
 it("plays from the saved position, pauses, resumes, changes speed, skips chapters and stops", async () => {
   const wrapper = await openReader();
-  const play = vi.spyOn(mock, "play"), skip = vi.spyOn(mock, "skipChapter");
+  const play = vi.spyOn(mock, "play"),
+    skip = vi.spyOn(mock, "skipChapter");
   const dock = () => wrapper.get('[aria-label="Player"]');
   await dock().get('[aria-label="Play"]').trigger("click");
   await flushPromises();
@@ -187,7 +219,8 @@ it("plays from the saved position, pauses, resumes, changes speed, skips chapter
 });
 
 it("sets a sleep timer and bookmarks the playhead from the dock", async () => {
-  const sleep = vi.spyOn(mock, "setSleepTimer"), mark = vi.spyOn(mock, "addBookmark");
+  const sleep = vi.spyOn(mock, "setSleepTimer"),
+    mark = vi.spyOn(mock, "addBookmark");
   const wrapper = await openReader();
   await mock.play("book-0", 0, "0:1:0");
   await flushPromises();
@@ -202,7 +235,7 @@ it("sets a sleep timer and bookmarks the playhead from the dock", async () => {
   await dock.get('[aria-label="Add bookmark"]').trigger("click");
   await flushPromises();
   expect(mark).toHaveBeenCalledWith("book-0", "");
-  expect(useUiStore().toasts.map(t => t.text)).toContain("Bookmarked");
+  expect(useUiStore().toasts.map((t) => t.text)).toContain("Bookmarked");
   wrapper.unmount();
 });
 
@@ -237,11 +270,15 @@ it("sets the volume from the dock, and mutes and unmutes to the same level", asy
   const wrapper = await openReader();
   const dock = () => wrapper.get('[aria-label="Player"]');
   const volume = () => document.body.querySelector<HTMLInputElement>('input[aria-label="Volume"]')!;
-  const press = async (label: string) => { document.body.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click(); await flushPromises(); };
+  const press = async (label: string) => {
+    document.body.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click();
+    await flushPromises();
+  };
   expect(volume(), "the slider opens from the speaker button").toBeNull();
   await dock().get('button[aria-label="Volume"]').trigger("click");
   expect(volume().value).toBe("100");
-  volume().value = "40"; volume().dispatchEvent(new Event("input"));
+  volume().value = "40";
+  volume().dispatchEvent(new Event("input"));
   await flushPromises();
   expect(usePlayerStore().state.volume).toBe(0.4);
   await press("Mute");

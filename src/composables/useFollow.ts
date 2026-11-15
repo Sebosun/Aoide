@@ -6,38 +6,64 @@ const CURRENT = ".chapter-text__segment--current";
  *  reader (wheel, touch, keys, scrollbar; Space plays and pauses instead of scrolling) stops following until `backToPlayhead`. */
 export function useFollow(container: Ref<HTMLElement | undefined>, active: () => boolean) {
   const following = ref(true);
-  let automatic = false, timer: ReturnType<typeof setTimeout> | undefined;
-  const reduced = () => typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let automatic = false,
+    timer: ReturnType<typeof setTimeout> | undefined;
+  const reduced = () =>
+    typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   function scrollToCurrent(force: boolean) {
-    const box = container.value, element = box?.querySelector<HTMLElement>(CURRENT);
+    const box = container.value,
+      element = box?.querySelector<HTMLElement>(CURRENT);
     if (!box || !element) return;
-    const view = box.getBoundingClientRect(), rect = element.getBoundingClientRect();
+    const view = box.getBoundingClientRect(),
+      rect = element.getBoundingClientRect();
     const inBand = rect.top >= view.top + view.height * 0.08 && rect.bottom < view.top + view.height * 0.6;
     if (inBand && !force) return;
     automatic = true;
     clearTimeout(timer);
-    timer = setTimeout(() => { automatic = false; }, 1200);
-    box.scrollTo?.({ top: Math.max(0, box.scrollTop + rect.top - view.top - view.height * 0.25), behavior: reduced() ? "auto" : "smooth" });
+    timer = setTimeout(() => {
+      automatic = false;
+    }, 1200);
+    box.scrollTo?.({
+      top: Math.max(0, box.scrollTop + rect.top - view.top - view.height * 0.25),
+      behavior: reduced() ? "auto" : "smooth",
+    });
   }
   /** Called when the spoken sentence changes. */
-  function follow() { if (following.value) scrollToCurrent(false); }
-  function backToPlayhead() { following.value = true; scrollToCurrent(true); }
+  function follow() {
+    if (following.value) scrollToCurrent(false);
+  }
+  function backToPlayhead() {
+    following.value = true;
+    scrollToCurrent(true);
+  }
   /** A new chapter: show it from its top and follow again. */
   function restart() {
     following.value = true;
     automatic = true;
     clearTimeout(timer);
-    timer = setTimeout(() => { automatic = false; }, 1200);
+    timer = setTimeout(() => {
+      automatic = false;
+    }, 1200);
     container.value?.scrollTo?.({ top: 0 });
   }
-  function manual() { if (active()) { following.value = false; automatic = false; } }
+  function manual() {
+    if (active()) {
+      following.value = false;
+      automatic = false;
+    }
+  }
   const listeners = {
-    onScroll: () => { if (!automatic) manual(); },
-    onScrollend: () => { automatic = false; },
+    onScroll: () => {
+      if (!automatic) manual();
+    },
+    onScrollend: () => {
+      automatic = false;
+    },
     onWheel: manual,
     onTouchmove: manual,
     onKeydown: (event: KeyboardEvent) => {
-      if ((event.target as HTMLElement)?.matches?.('input, select, textarea, button, [role="button"], [role="slider"]')) return;
+      if ((event.target as HTMLElement)?.matches?.('input, select, textarea, button, [role="button"], [role="slider"]'))
+        return;
       if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(event.key)) manual();
     },
   };

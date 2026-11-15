@@ -26,61 +26,124 @@ import { useReaderStore } from "./stores/reader";
 import { isAudioPath } from "./recording";
 import { useShortcuts } from "./composables/useShortcuts";
 
-const library = useLibraryStore(), player = usePlayerStore(), navigation = useNavigationStore(), preferences = usePreferencesStore();
-const recordings = useRecordingsStore(), reader = useReaderStore();
+const library = useLibraryStore(),
+  player = usePlayerStore(),
+  navigation = useNavigationStore(),
+  preferences = usePreferencesStore();
+const recordings = useRecordingsStore(),
+  reader = useReaderStore();
 /** Dropped EPUBs join the library; dropped audio (files or a folder) is paired with a book: the
  *  one whose page or reader is open, unless the person picks another. */
 function dropped(paths: string[]) {
-  const books = paths.filter(path => /\.epub$/i.test(path)), audio = paths.filter(isAudioPath);
+  const books = paths.filter((path) => /\.epub$/i.test(path)),
+    audio = paths.filter(isAudioPath);
   if (audio.length) {
-    const open = navigation.view === "book" ? navigation.bookId : navigation.view === "reader" ? reader.book?.id ?? null : null;
+    const open =
+      navigation.view === "book" ? navigation.bookId : navigation.view === "reader" ? (reader.book?.id ?? null) : null;
     recordings.openPairing(audio, open);
   }
-  if (books.length) { navigation.view = "library"; void library.importFiles(books); }
+  if (books.length) {
+    navigation.view = "library";
+    void library.importFiles(books);
+  }
 }
-const dragging = ref(false), dropError = ref("");
+const dragging = ref(false),
+  dropError = ref("");
 useShortcuts();
 // Screens cross-fade. The library keeps its scroll position for the way back; other screens
 // open at the top.
 let libraryScroll = 0;
-watch(() => navigation.view, (_, from) => { if (from === "library") libraryScroll = window.scrollY; }, { flush: "sync" });
-function placeScroll() { window.scrollTo(0, navigation.view === "library" ? libraryScroll : 0); }
+watch(
+  () => navigation.view,
+  (_, from) => {
+    if (from === "library") libraryScroll = window.scrollY;
+  },
+  { flush: "sync" },
+);
+function placeScroll() {
+  window.scrollTo(0, navigation.view === "library" ? libraryScroll : 0);
+}
 const native = isTauri();
-let unlisten: (() => void) | undefined, unlistenProblems: (() => void) | undefined, disposed = false;
+let unlisten: (() => void) | undefined,
+  unlistenProblems: (() => void) | undefined,
+  disposed = false;
 onMounted(async () => {
-  void library.start(); void player.start(); void preferences.start(); void recordings.start();
-  void listenForProblems(api).then(off => { if (disposed) off(); else unlistenProblems = off; });
+  void library.start();
+  void player.start();
+  void preferences.start();
+  void recordings.start();
+  void listenForProblems(api).then((off) => {
+    if (disposed) off();
+    else unlistenProblems = off;
+  });
   if (native) {
     try {
-      const off = await getCurrentWebview().onDragDropEvent(event => {
+      const off = await getCurrentWebview().onDragDropEvent((event) => {
         // Only files from outside: a drag that starts inside the window carries no paths.
         const type = event.payload.type;
         dragging.value = type === "enter" ? event.payload.paths.length > 0 : type === "over" && dragging.value;
         if (event.payload.type === "drop") dropped(event.payload.paths);
       });
-      if (disposed) off(); else unlisten = off;
-    } catch (e) { dropError.value = `File drop unavailable: ${String(e)}`; }
+      if (disposed) off();
+      else unlisten = off;
+    } catch (e) {
+      dropError.value = `File drop unavailable: ${String(e)}`;
+    }
   }
 });
-onUnmounted(() => { disposed = true; unlisten?.(); unlistenProblems?.(); window.removeEventListener("blur", endDrag); void Promise.all([library.start(), player.start()]).then(() => { library.dispose(); player.dispose(); preferences.dispose(); recordings.dispose(); }); });
+onUnmounted(() => {
+  disposed = true;
+  unlisten?.();
+  unlistenProblems?.();
+  window.removeEventListener("blur", endDrag);
+  void Promise.all([library.start(), player.start()]).then(() => {
+    library.dispose();
+    player.dispose();
+    preferences.dispose();
+    recordings.dispose();
+  });
+});
 // The browser path: only drags that carry files count, and nested enter/leave pairs are
 // counted so moving over child elements does not flicker or strand the overlay.
 let depth = 0;
 const carriesFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes("Files");
-function dragEnter(event: DragEvent) { if (!carriesFiles(event)) return; event.preventDefault(); depth += 1; dragging.value = true; }
-function dragOver(event: DragEvent) { if (carriesFiles(event)) event.preventDefault(); }
-function dragLeave(event: DragEvent) { if (!carriesFiles(event)) return; depth = Math.max(0, depth - 1); if (!depth) dragging.value = false; }
-function endDrag() { depth = 0; dragging.value = false; }
+function dragEnter(event: DragEvent) {
+  if (!carriesFiles(event)) return;
+  event.preventDefault();
+  depth += 1;
+  dragging.value = true;
+}
+function dragOver(event: DragEvent) {
+  if (carriesFiles(event)) event.preventDefault();
+}
+function dragLeave(event: DragEvent) {
+  if (!carriesFiles(event)) return;
+  depth = Math.max(0, depth - 1);
+  if (!depth) dragging.value = false;
+}
+function endDrag() {
+  depth = 0;
+  dragging.value = false;
+}
 window.addEventListener("blur", endDrag);
 function browserDrop(event: DragEvent) {
   endDrag();
   if (native || !carriesFiles(event)) return;
-  dropped(Array.from(event.dataTransfer?.files ?? []).map(file => file.name));
+  dropped(Array.from(event.dataTransfer?.files ?? []).map((file) => file.name));
 }
 </script>
 
 <template>
-  <div class="app" :class="{ 'app--reader': navigation.view === 'reader' }" @dragstart.prevent @dragenter="dragEnter" @dragover="dragOver" @dragleave="dragLeave" @dragend="endDrag" @drop.prevent="browserDrop">
+  <div
+    class="app"
+    :class="{ 'app--reader': navigation.view === 'reader' }"
+    @dragstart.prevent
+    @dragenter="dragEnter"
+    @dragover="dragOver"
+    @dragleave="dragLeave"
+    @dragend="endDrag"
+    @drop.prevent="browserDrop"
+  >
     <AppTopBar />
     <main class="app__main">
       <p v-if="dropError" class="app__error" role="alert">{{ dropError }}</p>
@@ -89,7 +152,11 @@ function browserDrop(event: DragEvent) {
         <StatsView v-else-if="navigation.view === 'stats'" />
         <FindBooksView v-else-if="navigation.view === 'find'" />
         <FindAudiobooksView v-else-if="navigation.view === 'audiobooks'" />
-        <BookDetailsView v-else-if="navigation.view === 'book' && navigation.bookId" :key="navigation.bookId" :book-id="navigation.bookId" />
+        <BookDetailsView
+          v-else-if="navigation.view === 'book' && navigation.bookId"
+          :key="navigation.bookId"
+          :book-id="navigation.bookId"
+        />
         <ReaderView v-else />
       </Transition>
     </main>
@@ -103,12 +170,43 @@ function browserDrop(event: DragEvent) {
 </template>
 
 <style scoped>
-.app { min-height: 100vh; display: flex; flex-direction: column; padding-bottom: 110px; }
-.app__main { flex: 1; min-width: 0; }
-.app--reader { height: 100vh; min-height: 0; padding-bottom: 0; overflow: hidden; }
-.app__view-enter-active { transition: opacity var(--dur-2) var(--ease), transform var(--dur-2) var(--ease); }
-.app__view-leave-active { transition: opacity var(--dur-1) var(--ease); }
-.app__view-enter-from { opacity: 0; transform: translateY(8px); }
-.app__view-leave-to { opacity: 0; }
-.app__error { margin: 0 28px 12px; padding: 10px 14px; border-radius: 12px; background: var(--page); color: var(--accent); font-weight: 600; }
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 110px;
+}
+.app__main {
+  flex: 1;
+  min-width: 0;
+}
+.app--reader {
+  height: 100vh;
+  min-height: 0;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+.app__view-enter-active {
+  transition:
+    opacity var(--dur-2) var(--ease),
+    transform var(--dur-2) var(--ease);
+}
+.app__view-leave-active {
+  transition: opacity var(--dur-1) var(--ease);
+}
+.app__view-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+.app__view-leave-to {
+  opacity: 0;
+}
+.app__error {
+  margin: 0 28px 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--page);
+  color: var(--accent);
+  font-weight: 600;
+}
 </style>

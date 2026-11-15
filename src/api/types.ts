@@ -143,7 +143,12 @@ export interface AoideApi {
   engineVoices(): Promise<Voice[]>;
   /** Speaks a sample sentence with `profile` (saved or not) and returns a WAV file. `params`
    *  override the profile's; a null voice means the profile's voice, else the engine's first. */
-  previewVoice(profile: EngineProfile, voiceId: string | null, params: Record<string, ParamValue>, language: string | null): Promise<ArrayBuffer>;
+  previewVoice(
+    profile: EngineProfile,
+    voiceId: string | null,
+    params: Record<string, ParamValue>,
+    language: string | null,
+  ): Promise<ArrayBuffer>;
   /** Validates and activates a profile; regenerates upcoming audio with it. */
   saveEngineProfile(profile: EngineProfile): Promise<void>;
   bookSettings(bookId: string): Promise<BookSettings>;
@@ -203,7 +208,9 @@ export interface AoideApi {
   /** Open Library lookups for these candidates; "discovery://details" fires per id. */
   fetchDiscoveredDetails(ids: string[]): Promise<void>;
   /** `pairAudiobook` pairs the audiobook found beside a book once it is imported. */
-  importDiscovered(choices: { id: string; applySuggestion: boolean; pairAudiobook: boolean }[]): Promise<ImportResult[]>;
+  importDiscovered(
+    choices: { id: string; applySuggestion: boolean; pairAudiobook: boolean }[],
+  ): Promise<ImportResult[]>;
   onScanProgress(handler: (progress: ScanProgress) => void): Promise<() => void>;
   /** Searches the audiobook folders for every book without a recording; with verifying on,
    *  Aoide starts pairing them itself. "audiobooks://progress" reports the search. */

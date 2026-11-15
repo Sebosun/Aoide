@@ -9,10 +9,22 @@ import { useUiStore } from "../stores/ui";
 import { stepZoom } from "../zoom";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); document.documentElement.style.removeProperty("zoom"); document.body.innerHTML = ""; });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+  document.documentElement.style.removeProperty("zoom");
+  document.body.innerHTML = "";
+});
 
 const shown = () => document.documentElement.style.getPropertyValue("zoom");
 const press = (key: string, init: KeyboardEventInit = { ctrlKey: true }) => {
@@ -54,7 +66,7 @@ it("zooms with Ctrl and plus, minus or zero, saves the size and says it", async 
   await flushPromises();
   expect(shown()).toBe("1.25");
   // One message, replaced as the size changes.
-  expect(useUiStore().toasts.map(t => t.text)).toEqual(["Zoom 125%"]);
+  expect(useUiStore().toasts.map((t) => t.text)).toEqual(["Zoom 125%"]);
   press("-");
   press("-");
   press("-");
@@ -73,7 +85,11 @@ it("zooms with Ctrl and plus, minus or zero, saves the size and says it", async 
 it("zooms with Ctrl and the wheel, one step per notch", async () => {
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
-  const wheel = (deltaY: number, ctrlKey = true) => { const event = new WheelEvent("wheel", { deltaY, ctrlKey, bubbles: true, cancelable: true }); document.body.dispatchEvent(event); return event; };
+  const wheel = (deltaY: number, ctrlKey = true) => {
+    const event = new WheelEvent("wheel", { deltaY, ctrlKey, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(event);
+    return event;
+  };
   expect(wheel(-120).defaultPrevented).toBe(true);
   await flushPromises();
   expect(shown()).toBe("1.1");

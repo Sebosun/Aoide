@@ -22,18 +22,35 @@ export interface PreparationStatus {
 }
 
 const LABELS: Record<PrepareState, string> = {
-  waiting: "Waiting to start", queued: "Queued", preparing: "Preparing", paused: "Paused", done: "Ready offline",
+  waiting: "Waiting to start",
+  queued: "Queued",
+  preparing: "Preparing",
+  paused: "Paused",
+  done: "Ready offline",
 };
 const ACTIONS: Record<PrepareState | "none", PrepareAction[]> = {
-  none: ["prepare"], waiting: ["start", "cancel"], queued: ["pause", "cancel"], preparing: ["pause", "cancel"], paused: ["resume", "cancel"], done: [],
+  none: ["prepare"],
+  waiting: ["start", "cancel"],
+  queued: ["pause", "cancel"],
+  preparing: ["pause", "cancel"],
+  paused: ["resume", "cancel"],
+  done: [],
 };
 /** Button and menu wording for each action (also its accessible name, with the title appended in lists). */
 export const ACTION_LABELS: Record<PrepareAction, string> = {
-  prepare: "Prepare whole book", start: "Start preparing", pause: "Pause preparing", resume: "Resume preparing", cancel: "Cancel preparing",
+  prepare: "Prepare whole book",
+  start: "Start preparing",
+  pause: "Pause preparing",
+  resume: "Resume preparing",
+  cancel: "Cancel preparing",
 };
 
 export const ACTION_ICONS: Record<PrepareAction, Component> = {
-  prepare: Sparkles, start: Play, pause: Pause, resume: Play, cancel: X,
+  prepare: Sparkles,
+  start: Play,
+  pause: Pause,
+  resume: Play,
+  cancel: X,
 };
 
 export function preparationStatus(prepare: BookSummary["prepare"]): PreparationStatus {
@@ -53,7 +70,7 @@ export function preparationStatus(prepare: BookSummary["prepare"]): PreparationS
 /** "Chapter 3", "Chapters 2 and 5", "Chapters 1, 2 and 5" (numbered from 1); null for none. */
 function chapterScope(chapters: number[] | null): string | null {
   if (!chapters?.length) return null;
-  const numbers = chapters.map(c => String(c + 1));
+  const numbers = chapters.map((c) => String(c + 1));
   if (numbers.length === 1) return `Chapter ${numbers[0]}`;
   return `Chapters ${numbers.slice(0, -1).join(", ")} and ${numbers.at(-1)}`;
 }

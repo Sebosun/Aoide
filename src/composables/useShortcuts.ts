@@ -9,7 +9,8 @@ import { usePlayerControls } from "./usePlayerControls";
 const WHEEL_STEP = 40;
 const TYPING = "input, textarea, select";
 /** Things that use Space themselves, when the keyboard put the focus on them. */
-const PRESSABLE = 'button, a[href], summary, [role="button"], [role="slider"], [role="tab"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="listbox"]';
+const PRESSABLE =
+  'button, a[href], summary, [role="button"], [role="slider"], [role="tab"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="listbox"]';
 /** Things that use the arrow keys themselves. */
 const ARROWS = '[role="slider"], [role="tablist"], [role="menu"], [role="listbox"]';
 
@@ -21,23 +22,33 @@ const ARROWS = '[role="slider"], [role="tablist"], [role="menu"], [role="listbox
  *  - Ctrl F searches the open book (Now Playing) or the library; Ctrl , opens Settings.
  *  - Ctrl + / Ctrl − / Ctrl 0 and Ctrl + wheel zoom, also while typing. */
 export function useShortcuts() {
-  const preferences = usePreferencesStore(), ui = useUiStore(), navigation = useNavigationStore();
+  const preferences = usePreferencesStore(),
+    ui = useUiStore(),
+    navigation = useNavigationStore();
   const controls = usePlayerControls();
 
   // Whether the keyboard moved the focus to where it is. A button that was clicked keeps the
   // focus, and Space should still play or pause then. (`:focus-visible` cannot tell: browsers
   // turn it on as soon as any key is pressed.)
-  let lastInput: "pointer" | "key" = "key", keyboardFocus = true;
-  const onPointerdown = () => { lastInput = "pointer"; };
-  const onAnyKey = () => { lastInput = "key"; };
-  const onFocusin = () => { keyboardFocus = lastInput === "key"; };
+  let lastInput: "pointer" | "key" = "key",
+    keyboardFocus = true;
+  const onPointerdown = () => {
+    lastInput = "pointer";
+  };
+  const onAnyKey = () => {
+    lastInput = "key";
+  };
+  const onFocusin = () => {
+    keyboardFocus = lastInput === "key";
+  };
 
   function zoom(to: number) {
     if (to !== preferences.appearance.zoom) void preferences.update({ zoom: to });
     ui.toast(`Zoom ${zoomLabel(to)}`, "info", "zoom");
   }
   function withCtrl(event: KeyboardEvent) {
-    const current = preferences.appearance.zoom, key = event.key.toLowerCase();
+    const current = preferences.appearance.zoom,
+      key = event.key.toLowerCase();
     if (key === "+" || key === "=") zoom(stepZoom(current, 1));
     else if (key === "-" || key === "_") zoom(stepZoom(current, -1));
     else if (key === "0") zoom(1);
@@ -47,11 +58,11 @@ export function useShortcuts() {
       const field = document.querySelector<HTMLElement>('[aria-label="Search library"]');
       if (key === "," && navigation.settingsOpen) navigation.closeSettings();
       else if (key === "," && !dialog) navigation.openSettings();
-      else if (key === "f" && navigation.view === "reader" && (!dialog || dialog === "Book tools")) navigation.findInBook();
+      else if (key === "f" && navigation.view === "reader" && (!dialog || dialog === "Book tools"))
+        navigation.findInBook();
       else if (key === "f" && navigation.view === "library" && !dialog && field) field.focus();
       else return false;
-    }
-    else return false;
+    } else return false;
     return true;
   }
   function plain(event: KeyboardEvent) {
@@ -59,20 +70,33 @@ export function useShortcuts() {
     if (target?.matches(TYPING) || (target as HTMLElement | null)?.isContentEditable) return false;
     if (document.querySelector('[aria-modal="true"]')) return false;
     const pressable = target?.closest(PRESSABLE);
-    if (event.key === " " && controls.bookId.value && !(pressable && keyboardFocus)) { spaceHeld = true; void controls.toggle(); }
-    else if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && controls.player.state.bookId && !target?.closest(ARROWS)) void controls.step(event.key === "ArrowRight" ? 1 : -1);
+    if (event.key === " " && controls.bookId.value && !(pressable && keyboardFocus)) {
+      spaceHeld = true;
+      void controls.toggle();
+    } else if (
+      (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+      controls.player.state.bookId &&
+      !target?.closest(ARROWS)
+    )
+      void controls.step(event.key === "ArrowRight" ? 1 : -1);
     else return false;
     return true;
   }
   // A button acts on Space when the key comes up, so that is swallowed too.
   let spaceHeld = false;
-  function onKeyup(event: KeyboardEvent) { if (event.key === " " && spaceHeld) { spaceHeld = false; event.preventDefault(); } }
+  function onKeyup(event: KeyboardEvent) {
+    if (event.key === " " && spaceHeld) {
+      spaceHeld = false;
+      event.preventDefault();
+    }
+  }
   function onKeydown(event: KeyboardEvent) {
     if (event.defaultPrevented || event.altKey) return;
     const ctrl = event.ctrlKey || event.metaKey;
     if (ctrl ? withCtrl(event) : !event.shiftKey && plain(event)) event.preventDefault();
   }
-  let travelled = 0, lastWheel = 0;
+  let travelled = 0,
+    lastWheel = 0;
   function onWheel(event: WheelEvent) {
     if (!event.ctrlKey && !event.metaKey) return;
     event.preventDefault();

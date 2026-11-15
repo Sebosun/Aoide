@@ -6,10 +6,21 @@ import App from "../App.vue";
 import { useNavigationStore } from "../stores/navigation";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); document.body.innerHTML = ""; });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+  document.body.innerHTML = "";
+});
 
 async function app() {
   const wrapper = mount(App, { attachTo: document.body });
@@ -28,13 +39,19 @@ it("opens an unread book on its details page, without playing", async () => {
   expect(about.get("h1").text()).toBe("A Map of Quiet Places");
   expect(about.text()).toContain("Ellis Reed");
   expect(about.text()).toContain("An original story used in the browser preview.");
-  const facts = Object.fromEntries(about.findAll(".book-page__fact").map(f => [f.get("dt").text(), f.get("dd").text()]));
+  const facts = Object.fromEntries(
+    about.findAll(".book-page__fact").map((f) => [f.get("dt").text(), f.get("dd").text()]),
+  );
   expect(facts.Chapters).toBe("3");
   expect(Number(facts.Words.replace(/\D/g, ""))).toBeGreaterThan(50);
   expect(facts["Listening time"]).toMatch(/at 1×$/);
   expect(facts.Language).toBe("en");
   expect(facts.Audio).toBe("Not prepared yet");
-  expect(about.findAll('[aria-label="Contents"] li').map(li => li.text())).toEqual(["1An ordinary discovery", "2The long way home", "3A place to begin"]);
+  expect(about.findAll('[aria-label="Contents"] li').map((li) => li.text())).toEqual([
+    "1An ordinary discovery",
+    "2The long way home",
+    "3A place to begin",
+  ]);
   expect(about.text()).toContain("Extraction notes");
   expect(play).not.toHaveBeenCalled();
   wrapper.unmount();
@@ -63,7 +80,9 @@ it("starts listening from the beginning, or from a chosen chapter", async () => 
 it("opens details from the card menu, and goes back to the library", async () => {
   const wrapper = await app();
   await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
-  [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(m => m.textContent?.trim() === "Details")!.click();
+  [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    .find((m) => m.textContent?.trim() === "Details")!
+    .click();
   await flushPromises();
   const about = wrapper.get('[aria-label="About The Lantern Keeper"]');
   expect(about.get('[aria-label="Resume listening"]').text()).toContain("Resume");
@@ -81,7 +100,7 @@ it("shows the time spent with a started book: total, days, a bar per day and tim
   expect(listening.text()).toContain("on 3 days");
   expect(listening.findAll(".book-listening__bar")).toHaveLength(3);
   expect(listening.text()).toMatch(/left at 1×/);
-  const facts = wrapper.findAll(".book-page__fact dt").map(dt => dt.text());
+  const facts = wrapper.findAll(".book-page__fact dt").map((dt) => dt.text());
   expect(facts).not.toContain("You listened");
   wrapper.unmount();
 });

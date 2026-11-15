@@ -9,11 +9,16 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.kind = error.kind;
   }
-  override toString() { return this.message; }
+  override toString() {
+    return this.message;
+  }
 }
 
 const isCoreError = (value: unknown): value is CoreError =>
-  typeof value === "object" && value !== null && typeof (value as CoreError).kind === "string" && typeof (value as CoreError).message === "string";
+  typeof value === "object" &&
+  value !== null &&
+  typeof (value as CoreError).kind === "string" &&
+  typeof (value as CoreError).message === "string";
 
 /** What a rejected `invoke` gave, as an ApiError: the core's own error, or Tauri's text as an internal one. */
 export function apiError(value: unknown): ApiError {

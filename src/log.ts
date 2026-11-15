@@ -15,4 +15,6 @@ export function report(entry: UiLog, send: (entry: UiLog) => Promise<unknown>) {
 }
 
 /** Forgets which lines were sent (tests). */
-export function forget() { sent.clear(); }
+export function forget() {
+  sent.clear();
+}

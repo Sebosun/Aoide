@@ -12,20 +12,29 @@ import UiHost from "../components/ui/UiHost.vue";
 import { useUiStore } from "../stores/ui";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
 const play = vi.fn(() => Promise.resolve());
 beforeEach(() => {
-  setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock;
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
   play.mockClear();
   window.HTMLMediaElement.prototype.play = play;
   window.HTMLMediaElement.prototype.pause = vi.fn();
   URL.createObjectURL = vi.fn(() => "blob:preview");
   URL.revokeObjectURL = vi.fn();
 });
-afterEach(() => { mock.dispose(); document.body.innerHTML = ""; });
+afterEach(() => {
+  mock.dispose();
+  document.body.innerHTML = "";
+});
 
-const tabNames = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('[role="tab"]').map(t => t.text());
+const tabNames = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('[role="tab"]').map((t) => t.text());
 const selected = (wrapper: ReturnType<typeof mount>) => wrapper.get('[role="tab"][aria-selected="true"]');
 
 it("opens settings from the gear as a modal with a tab per section, and Escape closes it", async () => {
@@ -37,7 +46,15 @@ it("opens settings from the gear as a modal with a tab per section, and Escape c
   const dialog = wrapper.get('[role="dialog"][aria-label="Settings"]');
   expect(dialog.attributes("aria-modal")).toBe("true");
   expect(dialog.get('[role="tablist"]').attributes("aria-orientation")).toBe("vertical");
-  expect(tabNames(wrapper)).toEqual(["Appearance", "Speech engine", "Recordings", "Library", "Word highlighting", "Storage", "About"]);
+  expect(tabNames(wrapper)).toEqual([
+    "Appearance",
+    "Speech engine",
+    "Recordings",
+    "Library",
+    "Word highlighting",
+    "Storage",
+    "About",
+  ]);
   expect(selected(wrapper).text()).toBe("Appearance");
   expect(document.activeElement).toBe(selected(wrapper).element);
   expect(wrapper.findAll(".book-card").length).toBe(4);
@@ -72,7 +89,10 @@ it("keeps the appearance tab short and explains config and theme files under Abo
   const panel = () => wrapper.get('[role="tabpanel"]');
   expect(panel().text()).toContain("~/.config/aoide/settings.toml");
   expect(panel().text()).not.toContain("cover-tint");
-  await wrapper.findAll('[role="tab"]').find(t => t.text() === "About")!.trigger("click");
+  await wrapper
+    .findAll('[role="tab"]')
+    .find((t) => t.text() === "About")!
+    .trigger("click");
   expect(panel().text()).toContain("~/.config/aoide");
   expect(panel().get("details").text()).toContain("cover-tint");
   wrapper.unmount();
@@ -82,13 +102,25 @@ it("previews the chosen voice with the unsaved engine settings", async () => {
   const preview = vi.spyOn(mock, "previewVoice");
   const wrapper = mount(SettingsDialog, { attachTo: document.body });
   await flushPromises();
-  await wrapper.findAll('[role="tab"]').find(t => t.text() === "Speech engine")!.trigger("click");
+  await wrapper
+    .findAll('[role="tab"]')
+    .find((t) => t.text() === "Speech engine")!
+    .trigger("click");
   await flushPromises();
   await choose(wrapper, "Default voice", "Olivia");
   await wrapper.get('[aria-label="Temperature"]').setValue("1.2");
   await wrapper.get('[aria-label="Preview voice"]').trigger("click");
   await flushPromises();
-  expect(preview).toHaveBeenCalledWith(expect.objectContaining({ kind: "chatterbox", voiceId: "Olivia.wav", params: expect.objectContaining({ temperature: 1.2 }) }), "Olivia.wav", {}, null);
+  expect(preview).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: "chatterbox",
+      voiceId: "Olivia.wav",
+      params: expect.objectContaining({ temperature: 1.2 }),
+    }),
+    "Olivia.wav",
+    {},
+    null,
+  );
   expect(play).toHaveBeenCalled();
   expect(wrapper.find('[aria-label="Stop preview"]').exists()).toBe(true);
   await wrapper.get('[aria-label="Stop preview"]').trigger("click");
@@ -114,7 +146,10 @@ it("shows why a preview failed", async () => {
   vi.spyOn(mock, "previewVoice").mockRejectedValue("engine is unavailable: connection refused");
   const wrapper = mount(SettingsDialog, { attachTo: document.body });
   await flushPromises();
-  await wrapper.findAll('[role="tab"]').find(t => t.text() === "Speech engine")!.trigger("click");
+  await wrapper
+    .findAll('[role="tab"]')
+    .find((t) => t.text() === "Speech engine")!
+    .trigger("click");
   await flushPromises();
   await wrapper.get('[aria-label="Preview voice"]').trigger("click");
   await flushPromises();
@@ -126,7 +161,10 @@ it("shows why a preview failed", async () => {
 async function storageTab() {
   const wrapper = mount(SettingsDialog, { attachTo: document.body });
   await flushPromises();
-  await wrapper.findAll('[role="tab"]').find(t => t.text() === "Storage")!.trigger("click");
+  await wrapper
+    .findAll('[role="tab"]')
+    .find((t) => t.text() === "Storage")!
+    .trigger("click");
   await flushPromises();
   return wrapper;
 }
@@ -156,7 +194,8 @@ it("counts recordings' sync data and recognition models once there are any", asy
 });
 
 it("cleans up unused files and deletes a book's audio after confirming", async () => {
-  const clean = vi.spyOn(mock, "cleanUnusedFiles"), regenerate = vi.spyOn(mock, "regenerateBook");
+  const clean = vi.spyOn(mock, "cleanUnusedFiles"),
+    regenerate = vi.spyOn(mock, "regenerateBook");
   const wrapper = await storageTab();
   const host = mount(UiHost, { attachTo: document.body });
   const unused = wrapper.get('[aria-label="Unused files"]');
@@ -164,7 +203,7 @@ it("cleans up unused files and deletes a book's audio after confirming", async (
   await unused.get("button").trigger("click");
   await flushPromises();
   expect(clean).toHaveBeenCalled();
-  expect(useUiStore().toasts.map(t => t.text)).toContain("Freed 12.0 MB");
+  expect(useUiStore().toasts.map((t) => t.text)).toContain("Freed 12.0 MB");
   expect(wrapper.get('[aria-label="Unused files"]').text()).toContain("Nothing to clean up");
 
   await wrapper.get('[aria-label="Delete audio of The Lantern Keeper"]').trigger("click");
@@ -201,18 +240,28 @@ it("deletes the audio of finished books, but not of the book that is playing", a
 it("uses a recognition server instead of the built-in model", async () => {
   const wrapper = mount(SettingsDialog, { attachTo: document.body });
   await flushPromises();
-  await wrapper.findAll('[role="tab"]').find(t => t.text() === "Recordings")!.trigger("click");
+  await wrapper
+    .findAll('[role="tab"]')
+    .find((t) => t.text() === "Recordings")!
+    .trigger("click");
   await flushPromises();
   expect(wrapper.find('[aria-label="Speech-recognition models"]').exists()).toBe(true);
   expect(wrapper.find('[aria-label="Recognition server address"]').exists()).toBe(false);
 
-  await choose(wrapper, "What recognises the narration", "A recognition serverOpenAI-style, such as faster-whisper-server");
+  await choose(
+    wrapper,
+    "What recognises the narration",
+    "A recognition serverOpenAI-style, such as faster-whisper-server",
+  );
   expect(wrapper.find('[aria-label="Speech-recognition models"]').exists(), "no model is needed here").toBe(false);
   await wrapper.get('[aria-label="Recognition server address"]').setValue("http://127.0.0.1:8001");
   await wrapper.get('[aria-label="Recognition server model"]').setValue("Systran/faster-whisper-base.en");
   await wrapper.get("form.recording-settings").trigger("submit");
   await flushPromises();
   const saved = (await mock.appSettings()).recognition;
-  expect(saved).toMatchObject({ engine: "server", server: { baseUrl: "http://127.0.0.1:8001", model: "Systran/faster-whisper-base.en", network: "loopback" } });
+  expect(saved).toMatchObject({
+    engine: "server",
+    server: { baseUrl: "http://127.0.0.1:8001", model: "Systran/faster-whisper-base.en", network: "loopback" },
+  });
   wrapper.unmount();
 });

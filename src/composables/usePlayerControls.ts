@@ -11,27 +11,43 @@ export const SLEEP_MINUTES = [5, 15, 30, 45, 60, 90];
 
 /** Transport state and actions shared by the dock, the Lines transport and the mini player. */
 export function usePlayerControls() {
-  const player = usePlayerStore(), reader = useReaderStore(), library = useLibraryStore();
+  const player = usePlayerStore(),
+    reader = useReaderStore(),
+    library = useLibraryStore();
   const active = computed(() => player.state.status === "playing" || player.state.status === "buffering");
   /** The book the transport acts on: the playing one, else the open one. */
   const bookId = computed(() => player.state.bookId ?? reader.book?.id ?? null);
   const book = computed(() => {
     const id = bookId.value;
     if (!id) return null;
-    const summary = library.books.find(b => b.id === id);
+    const summary = library.books.find((b) => b.id === id);
     const view = player.playingBook?.id === id ? player.playingBook : reader.book?.id === id ? reader.book : null;
-    return { id, title: view?.title ?? summary?.title ?? "Now listening", authors: view?.authors ?? summary?.authors ?? [], coverUrl: summary?.coverUrl ?? null, chapters: view?.chapters ?? [] };
+    return {
+      id,
+      title: view?.title ?? summary?.title ?? "Now listening",
+      authors: view?.authors ?? summary?.authors ?? [],
+      coverUrl: summary?.coverUrl ?? null,
+      chapters: view?.chapters ?? [],
+    };
   });
-  const chapterTitle = computed(() => book.value?.chapters.find(c => c.index === player.state.chapter)?.title ?? (player.state.bookId ? `Chapter ${player.state.chapter + 1}` : ""));
+  const chapterTitle = computed(
+    () =>
+      book.value?.chapters.find((c) => c.index === player.state.chapter)?.title ??
+      (player.state.bookId ? `Chapter ${player.state.chapter + 1}` : ""),
+  );
   /** The playing chapter's text, when it has been loaded. */
-  const playingChapter = computed(() => player.state.bookId ? reader.cache[`${player.state.bookId}:${player.state.chapter}`] : undefined);
+  const playingChapter = computed(() =>
+    player.state.bookId ? reader.cache[`${player.state.bookId}:${player.state.chapter}`] : undefined,
+  );
   const timeLeftMs = computed(() => {
     // A recording knows it exactly; speech is estimated from the words left.
     if (player.state.chapterLeftMs !== null) return player.state.chapterLeftMs;
     const chapter = playingChapter.value;
-    return chapter ? speechMs(wordsLeft(chapter, player.state.segmentId, player.state.wordIndex), player.state.speed) : null;
+    return chapter
+      ? speechMs(wordsLeft(chapter, player.state.segmentId, player.state.wordIndex), player.state.speed)
+      : null;
   });
-  const timeLeft = computed(() => timeLeftMs.value === null ? "" : `${formatDuration(timeLeftMs.value)} left`);
+  const timeLeft = computed(() => (timeLeftMs.value === null ? "" : `${formatDuration(timeLeftMs.value)} left`));
   /** Generated audio ahead of the playhead, as a share of the chapter (estimated). */
   const ahead = computed(() => {
     const chapter = playingChapter.value;
@@ -41,12 +57,18 @@ export function usePlayerControls() {
   });
   async function toggle() {
     if (active.value) await player.pause();
-    else if (player.state.status === "paused" && (!reader.book || player.state.bookId === reader.book.id)) await player.resume();
+    else if (player.state.status === "paused" && (!reader.book || player.state.bookId === reader.book.id))
+      await player.resume();
     else if (reader.book) await player.play(reader.book.id, null, null);
     else if (player.state.bookId) await player.play(player.state.bookId, null, null);
   }
   const sleepChoice = ref(player.state.sleep ? (player.state.sleep.endOfChapter ? "chapter" : "") : "off");
-  watch(() => player.state.sleep, sleep => { if (!sleep) sleepChoice.value = "off"; });
+  watch(
+    () => player.state.sleep,
+    (sleep) => {
+      if (!sleep) sleepChoice.value = "off";
+    },
+  );
   function setSleep(value: string) {
     sleepChoice.value = value;
     if (value === "off") void player.setSleepTimer(null, false);
@@ -61,27 +83,48 @@ export function usePlayerControls() {
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   });
   async function bookmark() {
-    const id = player.state.bookId ?? reader.book?.id; if (!id) return;
+    const id = player.state.bookId ?? reader.book?.id;
+    if (!id) return;
     const ui = useUiStore();
-    try { await api.addBookmark(id, ""); ui.toast("Bookmarked"); } catch (e) { ui.toast(String(e), "error"); }
+    try {
+      await api.addBookmark(id, "");
+      ui.toast("Bookmarked");
+    } catch (e) {
+      ui.toast(String(e), "error");
+    }
   }
   /** Shown under the scrubber only while it matters. */
-  const status = computed(() => (player.state.waitingForSync ? "Waiting for the sync to reach here" : player.state.status === "buffering" ? "Buffering…" : player.state.offText ? "Not in the text" : ""));
+  const status = computed(() =>
+    player.state.waitingForSync
+      ? "Waiting for the sync to reach here"
+      : player.state.status === "buffering"
+        ? "Buffering…"
+        : player.state.offText
+          ? "Not in the text"
+          : "",
+  );
   /** The book's recording is playing, not a speech engine. */
   const recording = computed(() => Boolean(player.state.bookId) && player.state.source === "recording");
   /** The buffer and preparation numbers, for the scrubber's tooltip. */
   const detail = computed(() => {
     const parts: string[] = [];
-    if (player.generation.bookId) parts.push(`${(player.generation.bufferedAheadMs / 1000).toFixed(1)} s buffered · ${player.generation.pending} pending`);
+    if (player.generation.bookId)
+      parts.push(
+        `${(player.generation.bufferedAheadMs / 1000).toFixed(1)} s buffered · ${player.generation.pending} pending`,
+      );
     const preparing = player.generation.preparing;
-    if (preparing) parts.push(`Preparing ${library.books.find(b => b.id === preparing.bookId)?.title ?? "a book"} · ${preparing.done.toLocaleString()} / ${preparing.total.toLocaleString()}`);
+    if (preparing)
+      parts.push(
+        `Preparing ${library.books.find((b) => b.id === preparing.bookId)?.title ?? "a book"} · ${preparing.done.toLocaleString()} / ${preparing.total.toLocaleString()}`,
+      );
     return parts.join(" · ");
   });
   const error = computed(() => player.generation.error || player.state.error || player.error || "");
   const percent = computed(() => Math.round(player.state.chapterFraction * 100));
   /** Scrubber: play from the sentence at a share of the playing chapter. */
   function seek(fraction: number) {
-    const chapter = playingChapter.value, id = player.state.bookId;
+    const chapter = playingChapter.value,
+      id = player.state.bookId;
     const segment = chapter && segmentAt(chapter, fraction);
     if (id && segment) void player.play(id, player.state.chapter, segment);
   }
@@ -90,12 +133,34 @@ export function usePlayerControls() {
   async function step(delta: number) {
     const id = player.state.bookId;
     if (!id) return;
-    const chapter = playingChapter.value ?? await reader.chapterText(id, player.state.chapter).catch(() => undefined);
-    const list = chapter?.blocks.flatMap(b => b.segments).filter(s => s.speakable) ?? [];
+    const chapter = playingChapter.value ?? (await reader.chapterText(id, player.state.chapter).catch(() => undefined));
+    const list = chapter?.blocks.flatMap((b) => b.segments).filter((s) => s.speakable) ?? [];
     if (!list.length || player.state.bookId !== id) return;
-    const at = list.findIndex(s => s.id === player.state.segmentId);
+    const at = list.findIndex((s) => s.id === player.state.segmentId);
     const next = list[Math.min(list.length - 1, Math.max(0, at + delta))];
     if (next) void player.play(id, player.state.chapter, next.id);
   }
-  return { player, active, recording, bookId, book, chapterTitle, playingChapter, timeLeftMs, timeLeft, ahead, percent, toggle, seek, step, sleepChoice, setSleep, sleepLabel, bookmark, status, detail, error };
+  return {
+    player,
+    active,
+    recording,
+    bookId,
+    book,
+    chapterTitle,
+    playingChapter,
+    timeLeftMs,
+    timeLeft,
+    ahead,
+    percent,
+    toggle,
+    seek,
+    step,
+    sleepChoice,
+    setSleep,
+    sleepLabel,
+    bookmark,
+    status,
+    detail,
+    error,
+  };
 }

@@ -7,10 +7,21 @@ import App from "../App.vue";
 import { useNavigationStore } from "../stores/navigation";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); document.body.innerHTML = ""; });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+  document.body.innerHTML = "";
+});
 
 const panel = () => document.body.querySelector<HTMLElement>('[role="dialog"][aria-label="Speech queue"]');
 const rows = () => [...document.body.querySelectorAll<HTMLElement>('[aria-label="Preparation queue"] > li')];
@@ -35,7 +46,10 @@ it("shows the books waiting for preparation in queue order, from the engine pill
   await mock.prepareBook("book-0");
   const { wrapper } = await openQueue();
   expect(panel()?.textContent).toContain("Local Chatterbox");
-  expect(rows().map(r => r.querySelector("button")?.textContent?.trim())).toEqual(["A Map of Quiet Places", "The Lantern Keeper"]);
+  expect(rows().map((r) => r.querySelector("button")?.textContent?.trim())).toEqual([
+    "A Map of Quiet Places",
+    "The Lantern Keeper",
+  ]);
   expect(rows()[0].textContent).toContain("Preparing");
   expect(rows()[0].textContent).toContain("3 / 120");
   expect(rows()[1].textContent).toContain("Queued");
@@ -61,7 +75,8 @@ it("offers to start a book left waiting in the queue, as after a start with resu
 it("pauses, resumes and cancels a book from the queue", async () => {
   await mock.prepareBook("book-1");
   await mock.prepareBook("book-0");
-  const pause = vi.spyOn(mock, "setPreparePaused"), cancel = vi.spyOn(mock, "cancelPrepare");
+  const pause = vi.spyOn(mock, "setPreparePaused"),
+    cancel = vi.spyOn(mock, "cancelPrepare");
   const { wrapper } = await openQueue();
   button("Pause preparing A Map of Quiet Places").click();
   await flushPromises();
@@ -80,7 +95,13 @@ it("pauses, resumes and cancels a book from the queue", async () => {
 
 it("shows what is being made for the book playing now", async () => {
   const { wrapper } = await openQueue();
-  mock.emitGeneration({ ...initialGeneration(), bookId: "book-0", pending: 4, bufferedAheadMs: 12_000, generatingSegmentId: "0:1:0" });
+  mock.emitGeneration({
+    ...initialGeneration(),
+    bookId: "book-0",
+    pending: 4,
+    bufferedAheadMs: 12_000,
+    generatingSegmentId: "0:1:0",
+  });
   await flushPromises();
   const now = document.body.querySelector('[aria-label="Playing now"]');
   expect(now?.textContent).toContain("The Lantern Keeper");

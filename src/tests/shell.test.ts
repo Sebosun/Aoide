@@ -8,12 +8,23 @@ import { usePlayerStore } from "../stores/player";
 import { openMenu, pickMenuItem } from "./helpers";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+});
 
-const nav = (wrapper: ReturnType<typeof mount>, label: string) => wrapper.get(`nav[aria-label="Main"] [aria-label="${label}"]`);
+const nav = (wrapper: ReturnType<typeof mount>, label: string) =>
+  wrapper.get(`nav[aria-label="Main"] [aria-label="${label}"]`);
 
 it("navigates with the top bar pills and the settings button, marking the current screen", async () => {
   const wrapper = mount(App);
@@ -116,12 +127,13 @@ it("starts subscriptions once and switches from library to the selected reader",
   wrapper.unmount();
 });
 
-
 it("shows the drop overlay only for files dragged in from outside, never for things dragged inside the app", async () => {
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
-  const app = wrapper.get(".app"), main = wrapper.get("main");
-  const inside = { dataTransfer: { types: ["text/uri-list", "text/html"] } }, files = { dataTransfer: { types: ["Files"] } };
+  const app = wrapper.get(".app"),
+    main = wrapper.get("main");
+  const inside = { dataTransfer: { types: ["text/uri-list", "text/html"] } },
+    files = { dataTransfer: { types: ["Files"] } };
   await app.trigger("dragenter", inside);
   await app.trigger("dragover", inside);
   expect(wrapper.find(".drop-overlay").exists()).toBe(false);
@@ -165,7 +177,9 @@ it("opens Now Playing from the title on the Continue listening card", async () =
   const play = vi.spyOn(mock, "play");
   const wrapper = mount(App);
   await flushPromises();
-  await wrapper.get('[aria-label="Continue listening"] [aria-label="Open The Lantern Keeper in Now Playing"]').trigger("click");
+  await wrapper
+    .get('[aria-label="Continue listening"] [aria-label="Open The Lantern Keeper in Now Playing"]')
+    .trigger("click");
   await flushPromises();
   expect(nav(wrapper, "Now Playing").attributes("aria-current")).toBe("page");
   expect(wrapper.find('[aria-label="Chapter text"]').exists()).toBe(true);

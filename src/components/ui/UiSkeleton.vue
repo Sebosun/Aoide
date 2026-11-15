@@ -9,7 +9,23 @@
 </template>
 
 <style scoped>
-.ui-skeleton { display: block; min-height: 10px; border-radius: 8px; background: var(--line); animation: ui-skeleton-in var(--dur-2) 150ms both, ui-skeleton-pulse 1.2s ease-in-out 350ms infinite alternate; }
-@keyframes ui-skeleton-in { from { opacity: 0; } }
-@keyframes ui-skeleton-pulse { to { opacity: .55; } }
+.ui-skeleton {
+  display: block;
+  min-height: 10px;
+  border-radius: 8px;
+  background: var(--line);
+  animation:
+    ui-skeleton-in var(--dur-2) 150ms both,
+    ui-skeleton-pulse 1.2s ease-in-out 350ms infinite alternate;
+}
+@keyframes ui-skeleton-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ui-skeleton-pulse {
+  to {
+    opacity: 0.55;
+  }
+}
 </style>

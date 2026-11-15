@@ -2,14 +2,27 @@ import { expect, it } from "vitest";
 import type { ChapterView } from "../api/types";
 import { formatDuration, speechMs, wordsLeft, segmentAt, chapterWords } from "../estimate";
 
-const chapter: ChapterView = { index: 0, title: "T", blocks: [
-  { kind: "heading", level: 2, segments: [{ id: "0:0:0", words: ["Title"], speakable: true, note: false, notes: [] }] },
-  { kind: "paragraph", level: null, segments: [
-    { id: "0:1:0", words: "one two three four".split(" "), speakable: true, note: false, notes: [] },
-    { id: "0:1:1", words: ["* * *"], speakable: false, note: false, notes: [] },
-    { id: "0:1:2", words: "five six seven eight nine".split(" "), speakable: true, note: false, notes: [] },
-  ] },
-], notNarrated: null };
+const chapter: ChapterView = {
+  index: 0,
+  title: "T",
+  blocks: [
+    {
+      kind: "heading",
+      level: 2,
+      segments: [{ id: "0:0:0", words: ["Title"], speakable: true, note: false, notes: [] }],
+    },
+    {
+      kind: "paragraph",
+      level: null,
+      segments: [
+        { id: "0:1:0", words: "one two three four".split(" "), speakable: true, note: false, notes: [] },
+        { id: "0:1:1", words: ["* * *"], speakable: false, note: false, notes: [] },
+        { id: "0:1:2", words: "five six seven eight nine".split(" "), speakable: true, note: false, notes: [] },
+      ],
+    },
+  ],
+  notNarrated: null,
+};
 
 it("estimates speech time from words and speed", () => {
   expect(speechMs(160, 1)).toBe(60_000);

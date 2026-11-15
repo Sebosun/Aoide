@@ -10,12 +10,22 @@ import { useNavigationStore } from "../stores/navigation";
 import { pickMenuItem } from "./helpers";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+});
 
-const titles = (wrapper: ReturnType<typeof mount>) => wrapper.findAll(".find-audiobooks__card h3").map(h => h.text());
+const titles = (wrapper: ReturnType<typeof mount>) => wrapper.findAll(".find-audiobooks__card h3").map((h) => h.text());
 async function scanned() {
   await useLibraryStore().start();
   const wrapper = mount(FindAudiobooksView, { attachTo: document.body });
@@ -41,11 +51,13 @@ it("lists the audiobooks found for each book, closest first, and pairs the ones 
   expect(titles(wrapper)).toEqual(["A Map of Quiet Places", "An Unfinished Atlas"]);
   const map = wrapper.findAll(".find-audiobooks__card")[0];
   expect(map.get(".find-audiobooks__eyebrow").text()).toBe("Same name");
-  expect(map.findAll(".find-audiobooks__candidate").map(c => c.text())).toEqual([
+  expect(map.findAll(".find-audiobooks__candidate").map((c) => c.text())).toEqual([
     "Ellis Reed - A Map of Quiet PlacesFolder · 15 files · 1.2 GB",
     "A Map of Quiet Places (Unabridged).m4b1 file · 597.0 MB",
   ]);
-  expect(map.get(".find-audiobooks__candidate").attributes("title")).toContain("~/Audiobooks/Ellis Reed - A Map of Quiet Places/15 - A Map of Quiet Places.m4b");
+  expect(map.get(".find-audiobooks__candidate").attributes("title")).toContain(
+    "~/Audiobooks/Ellis Reed - A Map of Quiet Places/15 - A Map of Quiet Places.m4b",
+  );
   const atlas = wrapper.findAll(".find-audiobooks__card")[1];
   expect(atlas.get(".find-audiobooks__eyebrow").text()).toBe("Similar name");
   expect(atlas.get(".find-audiobooks__candidate").text()).toBe("Unfinished Atlas 1.mp32 files · 410.0 MB");
@@ -68,7 +80,10 @@ it("pairs every book's closest audiobook at once", async () => {
   const wrapper = await scanned();
   await wrapper.get('[aria-label="Pair all found audiobooks"]').trigger("click");
   await flushPromises();
-  expect(pair).toHaveBeenCalledWith([{ bookId: "book-1", candidate: 0 }, { bookId: "book-3", candidate: 0 }]);
+  expect(pair).toHaveBeenCalledWith([
+    { bookId: "book-1", candidate: 0 },
+    { bookId: "book-3", candidate: 0 },
+  ]);
   expect(wrapper.get('[aria-label="Show paired books"]').text()).toContain("2");
   wrapper.unmount();
 });

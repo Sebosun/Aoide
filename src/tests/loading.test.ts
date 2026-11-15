@@ -8,20 +8,40 @@ import StatsView from "../views/StatsView.vue";
 import { useLibraryStore } from "../stores/library";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); document.body.innerHTML = ""; });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+  document.body.innerHTML = "";
+});
 
 /** Holds back one API call until `release()`. */
 function hold<K extends "listBooks" | "bookOverview" | "listeningStats">(method: K) {
   const real = mock[method].bind(mock) as (...args: unknown[]) => Promise<unknown>;
   let release = () => {};
-  const gate = new Promise<void>(resolve => { release = resolve; });
-  vi.spyOn(mock, method).mockImplementation((async (...args: unknown[]) => { await gate; return real(...args); }) as never);
-  return async () => { release(); await flushPromises(); };
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  vi.spyOn(mock, method).mockImplementation((async (...args: unknown[]) => {
+    await gate;
+    return real(...args);
+  }) as never);
+  return async () => {
+    release();
+    await flushPromises();
+  };
 }
-const placeholder = (wrapper: ReturnType<typeof mount>, label: string) => wrapper.find(`[role="status"][aria-label="${label}"]`);
+const placeholder = (wrapper: ReturnType<typeof mount>, label: string) =>
+  wrapper.find(`[role="status"][aria-label="${label}"]`);
 
 it("shows placeholder cards while the library loads, not the empty library message", async () => {
   const release = hold("listBooks");

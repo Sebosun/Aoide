@@ -9,10 +9,21 @@ import { useLibraryStore } from "../stores/library";
 import { useNavigationStore } from "../stores/navigation";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); document.body.innerHTML = ""; });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+  document.body.innerHTML = "";
+});
 
 async function reader(book = "book-0") {
   await useLibraryStore().start();
@@ -31,7 +42,7 @@ it("opens book tools as a modal bottom sheet with four tabs, and Escape returns 
   const sheet = wrapper.get('[role="dialog"]');
   expect(sheet.attributes("aria-modal")).toBe("true");
   expect(sheet.attributes("aria-label")).toBe("Book tools");
-  expect(sheet.findAll('[role="tab"]').map(t => t.text())).toEqual(["Bookmarks", "Search", "Narration", "Details"]);
+  expect(sheet.findAll('[role="tab"]').map((t) => t.text())).toEqual(["Bookmarks", "Search", "Narration", "Details"]);
   const selected = sheet.get('[role="tab"][aria-selected="true"]');
   expect(selected.text()).toBe("Bookmarks");
   expect(document.activeElement).toBe(selected.element);
@@ -73,7 +84,14 @@ it("opens the extraction notes in Details from the warning in the margin", async
 });
 
 it("flags a book voice the engine does not offer and opens the Voice tab from the margin", async () => {
-  await mock.saveBookSettings("book-0", { voiceId: "Abigail.wav", params: {}, language: null, readNotes: false, narration: null, speakMissing: false });
+  await mock.saveBookSettings("book-0", {
+    voiceId: "Abigail.wav",
+    params: {},
+    language: null,
+    readNotes: false,
+    narration: null,
+    speakMissing: false,
+  });
   const wrapper = await reader("book-0");
   const warning = wrapper.get('[aria-label="About this book"] .book-margin__warning--voice');
   expect(warning.text()).toContain("Voice not available");
@@ -89,7 +107,10 @@ it("shows the book's file in the file manager from Details", async () => {
   const wrapper = await reader("book-1");
   await wrapper.get('[aria-label="About this book"] .book-margin__warning').trigger("click");
   await flushPromises();
-  const button = wrapper.get('[role="dialog"]').findAll("button").find(b => b.text() === "Show in folder");
+  const button = wrapper
+    .get('[role="dialog"]')
+    .findAll("button")
+    .find((b) => b.text() === "Show in folder");
   await button!.trigger("click");
   expect(show).toHaveBeenCalledWith("book-1");
   wrapper.unmount();

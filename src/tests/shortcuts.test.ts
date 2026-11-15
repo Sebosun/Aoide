@@ -7,10 +7,21 @@ import { useNavigationStore } from "../stores/navigation";
 import { usePlayerStore } from "../stores/player";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); document.body.innerHTML = ""; });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+  document.body.innerHTML = "";
+});
 
 /** Presses a key on the focused element (the body when nothing has focus). */
 const press = (key: string, init: KeyboardEventInit = {}) => {
@@ -120,7 +131,8 @@ it("opens and closes Settings with Ctrl comma, and lists the shortcuts under Abo
   await wrapper.get("#settings-tab-about").trigger("click");
   await flushPromises();
   const keys = wrapper.get('[aria-label="Keyboard shortcuts"]');
-  for (const text of ["Space", "Play or pause", "Previous or next sentence", "Ctrl", "Settings", "Larger interface"]) expect(keys.text(), text).toContain(text);
+  for (const text of ["Space", "Play or pause", "Previous or next sentence", "Ctrl", "Settings", "Larger interface"])
+    expect(keys.text(), text).toContain(text);
   press(",", { ctrlKey: true });
   await flushPromises();
   expect(wrapper.find('[role="dialog"][aria-label="Settings"]').exists()).toBe(false);

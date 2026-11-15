@@ -17,18 +17,35 @@ import { useNavigationStore } from "../stores/navigation";
 
 import { choose } from "./helpers";
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
 async function settings(tab: string) {
   const wrapper = mount(SettingsDialog, { attachTo: document.body });
   await flushPromises();
-  await wrapper.findAll('[role="tab"]').find(t => t.text() === tab)!.trigger("click");
+  await wrapper
+    .findAll('[role="tab"]')
+    .find((t) => t.text() === tab)!
+    .trigger("click");
   await flushPromises();
   return wrapper;
 }
-const submit = (wrapper: ReturnType<typeof mount>, label: string) => wrapper.findAll('button[type="submit"]').find(b => b.text() === label)!.trigger("click");
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); });
+const submit = (wrapper: ReturnType<typeof mount>, label: string) =>
+  wrapper
+    .findAll('button[type="submit"]')
+    .find((b) => b.text() === label)!
+    .trigger("click");
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+});
 
 it("draws engine settings from the adapter descriptor and saves the profile", async () => {
   const save = vi.spyOn(mock, "saveEngineProfile");
@@ -42,7 +59,14 @@ it("draws engine settings from the adapter descriptor and saves the profile", as
   await wrapper.get('[aria-label="Model"]').setValue("kokoro");
   await submit(wrapper, "Save engine");
   await flushPromises();
-  expect(save).toHaveBeenCalledWith(expect.objectContaining({ kind: "openai-speech", baseUrl: "http://127.0.0.1:8880", model: "kokoro", params: { speed: 1.5 } }));
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: "openai-speech",
+      baseUrl: "http://127.0.0.1:8880",
+      model: "kokoro",
+      params: { speed: 1.5 },
+    }),
+  );
   expect(wrapper.text()).toContain("Saved");
   wrapper.unmount();
 });
@@ -66,13 +90,33 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
   await wrapper.get('[aria-label="Look up book details online"]').setValue(false);
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith({ metadataLookup: false });
-  await wrapper.findAll('[role="tab"]').find(t => t.text() === "Storage")!.trigger("click");
+  await wrapper
+    .findAll('[role="tab"]')
+    .find((t) => t.text() === "Storage")!
+    .trigger("click");
   await flushPromises();
   await wrapper.get('[aria-label="Audio cache limit in GB"]').setValue("2");
   await submit(wrapper, "Save limit");
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith({ cacheLimitBytes: 2 * 1024 ** 3 });
-  expect(await mock.appSettings()).toEqual({ metadataLookup: false, cacheLimitBytes: 2 * 1024 ** 3, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { engine: "builtIn", server: { baseUrl: "http://127.0.0.1:8000", model: "", network: "loopback" }, modelSize: "base", device: "auto", threads: 0, resumeOnStart: true }, audiobooks: { roots: [], exclude: [], includeHidden: [], onAdd: true }, verifyAudiobooks: false });
+  expect(await mock.appSettings()).toEqual({
+    metadataLookup: false,
+    cacheLimitBytes: 2 * 1024 ** 3,
+    aligner: null,
+    librarySort: "recent",
+    scan: { roots: [], exclude: [], includeHidden: [], onStartup: false },
+    resumePrepare: true,
+    recognition: {
+      engine: "builtIn",
+      server: { baseUrl: "http://127.0.0.1:8000", model: "", network: "loopback" },
+      modelSize: "base",
+      device: "auto",
+      threads: 0,
+      resumeOnStart: true,
+    },
+    audiobooks: { roots: [], exclude: [], includeHidden: [], onAdd: true },
+    verifyAudiobooks: false,
+  });
   wrapper.unmount();
 });
 
@@ -86,9 +130,15 @@ it("turns on exact word timing with an aligner address and launch command", asyn
   await wrapper.get('[aria-label="Aligner launch arguments"]').setValue("aoide_aligner.py\n--port\n8890");
   await submit(wrapper, "Save");
   await flushPromises();
-  expect(save).toHaveBeenCalledWith(expect.objectContaining({
-    aligner: { baseUrl: "http://127.0.0.1:8890", network: "loopback", launch: { program: "/venv/bin/python", args: ["aoide_aligner.py", "--port", "8890"], workingDir: null } },
-  }));
+  expect(save).toHaveBeenCalledWith(
+    expect.objectContaining({
+      aligner: {
+        baseUrl: "http://127.0.0.1:8890",
+        network: "loopback",
+        launch: { program: "/venv/bin/python", args: ["aoide_aligner.py", "--port", "8890"], workingDir: null },
+      },
+    }),
+  );
   wrapper.unmount();
 });
 
@@ -136,7 +186,10 @@ it("saves per-book voice settings and queues whole-book preparation", async () =
   await wrapper.get('[aria-label="Read footnotes aloud"]').setValue(true);
   await wrapper.get(".book-voice__form").trigger("submit");
   await flushPromises();
-  expect(saveSettings).toHaveBeenCalledWith("book-0", expect.objectContaining({ voiceId: "Adrian.wav", readNotes: true }));
+  expect(saveSettings).toHaveBeenCalledWith(
+    "book-0",
+    expect.objectContaining({ voiceId: "Adrian.wav", readNotes: true }),
+  );
   await wrapper.get('[aria-label="Prepare whole book"]').trigger("click");
   expect(prepare).toHaveBeenCalledWith("book-0");
   wrapper.unmount();
@@ -145,7 +198,8 @@ it("saves per-book voice settings and queues whole-book preparation", async () =
 it("asks before regenerating a book's audio", async () => {
   await useReaderStore().open("book-0");
   const regenerate = vi.spyOn(mock, "regenerateBook");
-  const wrapper = mount(BookToolsSheet), host = mount(UiHost, { attachTo: document.body });
+  const wrapper = mount(BookToolsSheet),
+    host = mount(UiHost, { attachTo: document.body });
   await wrapper.get('[role="tab"][aria-controls="book-tools-voice"]').trigger("click");
   await flushPromises();
   await wrapper.get('[aria-label="Regenerate audio"]').trigger("click");
@@ -168,7 +222,10 @@ it("looks up online details and applies the picked match", async () => {
   expect(wrapper.text()).toContain("An original story");
   await wrapper.get('[aria-label="Find details online"]').trigger("click");
   await flushPromises();
-  await wrapper.findAll("button").find(b => b.text() === "Use this")!.trigger("click");
+  await wrapper
+    .findAll("button")
+    .find((b) => b.text() === "Use this")!
+    .trigger("click");
   await flushPromises();
   expect(apply).toHaveBeenCalledWith("book-0", expect.objectContaining({ key: "/works/OL0001W" }));
   expect(wrapper.text()).toContain("Preview Press");
@@ -198,7 +255,8 @@ it("shows listening for a chosen range with a streak, a calendar, weekdays and b
   expect(tile("Streak")).toContain("3 days");
   expect(tile("Streak")).toContain("best 3");
   expect(wrapper.findAll('[aria-label="Listening by day"] li')).toHaveLength(7);
-  const range = (name: string) => wrapper.findAll('[role="group"][aria-label="Range"] button').find(b => b.text() === name)!;
+  const range = (name: string) =>
+    wrapper.findAll('[role="group"][aria-label="Range"] button').find((b) => b.text() === name)!;
   await range("30 days").trigger("click");
   expect(range("30 days").attributes("aria-pressed")).toBe("true");
   expect(wrapper.findAll('[aria-label="Listening by day"] li')).toHaveLength(30);
@@ -265,7 +323,7 @@ it("previews a book's voice in that book's language, not the open book's", async
   await useReaderStore().open("book-0"); // An English book is open.
   const library = useLibraryStore();
   await library.start();
-  library.books.find(b => b.id === "book-1")!.language = "pt";
+  library.books.find((b) => b.id === "book-1")!.language = "pt";
   const preview = vi.spyOn(mock, "previewVoice");
   const wrapper = mount(BookVoice, { props: { bookId: "book-1" }, attachTo: document.body });
   await flushPromises();

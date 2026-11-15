@@ -4,10 +4,12 @@ import type { RecordingView, SyncStage } from "./api/types";
 import { formatDuration } from "./estimate";
 
 /** An audiobook to pair, by name: its file or folder name, and how many files. */
-export const audiobookName = (paths: string[]) => (paths[0].split("/").pop() ?? paths[0]) + (paths.length > 1 ? ` · ${paths.length} files` : "");
+export const audiobookName = (paths: string[]) =>
+  (paths[0].split("/").pop() ?? paths[0]) + (paths.length > 1 ? ` · ${paths.length} files` : "");
 
 /** What a person can do about a book's recording. */
-export type RecordingAction = "listen" | "pause" | "resume" | "retry" | "accept" | "resync" | "download" | "report" | "export" | "remove";
+export type RecordingAction =
+  "listen" | "pause" | "resume" | "retry" | "accept" | "resync" | "download" | "report" | "export" | "remove";
 
 /** How a recording's sync reads and what it offers, for every view that shows it. The stage is
  *  decided in the core (core/syncing.rs); this only presents it. */
@@ -27,39 +29,86 @@ export interface RecordingStatus {
 }
 
 const LABELS: Record<SyncStage, string> = {
-  checking: "Checking the audio", waiting: "Waiting to sync", needsModel: "Needs the speech-recognition model",
-  transcribing: "Syncing", matching: "Matching to the text", ready: "Synced",
-  sampleMismatch: "This may not be the same book", poorMatch: "Needs review", paused: "Paused",
-  missing: "Audio files missing", failed: "Sync failed",
+  checking: "Checking the audio",
+  waiting: "Waiting to sync",
+  needsModel: "Needs the speech-recognition model",
+  transcribing: "Syncing",
+  matching: "Matching to the text",
+  ready: "Synced",
+  sampleMismatch: "This may not be the same book",
+  poorMatch: "Needs review",
+  paused: "Paused",
+  missing: "Audio files missing",
+  failed: "Sync failed",
 };
 const ACTIONS: Record<SyncStage, RecordingAction[]> = {
-  checking: ["remove"], waiting: ["pause", "remove"], needsModel: ["download", "remove"], transcribing: ["pause", "remove"],
-  matching: [], ready: ["report", "export", "resync", "remove"], sampleMismatch: ["accept", "remove"], poorMatch: ["report", "accept", "remove"],
-  paused: ["resume", "remove"], missing: ["remove"], failed: ["retry", "remove"],
+  checking: ["remove"],
+  waiting: ["pause", "remove"],
+  needsModel: ["download", "remove"],
+  transcribing: ["pause", "remove"],
+  matching: [],
+  ready: ["report", "export", "resync", "remove"],
+  sampleMismatch: ["accept", "remove"],
+  poorMatch: ["report", "accept", "remove"],
+  paused: ["resume", "remove"],
+  missing: ["remove"],
+  failed: ["retry", "remove"],
 };
 export const RECORDING_ACTION_LABELS: Record<RecordingAction, string> = {
-  listen: "Listen now", pause: "Pause syncing", resume: "Resume syncing", retry: "Try again", accept: "Use it anyway", resync: "Sync again",
-  download: "Download the model", report: "See the report", export: "Export read-along EPUB", remove: "Remove recording",
+  listen: "Listen now",
+  pause: "Pause syncing",
+  resume: "Resume syncing",
+  retry: "Try again",
+  accept: "Use it anyway",
+  resync: "Sync again",
+  download: "Download the model",
+  report: "See the report",
+  export: "Export read-along EPUB",
+  remove: "Remove recording",
 };
 export const RECORDING_ACTION_ICONS: Record<RecordingAction, Component> = {
-  listen: Headphones, pause: Pause, resume: Play, retry: RotateCcw, accept: Check, resync: RotateCcw, download: Download, report: FileText, export: BookDown, remove: Trash2,
+  listen: Headphones,
+  pause: Pause,
+  resume: Play,
+  retry: RotateCcw,
+  accept: Check,
+  resync: RotateCcw,
+  download: Download,
+  report: FileText,
+  export: BookDown,
+  remove: Trash2,
 };
 
 const share = (part: number, whole: number) => Math.floor((part / Math.max(1, whole)) * 100);
 
 export function recordingStatus(recording: RecordingView): RecordingStatus {
   const { stage, transcribedMs, totalMs, summary, listenable } = recording;
-  const percent = ["transcribing", "paused", "waiting"].includes(stage) && transcribedMs ? share(transcribedMs, totalMs) : stage === "transcribing" ? 0 : null;
+  const percent =
+    ["transcribing", "paused", "waiting"].includes(stage) && transcribedMs
+      ? share(transcribedMs, totalMs)
+      : stage === "transcribing"
+        ? 0
+        : null;
   const found = summary ? `${share(summary.matchedWords, summary.words)}% of the text found in the recording` : null;
   const detail: Record<SyncStage, string | null> = {
     checking: null,
-    waiting: recording.position ? `${recording.position} recording${recording.position === 1 ? "" : "s"} ahead` : "Starts next",
+    waiting: recording.position
+      ? `${recording.position} recording${recording.position === 1 ? "" : "s"} ahead`
+      : "Starts next",
     needsModel: "Aoide hears the narration with a speech-recognition model. Download it once in Settings → Recordings.",
-    transcribing: [`${percent ?? 0}%`, recording.remainingMs !== null ? `about ${formatDuration(recording.remainingMs)} left` : null].filter(Boolean).join(" · "),
+    transcribing: [
+      `${percent ?? 0}%`,
+      recording.remainingMs !== null ? `about ${formatDuration(recording.remainingMs)} left` : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
     matching: null,
     ready: found,
-    sampleMismatch: "Three short samples of the narration were not found in the book's text. It may be another book, edition or translation.",
-    poorMatch: found ? `Only ${found}. It may be abridged, or another edition.` : "Little of the text was found in the recording.",
+    sampleMismatch:
+      "Three short samples of the narration were not found in the book's text. It may be another book, edition or translation.",
+    poorMatch: found
+      ? `Only ${found}. It may be abridged, or another edition.`
+      : "Little of the text was found in the recording.",
     paused: percent !== null ? `${percent}% synced` : null,
     missing: "The audio files were moved, renamed or changed. Put them back, or pair the book again.",
     failed: recording.error,
@@ -67,16 +116,26 @@ export function recordingStatus(recording: RecordingView): RecordingStatus {
   // While it syncs, what is synced so far can be listened to (the core waits at the edge).
   const listenEarly = listenable && stage !== "ready" && stage !== "matching";
   return {
-    stage, label: LABELS[stage], detail: detail[stage], percent, actions: listenEarly ? ["listen", ...ACTIONS[stage]] : ACTIONS[stage],
-    playable: stage === "ready", listenable, working: ["checking", "transcribing", "matching"].includes(stage),
+    stage,
+    label: LABELS[stage],
+    detail: detail[stage],
+    percent,
+    actions: listenEarly ? ["listen", ...ACTIONS[stage]] : ACTIONS[stage],
+    playable: stage === "ready",
+    listenable,
+    working: ["checking", "transcribing", "matching"].includes(stage),
   };
 }
 
 /** "1 file · 10 h 23 min · 20 chapters". */
 export function describeFiles(recording: { files: unknown[]; totalMs: number; chapters: number }): string {
   const files = `${recording.files.length} file${recording.files.length === 1 ? "" : "s"}`;
-  return [files, formatDuration(recording.totalMs), recording.chapters > 1 ? `${recording.chapters} chapters` : null].filter(Boolean).join(" · ");
+  return [files, formatDuration(recording.totalMs), recording.chapters > 1 ? `${recording.chapters} chapters` : null]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /** Audio Aoide can pair with a book: audio files, and folders (paths without an extension). */
-export const isAudioPath = (path: string) => /\.(m4b|m4a|mp4|aac|mp3|flac|ogg|oga|opus|wav|aax|aa)$/i.test(path) || !/\.[a-z0-9]{1,5}$/i.test(path.split("/").pop() ?? path);
+export const isAudioPath = (path: string) =>
+  /\.(m4b|m4a|mp4|aac|mp3|flac|ogg|oga|opus|wav|aax|aa)$/i.test(path) ||
+  !/\.[a-z0-9]{1,5}$/i.test(path.split("/").pop() ?? path);

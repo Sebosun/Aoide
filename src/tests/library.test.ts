@@ -14,10 +14,21 @@ import { useRecordingsStore } from "../stores/recordings";
 
 import { choose, openMenu, pickMenuItem } from "./helpers";
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); vi.useRealTimers(); });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+  vi.useRealTimers();
+});
 
 async function library() {
   await useLibraryStore().start();
@@ -26,7 +37,7 @@ async function library() {
   await flushPromises();
   return wrapper;
 }
-const titles = (wrapper: ReturnType<typeof mount>) => wrapper.findAll(".book-card__title").map(h => h.text());
+const titles = (wrapper: ReturnType<typeof mount>) => wrapper.findAll(".book-card__title").map((h) => h.text());
 
 it("leads with the book to continue: chapter, progress, time left and Resume", async () => {
   const play = vi.spyOn(mock, "play");
@@ -119,7 +130,12 @@ it("sorts the library and remembers the order", async () => {
   expect(titles(wrapper)[0]).toBe("The Lantern Keeper");
   await choose(wrapper, "Sort library", "Title");
   await flushPromises();
-  expect(titles(wrapper)).toEqual(["The Absent Orchard", "The Lantern Keeper", "A Map of Quiet Places", "An Unfinished Atlas"]);
+  expect(titles(wrapper)).toEqual([
+    "The Absent Orchard",
+    "The Lantern Keeper",
+    "A Map of Quiet Places",
+    "An Unfinished Atlas",
+  ]);
   expect(save).toHaveBeenCalledWith(expect.objectContaining({ librarySort: "title" }));
   wrapper.unmount();
 });
@@ -130,7 +146,9 @@ it("removes a book after confirming in a dialog from its card menu", async () =>
   const host = mount(UiHost, { attachTo: document.body });
   const ask = async () => {
     await wrapper.get('[aria-label="More for An Unfinished Atlas"]').trigger("click");
-    document.body.querySelector<HTMLElement>('[role="menuitem"][aria-label="Remove An Unfinished Atlas from the library"]')!.click();
+    document.body
+      .querySelector<HTMLElement>('[role="menuitem"][aria-label="Remove An Unfinished Atlas from the library"]')!
+      .click();
     await flushPromises();
     return host.get('[role="alertdialog"]');
   };
@@ -183,7 +201,14 @@ it("keeps the playing chapter in the mini player when another book is open, and 
   await usePlayerStore().start();
   const wrapper = mount(MiniPlayer);
   await mock.play("book-0", 1, "1:1:0");
-  mock.emitGeneration({ bookId: "book-0", generatingSegmentId: null, bufferedAheadMs: 0, pending: 1, error: "Engine offline", preparing: null });
+  mock.emitGeneration({
+    bookId: "book-0",
+    generatingSegmentId: null,
+    bufferedAheadMs: 0,
+    pending: 1,
+    error: "Engine offline",
+    preparing: null,
+  });
   await flushPromises();
   expect(wrapper.text()).toContain("Across the water");
   expect(wrapper.text()).toContain("The Lantern Keeper");
@@ -194,15 +219,22 @@ it("keeps the playing chapter in the mini player when another book is open, and 
 const menuItems = () => [...document.body.querySelectorAll<HTMLElement>('[role="menu"] [role="menuitem"]')];
 async function cardAction(wrapper: ReturnType<typeof mount>, title: string, item: string) {
   await wrapper.get(`[aria-label="More for ${title}"]`).trigger("click");
-  const match = menuItems().find(m => m.textContent?.trim() === item);
-  if (!match) throw new Error(`No "${item}" in ${menuItems().map(m => m.textContent?.trim()).join(", ")}`);
+  const match = menuItems().find((m) => m.textContent?.trim() === item);
+  if (!match)
+    throw new Error(
+      `No "${item}" in ${menuItems()
+        .map((m) => m.textContent?.trim())
+        .join(", ")}`,
+    );
   match.click();
   await flushPromises();
 }
-const toasts = () => useUiStore().toasts.map(t => t.text);
+const toasts = () => useUiStore().toasts.map((t) => t.text);
 
 it("prepares, pauses, resumes and cancels a whole book from its card menu", async () => {
-  const prepare = vi.spyOn(mock, "prepareBook"), pause = vi.spyOn(mock, "setPreparePaused"), cancel = vi.spyOn(mock, "cancelPrepare");
+  const prepare = vi.spyOn(mock, "prepareBook"),
+    pause = vi.spyOn(mock, "setPreparePaused"),
+    cancel = vi.spyOn(mock, "cancelPrepare");
   const wrapper = await library();
   await cardAction(wrapper, "A Map of Quiet Places", "Prepare whole book");
   expect(prepare).toHaveBeenCalledWith("book-1");
@@ -216,7 +248,8 @@ it("prepares, pauses, resumes and cancels a whole book from its card menu", asyn
 });
 
 it("exports a book and deletes its generated audio after confirming, from the card menu", async () => {
-  const exportBook = vi.spyOn(mock, "exportBook"), regenerate = vi.spyOn(mock, "regenerateBook");
+  const exportBook = vi.spyOn(mock, "exportBook"),
+    regenerate = vi.spyOn(mock, "regenerateBook");
   const wrapper = await library();
   const host = mount(UiHost, { attachTo: document.body });
   await cardAction(wrapper, "The Lantern Keeper", "Export as M4B");
@@ -230,7 +263,7 @@ it("exports a book and deletes its generated audio after confirming, from the ca
   await flushPromises();
   expect(regenerate).toHaveBeenCalledWith("book-0");
   await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
-  expect(menuItems().map(m => m.textContent?.trim())).not.toContain("Delete generated audio");
+  expect(menuItems().map((m) => m.textContent?.trim())).not.toContain("Delete generated audio");
   wrapper.unmount();
   host.unmount();
 });
@@ -238,11 +271,12 @@ it("exports a book and deletes its generated audio after confirming, from the ca
 it("offers only removal for a book whose file is missing", async () => {
   const wrapper = await library();
   await wrapper.get('[aria-label="More for The Absent Orchard"]').trigger("click");
-  expect(menuItems().map(m => m.textContent?.trim())).toEqual(["Remove from library"]);
+  expect(menuItems().map((m) => m.textContent?.trim())).toEqual(["Remove from library"]);
   wrapper.unmount();
 });
 
-const chip = (wrapper: ReturnType<typeof mount>, name: string) => wrapper.get(`[role="group"][aria-label="Filter books"] [aria-label^="${name}"]`);
+const chip = (wrapper: ReturnType<typeof mount>, name: string) =>
+  wrapper.get(`[role="group"][aria-label="Filter books"] [aria-label^="${name}"]`);
 async function answerPrompt(host: ReturnType<typeof mount>, text: string) {
   const dialog = host.get('[role="dialog"]');
   await dialog.get("input").setValue(text);
@@ -251,7 +285,8 @@ async function answerPrompt(host: ReturnType<typeof mount>, text: string) {
 }
 
 it("creates a collection, puts a book on it from the card menu, and filters by it", async () => {
-  const create = vi.spyOn(mock, "createCollection"), shelve = vi.spyOn(mock, "setBookCollections");
+  const create = vi.spyOn(mock, "createCollection"),
+    shelve = vi.spyOn(mock, "setBookCollections");
   const wrapper = await library();
   const host = mount(UiHost, { attachTo: document.body });
   await chip(wrapper, "New collection").trigger("click");
@@ -272,7 +307,9 @@ it("creates a collection, puts a book on it from the card menu, and filters by i
   await chip(wrapper, "Night reading").trigger("click");
   expect(titles(wrapper)).toEqual(["The Lantern Keeper"]);
   await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
-  expect(document.body.querySelector('[role="menuitemcheckbox"][aria-label="Night reading"]')!.getAttribute("aria-checked")).toBe("true");
+  expect(
+    document.body.querySelector('[role="menuitemcheckbox"][aria-label="Night reading"]')!.getAttribute("aria-checked"),
+  ).toBe("true");
   wrapper.unmount();
   host.unmount();
 });
@@ -281,7 +318,9 @@ it("adds a book to a new collection straight from its card menu", async () => {
   const wrapper = await library();
   const host = mount(UiHost, { attachTo: document.body });
   await wrapper.get('[aria-label="More for A Map of Quiet Places"]').trigger("click");
-  [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(m => m.textContent?.trim() === "New collection…")!.click();
+  [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+    .find((m) => m.textContent?.trim() === "New collection…")!
+    .click();
   await flushPromises();
   await answerPrompt(host, "Maps");
   expect(chip(wrapper, "Maps").text()).toContain("1");
@@ -290,7 +329,8 @@ it("adds a book to a new collection straight from its card menu", async () => {
 });
 
 it("renames and deletes the selected collection", async () => {
-  const rename = vi.spyOn(mock, "renameCollection"), remove = vi.spyOn(mock, "deleteCollection");
+  const rename = vi.spyOn(mock, "renameCollection"),
+    remove = vi.spyOn(mock, "deleteCollection");
   const id = await mock.createCollection("Shelf");
   await mock.setBookCollections("book-1", [id]);
   const wrapper = await library();
@@ -318,7 +358,12 @@ it("renames and deletes the selected collection", async () => {
 
 it("writes the size of a book's audio the way Storage does", async () => {
   const wrapper = await library();
-  expect(wrapper.findAll(".book-card").find(card => card.text().includes("The Lantern Keeper"))!.text()).toContain("12% · 2.3 MB");
+  expect(
+    wrapper
+      .findAll(".book-card")
+      .find((card) => card.text().includes("The Lantern Keeper"))!
+      .text(),
+  ).toContain("12% · 2.3 MB");
   wrapper.unmount();
 });
 
@@ -354,4 +399,3 @@ it("only opens a started book when nothing is playing", async () => {
   expect(play).not.toHaveBeenCalled();
   wrapper.unmount();
 });
-

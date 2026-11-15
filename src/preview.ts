@@ -16,7 +16,8 @@ import { useRecordingsStore } from "./stores/recordings";
  *  `report=book-0` that book's sync report */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
-  const view = query.get("view") as View | null, settings = query.get("settings") as SettingsTab | null;
+  const view = query.get("view") as View | null,
+    settings = query.get("settings") as SettingsTab | null;
   if (settings) useNavigationStore().openSettings(settings);
   for (const id of query.get("prepare")?.split(",").filter(Boolean) ?? []) await api.prepareBook(id);
   if (query.has("shelves")) {
@@ -32,23 +33,34 @@ export async function applyPreviewParams(search = location.search) {
   const pair = query.get("pair");
   if (pair) useRecordingsStore().openPairing(pair.split(","), query.get("book"));
   const report = query.get("report");
-  if (report) { await useRecordingsStore().start(); useRecordingsStore().openReport(report); }
+  if (report) {
+    await useRecordingsStore().start();
+    useRecordingsStore().openReport(report);
+  }
   if (!view) return;
-  const reader = useReaderStore(), player = usePlayerStore(), navigation = useNavigationStore();
+  const reader = useReaderStore(),
+    player = usePlayerStore(),
+    navigation = useNavigationStore();
   const book = query.get("book") ?? "book-0";
   if (view === "reader" || query.has("play")) await reader.open(book);
   if (query.has("play")) {
     await player.play(book, Number(query.get("chapter") ?? 0), null);
     const ms = Number(query.get("play"));
-    if (ms > 0) setTimeout(() => { void player.pause(); }, ms);
+    if (ms > 0)
+      setTimeout(() => {
+        void player.pause();
+      }, ms);
   }
   if (view === "book") navigation.openBook(book);
   else navigation.view = view;
   const tools = query.get("tools");
-  if (tools) setTimeout(() => {
-    document.querySelector<HTMLElement>('[aria-label="Player"] [aria-label="Book tools"]')?.click();
-    setTimeout(() => document.querySelector<HTMLElement>(`#book-tools-tab-${tools}`)?.click(), 100);
-  }, 300);
+  if (tools)
+    setTimeout(() => {
+      document.querySelector<HTMLElement>('[aria-label="Player"] [aria-label="Book tools"]')?.click();
+      setTimeout(() => document.querySelector<HTMLElement>(`#book-tools-tab-${tools}`)?.click(), 100);
+    }, 300);
   const clicks = query.get("click")?.split("|").filter(Boolean) ?? [];
-  clicks.forEach((selector, i) => setTimeout(() => document.querySelector<HTMLElement>(selector)?.click(), 600 + i * 300));
+  clicks.forEach((selector, i) =>
+    setTimeout(() => document.querySelector<HTMLElement>(selector)?.click(), 600 + i * 300),
+  );
 }

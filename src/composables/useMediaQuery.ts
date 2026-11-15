@@ -4,8 +4,14 @@ import { onMounted, onUnmounted, ref } from "vue";
 export function useMediaQuery(query: string) {
   const matches = ref(false);
   let list: MediaQueryList | undefined;
-  const update = () => { matches.value = Boolean(list?.matches); };
-  onMounted(() => { list = typeof window.matchMedia === "function" ? window.matchMedia(query) : undefined; update(); list?.addEventListener?.("change", update); });
+  const update = () => {
+    matches.value = Boolean(list?.matches);
+  };
+  onMounted(() => {
+    list = typeof window.matchMedia === "function" ? window.matchMedia(query) : undefined;
+    update();
+    list?.addEventListener?.("change", update);
+  });
   onUnmounted(() => list?.removeEventListener?.("change", update));
   return matches;
 }

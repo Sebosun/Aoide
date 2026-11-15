@@ -12,14 +12,29 @@ import { useReaderStore } from "../stores/reader";
 import { useRecordingsStore } from "../stores/recordings";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
-vi.mock("../api", () => ({ get api() { return backend.api; } }));
+vi.mock("../api", () => ({
+  get api() {
+    return backend.api;
+  },
+}));
 let mock: ReturnType<typeof createMockApi>;
-beforeEach(() => { setActivePinia(createPinia()); mock = createMockApi(); backend.api = mock; });
-afterEach(() => { mock.dispose(); document.body.innerHTML = ""; });
+beforeEach(() => {
+  setActivePinia(createPinia());
+  mock = createMockApi();
+  backend.api = mock;
+});
+afterEach(() => {
+  mock.dispose();
+  document.body.innerHTML = "";
+});
 
 const dialog = (label: string) => document.body.querySelector<HTMLElement>(`[role="dialog"][aria-label="${label}"]`);
-const click = async (element: HTMLElement | null | undefined) => { element!.click(); await flushPromises(); };
-const byText = (root: ParentNode, selector: string, text: string) => [...root.querySelectorAll<HTMLElement>(selector)].find(e => e.textContent?.includes(text));
+const click = async (element: HTMLElement | null | undefined) => {
+  element!.click();
+  await flushPromises();
+};
+const byText = (root: ParentNode, selector: string, text: string) =>
+  [...root.querySelectorAll<HTMLElement>(selector)].find((e) => e.textContent?.includes(text));
 
 it("pairs dropped audio with the suggested book and shows its sync on the book's page", async () => {
   mount(App, { attachTo: document.body });
@@ -44,7 +59,9 @@ it("refuses DRM-protected files and says why", async () => {
   useRecordingsStore().openPairing(["~/Audiobooks/lantern.aax"], "book-0");
   await flushPromises();
   const pair = dialog("Pair an audiobook")!;
-  expect(pair.querySelector('[aria-label="Files that cannot be used"]')?.textContent).toContain("Protected by Audible DRM");
+  expect(pair.querySelector('[aria-label="Files that cannot be used"]')?.textContent).toContain(
+    "Protected by Audible DRM",
+  );
   expect(byText(pair, "button", "Check and sync")!.hasAttribute("disabled")).toBe(true);
 });
 
@@ -60,7 +77,10 @@ it("switches narration once part of the recording is synced", async () => {
   await flushPromises();
   expect(wrapper.text()).toContain("Syncing");
   expect(wrapper.find('[aria-label="Pause syncing"]').exists()).toBe(true);
-  expect(wrapper.get('[role="radio"]:first-child').attributes("disabled"), "what is synced can be listened to").toBeUndefined();
+  expect(
+    wrapper.get('[role="radio"]:first-child').attributes("disabled"),
+    "what is synced can be listened to",
+  ).toBeUndefined();
 
   mock.setRecordingForTest("book-0", "ready", "speech");
   await flushPromises();
@@ -85,7 +105,10 @@ it("lets the speech engine speak what the recording lacks, only when asked", asy
 
   await wrapper.get('[role="radio"]:last-child').trigger("click");
   await flushPromises();
-  expect(wrapper.find('[aria-label="Speak what the recording lacks with the speech engine"]').exists(), "only for the recording").toBe(false);
+  expect(
+    wrapper.find('[aria-label="Speak what the recording lacks with the speech engine"]').exists(),
+    "only for the recording",
+  ).toBe(false);
 });
 
 it("lists recordings being synced in the queue with their pause button", async () => {
@@ -95,7 +118,7 @@ it("lists recordings being synced in the queue with their pause button", async (
   await flushPromises();
   await click(document.body.querySelector<HTMLElement>("header .engine-pill"));
   const rows = [...document.body.querySelectorAll<HTMLElement>('[aria-label="Recordings being synced"] > li')];
-  expect(rows.map(r => r.textContent)).toEqual([expect.stringContaining("A Map of Quiet Places")]);
+  expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining("A Map of Quiet Places")]);
   expect(rows[0].textContent).toContain("about 14 min left");
   const pause = vi.spyOn(mock, "syncAction");
   await click(rows[0].querySelector<HTMLElement>('[aria-label="Pause syncing A Map of Quiet Places"]'));
@@ -162,7 +185,7 @@ it("marks the sentences the recording lacks, and says so when it lacks the whole
   await flushPromises();
   const segments = wrapper.findAll(".chapter-text__segment");
   expect(segments.length).toBeGreaterThan(0);
-  expect(segments.every(s => s.classes("chapter-text__segment--unnarrated"))).toBe(true);
+  expect(segments.every((s) => s.classes("chapter-text__segment--unnarrated"))).toBe(true);
   expect(wrapper.text()).toContain("This chapter is not in the recording");
 });
 
@@ -174,7 +197,13 @@ it("tells a book's listening progress apart from its recording's sync on the car
   const { default: LibraryView } = await import("../views/LibraryView.vue");
   const wrapper = mount(LibraryView, { attachTo: document.body });
   await flushPromises();
-  const card = (title: string) => wrapper.findAll(".book-card").find(c => c.text().includes(title))!.findAll(".book-card__line").at(-1)!.text();
+  const card = (title: string) =>
+    wrapper
+      .findAll(".book-card")
+      .find((c) => c.text().includes(title))!
+      .findAll(".book-card__line")
+      .at(-1)!
+      .text();
   expect(card("A Map of Quiet Places")).toBe("Syncing recording");
   expect(card("The Lantern Keeper")).toBe("12% · narrated recording");
   wrapper.unmount();
@@ -209,7 +238,10 @@ it("lets files be put in order by hand before pairing", async () => {
   useRecordingsStore().openPairing(paths, "book-0");
   await flushPromises();
   const pair = dialog("Pair an audiobook")!;
-  const order = () => [...pair.querySelectorAll('[aria-label="Audio files in order"] li')].map(li => li.querySelector(".pair__name")?.textContent);
+  const order = () =>
+    [...pair.querySelectorAll('[aria-label="Audio files in order"] li')].map(
+      (li) => li.querySelector(".pair__name")?.textContent,
+    );
   expect(order()).toEqual(["part-a.mp3", "part-b.mp3"]);
   expect(pair.querySelector<HTMLButtonElement>('[aria-label="Move part-a.mp3 earlier"]')!.disabled).toBe(true);
   await click(pair.querySelector<HTMLElement>('[aria-label="Move part-b.mp3 earlier"]'));
@@ -230,8 +262,8 @@ it("exports a synced book as a read-along EPUB from its card and its recording p
   await flushPromises();
   await library.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
   const labels = () => [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')];
-  expect(labels().map(m => m.textContent?.trim())).not.toContain("Export as M4B");
-  await click(labels().find(m => m.textContent?.includes("Export read-along EPUB")));
+  expect(labels().map((m) => m.textContent?.trim())).not.toContain("Export as M4B");
+  await click(labels().find((m) => m.textContent?.includes("Export read-along EPUB")));
   expect(exportReadAlong).toHaveBeenCalledWith("book-0");
   expect(host.text()).toContain("Exported to ~/Documents/Aoide/Exports/The Lantern Keeper (read-along).epub");
   library.unmount();

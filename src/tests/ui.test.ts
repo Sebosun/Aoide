@@ -9,8 +9,13 @@ import UiHost from "../components/ui/UiHost.vue";
 import { useUiStore } from "../stores/ui";
 import { choose, optionLabels } from "./helpers";
 
-beforeEach(() => { setActivePinia(createPinia()); });
-afterEach(() => { vi.useRealTimers(); document.body.innerHTML = ""; });
+beforeEach(() => {
+  setActivePinia(createPinia());
+});
+afterEach(() => {
+  vi.useRealTimers();
+  document.body.innerHTML = "";
+});
 
 const FRUIT = [
   { value: "a", label: "Apple" },
@@ -21,12 +26,29 @@ const FRUIT = [
 ];
 function fruit(initial = "b") {
   const value = ref(initial);
-  const Host = defineComponent(() => () => h("div", [h(UiSelect, { modelValue: value.value, "onUpdate:modelValue": (v: string | number) => { value.value = String(v); }, options: FRUIT, label: "Fruit" }), h("button", "after")]));
+  const Host = defineComponent(
+    () => () =>
+      h("div", [
+        h(UiSelect, {
+          modelValue: value.value,
+          "onUpdate:modelValue": (v: string | number) => {
+            value.value = String(v);
+          },
+          options: FRUIT,
+          label: "Fruit",
+        }),
+        h("button", "after"),
+      ]),
+  );
   return { value, wrapper: mount(Host, { attachTo: document.body }) };
 }
 const listbox = () => document.body.querySelector<HTMLElement>('[role="listbox"]');
-const active = () => document.getElementById(listbox()?.getAttribute("aria-activedescendant") ?? "")?.textContent?.trim();
-const key = (key: string) => { listbox()!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })); return flushPromises(); };
+const active = () =>
+  document.getElementById(listbox()?.getAttribute("aria-activedescendant") ?? "")?.textContent?.trim();
+const key = (key: string) => {
+  listbox()!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+  return flushPromises();
+};
 
 it("shows the chosen option and opens a listbox on the selected one", async () => {
   const { wrapper } = fruit();
@@ -87,7 +109,9 @@ it("picks an option with a click, and ignores disabled ones", async () => {
   const { wrapper, value } = fruit();
   await wrapper.get('[aria-label="Fruit"]').trigger("click");
   await flushPromises();
-  [...document.body.querySelectorAll<HTMLElement>('[role="option"]')].find(o => o.textContent?.includes("Cherry"))!.click();
+  [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+    .find((o) => o.textContent?.includes("Cherry"))!
+    .click();
   await flushPromises();
   expect(value.value).toBe("b");
   await choose(wrapper, "Fruit", "Date");
@@ -101,7 +125,12 @@ it("asks for confirmation in a modal and resolves with the answer", async () => 
   const opener = document.createElement("button");
   document.body.append(opener);
   opener.focus();
-  const answer = ui.confirm({ title: "Remove The Lantern Keeper?", body: "The EPUB file stays on disk.", confirmLabel: "Remove", danger: true });
+  const answer = ui.confirm({
+    title: "Remove The Lantern Keeper?",
+    body: "The EPUB file stays on disk.",
+    confirmLabel: "Remove",
+    danger: true,
+  });
   await flushPromises();
   const dialog = host.get('[role="alertdialog"]');
   expect(dialog.attributes("aria-modal")).toBe("true");
@@ -134,25 +163,53 @@ it("shows short messages as toasts that fade after a few seconds", async () => {
 });
 
 function menu() {
-  const picked: string[] = [], checked = ref(false);
-  const Host = defineComponent(() => () => h(UiMenu, {
-    label: "Actions",
-    items: [
-      { id: "open", label: "Open", action: () => picked.push("open") },
-      { id: "locked", label: "Locked", disabled: true, action: () => picked.push("locked") },
-      { kind: "separator" },
-      { kind: "heading", label: "Shelves" },
-      { id: "night", label: "Night reading", checked: checked.value, action: () => { checked.value = !checked.value; picked.push("night"); } },
-      { kind: "separator" },
-      { id: "remove", label: "Remove", ariaLabel: "Remove the book", danger: true, action: () => picked.push("remove") },
-      { kind: "note", label: "Or drop files here." },
-    ] satisfies MenuEntry[],
-  }, { default: ({ toggle, trigger }: { toggle: () => void; trigger: Record<string, unknown> }) => h("button", { ...trigger, "aria-label": "More", onClick: toggle }, "More") }));
+  const picked: string[] = [],
+    checked = ref(false);
+  const Host = defineComponent(
+    () => () =>
+      h(
+        UiMenu,
+        {
+          label: "Actions",
+          items: [
+            { id: "open", label: "Open", action: () => picked.push("open") },
+            { id: "locked", label: "Locked", disabled: true, action: () => picked.push("locked") },
+            { kind: "separator" },
+            { kind: "heading", label: "Shelves" },
+            {
+              id: "night",
+              label: "Night reading",
+              checked: checked.value,
+              action: () => {
+                checked.value = !checked.value;
+                picked.push("night");
+              },
+            },
+            { kind: "separator" },
+            {
+              id: "remove",
+              label: "Remove",
+              ariaLabel: "Remove the book",
+              danger: true,
+              action: () => picked.push("remove"),
+            },
+            { kind: "note", label: "Or drop files here." },
+          ] satisfies MenuEntry[],
+        },
+        {
+          default: ({ toggle, trigger }: { toggle: () => void; trigger: Record<string, unknown> }) =>
+            h("button", { ...trigger, "aria-label": "More", onClick: toggle }, "More"),
+        },
+      ),
+  );
   const wrapper = mount(Host, { attachTo: document.body });
   return { wrapper, picked, button: wrapper.get('[aria-label="More"]') };
 }
 const menuList = () => document.body.querySelector<HTMLElement>('[role="menu"]');
-const menuKey = (key: string) => { document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })); return flushPromises(); };
+const menuKey = (key: string) => {
+  document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+  return flushPromises();
+};
 
 it("opens a menu from its button with items, a checkable item, groups and a note", async () => {
   const { wrapper, picked, button } = menu();
@@ -163,8 +220,16 @@ it("opens a menu from its button with items, a checkable item, groups and a note
   await flushPromises();
   expect(button.attributes("aria-expanded")).toBe("true");
   expect(menuList()!.getAttribute("aria-label")).toBe("Actions");
-  expect([...menuList()!.querySelectorAll('[role="menuitem"]')].map(i => i.textContent?.trim())).toEqual(["Open", "Locked", "Remove"]);
-  expect(menuList()!.querySelector('[role="group"][aria-label="Shelves"] [role="menuitemcheckbox"]')!.getAttribute("aria-checked")).toBe("false");
+  expect([...menuList()!.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent?.trim())).toEqual([
+    "Open",
+    "Locked",
+    "Remove",
+  ]);
+  expect(
+    menuList()!
+      .querySelector('[role="group"][aria-label="Shelves"] [role="menuitemcheckbox"]')!
+      .getAttribute("aria-checked"),
+  ).toBe("false");
   expect(menuList()!.querySelector('[aria-label="Remove the book"]')).not.toBeNull();
   expect(menuList()!.textContent).toContain("Or drop files here.");
 
