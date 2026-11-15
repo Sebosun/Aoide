@@ -165,6 +165,7 @@ mod tests {
                         language: None,
                         cover_path: Some(old_data.join("covers/a.jpg")),
                         error: None,
+                        kind: aoide_library::ItemKind::Book,
                     },
                     1,
                 )

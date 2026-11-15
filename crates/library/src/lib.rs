@@ -35,6 +35,7 @@ pub enum BookStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewBook {
     pub id: BookId,
+    pub kind: ItemKind,
     pub path: PathBuf,
     pub title: Option<String>,
     pub authors: Vec<String>,
@@ -60,6 +61,40 @@ pub struct BookRecord {
     pub finished_at: Option<i64>,
     /// Its length in words, once it has been parsed.
     pub word_count: Option<u32>,
+    pub kind: ItemKind,
+}
+
+/// What a library item is.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub enum ItemKind {
+    /// An EPUB, possibly with a recording paired to it.
+    #[default]
+    Book,
+    /// A recording with no text (`path` is its M4B or its folder).
+    Audiobook,
+    /// A web article (phase 4).
+    Article,
+}
+
+impl ItemKind {
+    pub(crate) fn column(self) -> &'static str {
+        match self {
+            Self::Book => "book",
+            Self::Audiobook => "audiobook",
+            Self::Article => "article",
+        }
+    }
+
+    pub(crate) fn from_column(text: &str) -> Result<Self> {
+        match text {
+            "book" => Ok(Self::Book),
+            "audiobook" => Ok(Self::Audiobook),
+            "article" => Ok(Self::Article),
+            other => Err(LibraryError::Corrupt(format!("unknown item kind {other}"))),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -71,6 +106,9 @@ pub struct Progress {
     /// Segment ID hint; the char offset is authoritative.
     pub segment_id: Option<String>,
     pub updated_at: i64,
+    /// For an audiobook, the place on its recording's timeline (`chapter` is the part,
+    /// `char_offset` 0); `None` for text.
+    pub position_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -159,12 +197,13 @@ impl Library {
         let authors = store::json(&book.authors)?;
         self.conn.execute(
             "INSERT INTO books
-             (id, path, status, error, title, authors, language, cover_path, added_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+             (id, path, status, error, title, authors, language, cover_path, added_at, kind)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
              ON CONFLICT(id) DO UPDATE SET
              path = excluded.path, status = excluded.status, error = excluded.error,
              title = excluded.title, authors = excluded.authors,
-             language = excluded.language, cover_path = excluded.cover_path",
+             language = excluded.language, cover_path = excluded.cover_path,
+             kind = excluded.kind",
             rusqlite::params![
                 book.id.0,
                 store::path_text(&book.path)?,
@@ -182,6 +221,7 @@ impl Library {
                     .map(store::path_text)
                     .transpose()?,
                 now,
+                book.kind.column(),
             ],
         )?;
         Ok(())
@@ -277,33 +317,41 @@ impl Library {
 
     pub fn save_progress(&self, id: &BookId, progress: &Progress) -> Result<()> {
         self.conn.execute(
-            "INSERT INTO progress (book_id, chapter, char_offset, segment_id, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5)
+            "INSERT INTO progress (book_id, chapter, char_offset, segment_id, updated_at, position_ms)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(book_id) DO UPDATE SET chapter = excluded.chapter,
              char_offset = excluded.char_offset, segment_id = excluded.segment_id,
-             updated_at = excluded.updated_at",
+             updated_at = excluded.updated_at, position_ms = excluded.position_ms",
             rusqlite::params![
                 id.0,
                 progress.chapter,
                 progress.char_offset,
                 progress.segment_id,
-                progress.updated_at
+                progress.updated_at,
+                progress.position_ms,
             ],
         )?;
         Ok(())
     }
 
     pub fn progress(&self, id: &BookId) -> Result<Option<Progress>> {
-        Ok(self.conn.query_row(
-            "SELECT chapter, char_offset, segment_id, updated_at FROM progress WHERE book_id = ?1",
-            [&id.0],
-            |row| Ok(Progress {
-                chapter: row.get(0)?,
-                char_offset: row.get(1)?,
-                segment_id: row.get(2)?,
-                updated_at: row.get(3)?,
-            }),
-        ).optional()?)
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT chapter, char_offset, segment_id, updated_at, position_ms FROM progress
+             WHERE book_id = ?1",
+                [&id.0],
+                |row| {
+                    Ok(Progress {
+                        chapter: row.get(0)?,
+                        char_offset: row.get(1)?,
+                        segment_id: row.get(2)?,
+                        updated_at: row.get(3)?,
+                        position_ms: row.get(4)?,
+                    })
+                },
+            )
+            .optional()?)
     }
 
     /// Inserts or replaces the segment with the same key.
@@ -399,11 +447,31 @@ impl Library {
         Ok(self.conn.last_insert_rowid())
     }
 
+    /// Adds a bookmark at `position_ms` on an audiobook's timeline, in part `part`, and returns
+    /// its id.
+    pub fn add_time_bookmark(
+        &self,
+        book: &BookId,
+        part: u32,
+        position_ms: u64,
+        excerpt: &str,
+        now: i64,
+    ) -> Result<i64> {
+        self.conn.execute(
+            "INSERT INTO bookmarks
+             (book_id, chapter, char_offset, segment_id, excerpt, note, created_at, position_ms)
+             VALUES (?1, ?2, 0, NULL, ?3, '', ?4, ?5)",
+            rusqlite::params![book.0, part, excerpt, now, position_ms],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
     /// The book's bookmarks ordered by chapter, then offset, then creation time.
     pub fn bookmarks(&self, book: &BookId) -> Result<Vec<Bookmark>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, book_id, chapter, char_offset, segment_id, excerpt, note, created_at
-             FROM bookmarks WHERE book_id = ?1 ORDER BY chapter, char_offset, created_at",
+            "SELECT id, book_id, chapter, char_offset, segment_id, excerpt, note, created_at,
+             position_ms FROM bookmarks WHERE book_id = ?1
+             ORDER BY chapter, char_offset, position_ms, created_at",
         )?;
         let rows = stmt.query_map([&book.0], |row| {
             Ok(Bookmark {
@@ -415,6 +483,7 @@ impl Library {
                 excerpt: row.get(5)?,
                 note: row.get(6)?,
                 created_at: row.get(7)?,
+                position_ms: row.get(8)?,
             })
         })?;
         Ok(rows.collect::<std::result::Result<_, _>>()?)
@@ -968,6 +1037,8 @@ pub struct Bookmark {
     pub excerpt: String,
     pub note: String,
     pub created_at: i64,
+    /// For an audiobook, the place on its timeline; `None` for text.
+    pub position_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]

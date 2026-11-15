@@ -168,6 +168,7 @@ mod tests {
                 fraction,
             }),
             audio_bytes: 0,
+            kind: aoide_library::ItemKind::Book,
             audio: AudioSource::None,
             mode: crate::core::ReadingMode::Read,
             shape: crate::core::Shape::Read,

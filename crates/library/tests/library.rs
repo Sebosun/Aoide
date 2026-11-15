@@ -14,6 +14,7 @@ fn book(id: &str, path: &str) -> NewBook {
         language: Some("en".into()),
         cover_path: None,
         error: None,
+        kind: aoide_library::ItemKind::Book,
     }
 }
 
@@ -128,6 +129,7 @@ fn progress_round_trips_and_is_replaced() {
         char_offset: 40,
         segment_id: Some("2:3".into()),
         updated_at: 5,
+        position_ms: None,
     };
     lib.save_progress(&id, &first).unwrap();
     assert_eq!(lib.progress(&id).unwrap(), Some(first));
@@ -136,6 +138,7 @@ fn progress_round_trips_and_is_replaced() {
         char_offset: 0,
         segment_id: None,
         updated_at: 6,
+        position_ms: None,
     };
     lib.save_progress(&id, &second).unwrap();
     assert_eq!(lib.progress(&id).unwrap(), Some(second));
@@ -211,6 +214,7 @@ fn removing_a_book_drops_progress_and_segments_and_returns_files() {
             char_offset: 1,
             segment_id: None,
             updated_at: 1,
+            position_ms: None,
         },
     )
     .unwrap();

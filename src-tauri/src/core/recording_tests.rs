@@ -244,6 +244,7 @@ fn the_sync_job_runs_on_its_own_and_tells_its_host_how_far_it_got() {
         language: Some("en".into()),
         cover_path: None,
         error: None,
+        kind: aoide_library::ItemKind::Book,
     };
     library.upsert_book(&book, 0).unwrap();
     let host = TestHost {

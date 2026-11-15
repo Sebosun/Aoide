@@ -25,6 +25,8 @@ pub struct BookSummary {
     pub cover_path: Option<String>,
     pub progress: Option<BookProgressView>,
     pub audio_bytes: u64,
+    /// A book (EPUB), an audiobook on its own, or an article.
+    pub kind: aoide_library::ItemKind,
     /// What plays if the user listens.
     pub audio: super::facets::AudioSource,
     /// Read silently or listened to.

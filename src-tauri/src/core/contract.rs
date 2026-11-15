@@ -33,6 +33,7 @@ fn contract() -> String {
         // Library
         aoide_library::BookId,
         aoide_library::BookStatus,
+        aoide_library::ItemKind,
         aoide_library::Collection,
         super::BookProgressView,
         super::facets::AudioSource,

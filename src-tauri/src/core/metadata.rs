@@ -180,6 +180,7 @@ impl Metadata {
                                 language: record.language,
                                 cover_path: Some(path),
                                 error: None,
+                                kind: aoide_library::ItemKind::Book,
                             },
                             now_ms(),
                         );

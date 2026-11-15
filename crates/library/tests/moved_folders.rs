@@ -13,6 +13,7 @@ fn add(lib: &Library, id: &str, path: &str, cover: Option<&str>) {
             language: None,
             cover_path: cover.map(PathBuf::from),
             error: None,
+            kind: aoide_library::ItemKind::Book,
         },
         1,
     )

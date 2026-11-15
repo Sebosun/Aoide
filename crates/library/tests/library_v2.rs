@@ -136,6 +136,7 @@ fn version_one_database_migrates_in_place_and_preserves_existing_data() {
             char_offset: 30,
             segment_id: Some("s".into()),
             updated_at: 40,
+            position_ms: None,
         })
     );
     let mut expected_segment = segment("old", &id, 456, 50);
@@ -353,6 +354,7 @@ fn book(lib: &Library, id: &str) -> BookId {
             language: None,
             cover_path: None,
             error: None,
+            kind: aoide_library::ItemKind::Book,
         },
         10,
     )
@@ -425,6 +427,7 @@ fn bookmarks_round_trip_and_sort_by_position_then_creation() {
             excerpt: "Excerpt 雪".into(),
             note: "note'".into(),
             created_at: 99,
+            position_ms: None,
         }
     );
 }

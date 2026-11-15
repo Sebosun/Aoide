@@ -582,6 +582,7 @@ mod tests {
                 language: None,
                 cover_path: None,
                 error: None,
+                kind: aoide_library::ItemKind::Book,
             };
             library.upsert_book(&book, 0).unwrap();
         }

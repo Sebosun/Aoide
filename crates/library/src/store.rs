@@ -2,14 +2,14 @@ use std::path::{Path, PathBuf};
 
 use rusqlite::{Connection, Row};
 
-use crate::{BookId, BookRecord, BookStatus, Library, LibraryError, Result};
+use crate::{BookId, BookRecord, BookStatus, ItemKind, Library, LibraryError, Result};
 
 impl Library {
     pub(super) fn initialize(mut conn: Connection) -> Result<Self> {
         conn.pragma_update(None, "foreign_keys", true)?;
         let tx = conn.transaction()?;
         let version: i64 = tx.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if !(0..=8).contains(&version) {
+        if !(0..=9).contains(&version) {
             return Err(LibraryError::Corrupt(format!(
                 "unsupported schema version {version}"
             )));
@@ -190,6 +190,17 @@ impl Library {
             )?;
             tx.pragma_update(None, "user_version", 8)?;
         }
+        if version <= 8 {
+            // Items that are not EPUBs: an audiobook on its own (and, later, an article). An
+            // audiobook's place is a time on its recording, not a character offset.
+            tx.execute_batch(
+                "ALTER TABLE books ADD COLUMN kind TEXT NOT NULL DEFAULT 'book'
+                    CHECK(kind IN ('book', 'audiobook', 'article'));
+                ALTER TABLE progress ADD COLUMN position_ms INTEGER CHECK(position_ms >= 0);
+                ALTER TABLE bookmarks ADD COLUMN position_ms INTEGER CHECK(position_ms >= 0);",
+            )?;
+            tx.pragma_update(None, "user_version", 9)?;
+        }
         tx.commit()?;
         Ok(Self { conn })
     }
@@ -232,6 +243,7 @@ pub(super) fn read_book(row: &Row<'_>) -> Result<BookRecord> {
         last_opened_at: row.get("last_opened_at")?,
         finished_at: row.get("finished_at")?,
         word_count: row.get("word_count")?,
+        kind: ItemKind::from_column(&row.get::<_, String>("kind")?)?,
     })
 }
 

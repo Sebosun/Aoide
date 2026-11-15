@@ -928,6 +928,7 @@ export function createMockApi() {
         excerpt: segment ? segment.words.slice(0, 12).join(" ") : "",
         note,
         createdAt: Math.floor(Date.now() / 1000),
+        positionMs: null,
       };
       bookmarks.push(mark);
       return structuredClone(mark);

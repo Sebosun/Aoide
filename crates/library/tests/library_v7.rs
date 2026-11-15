@@ -13,6 +13,7 @@ fn book(lib: &Library, id: &str) -> BookId {
             language: None,
             cover_path: None,
             error: None,
+            kind: aoide_library::ItemKind::Book,
         },
         10,
     )
@@ -30,7 +31,7 @@ fn a_version_6_library_keeps_every_stored_value_readable_through_its_key() {
     }
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch(
-        r#"DROP TABLE IF EXISTS reading; ALTER TABLE books DROP COLUMN finished_at; ALTER TABLE books DROP COLUMN word_count; DROP TABLE book_values; PRAGMA user_version = 6;
+        r#"ALTER TABLE books DROP COLUMN kind; ALTER TABLE progress DROP COLUMN position_ms; ALTER TABLE bookmarks DROP COLUMN position_ms; DROP TABLE IF EXISTS reading; ALTER TABLE books DROP COLUMN finished_at; ALTER TABLE books DROP COLUMN word_count; DROP TABLE book_values; PRAGMA user_version = 6;
         INSERT INTO settings (key, value) VALUES
             ('book.a.settings', '{"voice":"Wren"}'),
             ('progress.fraction.a', '0.25'),

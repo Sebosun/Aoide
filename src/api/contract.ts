@@ -5,6 +5,8 @@ export type BookId = string;
 
 export type BookStatus = { "kind": "present" } | { "kind": "missing" } | { "kind": "error", "message": string };
 
+export type ItemKind = "book" | "audiobook" | "article";
+
 export type Collection = { id: number, name: string, createdAt: number, 
 /**
  * Books on it.
@@ -22,6 +24,10 @@ export type Shape = "read" | "readAlong" | "listen";
 export type ReadState = "unread" | "inProgress" | "finished";
 
 export type BookSummary = { id: string, title: string, authors: Array<string>, language: string | null, status: BookStatus, coverPath: string | null, progress: BookProgress | null, audioBytes: number, 
+/**
+ * A book (EPUB), an audiobook on its own, or an article.
+ */
+kind: ItemKind, 
 /**
  * What plays if the user listens.
  */
@@ -290,7 +296,11 @@ export type Bookmark = { id: number, bookId: BookId, chapter: number, charOffset
 /**
  * Short excerpt of the text at the position, for display.
  */
-excerpt: string, note: string, createdAt: number, };
+excerpt: string, note: string, createdAt: number, 
+/**
+ * For an audiobook, the place on its timeline; `None` for text.
+ */
+positionMs: number | null, };
 
 export type DayListening = { 
 /**

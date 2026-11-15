@@ -115,6 +115,7 @@ impl Shelf {
                     language: record.language,
                     cover_path: record.cover_path,
                     error: None,
+                    kind: aoide_library::ItemKind::Book,
                 },
                 existing => {
                     if existing.is_none() {
@@ -182,6 +183,7 @@ impl Shelf {
                     language: book.language,
                     cover_path,
                     error: None,
+                    kind: aoide_library::ItemKind::Book,
                 }
             }
             Err(error) => NewBook {
@@ -192,6 +194,7 @@ impl Shelf {
                 language: None,
                 cover_path: None,
                 error: Some(error),
+                kind: aoide_library::ItemKind::Book,
             },
         }
     }
@@ -392,6 +395,7 @@ impl Shelf {
         let progress = self.progress(&record.id);
         BookSummary {
             prepare,
+            kind: record.kind,
             audio,
             mode,
             shape: reading::shape(true, mode),

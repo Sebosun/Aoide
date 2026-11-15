@@ -70,6 +70,7 @@ impl Place {
                         char_offset: segment.range.start as u32,
                         segment_id: Some(segment.id.clone()),
                         updated_at: super::now_ms(),
+                        position_ms: None,
                     },
                 )
                 .and_then(|()| {

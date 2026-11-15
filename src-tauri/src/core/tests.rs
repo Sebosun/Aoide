@@ -686,6 +686,7 @@ pub(super) fn library_with(ids: &[&str]) -> Arc<Mutex<Library>> {
                     language: None,
                     cover_path: None,
                     error: None,
+                    kind: aoide_library::ItemKind::Book,
                 },
                 0,
             )
