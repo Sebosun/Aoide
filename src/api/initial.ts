@@ -16,6 +16,9 @@ export const initialPlayer = (): PlayerState => ({
   offText: false,
   chapterLeftMs: null,
   waitingForSync: false,
+  positionMs: null,
+  durationMs: null,
+  partPositionMs: null,
 });
 /** What generation shows before the core has said anything: idle, no book. */
 export const initialGeneration = (): GenerationState => ({

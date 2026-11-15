@@ -103,6 +103,9 @@ mod tests {
             off_text: false,
             chapter_left_ms: None,
             waiting_for_sync: false,
+            position_ms: None,
+            duration_ms: None,
+            part_position_ms: None,
         }
     }
 

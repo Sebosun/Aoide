@@ -190,6 +190,10 @@ export interface AoideApi {
   searchBook(bookId: string, query: string): Promise<SearchHit[]>;
   /** Jump to the start of the next (+1) or previous (-1) chapter of the playing book. */
   skipChapter(delta: number): Promise<void>;
+  /** Moves to positionMs on an audiobook's timeline (its saved place when it is not playing). */
+  seek(bookId: string, positionMs: number): Promise<void>;
+  /** Moves deltaMs back or forward on an audiobook's timeline (the ±30 s buttons). */
+  skip(bookId: string, deltaMs: number): Promise<void>;
   /** Bookmarks of a book, in reading order. */
   bookmarks(bookId: string): Promise<Bookmark[]>;
   /** Bookmarks the current playhead (or the saved position of bookId when not playing it). */

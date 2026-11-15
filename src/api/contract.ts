@@ -198,7 +198,12 @@ chapterLeftMs: number | null,
  * The recording is being listened to while it syncs, and the sync has not reached the
  * playhead yet: playback waits for it.
  */
-waitingForSync: boolean, };
+waitingForSync: boolean, 
+/**
+ * For an audiobook on its own: the playhead on the whole recording, its length, and how
+ * far into the part (`chapter`) the playhead is.
+ */
+positionMs: number | null, durationMs: number | null, partPositionMs: number | null, };
 
 export type EngineState = "offline" | "loading" | "ready" | "busy" | "error";
 
@@ -753,6 +758,8 @@ export type Commands = {
   "set_sleep_timer": { args: { minutes: number | null; endOfChapter: boolean }; result: void };
   "search_book": { args: { bookId: string; query: string }; result: SearchHit[] };
   "skip_chapter": { args: { delta: number }; result: void };
+  "seek": { args: { bookId: string; positionMs: number }; result: void };
+  "skip": { args: { bookId: string; deltaMs: number }; result: void };
   "bookmarks": { args: { bookId: string }; result: Bookmark[] };
   "add_bookmark": { args: { bookId: string; note: string }; result: Bookmark };
   "update_bookmark_note": { args: { id: number; note: string }; result: void };

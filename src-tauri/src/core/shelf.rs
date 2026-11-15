@@ -593,7 +593,7 @@ impl ShelfHost for super::Core {
     }
 
     fn playing(&self) -> Option<String> {
-        self.playback.book().map(|book| book.id.clone())
+        self.playback.playing_id()
     }
 
     fn prepare_of(&self, id: &str) -> Option<PrepareView> {

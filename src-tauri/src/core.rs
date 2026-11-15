@@ -63,6 +63,7 @@ pub use recording::{
 #[cfg(any(test, debug_assertions))]
 pub use syncing::Stage as SyncStage;
 mod session;
+mod timeline;
 mod voicing;
 mod wire;
 pub use wire::*;
@@ -354,6 +355,9 @@ impl Core {
         chapter: Option<usize>,
         segment_id: Option<String>,
     ) -> Result<(), String> {
+        if self.kind_of(book_id) == Some(aoide_library::ItemKind::Audiobook) {
+            return self.play_timeline(book_id, chapter);
+        }
         let book = self.load_book(book_id)?;
         // Playing an item by any route means listening to it.
         self.choose_mode(book_id, reading::ModeEvent::ListenChosen)?;
@@ -482,13 +486,20 @@ impl Core {
                 self.pause();
             }
             self.listening.track(&state);
-            let now_playing = |chapter| {
-                let book = self.playback.book()?;
-                Some(controls::NowPlaying::of(
+            let now_playing = |chapter| match self.playback.book() {
+                Some(book) => Some(controls::NowPlaying::of(
                     &book,
                     chapter,
                     self.shelf.cover(&book.id),
-                ))
+                )),
+                None => {
+                    let timeline = self.playback.timeline()?;
+                    Some(controls::NowPlaying::of_timeline(
+                        &timeline,
+                        chapter,
+                        self.shelf.cover(&timeline.id),
+                    ))
+                }
             };
             if let Some(state) = self.controls.observe(state, &now_playing) {
                 self.emit(CoreEvent::PlayerState(state));

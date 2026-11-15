@@ -12,5 +12,8 @@
   "source": "speech",
   "offText": false,
   "chapterLeftMs": null,
-  "waitingForSync": false
+  "waitingForSync": false,
+  "positionMs": null,
+  "durationMs": null,
+  "partPositionMs": null
 }

@@ -36,6 +36,24 @@ impl NowPlaying {
             cover,
         }
     }
+
+    /// What shows while `part` of audiobook `timeline` plays, with its `cover`.
+    pub fn of_timeline(
+        timeline: &super::timeline::Timeline,
+        part: usize,
+        cover: Option<String>,
+    ) -> Self {
+        Self {
+            title: timeline
+                .parts
+                .get(part)
+                .map(|p| p.title.clone())
+                .unwrap_or_default(),
+            album: timeline.title.clone(),
+            artist: timeline.authors.join(", "),
+            cover,
+        }
+    }
 }
 
 #[derive(Default)]
@@ -144,10 +162,7 @@ impl super::Core {
     /// `minutes`: pause after that long; `end_of_chapter`: pause when the chapter ends.
     /// Neither cancels the timer.
     pub fn set_sleep_timer(&self, minutes: Option<u32>, end_of_chapter: bool) {
-        let chapter = self.playback.book().and_then(|book| {
-            book.locate(self.playback.position().index)
-                .map(|(chapter, _)| chapter)
-        });
+        let chapter = self.playback.chapter();
         self.controls.set_sleep(minutes, end_of_chapter, chapter);
     }
 }
@@ -175,6 +190,9 @@ mod tests {
             off_text: false,
             chapter_left_ms: None,
             waiting_for_sync: false,
+            position_ms: None,
+            duration_ms: None,
+            part_position_ms: None,
         }
     }
 

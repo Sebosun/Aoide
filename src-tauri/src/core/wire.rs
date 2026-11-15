@@ -119,6 +119,11 @@ pub struct PlayerStateView {
     /// The recording is being listened to while it syncs, and the sync has not reached the
     /// playhead yet: playback waits for it.
     pub waiting_for_sync: bool,
+    /// For an audiobook on its own: the playhead on the whole recording, its length, and how
+    /// far into the part (`chapter`) the playhead is.
+    pub position_ms: Option<u64>,
+    pub duration_ms: Option<u64>,
+    pub part_position_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

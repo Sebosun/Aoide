@@ -356,7 +356,7 @@ impl super::Core {
             .index_of(segment_id)
             .filter(|&index| book.locate(index).is_some_and(|(c, _)| c == chapter))
             .ok_or("that place is not in the book")?;
-        self.store_place(super::playback::Place { book, index })?;
+        self.store_place(super::playback::Place::Entry { book, index })?;
         Ok(self.shelf.progress(&BookId(id.into())))
     }
 

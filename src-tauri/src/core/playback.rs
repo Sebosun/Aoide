@@ -16,6 +16,7 @@ use super::align::Alignable;
 use super::narration::NarrationPlan;
 use super::recording::{Narration, RecordingPlan};
 use super::session::Session;
+use super::timeline::{self, Timeline, TimelineSession};
 use super::{lock, PlaybackStatus, PlayerStateView, Target};
 use crate::book::BookModel;
 
@@ -46,15 +47,72 @@ pub struct Tick {
 
 /// The playhead, for saving the listener's place. Returned by each change that should be
 /// saved at once, for the caller to save.
-pub struct Place {
-    pub book: Arc<BookModel>,
-    pub index: usize,
+pub enum Place {
+    /// An entry of a book (a segment of its text).
+    Entry { book: Arc<BookModel>, index: usize },
+    /// A time on an audiobook's timeline, in `part`.
+    Time {
+        id: String,
+        part: usize,
+        position_ms: u64,
+        total_ms: u64,
+    },
 }
 
 impl Place {
-    /// Saves this place as the book's progress.
+    pub fn id(&self) -> &str {
+        match self {
+            Place::Entry { book, .. } => &book.id,
+            Place::Time { id, .. } => id,
+        }
+    }
+
+    /// Whether the place is the item's end, which finishes it.
+    pub fn at_end(&self) -> bool {
+        match self {
+            Place::Entry { book, index } => index + 1 >= book.total_entries(),
+            Place::Time {
+                position_ms,
+                total_ms,
+                ..
+            } => *position_ms + timeline::AT_END_MS >= *total_ms,
+        }
+    }
+
+    /// Saves this place as the item's progress.
     pub fn save(self, library: &Mutex<Library>) -> Result<(), String> {
-        let Place { book, index } = self;
+        let (book, index) = match self {
+            Place::Entry { book, index } => (book, index),
+            Place::Time {
+                id,
+                part,
+                position_ms,
+                total_ms,
+            } => {
+                let id = BookId(id);
+                let library = lock(library);
+                let fraction = if total_ms == 0 {
+                    0.0
+                } else {
+                    (position_ms as f64 / total_ms as f64).clamp(0.0, 1.0)
+                };
+                return library
+                    .save_progress(
+                        &id,
+                        &Progress {
+                            chapter: part as u32,
+                            char_offset: 0,
+                            segment_id: None,
+                            updated_at: super::now_ms(),
+                            position_ms: Some(position_ms),
+                        },
+                    )
+                    .and_then(|()| {
+                        library.set_book_value(&id, BookKey::ProgressFraction, &fraction)
+                    })
+                    .map_err(|e| e.to_string());
+            }
+        };
         let Some((chapter, local)) = book.locate(index) else {
             return Ok(());
         };
@@ -81,10 +139,18 @@ impl Place {
     }
 }
 
+/// What is being listened to.
+enum Playing {
+    /// A book's entries (its segments), read by a speech engine or its recording.
+    Entries(Session),
+    /// An audiobook with no text, straight through on its timeline.
+    Timeline(TimelineSession),
+}
+
 pub struct Playback {
     /// Shared with the audio output, which renders from it.
     player: Arc<Mutex<PlayerCore>>,
-    session: Mutex<Option<Session>>,
+    playing: Mutex<Option<Playing>>,
     error: Mutex<Option<String>>,
     /// The audio output's latency: the word shown is the word heard.
     latency_ms: Mutex<u32>,
@@ -94,7 +160,7 @@ impl Playback {
     pub fn new(player: PlayerCore) -> Self {
         Self {
             player: Arc::new(Mutex::new(player)),
-            session: Mutex::new(None),
+            playing: Mutex::new(None),
             error: Mutex::new(None),
             latency_ms: Mutex::new(0),
         }
@@ -109,41 +175,75 @@ impl Playback {
         *lock(&self.latency_ms) = latency_ms;
     }
 
+    /// Runs `f` on the session when a book's entries are playing.
+    fn session<R>(&self, f: impl FnOnce(&mut Session) -> R) -> Option<R> {
+        match lock(&self.playing).as_mut()? {
+            Playing::Entries(session) => Some(f(session)),
+            Playing::Timeline(_) => None,
+        }
+    }
+
     // ------------------------------------------------------------ what is playing
 
+    /// The book whose entries are playing (none for an audiobook on its timeline).
     pub fn book(&self) -> Option<Arc<BookModel>> {
-        lock(&self.session)
-            .as_ref()
-            .map(|s| Arc::clone(&s.target.book))
+        self.session(|s| Arc::clone(&s.target.book))
+    }
+
+    /// The audiobook playing on its timeline.
+    pub fn timeline(&self) -> Option<Arc<Timeline>> {
+        match lock(&self.playing).as_ref()? {
+            Playing::Timeline(t) => Some(Arc::clone(&t.timeline)),
+            Playing::Entries(_) => None,
+        }
+    }
+
+    /// The item playing, of either kind.
+    pub fn playing_id(&self) -> Option<String> {
+        match lock(&self.playing).as_ref()? {
+            Playing::Entries(s) => Some(s.target.book.id.clone()),
+            Playing::Timeline(t) => Some(t.timeline.id.clone()),
+        }
     }
 
     pub fn is_book(&self, id: &str) -> bool {
-        lock(&self.session)
-            .as_ref()
-            .is_some_and(|s| s.target.book.id == id)
+        self.playing_id().is_some_and(|playing| playing == id)
     }
 
     /// The recording of book `id`, when it is being listened to.
     pub fn recording_of(&self, id: &str) -> Option<Arc<RecordingPlan>> {
-        lock(&self.session)
-            .as_ref()
-            .filter(|s| s.target.book.id == id)
-            .and_then(|s| s.recording().cloned())
+        self.session(|s| {
+            (s.target.book.id == id)
+                .then(|| s.recording().cloned())
+                .flatten()
+        })
+        .flatten()
     }
 
     /// Runs `f` on the narration of the book being listened to, with the book's id.
     pub fn with_narration<R>(&self, f: impl FnOnce(&str, &NarrationPlan) -> R) -> Option<R> {
-        lock(&self.session)
-            .as_ref()
-            .map(|s| f(&s.target.book.id, &s.target.narration))
+        self.session(|s| f(&s.target.book.id, &s.target.narration))
     }
 
     /// Entries in `range` of book `id` that its recording, being listened to, has no audio for.
     pub fn unrecorded(&self, id: &str, range: Range<usize>) -> Option<Vec<usize>> {
-        lock(&self.session)
-            .as_ref()
-            .filter(|s| s.target.book.id == id && s.recording().is_some())
-            .map(|s| s.target.narration.unrecorded(range))
+        self.session(|s| {
+            (s.target.book.id == id && s.recording().is_some())
+                .then(|| s.target.narration.unrecorded(range))
+        })
+        .flatten()
+    }
+
+    /// The chapter (an audiobook's part) the playhead is in.
+    pub fn chapter(&self) -> Option<usize> {
+        let position = self.position();
+        match lock(&self.playing).as_ref()? {
+            Playing::Entries(s) => s.target.book.locate(position.index).map(|(c, _)| c),
+            Playing::Timeline(t) => {
+                let timeline = &t.timeline;
+                Some(timeline.part_at(timeline.time_at(position.index, position.offset_ms)))
+            }
+        }
     }
 
     // ------------------------------------------------------------ transport
@@ -195,15 +295,27 @@ impl Playback {
             .narration
             .recording_plan()
             .map_or(0, |plan| plan.start_offset(start));
-        let rate = {
-            let mut player = lock(&self.player);
-            player.load(entries, start);
-            player.seek_to(start, offset);
-            player.play();
-            player.output_rate()
-        };
-        *lock(&self.session) = Some(Session::new(target, rate));
+        let rate = self.load(entries, start, offset);
+        *lock(&self.playing) = Some(Playing::Entries(Session::new(target, rate)));
         *lock(&self.error) = None;
+    }
+
+    /// Plays `timeline` from `at_ms`, in place of anything playing.
+    pub fn start_timeline(&self, timeline: Arc<Timeline>, at_ms: u64) {
+        let (start, offset) = timeline.locate(at_ms);
+        let rate = self.load(timeline.entries(), start, offset);
+        *lock(&self.playing) = Some(Playing::Timeline(TimelineSession::new(timeline, rate)));
+        *lock(&self.error) = None;
+    }
+
+    /// Gives the player `entries` and plays from `offset` ms into entry `start`; returns the
+    /// rate it plays at.
+    fn load(&self, entries: Vec<aoide_audio::Entry>, start: usize, offset: u32) -> u32 {
+        let mut player = lock(&self.player);
+        player.load(entries, start);
+        player.seek_to(start, offset);
+        player.play();
+        player.output_rate()
     }
 
     /// Ends the session; returns where it was.
@@ -211,16 +323,16 @@ impl Playback {
     pub fn stop(&self) -> Option<Place> {
         let place = self.place_to_save(true);
         lock(&self.player).load(Vec::new(), 0);
-        *lock(&self.session) = None;
+        *lock(&self.playing) = None;
         place
     }
 
     /// Moves the playhead `offset_ms` into entry `index`; `None` starts where the entry's text
-    /// does (for a recording, just before its first word).
+    /// does (for a recording, just before its first word; on a timeline, the stretch's start).
     #[must_use = "the place is lost unless it is saved"]
     pub fn seek(&self, index: usize, offset_ms: Option<u32>) -> Option<Place> {
-        let (offset, released) = match lock(&self.session).as_mut() {
-            Some(session) => {
+        let (offset, released) = match lock(&self.playing).as_mut() {
+            Some(Playing::Entries(session)) => {
                 let offset = offset_ms.unwrap_or_else(|| {
                     session
                         .recording()
@@ -228,6 +340,7 @@ impl Playback {
                 });
                 (offset, session.restart_feed())
             }
+            Some(Playing::Timeline(session)) => (offset_ms.unwrap_or(0), session.restart_feed()),
             None => (0, Vec::new()),
         };
         {
@@ -255,6 +368,24 @@ impl Playback {
         Ok(self.seek(index, Some(offset)))
     }
 
+    /// The playhead on the timeline of audiobook `id`, when it is playing.
+    pub fn time_of(&self, id: &str) -> Option<u64> {
+        let timeline = self.timeline().filter(|t| t.id == id)?;
+        let position = self.position();
+        Some(timeline.time_at(position.index, position.offset_ms))
+    }
+
+    /// Moves the playhead to `at_ms` on audiobook `id`'s timeline.
+    #[must_use = "the place is lost unless it is saved"]
+    pub fn seek_time(&self, id: &str, at_ms: u64) -> Result<Option<Place>, String> {
+        let timeline = self
+            .timeline()
+            .filter(|t| t.id == id)
+            .ok_or("the audiobook is not playing")?;
+        let (index, offset) = timeline.locate(at_ms);
+        Ok(self.seek(index, Some(offset)))
+    }
+
     // ------------------------------------------------------------ audio
 
     /// Gives the player the audio near the playhead it does not have yet (the recording's
@@ -263,24 +394,31 @@ impl Playback {
     pub fn tick(&self, audio: &dyn SpeechAudio) -> Option<Tick> {
         let playhead = self.position().index;
         let (moved, pieces, wanted, mut to_align) = {
-            let mut session = lock(&self.session);
-            let session = session.as_mut()?;
-            let moved = session.ticked.replace(playhead) != Some(playhead);
-            let pieces = session.feed(playhead);
-            let book = session.target.book.id.clone();
-            let clips: Vec<Alignable> = match session.recording().cloned() {
-                Some(plan) => session
-                    .take_to_align()
-                    .into_iter()
-                    .map(|index| Alignable::Clip {
-                        book: book.clone(),
-                        index,
-                        plan: Arc::clone(&plan),
-                    })
-                    .collect(),
-                None => Vec::new(),
-            };
-            (moved, pieces, session.wanted_speech(playhead), clips)
+            let mut playing = lock(&self.playing);
+            match playing.as_mut()? {
+                Playing::Entries(session) => {
+                    let moved = session.ticked.replace(playhead) != Some(playhead);
+                    let pieces = session.feed(playhead);
+                    let book = session.target.book.id.clone();
+                    let clips: Vec<Alignable> = match session.recording().cloned() {
+                        Some(plan) => session
+                            .take_to_align()
+                            .into_iter()
+                            .map(|index| Alignable::Clip {
+                                book: book.clone(),
+                                index,
+                                plan: Arc::clone(&plan),
+                            })
+                            .collect(),
+                        None => Vec::new(),
+                    };
+                    (moved, pieces, session.wanted_speech(playhead), clips)
+                }
+                Playing::Timeline(session) => {
+                    let moved = session.ticked.replace(playhead) != Some(playhead);
+                    (moved, session.feed(playhead), Vec::new(), Vec::new())
+                }
+            }
         };
         if !pieces.is_empty() {
             let mut player = lock(&self.player);
@@ -308,17 +446,19 @@ impl Playback {
                 }
             };
             lock(&self.player).provide(index, &pcm);
-            if let Some(session) = lock(&self.session).as_mut() {
-                if session.provided(index, timings.as_deref(), &pcm) {
-                    to_align.push(Alignable::Speech {
-                        book: session.target.book.id.clone(),
-                        index,
-                        key,
-                    });
-                }
+            let align = self.session(|session| {
+                session
+                    .provided(index, timings.as_deref(), &pcm)
+                    .then(|| session.target.book.id.clone())
+            });
+            if let Some(Some(book)) = align {
+                to_align.push(Alignable::Speech { book, index, key });
             }
         }
-        let release = lock(&self.session).as_mut()?.release_behind(playhead);
+        let release = match lock(&self.playing).as_mut()? {
+            Playing::Entries(session) => session.release_behind(playhead),
+            Playing::Timeline(session) => session.release_behind(playhead),
+        };
         if let Some(before) = release {
             lock(&self.player).release_before(before);
         }
@@ -327,31 +467,26 @@ impl Playback {
 
     #[cfg(test)]
     pub fn timings_of(&self, index: usize) -> Option<Vec<WordEstimate>> {
-        lock(&self.session).as_ref()?.timings_of(index)
+        self.session(|s| s.timings_of(index)).flatten()
     }
 
     /// Exact word times arrived for entry `index` of book `book`.
     pub fn aligned(&self, book: &str, index: usize, timings: Vec<WordEstimate>) {
-        if let Some(session) = lock(&self.session)
-            .as_mut()
-            .filter(|s| s.target.book.id == book)
-        {
-            session.aligned(index, timings);
-        }
+        self.session(|session| {
+            if session.target.book.id == book {
+                session.aligned(index, timings);
+            }
+        });
     }
 
     /// The speech with cache key `key` is made.
     pub fn segment_made(&self, key: &str, duration_ms: u32) {
-        if let Some(session) = lock(&self.session).as_mut() {
-            session.segment_made(key, duration_ms);
-        }
+        self.session(|session| session.segment_made(key, duration_ms));
     }
 
     /// The speech with these cache keys was deleted.
     pub fn audio_lost(&self, keys: &HashSet<String>) {
-        if let Some(session) = lock(&self.session).as_mut() {
-            session.audio_lost(keys);
-        }
+        self.session(|session| session.audio_lost(keys));
     }
 
     // ------------------------------------------------------------ following a sync
@@ -360,24 +495,24 @@ impl Playback {
     /// progress: playback waits for it, it has not for a while, or `force`.
     pub fn should_follow(&self, id: &str, force: bool) -> Option<Arc<BookModel>> {
         let playhead = self.position().index;
-        let session = lock(&self.session);
-        let session = session.as_ref()?;
-        (session.target.book.id == id
-            && session.recording().is_some()
-            && (force
-                || session.target.narration.waits_for_sync(playhead)
-                || session.followed.elapsed() >= FOLLOW_EVERY))
-            .then(|| Arc::clone(&session.target.book))
+        self.session(|session| {
+            (session.target.book.id == id
+                && session.recording().is_some()
+                && (force
+                    || session.target.narration.waits_for_sync(playhead)
+                    || session.followed.elapsed() >= FOLLOW_EVERY))
+                .then(|| Arc::clone(&session.target.book))
+        })
+        .flatten()
     }
 
     /// Book `id` plays by `target`, its recording synced further, from now on. Audio the player
     /// has stays; what turned out not to be in the recording is passed over. Returns whether the
     /// speech engine has other entries to say now; `None` when the book is not playing.
     pub fn follow(&self, id: &str, target: Target) -> Option<bool> {
-        let followed = lock(&self.session)
-            .as_mut()
-            .filter(|s| s.target.book.id == id)?
-            .follow(target);
+        let followed = self
+            .session(|session| (session.target.book.id == id).then(|| session.follow(target)))
+            .flatten()?;
         let mut player = lock(&self.player);
         for index in followed.passed_over {
             player.finish(index);
@@ -387,20 +522,36 @@ impl Playback {
 
     // ------------------------------------------------------------ views
 
-    /// The playhead, when `force`, it was last saved a while ago, or it is on the book's last
-    /// entry (which finishes the book).
+    /// The playhead, when `force`, it was last saved a while ago, or it is at the item's end
+    /// (which finishes it).
     #[must_use = "the place is lost unless it is saved"]
     pub fn place_to_save(&self, force: bool) -> Option<Place> {
-        let mut session = lock(&self.session);
-        let session = session.as_mut()?;
-        let book = Arc::clone(&session.target.book);
-        let last = book.total_entries().saturating_sub(1);
-        let index = self.position().index.min(last);
-        if !force && index < last && session.last_saved.elapsed() < Duration::from_secs(3) {
+        let position = self.position();
+        let mut playing = lock(&self.playing);
+        let (place, last_saved) = match playing.as_mut()? {
+            Playing::Entries(session) => {
+                let book = Arc::clone(&session.target.book);
+                let last = book.total_entries().saturating_sub(1);
+                let index = position.index.min(last);
+                (Place::Entry { book, index }, &mut session.last_saved)
+            }
+            Playing::Timeline(session) => {
+                let timeline = &session.timeline;
+                let position_ms = timeline.time_at(position.index, position.offset_ms);
+                let place = Place::Time {
+                    id: timeline.id.clone(),
+                    part: timeline.part_at(position_ms),
+                    position_ms,
+                    total_ms: timeline.total_ms,
+                };
+                (place, &mut session.last_saved)
+            }
+        };
+        if !force && !place.at_end() && last_saved.elapsed() < Duration::from_secs(3) {
             return None;
         }
-        session.last_saved = Instant::now();
-        Some(Place { book, index })
+        *last_saved = Instant::now();
+        Some(place)
     }
 
     /// The player's state (without the sleep timer, which is not playback's).
@@ -416,24 +567,62 @@ impl Playback {
             Status::Playing => PlaybackStatus::Playing,
             Status::Buffering => PlaybackStatus::Buffering,
         };
-        let session = lock(&self.session);
-        let Some(session) = session.as_ref() else {
-            return PlayerStateView {
-                book_id: None,
-                status: PlaybackStatus::Stopped,
-                chapter: 0,
-                segment_id: None,
-                word_index: None,
-                speed,
-                volume,
-                chapter_fraction: 0.0,
-                error,
-                sleep: None,
-                source: Narration::Speech,
-                off_text: false,
-                chapter_left_ms: None,
-                waiting_for_sync: false,
-            };
+        let playing = lock(&self.playing);
+        let session = match playing.as_ref() {
+            None => {
+                return PlayerStateView {
+                    book_id: None,
+                    status: PlaybackStatus::Stopped,
+                    chapter: 0,
+                    segment_id: None,
+                    word_index: None,
+                    speed,
+                    volume,
+                    chapter_fraction: 0.0,
+                    error,
+                    sleep: None,
+                    source: Narration::Speech,
+                    off_text: false,
+                    chapter_left_ms: None,
+                    waiting_for_sync: false,
+                    position_ms: None,
+                    duration_ms: None,
+                    part_position_ms: None,
+                }
+            }
+            Some(Playing::Timeline(session)) => {
+                let timeline = &session.timeline;
+                let at = timeline.time_at(position.index, position.offset_ms);
+                let part_index = timeline.part_at(at);
+                let part = &timeline.parts[part_index];
+                let into = at.saturating_sub(part.start_ms);
+                let length = part.end_ms.saturating_sub(part.start_ms);
+                let left = part.end_ms.saturating_sub(at);
+                return PlayerStateView {
+                    book_id: Some(timeline.id.clone()),
+                    status,
+                    chapter: part_index,
+                    segment_id: None,
+                    word_index: None,
+                    speed,
+                    volume,
+                    chapter_fraction: if length == 0 {
+                        0.0
+                    } else {
+                        into as f64 / length as f64
+                    },
+                    error,
+                    sleep: None,
+                    source: Narration::Recording,
+                    off_text: false,
+                    chapter_left_ms: Some((left as f64 / f64::from(speed.max(0.1))) as u64),
+                    waiting_for_sync: false,
+                    position_ms: Some(at),
+                    duration_ms: Some(timeline.total_ms),
+                    part_position_ms: Some(into),
+                };
+            }
+            Some(Playing::Entries(session)) => session,
         };
         let book = &session.target.book;
         let narration = &session.target.narration;
@@ -473,6 +662,9 @@ impl Playback {
                 Some((left as f64 / f64::from(speed.max(0.1))) as u64)
             }),
             waiting_for_sync: narration.waits_for_sync(index),
+            position_ms: None,
+            duration_ms: None,
+            part_position_ms: None,
         }
     }
 }
@@ -509,8 +701,8 @@ impl super::Core {
     /// Stores `place` as its book's progress and moves the book's read state on; the one way a
     /// place is stored, by listening or by reading.
     pub(super) fn store_place(&self, place: Place) -> Result<(), String> {
-        let id = place.book.id.clone();
-        let at_end = place.index + 1 >= place.book.total_entries();
+        let id = place.id().to_owned();
+        let at_end = place.at_end();
         place.save(&self.library)?;
         self.read_event(&id, super::reading::ReadEvent::Progressed { at_end })
             .map(drop)
@@ -552,6 +744,9 @@ impl super::Core {
 
     /// Plays from the start of the chapter `delta` chapters away from the current one.
     pub async fn skip_chapter(&self, delta: i64) -> Result<(), String> {
+        if let Some(timeline) = self.playback.timeline() {
+            return self.skip_part(&timeline, delta);
+        }
         let book = self.playback.book().ok_or("nothing is playing")?;
         let (chapter, _) = book
             .locate(self.playback.position().index)
@@ -714,8 +909,10 @@ mod tests {
         let playback = Playback::new(PlayerCore::new(RATE));
         playback.start(speech(&[0]), 0);
         assert!(playback.is_book("b") && playback.book().is_some());
-        let place = playback.stop().expect("where it stopped");
-        assert_eq!((place.book.id.as_str(), place.index), ("b", 0));
+        let Some(Place::Entry { book, index }) = playback.stop() else {
+            panic!("where it stopped")
+        };
+        assert_eq!((book.id.as_str(), index), ("b", 0));
         assert!(playback.tick(&memory(&["k0"])).is_none());
         let state = playback.state();
         assert_eq!(
@@ -779,8 +976,10 @@ mod tests {
         let playback = Playback::new(PlayerCore::new(RATE));
         playback.start(speech(&[0, 1, 2, 3]), 0);
         playback.tick(&memory(&["k0", "k1", "k2", "k3"])).unwrap();
-        let place = playback.seek(2, None).expect("the place sought");
-        assert_eq!(place.index, 2);
+        let Some(Place::Entry { index, .. }) = playback.seek(2, None) else {
+            panic!("the place sought")
+        };
+        assert_eq!(index, 2);
         let tick = playback.tick(&memory(&["k0", "k1", "k2", "k3"])).unwrap();
         assert_eq!((playback.position().index, tick.moved), (2, true));
         assert_eq!(playback.state().segment_id, Some("1:0:0".into()));

@@ -16,8 +16,8 @@ use super::tests::{epub, epub_with, library_folder, start_with, until};
 use super::{Core, CoreEvent};
 
 /// Sample value per millisecond of the recording.
-const SCALE: f32 = 100_000.0;
-const RATE: u32 = 16_000;
+pub(super) const SCALE: f32 = 100_000.0;
+pub(super) const RATE: u32 = 16_000;
 
 type Script = Arc<Mutex<Vec<(u64, u64, String)>>>;
 
@@ -105,7 +105,7 @@ fn write_recording(path: &Path, total_ms: u64) {
 }
 
 /// One file of a recording split into parts: its samples go on from `from_ms`.
-fn write_recording_part(path: &Path, from_ms: u64, total_ms: u64) {
+pub(super) fn write_recording_part(path: &Path, from_ms: u64, total_ms: u64) {
     let frames = total_ms * u64::from(RATE) / 1_000;
     let mut data = Vec::with_capacity(frames as usize * 4);
     for n in 0..frames {

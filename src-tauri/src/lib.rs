@@ -339,6 +339,16 @@ async fn skip_chapter(core: CoreState<'_>, delta: i64) -> Result<(), CoreError> 
 }
 
 #[tauri::command]
+fn seek(core: CoreState<'_>, book_id: String, position_ms: u64) -> Result<(), CoreError> {
+    Ok(core.seek_to(&book_id, position_ms)?)
+}
+
+#[tauri::command]
+fn skip(core: CoreState<'_>, book_id: String, delta_ms: i64) -> Result<(), CoreError> {
+    Ok(core.skip(&book_id, delta_ms)?)
+}
+
+#[tauri::command]
 async fn bookmarks(
     core: CoreState<'_>,
     book_id: String,
@@ -833,6 +843,8 @@ pub fn run() {
             set_sleep_timer,
             search_book,
             skip_chapter,
+            seek,
+            skip,
             bookmarks,
             add_bookmark,
             update_bookmark_note,

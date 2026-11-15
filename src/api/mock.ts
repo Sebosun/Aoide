@@ -735,6 +735,9 @@ export function createMockApi() {
         offText: false,
         chapterLeftMs: null,
         waitingForSync: false,
+        positionMs: null,
+        durationMs: null,
+        partPositionMs: null,
       });
       emitGeneration({ ...(structuredClone(fixtureGenerationPlaying) as GenerationState), bookId: id });
       run();
@@ -922,6 +925,15 @@ export function createMockApi() {
         const c = Math.min(list.length - 1, Math.max(0, state.chapter + delta));
         await api.play(state.bookId, c, list[c].blocks[0].segments[0].id);
       }
+    },
+    async seek(id, positionMs) {
+      if (state.bookId === id && state.durationMs !== null) {
+        const at = Math.min(state.durationMs, Math.max(0, positionMs));
+        emitPlayer({ ...state, positionMs: at });
+      }
+    },
+    async skip(id, deltaMs) {
+      if (state.bookId === id && state.positionMs !== null) await api.seek(id, state.positionMs + deltaMs);
     },
     async bookmarks(id) {
       return structuredClone(

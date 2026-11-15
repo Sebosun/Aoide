@@ -49,6 +49,59 @@ struct StoredRecording {
     chapters: usize,
     title: Option<String>,
     author: Option<String>,
+    /// Its parts, for playing it on its own: the embedded chapters, else one per file.
+    #[serde(default)]
+    parts: Vec<StoredPart>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct StoredPart {
+    title: String,
+    start_ms: u64,
+}
+
+/// `found`'s parts: its embedded chapters, else its files (titled by their tags, else their
+/// names) when there are several, else none.
+fn parts_of(found: &aoide_recording::Inspection) -> Vec<StoredPart> {
+    if !found.chapters.is_empty() {
+        return found
+            .chapters
+            .iter()
+            .map(|c| StoredPart {
+                title: c.title.clone(),
+                start_ms: c.start_ms,
+            })
+            .collect();
+    }
+    if found.files.len() < 2 {
+        return Vec::new();
+    }
+    let mut at = 0;
+    found
+        .files
+        .iter()
+        .map(|file| {
+            let part = StoredPart {
+                title: file
+                    .tags
+                    .title
+                    .clone()
+                    .filter(|t| !t.trim().is_empty())
+                    .unwrap_or_else(|| aoide_discovery::title_from_name(&file.path)),
+                start_ms: at,
+            };
+            at += file.duration_us() / 1_000;
+            part
+        })
+        .collect()
+}
+
+/// What an audiobook on its own plays: its files, its length, and its parts' titles and starts.
+pub(super) struct TimelineSource {
+    pub files: Vec<AudioFile>,
+    pub total_ms: u64,
+    pub parts: Vec<(String, u64)>,
 }
 
 /// A file as it was when attached; a different size or time means it changed.
@@ -991,6 +1044,7 @@ impl Recordings {
         }
         let stored = StoredRecording {
             files,
+            parts: parts_of(&found),
             chapters: found.chapters.len(),
             title: found.title.clone(),
             author: found.author.clone(),
@@ -1034,6 +1088,23 @@ impl Recordings {
         }
         self.view(host, id)
             .ok_or_else(|| "the recording was not saved".into())
+    }
+
+    /// What audiobook `id` plays on its timeline. Refused when a file is gone.
+    pub(super) fn timeline_source(&self, id: &str) -> Result<TimelineSource, String> {
+        let (row, stored) = self.stored_recording(id)?;
+        if let Some(gone) = stored.files.iter().find(|f| !f.path.exists()) {
+            return Err(format!("{} is missing.", file_name(&gone.path)));
+        }
+        Ok(TimelineSource {
+            files: stored.files.iter().map(StoredFile::audio).collect(),
+            total_ms: row.total_ms,
+            parts: stored
+                .parts
+                .into_iter()
+                .map(|p| (p.title, p.start_ms))
+                .collect(),
+        })
     }
 
     /// Every audio file paired with a book (other than book `except`).
