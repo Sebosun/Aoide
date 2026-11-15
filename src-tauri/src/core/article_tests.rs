@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use aoide_fetch::{FetchError, Snapshot, Via};
+use aoide_fetch::{FetchError, Image, Snapshot, Via};
 use aoide_library::{ArticleRow, BookId, ItemKind, Library, NewBook};
 use aoide_tts::testing::FakeEngine;
 use url::Url;
@@ -17,6 +17,9 @@ use super::Core;
 #[derive(Default)]
 pub(super) struct Pages {
     pages: Mutex<HashMap<String, Result<String, FetchError>>>,
+    /// The archive's copy of each address it has one of.
+    archive: Mutex<HashMap<String, String>>,
+    images: Mutex<HashMap<String, Image>>,
     pub asked: Mutex<Vec<String>>,
 }
 
@@ -31,6 +34,18 @@ impl Pages {
 
     pub fn set(&self, url: &str, page: Result<String, FetchError>) {
         self.pages.lock().unwrap().insert(url.into(), page);
+    }
+
+    pub fn archive(&self, url: &str, copy: &str) {
+        self.archive.lock().unwrap().insert(url.into(), copy.into());
+    }
+
+    pub fn image(&self, url: &str, media_type: &str, bytes: &[u8]) {
+        let image = Image {
+            media_type: media_type.into(),
+            bytes: bytes.to_vec(),
+        };
+        self.images.lock().unwrap().insert(url.into(), image);
     }
 
     pub fn asks(&self) -> usize {
@@ -52,6 +67,20 @@ impl Fetcher for Pages {
                 fetched_at_ms: 1_000,
                 via: Via::Http,
             })
+        })
+    }
+
+    fn archived<'a>(&'a self, url: &'a Url) -> Fetching<'a, Option<Url>> {
+        Box::pin(async move {
+            let copy = self.archive.lock().unwrap().get(url.as_str()).cloned();
+            Ok(copy.map(|c| Url::parse(&c).unwrap()))
+        })
+    }
+
+    fn image<'a>(&'a self, url: &'a Url) -> Fetching<'a, Image> {
+        Box::pin(async move {
+            let image = self.images.lock().unwrap().get(url.as_str()).cloned();
+            image.ok_or(FetchError::Status(404))
         })
     }
 }
@@ -401,4 +430,77 @@ async fn an_article_cannot_be_paired_with_a_recording_or_looked_up() {
         "lookup_metadata",
     );
     assert!(core.recording(&id).is_none());
+}
+
+const COPY_URL: &str = "https://web.archive.org/web/20250102030405id_/https://quay.example/lights";
+
+#[tokio::test]
+async fn an_archived_copy_is_fetched_when_the_page_cannot_be() {
+    let pages = Pages::with(&[(COPY_URL, LIGHTS)]);
+    pages.set(LIGHTS_URL, Err(FetchError::Status(403)));
+    let (dir, core, id) = saved(&pages).await;
+    assert_eq!(settled(&core, &id).await, Stage::Failed);
+
+    // No copy in the archive: nothing changes but the message.
+    core.refetch_article(&id, ArticleSource::Archive).unwrap();
+    until("the archive is asked", || {
+        core.article(&id).unwrap().error.as_deref()
+            == Some("No archived copy of this page was found.")
+    })
+    .await;
+    assert_eq!(settled(&core, &id).await, Stage::Failed);
+    assert!(!snapshot(&dir, &id).exists());
+
+    pages.archive(LIGHTS_URL, COPY_URL);
+    core.refetch_article(&id, ArticleSource::Archive).unwrap();
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    let view = core.article(&id).unwrap();
+    assert_eq!(view.via, Some(ArticleSource::Archive));
+    assert_eq!(view.error, None);
+    assert!(pages.asked.lock().unwrap().contains(&COPY_URL.to_string()));
+    assert_eq!(core.open_book(&id).unwrap().title, "The Quay Lights");
+}
+
+#[tokio::test]
+async fn a_lead_image_becomes_the_cover_and_a_missing_one_changes_nothing() {
+    let with_image = LIGHTS.replace(
+        "</head>",
+        r#"<meta property="og:image" content="https://quay.example/lamps.jpg"></head>"#,
+    );
+    let pages = Pages::with(&[(LIGHTS_URL, &with_image)]);
+    pages.image(
+        "https://quay.example/lamps.jpg",
+        "image/jpeg",
+        b"\xff\xd8lamps",
+    );
+    let (dir, core, id) = saved(&pages).await;
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    let cover = dir.path().join(format!("data/articles/{id}/cover.jpg"));
+    until("the cover is stored", || {
+        core.list_books()
+            .unwrap()
+            .iter()
+            .any(|b| b.id == id && b.cover_path.as_deref() == cover.to_str())
+    })
+    .await;
+    assert_eq!(std::fs::read(&cover).unwrap(), b"\xff\xd8lamps");
+
+    // An image that cannot be fetched leaves the article as it is.
+    let other = "https://quay.example/harbour";
+    pages.set(
+        other,
+        Ok(LIGHTS.replace(
+            "</head>",
+            r#"<meta property="og:image" content="https://quay.example/gone.jpg"></head>"#,
+        )),
+    );
+    let second = core.save_article(other).unwrap();
+    assert_eq!(settled(&core, &second).await, Stage::Ready);
+    let item = core
+        .list_books()
+        .unwrap()
+        .into_iter()
+        .find(|b| b.id == second)
+        .unwrap();
+    assert_eq!(item.cover_path, None);
 }

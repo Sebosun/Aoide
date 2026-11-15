@@ -92,6 +92,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `article.stage` | info | `book`, `from`, `to`, `reason` (when it needs the user) | `core/articles.rs`, where the fetch stage's `next` is applied |
 | `article.fetch` | info | `book`, `outcome` (`ok`, `failed`), `took_ms` | `core/articles.rs` `fetch` |
 | `article.forget` | warn | `book`, `error` (its folder could not be deleted) | `core/articles.rs` `forget` |
+| `article.cover` | info / warn | `book`, `outcome` (`ok`, `failed`), `error` | `core/articles.rs` `keep_cover`: the page's lead image stored as the cover |
 | `library.word_count` | warn | `book`, `error` | `core/shelf.rs` `load`, storing a parsed book's length |
 | `reading.mode` | info | `book`, `from`, `to` | `core/reading.rs` `choose_mode`, a book switched between read and listen |
 | `reading.state` | info | `book`, `from`, `to` | `core/reading.rs` `Reading::apply`, unread / in progress / finished |

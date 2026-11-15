@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use aoide_article::{Completeness, ExtractOptions, Extracted};
 use aoide_document::ParsedBook;
-use aoide_fetch::{FetchError, FetchOptions, HttpFetcher, Snapshot, Via};
+use aoide_fetch::{FetchError, FetchOptions, HttpFetcher, Image, Snapshot, Via};
 use aoide_library::{ArticleRow, BookId, ItemKind, Library, NewBook};
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -29,11 +29,26 @@ pub type Fetching<'a, T> = Pin<Box<dyn Future<Output = Result<T, FetchError>> + 
 /// Gets pages from the web: plain HTTP in the app, a script in tests.
 pub trait Fetcher: Send + Sync {
     fn page<'a>(&'a self, url: &'a Url) -> Fetching<'a, Snapshot>;
+    /// Where an archive keeps its closest copy of `url`, if it has one.
+    fn archived<'a>(&'a self, url: &'a Url) -> Fetching<'a, Option<Url>>;
+    /// An image of at most [`COVER_BYTES`].
+    fn image<'a>(&'a self, url: &'a Url) -> Fetching<'a, Image>;
 }
+
+/// The largest lead image kept as a cover.
+pub const COVER_BYTES: usize = 2 * 1024 * 1024;
 
 impl Fetcher for HttpFetcher {
     fn page<'a>(&'a self, url: &'a Url) -> Fetching<'a, Snapshot> {
         Box::pin(self.fetch(url))
+    }
+
+    fn archived<'a>(&'a self, url: &'a Url) -> Fetching<'a, Option<Url>> {
+        Box::pin(HttpFetcher::archived(self, url))
+    }
+
+    fn image<'a>(&'a self, url: &'a Url) -> Fetching<'a, Image> {
+        Box::pin(HttpFetcher::image(self, url, COVER_BYTES))
     }
 }
 
@@ -42,6 +57,16 @@ struct Unavailable(String);
 
 impl Fetcher for Unavailable {
     fn page<'a>(&'a self, _: &'a Url) -> Fetching<'a, Snapshot> {
+        let error = FetchError::Transport(self.0.clone());
+        Box::pin(async move { Err(error) })
+    }
+
+    fn archived<'a>(&'a self, _: &'a Url) -> Fetching<'a, Option<Url>> {
+        let error = FetchError::Transport(self.0.clone());
+        Box::pin(async move { Err(error) })
+    }
+
+    fn image<'a>(&'a self, _: &'a Url) -> Fetching<'a, Image> {
         let error = FetchError::Transport(self.0.clone());
         Box::pin(async move { Err(error) })
     }
@@ -417,10 +442,9 @@ impl Articles {
         let started = Instant::now();
         let url = Url::parse(&row.canonical_url);
         let got = match &url {
-            Ok(url) => self.fetcher.page(url).await,
+            Ok(url) => self.get(url, source).await,
             Err(e) => Err(FetchError::Refused(e.to_string())),
         };
-        let _ = source;
         let outcome = if got.is_ok() { "ok" } else { "failed" };
         tracing::info!(
             event = "article.fetch",
@@ -445,7 +469,12 @@ impl Articles {
                 };
                 if better {
                     match self.keep(id, &row, &snapshot, &fresh, &path) {
-                        Ok(()) => (next(fetching, Event::Got(fresh.completeness)), None, true),
+                        Ok(()) => {
+                            if let Some(lead) = &fresh.meta.lead_image {
+                                self.keep_cover(id, lead).await;
+                            }
+                            (next(fetching, Event::Got(fresh.completeness)), None, true)
+                        }
                         Err(error) => match old {
                             Some(old) => (
                                 next(fetching, Event::Got(old.completeness)),
@@ -479,6 +508,72 @@ impl Articles {
         self.store_stage(&book, from, to, error.as_deref());
         if let Ok(view) = self.view(id) {
             host.article_changed(view, written);
+        }
+    }
+
+    /// The page at `url`, or the archive's copy of it.
+    async fn get(&self, url: &Url, source: ArticleSource) -> Result<Snapshot, FetchError> {
+        match source {
+            ArticleSource::Http => self.fetcher.page(url).await,
+            ArticleSource::Archive => {
+                let copy = self.fetcher.archived(url).await?.ok_or_else(|| {
+                    FetchError::Refused("No archived copy of this page was found.".into())
+                })?;
+                let mut snapshot = self.fetcher.page(&copy).await?;
+                // The copy is read as the page it was taken from.
+                snapshot.requested = url.clone();
+                snapshot.final_url = url.clone();
+                snapshot.via = Via::Archive;
+                Ok(snapshot)
+            }
+        }
+    }
+
+    /// Downloads the page's lead image as article `id`'s cover. A failure leaves the cover
+    /// it had.
+    async fn keep_cover(&self, id: &str, lead: &Url) {
+        let image = match self.fetcher.image(lead).await {
+            Ok(image) => image,
+            Err(error) => {
+                tracing::info!(event = "article.cover", book = crate::logging::book(id), outcome = "failed", %error, "Could not fetch the article's image");
+                return;
+            }
+        };
+        let ext = match image.media_type.as_str() {
+            "image/jpeg" | "image/jpg" => "jpg",
+            "image/png" => "png",
+            "image/webp" => "webp",
+            "image/gif" => "gif",
+            _ => return,
+        };
+        let path = self.dir.join(id).join(format!("cover.{ext}"));
+        if let Err(error) = std::fs::write(&path, &image.bytes) {
+            tracing::warn!(event = "article.cover", book = crate::logging::book(id), outcome = "failed", %error, "Could not store the article's image");
+            return;
+        }
+        let library = lock(&self.library);
+        let Ok(Some(book)) = library.book(&BookId(id.into())) else {
+            return;
+        };
+        let stored = NewBook {
+            id: book.id,
+            kind: book.kind,
+            path: book.path,
+            title: book.title,
+            authors: book.authors,
+            language: book.language,
+            cover_path: Some(path),
+            error: None,
+        };
+        if let Err(error) = library.upsert_book(&stored, super::now_ms()) {
+            tracing::warn!(event = "article.cover", book = crate::logging::book(id), outcome = "failed", %error, "Could not store the article's image");
+        } else {
+            tracing::info!(
+                event = "article.cover",
+                book = crate::logging::book(id),
+                outcome = "ok",
+                "Stored the article's image as its cover"
+            );
         }
     }
 

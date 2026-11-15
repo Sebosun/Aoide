@@ -20,6 +20,8 @@ pub struct FetchOptions {
     pub max_redirects: usize,
     pub user_agent: String,
     pub reach: Reach,
+    /// The Internet Archive's availability endpoint.
+    pub archive: String,
 }
 
 impl Default for FetchOptions {
@@ -30,6 +32,7 @@ impl Default for FetchOptions {
             max_redirects: 5,
             user_agent: "Aoide/0.1 (article reader)".into(),
             reach: Reach::Public,
+            archive: "https://archive.org/wayback/available".into(),
         }
     }
 }
@@ -49,6 +52,13 @@ pub enum Via {
     Http,
     /// Through an archived copy of the page.
     Archive,
+}
+
+/// An image as it was fetched.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Image {
+    pub media_type: String,
+    pub bytes: Vec<u8>,
 }
 
 /// A page as it was fetched.
@@ -101,6 +111,61 @@ impl HttpFetcher {
 
     /// Fetches `url`, following redirects, and returns the page as text.
     pub async fn fetch(&self, url: &Url) -> Result<Snapshot, FetchError> {
+        let (final_url, response) = self.send(url).await?;
+        let status = response.status().as_u16();
+        let content_type = content_type(&response);
+        let essence = essence(&content_type);
+        if essence != "text/html" && essence != "application/xhtml+xml" {
+            return Err(not_html(essence));
+        }
+        let body = self.body(response, self.options.max_bytes).await?;
+        Ok(Snapshot {
+            requested: url.clone(),
+            final_url,
+            status,
+            html: decode(&body, &content_type),
+            fetched_at_ms: now_ms(),
+            via: Via::Http,
+        })
+    }
+
+    /// Fetches the image at `url`, of at most `max_bytes`.
+    pub async fn image(&self, url: &Url, max_bytes: usize) -> Result<Image, FetchError> {
+        let (_, response) = self.send(url).await?;
+        let media_type = essence(&content_type(&response));
+        if !media_type.starts_with("image/") {
+            return Err(not_html(media_type));
+        }
+        let bytes = self.body(response, max_bytes).await?;
+        Ok(Image { media_type, bytes })
+    }
+
+    /// The Internet Archive's closest copy of `url`, as it was captured (without the archive's
+    /// page around it); `None` when it has none.
+    pub async fn archived(&self, url: &Url) -> Result<Option<Url>, FetchError> {
+        let mut ask =
+            Url::parse(&self.options.archive).map_err(|e| FetchError::Refused(e.to_string()))?;
+        ask.query_pairs_mut().append_pair("url", url.as_str());
+        let (_, response) = self.send(&ask).await?;
+        let body = self.body(response, 256 * 1024).await?;
+        let answer: serde_json::Value = serde_json::from_slice(&body)
+            .map_err(|e| FetchError::Transport(format!("unreadable archive answer: {e}")))?;
+        let closest = &answer["archived_snapshots"]["closest"];
+        if closest["available"].as_bool() != Some(true) {
+            return Ok(None);
+        }
+        let Some(timestamp) = closest["timestamp"]
+            .as_str()
+            .filter(|t| !t.is_empty() && t.bytes().all(|b| b.is_ascii_digit()))
+        else {
+            return Ok(None);
+        };
+        let copy = format!("https://web.archive.org/web/{timestamp}id_/{url}");
+        Ok(Url::parse(&copy).ok())
+    }
+
+    /// Asks for `url`, following redirects one hop at a time; a successful answer.
+    async fn send(&self, url: &Url) -> Result<(Url, reqwest::Response), FetchError> {
         let mut current = url.clone();
         let mut hops = 0;
         loop {
@@ -121,7 +186,7 @@ impl HttpFetcher {
                             self.options.max_redirects
                         )));
                     }
-                    let location = location
+                    current = location
                         .to_str()
                         .ok()
                         .and_then(|l| current.join(l.trim()).ok())
@@ -130,42 +195,13 @@ impl HttpFetcher {
                                 "The page redirected to an unreadable address.".into(),
                             )
                         })?;
-                    current = location;
                     continue;
                 }
             }
             if !status.is_success() {
                 return Err(FetchError::Status(status.as_u16()));
             }
-            let content_type = response
-                .headers()
-                .get(CONTENT_TYPE)
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or_default()
-                .to_owned();
-            let essence = content_type
-                .split(';')
-                .next()
-                .unwrap_or_default()
-                .trim()
-                .to_ascii_lowercase();
-            if essence != "text/html" && essence != "application/xhtml+xml" {
-                let shown = if essence.is_empty() {
-                    "no type".into()
-                } else {
-                    essence
-                };
-                return Err(FetchError::NotHtml(shown));
-            }
-            let body = self.body(response).await?;
-            return Ok(Snapshot {
-                requested: url.clone(),
-                final_url: current,
-                status: status.as_u16(),
-                html: decode(&body, &content_type),
-                fetched_at_ms: now_ms(),
-                via: Via::Http,
-            });
+            return Ok((current, response));
         }
     }
 
@@ -204,8 +240,11 @@ impl HttpFetcher {
         Ok(())
     }
 
-    async fn body(&self, mut response: reqwest::Response) -> Result<Vec<u8>, FetchError> {
-        let max = self.options.max_bytes;
+    async fn body(
+        &self,
+        mut response: reqwest::Response,
+        max: usize,
+    ) -> Result<Vec<u8>, FetchError> {
         let declared = response
             .headers()
             .get(CONTENT_LENGTH)
@@ -223,6 +262,33 @@ impl HttpFetcher {
         }
         Ok(body)
     }
+}
+
+fn content_type(response: &reqwest::Response) -> String {
+    response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_owned()
+}
+
+/// The media type without its parameters, lower case.
+fn essence(content_type: &str) -> String {
+    content_type
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase()
+}
+
+fn not_html(essence: String) -> FetchError {
+    FetchError::NotHtml(if essence.is_empty() {
+        "no type".into()
+    } else {
+        essence
+    })
 }
 
 fn failure(error: reqwest::Error) -> FetchError {

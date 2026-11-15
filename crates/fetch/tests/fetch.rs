@@ -248,3 +248,63 @@ async fn public_reach_refuses_local_addresses_before_connecting() {
     }
     assert!(server.seen().is_empty());
 }
+
+#[tokio::test]
+async fn an_image_is_fetched_within_its_own_limit() {
+    let mut big = html("image/png", &vec![1; 2048]);
+    big.headers = vec![("Content-Type", "image/png".into())];
+    let server = serve(vec![
+        ("/lead.jpg", html("image/jpeg", b"\xff\xd8jpeg")),
+        ("/big.png", big),
+        ("/page", html("text/html", b"<p>not an image</p>")),
+        ("/moved", redirect(301, "/lead.jpg")),
+    ])
+    .await;
+    let fetcher = fetcher(options());
+    let image = fetcher.image(&server.at("/moved"), 1024).await.unwrap();
+    assert_eq!(image.media_type, "image/jpeg");
+    assert_eq!(image.bytes, b"\xff\xd8jpeg");
+    assert!(matches!(
+        fetcher.image(&server.at("/big.png"), 1024).await,
+        Err(FetchError::TooLarge)
+    ));
+    assert!(matches!(
+        fetcher.image(&server.at("/page"), 1024).await,
+        Err(FetchError::NotHtml(t)) if t == "text/html"
+    ));
+}
+
+#[tokio::test]
+async fn the_archive_names_its_closest_copy_of_a_page() {
+    let found = r#"{"url":"https://news.example/ferry","archived_snapshots":{"closest":{"status":"200","available":true,"url":"http://web.archive.org/web/20250102030405/https://news.example/ferry","timestamp":"20250102030405"}}}"#;
+    let server = serve(vec![
+        (
+            "/wayback/available?url=https%3A%2F%2Fnews.example%2Fferry",
+            html("application/json", found.as_bytes()),
+        ),
+        (
+            "/wayback/available?url=https%3A%2F%2Fnews.example%2Fnone",
+            html("application/json", br#"{"archived_snapshots":{}}"#),
+        ),
+    ])
+    .await;
+    let options = FetchOptions {
+        archive: format!("{}/wayback/available", server.url),
+        ..options()
+    };
+    let fetcher = fetcher(options);
+    let copy = fetcher
+        .archived(&Url::parse("https://news.example/ferry").unwrap())
+        .await
+        .unwrap()
+        .unwrap();
+    // The capture as it was served, without the archive's own page around it.
+    assert_eq!(
+        copy.as_str(),
+        "https://web.archive.org/web/20250102030405id_/https://news.example/ferry"
+    );
+    let none = fetcher
+        .archived(&Url::parse("https://news.example/none").unwrap())
+        .await;
+    assert_eq!(none, Ok(None));
+}
