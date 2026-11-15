@@ -216,7 +216,7 @@ impl Core {
     /// Whether the book is playing, being prepared or being exported.
     fn audio_in_use(&self, id: &BookId) -> bool {
         self.playback.is_book(&id.0)
-            || lock(&self.preparation).contains(&id.0)
+            || self.generation.is_queued(&id.0)
             || lock(&self.extras).exporting.as_deref() == Some(id.0.as_str())
     }
 }
@@ -243,7 +243,7 @@ impl Core {
             return;
         };
         let playing = self.playback.book().map(|b| BookId(b.id.clone()));
-        let mut protected: HashSet<String> = lock(&self.preparation).queued().into_iter().collect();
+        let mut protected: HashSet<String> = self.generation.queued().into_iter().collect();
         protected.extend(lock(&self.extras).exporting.clone());
         let mut evicted_books = HashSet::new();
         let mut evicted_keys = HashSet::new();
@@ -294,11 +294,10 @@ impl Core {
             "Deleted the oldest made audio to keep the cache within its limit"
         );
         self.playback.audio_lost(&evicted_keys);
-        lock(&self.worker).forget(evicted_keys.iter().cloned());
-        {
-            let mut preparation = lock(&self.preparation);
-            preparation.audio_lost(&lock(&self.library), &evicted_books, &evicted_keys);
-        }
+        self.plan(super::PlanEvent::AudioLost {
+            books: evicted_books,
+            keys: evicted_keys,
+        });
         self.emit(CoreEvent::LibraryChanged);
     }
 }

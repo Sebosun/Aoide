@@ -8,18 +8,14 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use aoide_audio::output::{OutputCommand, PipeOutput};
-use aoide_audio::{codec, Pcm, PlayerCore};
-use aoide_generation::{
-    buffered_ahead_ms, estimate_ms, plan, Job, Listening, PlanItem, Preparing, Reason,
-    SegmentStore, WorkItem, Worker, WorkerEvent, WorkerOptions,
-};
+use aoide_audio::{codec, PlayerCore};
+use aoide_generation::{estimate_ms, Job, PlanItem, WorkerEvent};
 use aoide_library::{
     content_hash, scan_folder, BookId, BookKey, BookRecord, BookStatus, CachedSegment, GlobalKey,
     Library, NewBook, Progress,
 };
 use aoide_tts::{
-    cache_key, BoxFuture, EngineProfile, LaunchCommand, NetworkScope, Params, Registry,
-    SpeechEngine, Synthesis,
+    cache_key, EngineProfile, LaunchCommand, NetworkScope, Params, Registry, SpeechEngine,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
@@ -32,6 +28,8 @@ pub use config::PreferencesView;
 mod discovery;
 mod engine;
 mod error;
+mod generation;
+use generation::PlanEvent;
 mod storage;
 pub use audiobooks::{AudiobookChoice, AudiobookMatch, PairOutcome};
 pub use discovery::{Candidate, CandidateStatus, ImportChoice};
@@ -58,10 +56,47 @@ mod session;
 mod voicing;
 mod wire;
 pub use wire::*;
+
+impl generation::GenerationHost for Core {
+    fn with_listening(&self, f: &mut dyn FnMut(Option<generation::Listened<'_>>)) {
+        let playhead = self.playback.position().index;
+        let mut called = false;
+        self.playback.with_narration(|book, narration| {
+            called = true;
+            f(Some(generation::Listened {
+                book,
+                narration,
+                playhead,
+            }))
+        });
+        if !called {
+            f(None);
+        }
+    }
+
+    fn book_plan(&self, id: &str, chapters: Option<&[usize]>) -> Option<Result<Plan, String>> {
+        if self.engine.default_voice().is_none() && self.book_settings(id).voice_id.is_none() {
+            return None;
+        }
+        Some(self.load_book(id).and_then(|book| {
+            let mut plan = self.speech_plan(&book)?;
+            if let Some(chapters) = chapters {
+                plan.only(|index| {
+                    book.locate(index)
+                        .is_some_and(|(chapter, _)| chapters.contains(&chapter))
+                });
+            }
+            Ok(plan)
+        }))
+    }
+}
+
 #[cfg(test)]
 mod contract;
 #[cfg(test)]
 mod engine_tests;
+#[cfg(test)]
+mod generation_tests;
 #[cfg(test)]
 mod recording_tests;
 #[cfg(test)]
@@ -69,14 +104,13 @@ mod tests;
 #[cfg(debug_assertions)]
 pub use error::CoreError;
 pub use listening::ListeningStatsView;
-use preparation::{Plan, Preparation};
+use preparation::Plan;
 pub use preparation::{PrepareView, Stage as PrepareStage};
 pub use settings::{AlignerSettings, AppSettings, AppSettingsPatch};
 
 use crate::book::{BookModel, ChapterSummary, ChapterView, ExcludedView, SearchHit};
 
 const OUTPUT_RATE: u32 = 48_000;
-const LOOKAHEAD_MS: u32 = 90_000;
 const TICK: Duration = Duration::from_millis(33);
 
 /// All built-in engine adapters.
@@ -186,12 +220,8 @@ pub struct Core {
     output: Mutex<Option<PipeOutput>>,
     /// The speech engine in use.
     engine: engine::Engine,
-    worker: Mutex<Worker>,
-    worker_events: tokio::sync::mpsc::UnboundedSender<WorkerEvent>,
-    store: Arc<Store>,
-    /// Whole-book preparation. Lock before `library` when both are needed.
-    preparation: Mutex<Preparation>,
-    generation: Mutex<GenerationStateView>,
+    /// What the speech engine is asked to make.
+    generation: generation::Generation,
     last_player_state: Mutex<Option<PlayerStateView>>,
     sleep: Mutex<Option<SleepTimer>>,
     media: Mutex<Option<std::sync::mpsc::Sender<crate::media::MediaUpdate>>>,
@@ -245,56 +275,6 @@ impl playback::SpeechAudio for LibraryAudio<'_> {
     }
 }
 
-struct Store {
-    library: Arc<Mutex<Library>>,
-    audio_dir: PathBuf,
-}
-
-impl SegmentStore for Store {
-    fn store<'a>(
-        &'a self,
-        job: &'a Job,
-        synthesis: Synthesis,
-    ) -> BoxFuture<'a, Result<u32, String>> {
-        Box::pin(async move {
-            let duration_ms = synthesis.duration_ms() as u32;
-            let pcm = Pcm {
-                sample_rate: synthesis.sample_rate,
-                samples: synthesis.samples,
-            };
-            let bytes = tokio::task::spawn_blocking(move || codec::encode(&pcm))
-                .await
-                .map_err(|e| e.to_string())?
-                .map_err(|e| e.to_string())?;
-            let relative = PathBuf::from(&job.book).join(format!("{}.opus", job.key));
-            let path = self.audio_dir.join(&relative);
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-            }
-            std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
-            lock(&self.library)
-                .record_segment(&CachedSegment {
-                    key: job.key.clone(),
-                    book_id: BookId(job.book.clone()),
-                    file: relative,
-                    duration_ms: u64::from(duration_ms),
-                    bytes: bytes.len() as u64,
-                    word_timings: synthesis.word_timings.map(|t| {
-                        t.into_iter()
-                            .map(|(start_ms, end_ms)| aoide_library::WordTiming {
-                                start_ms,
-                                end_ms,
-                            })
-                            .collect()
-                    }),
-                    created_at: now_ms(),
-                })
-                .map_err(|e| e.to_string())?;
-            Ok(duration_ms)
-        })
-    }
-}
-
 impl Core {
     /// Must be called inside the async runtime (spawns background tasks).
     pub fn start(environment: Environment, paths: Paths) -> Result<Arc<Self>, String> {
@@ -323,19 +303,14 @@ impl Core {
         let settings = config.get::<config::PlayerSettings>(config::PLAYER);
         let engine = registry.create(&profile).map_err(|e| e.to_string())?;
         let library = Arc::new(Mutex::new(library));
-        let (events_tx, events_rx) = tokio::sync::mpsc::unbounded_channel();
-        let store = Arc::new(Store {
-            library: Arc::clone(&library),
-            audio_dir: paths.audio_dir.clone(),
-        });
-        let worker = Worker::spawn(
-            Arc::clone(&engine),
-            Arc::clone(&store) as Arc<dyn SegmentStore>,
-            WorkerOptions::default(),
-            events_tx.clone(),
-        );
         let reporter = error::Reporter::new(Arc::clone(&events));
-        let preparation = Preparation::load(&lock(&library), reporter.clone());
+        let (generation, worker_events) = generation::Generation::new(
+            Arc::clone(&library),
+            paths.audio_dir.clone(),
+            Arc::clone(&engine),
+            reporter.clone(),
+            Arc::clone(&events),
+        );
         let mut player = PlayerCore::new(OUTPUT_RATE);
         if let Some(settings) = settings {
             player.set_speed(settings.speed);
@@ -359,11 +334,7 @@ impl Core {
             playback: playback::Playback::new(player),
             output: Mutex::new(None),
             engine: engine_component,
-            worker: Mutex::new(worker),
-            worker_events: events_tx,
-            store,
-            preparation: Mutex::new(preparation),
-            generation: Mutex::new(GenerationStateView::default()),
+            generation,
             last_player_state: Mutex::new(None),
             sleep: Mutex::new(None),
             media: Mutex::new(None),
@@ -390,7 +361,7 @@ impl Core {
                 }
             });
         }
-        tokio::spawn(Arc::clone(&core).worker_events(events_rx));
+        tokio::spawn(Arc::clone(&core).worker_events(worker_events));
         tokio::spawn(Arc::clone(&core).tick_loop());
         tokio::spawn(Arc::clone(&core).engine_loop());
         tokio::spawn(Arc::clone(&core).aligner_loop());
@@ -406,8 +377,7 @@ impl Core {
                 runtime.spawn(async move {
                     // Voices first, so a voice chosen with another engine is not sent.
                     let _ = resumer.check_voices(false).await;
-                    resumer.replan(false);
-                    resumer.emit_generation();
+                    resumer.plan(PlanEvent::ListeningChanged { jump: false });
                 });
             }
             if background {
@@ -702,12 +672,8 @@ impl Core {
         if self.playback.is_book(id) {
             self.stop();
         }
-        {
-            let mut preparation = lock(&self.preparation);
-            preparation.forget(&lock(&self.library), id);
-        }
         self.forget_recording(id);
-        self.replan(false);
+        self.plan(PlanEvent::BookForgotten(id.into()));
         let files = lock(&self.library)
             .remove_book(&BookId(id.into()))
             .map_err(|e| e.to_string())?;
@@ -981,7 +947,7 @@ impl Core {
             }
         };
         self.playback.start(target, start);
-        self.replan(true);
+        self.plan(PlanEvent::ListeningChanged { jump: true });
         self.ensure_output()
     }
 
@@ -1013,8 +979,7 @@ impl Core {
         if self.playback.is_book(id) {
             self.restart_session().await?;
         }
-        lock(&self.preparation).drop_plans(Some(id));
-        self.replan(true);
+        self.plan(PlanEvent::BookSettingsChanged(id.into()));
         Ok(())
     }
 
@@ -1052,22 +1017,9 @@ impl Core {
         profile: EngineProfile,
         engine: Arc<dyn SpeechEngine>,
     ) -> Result<(), String> {
-        let worker = Worker::spawn(
-            Arc::clone(&engine),
-            Arc::clone(&self.store) as Arc<dyn SegmentStore>,
-            WorkerOptions::default(),
-            self.worker_events.clone(),
-        );
-        // The old worker finishes any in-flight request and then stops.
-        *lock(&self.worker) = worker;
-        self.engine.switch(profile, engine);
-        lock(&self.generation).generating_segment_id = None;
-        if self.playback.book().is_some() {
-            self.restart_session().await?;
-        }
-        lock(&self.preparation).drop_plans(None);
-        self.replan(true);
-        Ok(())
+        self.engine.switch(profile, Arc::clone(&engine));
+        self.plan(PlanEvent::EngineSwitched(engine));
+        self.restart_session().await
     }
 
     /// Rebuilds the listening session's requests and cache state (voice/engine/settings
@@ -1090,115 +1042,52 @@ impl Core {
 
     /// Deletes a book's generated audio; it will be regenerated on demand.
     pub async fn regenerate_book(&self, id: &str) -> Result<(), String> {
-        // The worker skips keys it made in this run unless told they are gone.
-        if let Ok(plan) = self.load_book(id).and_then(|book| self.speech_plan(&book)) {
-            lock(&self.worker).forget(plan.items.into_iter().map(|item| item.key));
-        }
+        let keys = self
+            .load_book(id)
+            .and_then(|book| self.speech_plan(&book))
+            .map(|plan| plan.items.into_iter().map(|item| item.key).collect())
+            .unwrap_or_default();
         let files = lock(&self.library)
             .delete_book_segments(&BookId(id.into()))
             .map_err(|e| e.to_string())?;
         for file in files {
             let _ = std::fs::remove_file(self.paths.audio_dir.join(file));
         }
-        {
-            let mut preparation = lock(&self.preparation);
-            preparation.audio_lost(
-                &lock(&self.library),
-                &HashSet::from([id.to_owned()]),
-                &HashSet::new(),
-            );
-            preparation.drop_plans(Some(id));
-        }
+        self.plan(PlanEvent::BookAudioDeleted {
+            book: id.into(),
+            keys,
+        });
         if self.playback.is_book(id) {
             self.restart_session().await?;
         }
-        self.replan(true);
         self.emit(CoreEvent::LibraryChanged);
         Ok(())
     }
 
     // ------------------------------------------------------------ preparation
 
-    /// Plans made before the engine listed its voices (it was down) may name a voice it does
-    /// not offer: make them again now that the list is known.
-    async fn replan_with_voices(&self) {
-        if let Err(error) = self.restart_session().await {
-            tracing::warn!(event = "engine.session", %error, "Could not restart playback with the engine's voices");
-        }
-        let planned = !lock(&self.preparation).planned_books().is_empty();
-        if planned {
-            lock(&self.preparation).drop_plans(None);
-            self.replan(false);
-        }
-    }
-
     pub async fn prepare_book(&self, id: &str) -> Result<(), String> {
         self.load_book(id)?;
         self.ensure_voice().await?;
         self.ensure_model().await;
-        {
-            let mut preparation = lock(&self.preparation);
-            preparation.enqueue(&lock(&self.library), id);
-        }
         // Plans it now: a book whose audio is all made already finishes here.
-        self.replan(false);
+        self.plan(PlanEvent::BookQueued(id.into()));
         self.emit(CoreEvent::LibraryChanged);
         Ok(())
     }
 
     pub fn cancel_prepare(&self, id: &str) {
-        {
-            let mut preparation = lock(&self.preparation);
-            preparation.cancel(&lock(&self.library), id);
-        }
-        self.replan(false);
+        self.plan(PlanEvent::PrepareCancelled(id.into()));
         self.emit(CoreEvent::LibraryChanged);
     }
 
     /// Pauses or resumes a queued book's preparation; the choice survives restarts.
     pub fn set_prepare_paused(&self, id: &str, paused: bool) {
-        {
-            let mut preparation = lock(&self.preparation);
-            preparation.set_paused(&lock(&self.library), id, paused);
-        }
-        self.replan(false);
-        self.emit_generation();
+        self.plan(PlanEvent::PreparePaused {
+            book: id.into(),
+            paused,
+        });
         self.emit(CoreEvent::LibraryChanged);
-    }
-
-    /// Builds plans for queued books waiting for one. A book that cannot be loaded leaves the queue.
-    fn plan_waiting_books(&self) {
-        let waiting = lock(&self.preparation).unplanned();
-        let mut changed = false;
-        for id in waiting {
-            if self.engine.default_voice().is_none() && self.book_settings(&id).voice_id.is_none() {
-                continue; // Voice not known yet; planned once playback or preparation resolves it.
-            }
-            let built = self
-                .load_book(&id)
-                .and_then(|book| Ok((self.speech_plan(&book)?, book)));
-            let mut preparation = lock(&self.preparation);
-            let library = lock(&self.library);
-            match built {
-                Ok((mut plan, book)) => {
-                    if let Some(chapters) = preparation.chapters(&id) {
-                        plan.only(|index| {
-                            book.locate(index)
-                                .is_some_and(|(c, _)| chapters.contains(&c))
-                        });
-                    }
-                    preparation.planned(&library, &id, plan)
-                }
-                Err(error) => {
-                    tracing::warn!(event = "prep.plan", book = crate::logging::book(&id), %error, "Cannot plan the book's preparation");
-                    preparation.cancel(&library, &id);
-                }
-            }
-            changed = true;
-        }
-        if changed {
-            self.emit(CoreEvent::LibraryChanged);
-        }
     }
 
     /// Queues one chapter of a book for preparation (joining the book's entry if it has one).
@@ -1209,11 +1098,10 @@ impl Core {
         }
         self.ensure_voice().await?;
         self.ensure_model().await;
-        {
-            let mut preparation = lock(&self.preparation);
-            preparation.enqueue_chapter(&lock(&self.library), id, chapter);
-        }
-        self.replan(false);
+        self.plan(PlanEvent::ChapterQueued {
+            book: id.into(),
+            chapter,
+        });
         self.emit(CoreEvent::LibraryChanged);
         Ok(())
     }
@@ -1237,8 +1125,7 @@ impl Core {
     }
 
     pub fn prepare_view(&self, id: &str) -> Option<PrepareView> {
-        let preparation = lock(&self.preparation);
-        preparation.view(&lock(&self.library), id)
+        self.generation.prepare_view(id)
     }
 
     /// The speech engine's plan for reading all of `book` in its voice and settings.
@@ -1300,73 +1187,12 @@ impl Core {
     fn seek_at(&self, index: usize, offset_ms: Option<u32>) {
         self.playback.seek(index, offset_ms);
         self.save_progress(true);
-        self.replan(true);
+        self.plan(PlanEvent::ListeningChanged { jump: true });
     }
 
-    /// Recomputes the generation plan from the playhead and the prepare queue. `jump` debounces.
-    fn replan(&self, jump: bool) {
-        self.plan_waiting_books();
-        let playhead = self.playback.position().index;
-        let planned = |listening: Option<(&str, &narration::NarrationPlan)>| {
-            let preparation = lock(&self.preparation);
-            let planned = preparation.planned_books();
-            // A recording is not made by the speech engine, only the text it lacks when asked
-            // to say that.
-            let speech = listening.filter(|(_, narration)| narration.speaks());
-            let speech_items = speech.map(|(_, narration)| narration.speech_items());
-            let listening = speech
-                .zip(speech_items.as_ref())
-                .map(|((book, _), items)| Listening {
-                    book,
-                    items,
-                    playhead,
-                    lookahead_ms: LOOKAHEAD_MS,
-                });
-            let preparing: Vec<Preparing<'_>> = planned
-                .iter()
-                .map(|(book, plan)| Preparing {
-                    book,
-                    items: &plan.items,
-                })
-                .collect();
-            let jobs = plan(listening.as_ref(), &preparing);
-            let pending = jobs.len();
-            let work: Vec<WorkItem> = jobs
-                .into_iter()
-                .filter_map(|job| {
-                    let request = match (job.reason, speech) {
-                        (Reason::Playhead, Some((_, narration))) => narration.request(job.index),
-                        _ => planned
-                            .iter()
-                            .find(|(book, _)| *book == job.book)?
-                            .1
-                            .requests
-                            .get(job.index)?
-                            .as_ref(),
-                    }?
-                    .clone();
-                    Some(WorkItem { job, request })
-                })
-                .collect();
-            let mut generation = lock(&self.generation);
-            // Only speech is made; a recording that says nothing has nothing to report here.
-            generation.book_id = speech.map(|(book, _)| book.to_owned());
-            generation.pending = pending;
-            generation.buffered_ahead_ms = speech_items
-                .as_ref()
-                .map_or(0, |items| buffered_ahead_ms(items, playhead));
-            work
-        };
-        let work = self
-            .playback
-            .with_narration(|book, narration| planned(Some((book, narration))))
-            .unwrap_or_else(|| planned(None));
-        let worker = lock(&self.worker);
-        if jump {
-            worker.set_plan(work);
-        } else {
-            worker.update_plan(work);
-        }
+    /// Tells generation what changed; see [`generation::Generation::apply`].
+    fn plan(&self, event: PlanEvent) {
+        self.generation.apply(event, self);
     }
 
     pub fn pause(&self) {
@@ -1383,8 +1209,7 @@ impl Core {
         self.save_progress(true);
         self.playback.stop();
         *lock(&self.output) = None;
-        *lock(&self.generation) = GenerationStateView::default();
-        self.replan(true);
+        self.plan(PlanEvent::ListeningStopped);
     }
 
     pub fn toggle(&self) {
@@ -1547,36 +1372,23 @@ impl Core {
         while let Some(event) = events.recv().await {
             match event {
                 WorkerEvent::Started(job) => {
-                    let id = self.segment_id_for(&job);
-                    lock(&self.generation).generating_segment_id = id;
                     self.engine.mark_busy();
+                    let segment_id = self.segment_id_for(&job);
+                    self.plan(PlanEvent::WorkStarted { segment_id });
                 }
                 WorkerEvent::Finished { job, duration_ms } => {
-                    // Keys are content hashes, so mark every plan that shares them.
                     self.playback.segment_made(&job.key, duration_ms);
-                    let finished = {
-                        let mut preparation = lock(&self.preparation);
-                        preparation.segment_made(&lock(&self.library), &job.key, duration_ms)
-                    };
-                    if finished {
-                        self.emit(CoreEvent::LibraryChanged);
-                    }
+                    self.plan(PlanEvent::SegmentMade {
+                        key: job.key,
+                        duration_ms,
+                    });
                     self.enforce_cache_limit();
-                    {
-                        let mut generation = lock(&self.generation);
-                        generation.generating_segment_id = None;
-                        generation.error = None;
-                    }
-                    self.replan(false);
                 }
                 WorkerEvent::Failed { job, error } => {
                     tracing::warn!(event = "gen.failed", key = %job.key, %error, "Making audio failed");
-                    let mut generation = lock(&self.generation);
-                    generation.generating_segment_id = None;
-                    generation.error = Some(error);
+                    self.plan(PlanEvent::WorkFailed { error });
                 }
             }
-            self.emit_generation();
         }
     }
 
@@ -1590,27 +1402,13 @@ impl Core {
             .map(|s| s.id.clone())
     }
 
-    fn emit_generation(&self) {
-        let preparing = lock(&self.preparation)
-            .current()
-            .map(|(id, done, total)| PreparingView {
-                book_id: id.into(),
-                done,
-                total,
-            });
-        lock(&self.generation).preparing = preparing;
-        let state = lock(&self.generation).clone();
-        self.emit(CoreEvent::GenerationState(state));
-    }
-
     async fn tick_loop(self: Arc<Self>) {
         let mut interval = tokio::time::interval(TICK);
         loop {
             interval.tick().await;
             if self.provide_audio() {
-                self.replan(false);
+                self.plan(PlanEvent::ListeningChanged { jump: false });
                 self.save_progress(false);
-                self.emit_generation();
             }
             self.keep_output_alive();
             let state = self.player_state();
@@ -1680,9 +1478,14 @@ impl Core {
 
     async fn engine_loop(self: Arc<Self>) {
         loop {
-            let busy = lock(&self.generation).generating_segment_id.is_some();
+            let busy = self.generation.busy();
             if self.engine.poll(busy).await == engine::Polled::VoicesKnown {
-                self.replan_with_voices().await;
+                // Plans made before the engine listed its voices (it was down) may name a
+                // voice it does not offer: make them again now that the list is known.
+                if let Err(error) = self.restart_session().await {
+                    tracing::warn!(event = "engine.session", %error, "Could not restart playback with the engine's voices");
+                }
+                self.plan(PlanEvent::VoicesKnown);
             }
             tokio::time::sleep(Duration::from_secs(3)).await;
         }
@@ -1694,7 +1497,7 @@ impl Core {
 
     #[cfg(debug_assertions)]
     pub(crate) fn generation_state(&self) -> GenerationStateView {
-        lock(&self.generation).clone()
+        self.generation.state()
     }
 
     /// Stops processes Aoide started and saves progress.

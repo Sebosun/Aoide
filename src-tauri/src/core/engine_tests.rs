@@ -18,7 +18,14 @@ use super::{Core, CoreEvent, Environment, Events, PrepareStage};
 pub(super) struct Scripted {
     pub(super) descriptor: EngineDescriptor,
     status: Mutex<EngineStatus>,
-    voices: Vec<String>,
+    voices: Mutex<Vec<String>>,
+    /// Listing voices fails while set.
+    pub(super) voices_fail: std::sync::atomic::AtomicBool,
+    /// While set, each synthesis waits for a permit ([`Scripted::allow`]).
+    synthesis_held: std::sync::atomic::AtomicBool,
+    synthesis_gate: tokio::sync::Semaphore,
+    /// Synthesis fails while set.
+    pub(super) synthesis_fails: std::sync::atomic::AtomicBool,
     /// While held, a voice listing waits for a permit.
     gate: tokio::sync::Semaphore,
     held: bool,
@@ -41,7 +48,11 @@ impl Scripted {
                 params: vec![],
             },
             status: Mutex::new(status),
-            voices: voices.iter().map(|v| v.to_string()).collect(),
+            voices: Mutex::new(voices.iter().map(|v| v.to_string()).collect()),
+            voices_fail: Default::default(),
+            synthesis_held: Default::default(),
+            synthesis_gate: tokio::sync::Semaphore::new(0),
+            synthesis_fails: Default::default(),
             gate: tokio::sync::Semaphore::new(0),
             held,
             status_calls: AtomicUsize::new(0),
@@ -54,6 +65,42 @@ impl Scripted {
     /// Lets every listing held now or later answer.
     pub(super) fn release(&self) {
         self.gate.add_permits(64);
+    }
+
+    /// Makes each synthesis wait until [`Scripted::allow`]ed.
+    pub(super) fn hold_synthesis(&self) {
+        self.synthesis_held.store(true, Ordering::SeqCst);
+    }
+
+    /// Lets `n` more held syntheses finish.
+    pub(super) fn allow(&self, n: usize) {
+        self.synthesis_gate.add_permits(n);
+    }
+
+    /// Lets every held synthesis finish, now and later.
+    pub(super) fn let_go(&self) {
+        self.synthesis_held.store(false, Ordering::SeqCst);
+        self.synthesis_gate.add_permits(1_000);
+    }
+
+    /// What it was asked to say, in order.
+    pub(super) fn texts(&self) -> Vec<String> {
+        self.requests
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|r| r.text.clone())
+            .collect()
+    }
+
+    /// The voices it was asked to speak in, in order.
+    pub(super) fn voices_used(&self) -> Vec<String> {
+        self.requests
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|r| r.voice_id.clone())
+            .collect()
     }
 
     pub(super) fn set_status(&self, status: EngineStatus) {
@@ -77,8 +124,13 @@ impl SpeechEngine for Scripted {
                 let _ = self.gate.acquire().await;
             }
             self.listings_answered.fetch_add(1, Ordering::SeqCst);
+            if self.voices_fail.load(Ordering::SeqCst) {
+                return Err(EngineError::Unavailable("not listening".into()));
+            }
             Ok(self
                 .voices
+                .lock()
+                .unwrap()
                 .iter()
                 .map(|id| Voice {
                     id: id.clone(),
@@ -92,7 +144,15 @@ impl SpeechEngine for Scripted {
         request: &'a SynthesisRequest,
     ) -> BoxFuture<'a, Result<Synthesis, EngineError>> {
         self.requests.lock().unwrap().push(request.clone());
-        Box::pin(async {
+        Box::pin(async move {
+            if self.synthesis_held.load(Ordering::SeqCst) {
+                if let Ok(permit) = self.synthesis_gate.acquire().await {
+                    permit.forget();
+                }
+            }
+            if self.synthesis_fails.load(Ordering::SeqCst) {
+                return Err(EngineError::Unavailable("the engine fell over".into()));
+            }
             Ok(Synthesis {
                 sample_rate: 24_000,
                 samples: vec![0.0; 2_400],
@@ -113,7 +173,7 @@ pub(super) fn profile(kind: &str) -> EngineProfile {
 
 /// Core over the test book, using `engines`, with the first one's profile; `extra` is more
 /// TOML for its `[engine]` section.
-async fn start(
+pub(super) async fn start(
     root: &std::path::Path,
     engines: &[&Arc<Scripted>],
     extra: &str,

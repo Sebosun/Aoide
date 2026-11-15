@@ -632,7 +632,7 @@ impl Core {
         }
         self.playback.seek_recording(id, at_ms)?;
         self.save_progress(true);
-        self.replan(true);
+        self.plan(PlanEvent::ListeningChanged { jump: true });
         self.playback.play();
         self.ensure_output()
     }
@@ -683,8 +683,7 @@ impl Core {
             }
         };
         if self.playback.follow(id, target) == Some(true) {
-            self.replan(false);
-            self.emit_generation();
+            self.plan(PlanEvent::ListeningChanged { jump: false });
         }
     }
 

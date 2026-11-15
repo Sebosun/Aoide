@@ -158,7 +158,7 @@ Characterisation tests first, at `Core`'s public seam with the `FakeEngine` from
 type; `core.rs` contains no `lock(&self.engine)`; the tests now also exist beside the component,
 driving it without a `Core`.
 
-### - [ ] 8. Extract the `Generation` component
+### - [x] 8. Extract the `Generation` component
 
 This is the step that removes "remember to call `replan`". Today `replan` is called from 17
 sites, `emit_generation` from 5, across `core.rs` and `core/recording.rs`.
