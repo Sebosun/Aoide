@@ -39,10 +39,14 @@ mod feeds;
 mod fetching;
 pub use articles::{ArticleSource, ArticleSummary, ArticleView};
 pub use browsing::BrowserStatusView;
+#[cfg(any(test, debug_assertions))]
+pub use browsing::BrowserUse;
 pub use facets::HomeView;
 pub use feeds::{
     AddedLink, EntryFilter, EntryQuery, EntryView, FeedView, OpmlImport, SubscribeResult,
 };
+#[cfg(any(test, debug_assertions))]
+pub use fetching::Stage as FetchStage;
 pub use signin::SignInView;
 pub use sites::SiteView;
 mod generation;

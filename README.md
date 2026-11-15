@@ -29,6 +29,7 @@ Aoide reads your EPUB books aloud with a text-to-speech engine that runs on your
 - **Footnotes done right.** Notes are left out of the narration and shown beside the text. You can have them read aloud after their paragraph instead.
 - **A tidy library.** Drop EPUBs on the window, or let Aoide find the ones already scattered around your computer. Covers, progress, collections and per-book details from Open Library if you want them.
 - **Articles too.** Paste a link to an article and Aoide fetches the page once, keeps its readable text, and reads or narrates it like a book. If a site shows only part of it (a sign-in, a paywall), Aoide says so instead of pretending it is complete.
+- **Hard pages, if you want.** Some sites only show their text after running scripts, or ask you to sign in or prove you are a person. Turn on the browser in **Settings → Sites** and Aoide opens such pages in Chrome or Chromium on your computer, and lets you sign in or pass the check once in a window. It is off unless you turn it on.
 - **Feeds.** Subscribe to a site's RSS, Atom or JSON feed and its new articles arrive in **Feeds**, checked in the background. Read one in the reader, or save it to the library to keep it. Bring your subscriptions from another reader as an OPML file.
 - **Home and activity.** Home picks up where you left off and shows what is next. Activity has your time per day and per book, streaks, and a heat map of the last six months.
 - **Bring your own audiobook.** Own the DRM-free audiobook of a book? Pair it with the EPUB and the narrator's recording plays with the same sentence and word highlighting. Aoide listens to it once on your computer to find where each sentence is.
@@ -72,6 +73,7 @@ When you skip around, it waits a moment for you to settle and then starts from w
 - Pairing an audiobook downloads a speech-recognition model from huggingface.co once, when you press **Download** in **Settings → Recordings**. It is checked against a fixed checksum. The recording itself is only read on your computer.
 - Saving an article fetches its page (and its lead image) once, from the site you linked, with no cookies or account. Aoide only fetches public addresses, never your home network. **Try an archived copy** asks the Internet Archive (archive.org) for its copy of that page.
 - Feeds you subscribe to are checked from this computer, by default once an hour, asking each site only whether its feed changed. An entry the feed gives only a summary of has its page fetched when you open it, like a saved article.
+- With the browser on (**Settings → Sites**; off by default), a page that needs it is opened in Chrome or Chromium on this computer, and that browser loads the page as any browser would: its scripts, images and the other sites it calls. Like plain fetching, it can only reach public addresses. **Download Chrome** fetches Chrome for Testing from Google once, checked against a fixed checksum.
 - There is no account, no telemetry and no update check.
 
 ## Getting started
@@ -247,6 +249,9 @@ The same list is in **Settings → About**.
 | Library, progress, bookmarks, covers | `~/.local/share/com.aoide.audiobooks` |
 | Saved articles (each page as fetched, and its image) | `~/.local/share/com.aoide.audiobooks/articles` |
 | Speech-recognition models | `~/.local/share/com.aoide.audiobooks/models` |
+| The browser's profile (sign-ins, cookies and site data for articles) | `~/.local/share/com.aoide.audiobooks/browser/profile` |
+| A browser downloaded by Aoide | `~/.local/share/com.aoide.audiobooks/browser/chrome` |
+| Per-site fetch rules | `~/.config/aoide/site-rules.toml` |
 | Generated audio | `~/.cache/com.aoide.audiobooks` (safe to delete; it's made again when needed) |
 
 Books are recognised by their content, not their file name, so renaming or moving a file keeps your progress. If a file disappears, the book stays in your library as *missing* and comes back when the file does.
@@ -318,7 +323,9 @@ Per-book settings, progress and bookmarks live in the library database, not in t
 
 **Syncing is slow.** It runs at about 25 times real time on a processor. Choose a smaller model in **Settings → Recordings**, raise the thread count, or build with a graphics card (see *Build Aoide*). If you already run a speech-recognition server with the OpenAI transcription API and word timestamps (faster-whisper-server, LocalAI), choose **A recognition server** there instead; like the speech server, it must be on this computer unless you allow your home network. Syncing pauses when you quit and carries on next time.
 
-**An article says *Needs you* or *Could not be fetched*.** *Needs you* means the page held back part of the article (a sign-in, a paywall, a check that you are a person) or looked cut short; what was captured is still readable. **Try an archived copy** often has the whole text. *Could not be fetched* gives the reason on its card; pages that only show their text after running scripts cannot be saved yet.
+**An article says *Needs you* or *Could not be fetched*.** *Needs you* means the page held back part of the article (a sign-in, a paywall, a check that you are a person) or looked cut short; what was captured is still readable. **Try an archived copy** often has the whole text. With the browser on, the notice offers to sign in or pass the check in a window; once that is done the article is fetched again, and later articles from the site use the same sign-in if you chose **Stay signed in**. *Could not be fetched* gives the reason on its card; a page that only shows its text after running scripts needs the browser.
+
+**The browser for articles.** It is off by default, and while it is off Aoide never looks for, downloads or starts a browser. In **Settings → Sites**, *When plain fetching fails* uses it only for pages that came back cut short or behind a check; *Always* uses it for every article (slower). Aoide uses Chrome or Chromium if one is installed (or the program you choose), else offers **Download Chrome** (about 200 MB). It runs with its own profile, apart from your everyday browser; signing in there stores that site's cookies in the profile. Each site can be set to fetch with the browser or plainly, and to keep or clear its data between fetches. **Sign out** or **Forget** a site there, **Remove all site data** to empty the profile, and **Remove downloaded browser** to delete the download; the folders are listed under *Where your files live*. The browser stops a minute after its last page, and when you quit.
 
 **Export as M4B is missing or fails.** Install `ffmpeg` and make sure it's on your `PATH`.
 

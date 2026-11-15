@@ -281,3 +281,48 @@ stored in the profile, how to remove it. `docs/roadmap.md`.
   complete; a site the user signs in to once is fetched complete afterwards, including from
   its feed; signing out makes it "needs you" again.
 - Quitting Aoide leaves no browser process behind (check the process list).
+
+## Notes from implementation
+
+- The schema is library **v12**, not v11 (the ledger has been one ahead since phase 2). The
+  older migration tests drop `sites` so they still describe their own version.
+- 6.4: `Reach` is enforced by a proxy, not by intercepting requests over DevTools. The
+  browser's only way out is an HTTP proxy on a loopback port (`proxy.rs`) that resolves each
+  name itself and connects only to an address it checked, so pages, frames, workers and
+  names that resolve differently a second time cannot reach this computer or its network.
+  DevTools uses a loopback port the system picks. The live tests passed with Chromium
+  154.0.8037.97 (Fedora 44), and again on 2026-11-15 at the end of the phase.
+- 6.5: `walk` follows the routes from `plan_fetch`, keeps the better copy and stops at the
+  first `Complete`. A browser that is busy is never stopped for being idle; turning the
+  setting `Off` stops a running one; `Core::shutdown` stops it.
+- 6.6: Chrome for Testing **157.0.8103.78** is pinned in `core/chrome-for-testing.toml`
+  (linux64, linux-arm64, mac-arm64, mac-x64, win64: size, SHA-256 and program path). Each
+  hash was computed from the zip and cross-checked against the host's MD5. The download is
+  about 200 MB, not 150. It comes from Google's public bucket to each user's own copy of
+  Aoide (nothing is redistributed); the data file and the Settings note say its use is under
+  Google's Chrome terms. A host that ignores `Range` makes the download start over. The zip
+  is unpacked into `chrome.unpacking` and renamed into place, so it is there whole or not
+  at all.
+- 6.7: `site.*` log events carry no host (AGENTS.md: fields carry book ids and file names
+  only). `SiteView.waitingArticle` names an article the site holds back, so the Sites
+  table can offer "Sign in…" with it.
+- 6.8: one task owns the window and takes asks (done, cancel, show) over a channel. While a
+  window is open the browser counts as busy, and renders reuse that visible browser (one
+  process shares the profile). The article is taken in through `Articles::receive`: the
+  window's own page when it shows the whole article, else one render with the profile as it
+  is.
+- 6.10: "Open original" moved out of the notice (it stays in the article header). Feed entries
+  carry `EntryView.needsYou` from the core. `?article=needsyou-check` was added to the
+  preview.
+- With `Off`, nothing looks for a browser on its own. Settings › Sites asks for the status,
+  which checks whether the program file exists (without running it) so the tab can say what
+  would run. The version is only read once the setting is not `Off`.
+- Done-check (native smoke runs, `AOIDE_SMOKE_ARTICLE`, 2026-11-15). With `Off` on a fresh
+  home, an article was fetched over HTTP (Ready, 1112 words): no browser process ran and no
+  `browser/` folder was made. A page whose text is built by script (quotes.toscrape.com/js)
+  came back over HTTP as "needs you · empty" (2 words). With `Fallback`, the browser started,
+  rendered it in about 3 s and the article was Ready via Browser (190 words). The browser
+  stopped on quit and no process was left. The sign-in path (a site signed in to once
+  fetched complete afterwards, also from its feed; signing out makes it "needs you" again)
+  needs a real account in a visible window. It was covered by the core tests with a scripted
+  window, not checked against a live site.

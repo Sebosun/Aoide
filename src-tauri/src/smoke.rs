@@ -40,6 +40,10 @@ enum Scenario {
     /// `AOIDE_SMOKE_READ_ALONG`: exports the book with its synced recording as a read-along
     /// EPUB.
     ReadAlong,
+    /// `AOIDE_SMOKE_ARTICLE=<link>`: saves the article and waits for its fetch to end, with the
+    /// browser setting `AOIDE_SMOKE_BROWSER` (`off`, the default, `fallback` or `first`; the
+    /// program from `AOIDE_BROWSER` when set).
+    Article { link: String },
     /// Otherwise: plays the book (from `AOIDE_SMOKE_CHAPTER`) for the run's seconds, then
     /// bookmarks it and stops.
     Play { chapter: Option<usize> },
@@ -48,7 +52,9 @@ enum Scenario {
 impl Scenario {
     fn from_env() -> Self {
         let set = |name: &str| std::env::var_os(name).is_some();
-        if set("AOIDE_SMOKE_DISCOVER") {
+        if let Ok(link) = std::env::var("AOIDE_SMOKE_ARTICLE") {
+            Scenario::Article { link }
+        } else if set("AOIDE_SMOKE_DISCOVER") {
             Scenario::Discover {
                 details: set("AOIDE_SMOKE_DETAILS"),
             }
@@ -94,15 +100,17 @@ async fn run(core: &Arc<Core>, scenario: Scenario, seconds: u64) -> Result<(), S
             core.save_app_settings(settings)
         );
     }
-    if let Scenario::Discover { details } = scenario {
-        return discover(core, details).await;
+    match scenario {
+        Scenario::Discover { details } => return discover(core, details).await,
+        Scenario::Article { link } => return article(core, &link).await,
+        _ => {}
     }
     let id = book(core)?;
     if let Ok(paths) = std::env::var("AOIDE_SMOKE_ATTACH") {
         attach(core, &id, paths.split('|').map(str::to_owned).collect()).await?;
     }
     match scenario {
-        Scenario::Discover { .. } => unreachable!("handled above"),
+        Scenario::Discover { .. } | Scenario::Article { .. } => unreachable!("handled above"),
         Scenario::Prepare => prepare(core, &id, seconds).await,
         Scenario::Export => {
             let started = Instant::now();
@@ -175,6 +183,48 @@ async fn attach(core: &Arc<Core>, id: &str, paths: Vec<String>) -> Result<(), St
         tracing::info!(event = "smoke", "summary {:?}", report.summary);
     }
     Ok(())
+}
+
+async fn article(core: &Arc<Core>, link: &str) -> Result<(), String> {
+    use crate::core::{BrowserUse, FetchStage};
+    let mut settings = core.app_settings();
+    settings.browser.use_ = match std::env::var("AOIDE_SMOKE_BROWSER").as_deref() {
+        Ok("fallback") => BrowserUse::Fallback,
+        Ok("first") => BrowserUse::First,
+        _ => BrowserUse::Off,
+    };
+    settings.browser.path = std::env::var("AOIDE_BROWSER").ok();
+    core.save_app_settings(settings)?;
+    let status = core.browser_status();
+    tracing::info!(
+        event = "smoke",
+        "browser: {:?} {:?}",
+        status.use_,
+        status.binary
+    );
+    let started = Instant::now();
+    let id = core.save_article(link)?;
+    loop {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let view = core.article(&id)?;
+        if matches!(view.stage, FetchStage::Queued | FetchStage::Fetching) {
+            continue;
+        }
+        tracing::info!(
+            event = "smoke",
+            "after {:?}: {:?} via {:?}, {} words captured ({:?} declared), error {:?}",
+            started.elapsed(),
+            view.stage,
+            view.via,
+            view.captured_words,
+            view.declared_words,
+            view.error
+        );
+        return match view.stage {
+            FetchStage::Failed => Err("the fetch failed".into()),
+            _ => Ok(()),
+        };
+    }
 }
 
 async fn discover(core: &Arc<Core>, details: bool) -> Result<(), String> {
