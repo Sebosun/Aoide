@@ -322,9 +322,10 @@ npm install
 npm run tauri dev    # the desktop app, with hot reload
 npm run dev          # the interface alone in a browser, with sample books and fake audio
 npm test             # Rust tests for all library crates (no GPU or WebKit needed)
+npm run test:core    # the app's core (builds the Tauri crate)
 npm run test:ui      # interface tests (Vitest)
 npm run typecheck    # Vue templates + TypeScript
-npm run check        # rustfmt + Clippy, warnings denied
+npm run check        # rustfmt + Clippy on every crate, the app's included, warnings denied
 ```
 
 The browser preview at `http://127.0.0.1:1420` runs the whole interface against a mock backend with original sample books. URL parameters such as `?view=reader&theme=dark&mode=lines` open a screen in a known state; see [`src/preview.ts`](src/preview.ts).

@@ -11,12 +11,13 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "test": "cargo test --workspace --exclude aoide",
+    "test:core": "cargo test -p aoide",
     "test:parser": "cargo test -p aoide-epub",
     "check:parser": "cargo fmt -p aoide-epub --check && cargo clippy -p aoide-epub --all-targets -- -D warnings",
     "test:chatterbox": "cargo test -p aoide-chatterbox",
     "check:chatterbox": "cargo fmt -p aoide-chatterbox --check && cargo clippy -p aoide-chatterbox --all-targets -- -D warnings",
     "tauri": "tauri",
-    "check": "cargo fmt --all --check && cargo clippy --workspace --exclude aoide --all-targets -- -D warnings"
+    "check": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings"
   },
   "dependencies": {
     "@lucide/vue": "^1.70.0",
