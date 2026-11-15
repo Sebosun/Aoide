@@ -246,6 +246,8 @@ pub(super) trait FeedsHost: Send + Sync {
     fn feed_settings(&self) -> FeedSettings;
     /// Feeds or their entries changed.
     fn feeds_changed(&self);
+    /// Deletes items no entry needs any more (on the feed shelf), with their files.
+    fn forget_items(&self, ids: &[String]);
 }
 
 /// What one check got.
@@ -268,6 +270,8 @@ pub(super) struct Feeds {
     checking: Mutex<HashSet<i64>>,
     /// One round of checks at a time.
     round: tokio::sync::Mutex<()>,
+    /// When old entries were last cleaned up.
+    cleaned_at: Mutex<Option<i64>>,
     /// Ends the worker's wait early (a new subscription, changed settings).
     wake: tokio::sync::Notify,
 }
@@ -279,6 +283,7 @@ impl Feeds {
             fetcher,
             checking: Mutex::new(HashSet::new()),
             round: tokio::sync::Mutex::new(()),
+            cleaned_at: Mutex::new(None),
             wake: tokio::sync::Notify::new(),
         }
     }
@@ -510,9 +515,50 @@ impl Feeds {
         .await;
     }
 
-    /// Checks every feed now.
+    /// Checks every feed now, then cleans up.
     pub async fn check_all(&self, host: &dyn FeedsHost) {
         self.check_where(host, |_, _| true).await;
+        self.clean_up(host);
+    }
+
+    /// Deletes entries past their keeping time whose item is not saved (age from when a check
+    /// first found them); returns the items on the feed shelf no entry opens any more.
+    pub fn clean(&self, host: &dyn FeedsHost) -> Result<Vec<String>, String> {
+        const DAY: i64 = 24 * 60 * 60 * 1000;
+        let settings = host.feed_settings();
+        let now = host.now_ms();
+        let library = lock(&self.library);
+        let removed = library
+            .delete_old_entries(
+                now - i64::from(settings.keep_read_days) * DAY,
+                now - i64::from(settings.keep_unread_days) * DAY,
+            )
+            .map_err(|e| e.to_string())?;
+        let orphans = library.orphaned_feed_items().map_err(|e| e.to_string())?;
+        drop(library);
+        *lock(&self.cleaned_at) = Some(now);
+        tracing::info!(
+            event = "feed.clean",
+            removed,
+            orphans = orphans.len(),
+            "Cleaned up old feed entries"
+        );
+        Ok(orphans.into_iter().map(|b| b.0).collect())
+    }
+
+    /// Cleans up and deletes the items no entry needs.
+    pub fn clean_up(&self, host: &dyn FeedsHost) {
+        match self.clean(host) {
+            Ok(orphans) => {
+                if !orphans.is_empty() {
+                    host.forget_items(&orphans);
+                    host.feeds_changed();
+                }
+            }
+            Err(error) => {
+                tracing::warn!(event = "feed.clean", %error, "Could not clean up feed entries")
+            }
+        }
     }
 
     async fn check_where(&self, host: &dyn FeedsHost, due: impl Fn(&FeedRow, i64) -> bool) {
@@ -661,8 +707,13 @@ impl Feeds {
 
     /// Checks feeds as they fall due, for as long as the app runs.
     pub async fn run(&self, host: &dyn FeedsHost) {
+        const DAY: i64 = 24 * 60 * 60 * 1000;
         loop {
             self.check_due(host).await;
+            let last = *lock(&self.cleaned_at);
+            if !matches!(last, Some(at) if host.now_ms() - at < DAY) {
+                self.clean_up(host);
+            }
             let _ = tokio::time::timeout(Duration::from_secs(60), self.wake.notified()).await;
         }
     }
@@ -738,6 +789,14 @@ impl FeedsHost for super::Core {
     fn feeds_changed(&self) {
         self.emit(super::CoreEvent::FeedsChanged);
     }
+
+    fn forget_items(&self, ids: &[String]) {
+        for id in ids {
+            if let Err(error) = self.remove_book(id) {
+                tracing::warn!(event = "feed.clean", book = crate::logging::book(id), %error, "Could not delete an item no entry needs");
+            }
+        }
+    }
 }
 
 impl super::Core {
@@ -753,6 +812,17 @@ impl super::Core {
 
     pub fn unsubscribe(&self, id: i64) -> Result<(), String> {
         self.feeds.unsubscribe(self, id)
+    }
+
+    /// Deletes old entries and the items no entry needs (the worker does this daily).
+    #[cfg(test)]
+    pub fn clean_feeds(&self) -> Result<(), String> {
+        let orphans = self.feeds.clean(self)?;
+        self.forget_items(&orphans);
+        if !orphans.is_empty() {
+            self.emit(super::CoreEvent::FeedsChanged);
+        }
+        Ok(())
     }
 
     /// Checks every feed now ("Check now").

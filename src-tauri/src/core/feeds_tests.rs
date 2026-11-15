@@ -84,6 +84,7 @@ impl FeedsHost for Host {
     fn feeds_changed(&self) {
         self.changed.fetch_add(1, Ordering::SeqCst);
     }
+    fn forget_items(&self, _: &[String]) {}
 }
 
 pub(super) fn feeds(pages: &Arc<Pages>) -> (Feeds, Arc<Mutex<Library>>) {
@@ -299,6 +300,94 @@ async fn unsubscribing_removes_the_feed_and_its_entries() {
         .is_empty());
 }
 
+#[tokio::test]
+async fn old_entries_go_unless_saved_and_items_no_entry_needs_are_named() {
+    use aoide_library::{BookId, ItemKind, NewBook, NewEntry};
+    let pages = Pages::with(&[]);
+    pages.feed(HARBOUR, &rss(0..0), "v1");
+    let (feeds, library) = feeds(&pages);
+    let host = Host::at(DAY);
+    let feed = subscribed(feeds.subscribe(&host, HARBOUR).await).id;
+    let item = |id: &str, shelf: &str| {
+        let library = library.lock().unwrap();
+        let book = BookId(id.into());
+        library
+            .upsert_book(
+                &NewBook {
+                    id: book.clone(),
+                    kind: ItemKind::Article,
+                    path: format!("articles/{id}/snapshot.html").into(),
+                    title: None,
+                    authors: vec![],
+                    language: None,
+                    cover_path: None,
+                    error: None,
+                },
+                0,
+            )
+            .unwrap();
+        library.set_shelf(&book, shelf).unwrap();
+        book
+    };
+    // (guid, seen on day, read, item and its shelf)
+    let entries = [
+        ("read-old", 0, true, None),
+        ("read-new", 80, true, None),
+        ("unread-old", 0, false, None),
+        ("unread-mid", 40, false, None),
+        ("saved-old", 0, true, Some(("saved", "library"))),
+        ("opened-old", 0, true, Some(("opened", "feed"))),
+        ("opened-new", 80, true, Some(("kept", "feed"))),
+    ];
+    for (guid, day, read, linked) in entries {
+        let library_lock = library.lock().unwrap();
+        let entry = NewEntry {
+            guid: guid.into(),
+            url: None,
+            title: Some(guid.into()),
+            author: None,
+            published_at: None,
+            summary: None,
+            content_html: None,
+            words: None,
+        };
+        let id = library_lock
+            .insert_entry(feed, &entry, DAY + day * DAY)
+            .unwrap()
+            .unwrap();
+        if read {
+            library_lock
+                .set_entry_read(id, Some(DAY + day * DAY))
+                .unwrap();
+        }
+        drop(library_lock);
+        if let Some((name, shelf)) = linked {
+            let book = item(name, shelf);
+            library.lock().unwrap().link_entry(id, &book).unwrap();
+        }
+    }
+    item("orphan", "feed");
+    item("mine", "library");
+
+    // Day 101: read entries are kept 30 days, unread ones 90.
+    host.now.store(DAY + 100 * DAY, Ordering::SeqCst);
+    let mut orphans = feeds.clean(&host).unwrap();
+    orphans.sort();
+    let left: Vec<String> = library
+        .lock()
+        .unwrap()
+        .entries_of(feed)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.guid)
+        .collect();
+    let mut left = left;
+    left.sort();
+    assert_eq!(left, ["opened-new", "read-new", "saved-old", "unread-mid"]);
+    // Items on the feed shelf that no entry opens any more; saved items are never named.
+    assert_eq!(orphans, ["opened", "orphan"]);
+}
+
 #[test]
 fn a_feeds_stage_moves_only_on_its_events() {
     use FeedEvent::*;
@@ -471,6 +560,21 @@ mod through_core {
         // Removing it from the library keeps it for the feed.
         core.remove_book(&saved).unwrap();
         assert!(core.article(&saved).is_ok());
+    }
+
+    #[tokio::test]
+    async fn items_no_entry_opens_are_deleted_with_their_folders() {
+        let pages = Pages::with(&[]);
+        let (dir, core) = subscribed(&pages).await;
+        let ferry = entry(&core, "The night ferry");
+        let id = core.open_feed_entry(ferry.id).unwrap();
+        let folder = dir.path().join(format!("data/articles/{id}"));
+        assert!(folder.exists());
+        let feed = core.feeds().unwrap()[0].id;
+        core.unsubscribe(feed).unwrap();
+        core.clean_feeds().unwrap();
+        assert!(core.article(&id).is_err());
+        assert!(!folder.exists());
     }
 
     #[test]

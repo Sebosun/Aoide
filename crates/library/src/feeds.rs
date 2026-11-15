@@ -295,6 +295,30 @@ impl Library {
         Ok(())
     }
 
+    /// Deletes entries whose item is not in the library and that were first seen before
+    /// `read_before` (read ones) or `unread_before` (unread ones). Returns how many.
+    pub fn delete_old_entries(&self, read_before: i64, unread_before: i64) -> Result<usize> {
+        Ok(self.conn.execute(
+            "DELETE FROM feed_entries WHERE id IN (
+                SELECT e.id FROM feed_entries e LEFT JOIN books b ON b.id = e.book_id
+                WHERE (b.shelf IS NULL OR b.shelf != 'library')
+                  AND ((e.read_at IS NOT NULL AND e.seen_at < ?1)
+                       OR (e.read_at IS NULL AND e.seen_at < ?2)))",
+            rusqlite::params![read_before, unread_before],
+        )?)
+    }
+
+    /// Items on the feed shelf that no entry opens any more.
+    pub fn orphaned_feed_items(&self) -> Result<Vec<BookId>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id FROM books WHERE shelf = 'feed'
+             AND NOT EXISTS (SELECT 1 FROM feed_entries e WHERE e.book_id = books.id)
+             ORDER BY id",
+        )?;
+        let ids = stmt.query_map([], |r| r.get(0).map(BookId))?;
+        Ok(ids.collect::<rusqlite::Result<_>>()?)
+    }
+
     /// Records the item entry `id` was opened as.
     pub fn link_entry(&self, id: i64, book: &BookId) -> Result<()> {
         self.conn.execute(
