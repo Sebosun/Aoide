@@ -372,6 +372,11 @@ fn with_headers(mut reply: Reply, headers: &[(&'static str, &str)]) -> Reply {
     reply
 }
 
+/// A sniff that takes anything naming an RSS root for a feed.
+fn rss_head(_: Option<&str>, head: &[u8]) -> bool {
+    head.windows(4).any(|w| w == b"<rss")
+}
+
 const RSS: &[u8] =
     b"<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>T</title></channel></rss>";
 
@@ -399,7 +404,7 @@ async fn a_feed_comes_with_its_validators_and_is_asked_for_conditionally() {
     .await;
     let fetcher = fetcher(options());
     let got = fetcher
-        .fetch_feed(&server.at("/feed"), &Validators::default())
+        .fetch_feed(&server.at("/feed"), &Validators::default(), rss_head)
         .await
         .unwrap();
     let FeedResponse::Body {
@@ -424,7 +429,7 @@ async fn a_feed_comes_with_its_validators_and_is_asked_for_conditionally() {
         last_modified: last_modified.clone(),
     };
     let again = fetcher
-        .fetch_feed(&server.at("/same"), &validators)
+        .fetch_feed(&server.at("/same"), &validators, rss_head)
         .await
         .unwrap();
     assert_eq!(again, FeedResponse::NotModified);
@@ -440,6 +445,8 @@ async fn a_moved_feed_says_whether_it_moved_for_good() {
         ("/for-now", redirect(302, "/feed")),
         ("/feed", html("application/atom+xml", RSS)),
         ("/page", html("text/html", b"<p>A page.</p>")),
+        ("/plain", html("text/plain", RSS)),
+        ("/image", html("image/png", b"PNG")),
         ("/json", html("application/feed+json", b"{}")),
         ("/big", html("application/xml", &vec![b' '; 2048])),
     ])
@@ -455,21 +462,36 @@ async fn a_moved_feed_says_whether_it_moved_for_good() {
         FeedResponse::NotModified => panic!("a body"),
     };
     let none = Validators::default();
-    let got = fetcher.fetch_feed(&server.at("/old"), &none).await.unwrap();
+    let got = fetcher
+        .fetch_feed(&server.at("/old"), &none, rss_head)
+        .await
+        .unwrap();
     assert_eq!(body(got), (server.at("/feed"), true));
     let got = fetcher
-        .fetch_feed(&server.at("/for-now"), &none)
+        .fetch_feed(&server.at("/for-now"), &none, rss_head)
         .await
         .unwrap();
     assert_eq!(body(got), (server.at("/feed"), false));
 
-    assert!(fetcher.fetch_feed(&server.at("/json"), &none).await.is_ok());
+    assert!(fetcher
+        .fetch_feed(&server.at("/json"), &none, rss_head)
+        .await
+        .is_ok());
+    // Servers often send feeds as pages or plain text: the sniff tells them apart.
+    let plain = fetcher
+        .fetch_feed(&server.at("/plain"), &none, rss_head)
+        .await;
+    assert!(matches!(plain, Ok(FeedResponse::Body { .. })), "{plain:?}");
+    for page in ["/page", "/image"] {
+        assert!(matches!(
+            fetcher.fetch_feed(&server.at(page), &none, rss_head).await,
+            Err(FetchError::NotAFeed(_))
+        ));
+    }
     assert!(matches!(
-        fetcher.fetch_feed(&server.at("/page"), &none).await,
-        Err(FetchError::NotAFeed(_))
-    ));
-    assert!(matches!(
-        fetcher.fetch_feed(&server.at("/big"), &none).await,
+        fetcher
+            .fetch_feed(&server.at("/big"), &none, rss_head)
+            .await,
         Err(FetchError::TooLarge)
     ));
 }

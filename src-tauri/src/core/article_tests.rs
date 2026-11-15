@@ -13,8 +13,8 @@ use super::fetching::{Reason, Stage};
 use super::tests::{library_folder, start_fetching, until};
 use super::Core;
 
-/// A scripted feed's body and ETag, or why it fails.
-type FeedReply = Result<(String, String), FetchError>;
+/// A scripted feed's body, ETag and media type, or why it fails.
+type FeedReply = Result<(String, String, &'static str), FetchError>;
 
 /// Answers each address with the page, or failure, scripted for it, and counts the asks.
 #[derive(Default)]
@@ -64,7 +64,12 @@ impl Pages {
     /// Serves `body` at feed address `url`, with ETag `etag` (a request carrying it is told
     /// nothing changed).
     pub fn feed(&self, url: &str, body: &str, etag: &str) {
-        let reply = Ok((body.to_owned(), etag.to_owned()));
+        self.feed_as(url, body, etag, "application/rss+xml");
+    }
+
+    /// As [`Pages::feed`], served as `content_type`.
+    pub fn feed_as(&self, url: &str, body: &str, etag: &str, content_type: &'static str) {
+        let reply = Ok((body.to_owned(), etag.to_owned(), content_type));
         self.feeds.lock().unwrap().insert(url.into(), reply);
     }
 
@@ -126,7 +131,12 @@ impl Fetcher for Pages {
             let target = moved.clone().unwrap_or(asked);
             let reply = self.feeds.lock().unwrap().get(&target).cloned();
             match reply {
-                Some(Ok((body, etag))) => {
+                Some(Ok((body, etag, content_type))) => {
+                    if !aoide_feeds::looks_like_feed(Some(content_type), body.as_bytes())
+                        && !content_type.ends_with("xml")
+                    {
+                        return Err(FetchError::NotAFeed(content_type.into()));
+                    }
                     if validators.etag.as_deref() == Some(etag.as_str()) {
                         return Ok(FeedResponse::NotModified);
                     }

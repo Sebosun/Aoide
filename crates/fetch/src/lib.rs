@@ -94,6 +94,12 @@ pub enum FetchError {
     Transport(String),
 }
 
+/// Whether an answer is a feed, from its media type (when it named one) and first bytes.
+pub type Sniff = fn(Option<&str>, &[u8]) -> bool;
+
+/// How much of an answer [`Sniff`] is shown.
+pub const SNIFF_BYTES: usize = 2048;
+
 /// What a feed was last served with, to ask whether it changed.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Validators {
@@ -170,11 +176,15 @@ impl HttpFetcher {
     }
 
     /// Fetches the feed at `url`, asking only for a newer copy than `validators` describe.
-    /// Redirects, size, time and reach are as for pages; XML and JSON types are accepted.
+    /// Redirects, size, time and reach are as for pages. XML and JSON types are accepted, and
+    /// so are text and untyped answers, since servers often send feeds as `text/html` or
+    /// `text/plain`: `sniff` tells a feed from a page by their type and first bytes (at most
+    /// [`SNIFF_BYTES`]), and the rest of a page is not downloaded.
     pub async fn fetch_feed(
         &self,
         url: &Url,
         validators: &Validators,
+        sniff: Sniff,
     ) -> Result<FeedResponse, FetchError> {
         let mut headers = HeaderMap::new();
         let mut add = |name, value: &Option<String>| {
@@ -193,12 +203,11 @@ impl HttpFetcher {
             || essence.ends_with("+xml")
             || essence.ends_with("/json")
             || essence.ends_with("+json");
-        if !feed_type {
-            return Err(FetchError::NotAFeed(if essence.is_empty() {
-                "no type".into()
-            } else {
-                essence
-            }));
+        let loose = essence.is_empty()
+            || essence.starts_with("text/")
+            || essence == "application/octet-stream";
+        if !feed_type && !loose {
+            return Err(FetchError::NotAFeed(essence));
         }
         let header = |name| {
             response
@@ -208,7 +217,12 @@ impl HttpFetcher {
                 .map(str::to_owned)
         };
         let (etag, last_modified) = (header(ETAG), header(LAST_MODIFIED));
-        let bytes = self.body(response, self.options.max_bytes).await?;
+        let typed = (!essence.is_empty()).then_some(essence.as_str());
+        let looks = |head: &[u8]| feed_type || sniff(typed, head);
+        let bytes = self
+            .sniffed_body(response, self.options.max_bytes, looks)
+            .await?
+            .ok_or_else(|| FetchError::NotAFeed(essence.clone()))?;
         Ok(FeedResponse::Body {
             bytes,
             etag,
@@ -350,11 +364,19 @@ impl HttpFetcher {
         Ok(())
     }
 
-    async fn body(
+    async fn body(&self, response: reqwest::Response, max: usize) -> Result<Vec<u8>, FetchError> {
+        let body = self.sniffed_body(response, max, |_| true).await?;
+        Ok(body.expect("every body is wanted"))
+    }
+
+    /// The body, of at most `max` bytes; `None`, read no further, when `wanted` refuses its
+    /// first [`SNIFF_BYTES`] (or all of it, when shorter).
+    async fn sniffed_body(
         &self,
         mut response: reqwest::Response,
         max: usize,
-    ) -> Result<Vec<u8>, FetchError> {
+        wanted: impl Fn(&[u8]) -> bool,
+    ) -> Result<Option<Vec<u8>>, FetchError> {
         let declared = response
             .headers()
             .get(CONTENT_LENGTH)
@@ -364,13 +386,23 @@ impl HttpFetcher {
             return Err(FetchError::TooLarge);
         }
         let mut body = Vec::new();
+        let mut sniffed = false;
         while let Some(chunk) = response.chunk().await.map_err(failure)? {
             if body.len() + chunk.len() > max {
                 return Err(FetchError::TooLarge);
             }
             body.extend_from_slice(&chunk);
+            if !sniffed && body.len() >= SNIFF_BYTES {
+                sniffed = true;
+                if !wanted(&body[..SNIFF_BYTES]) {
+                    return Ok(None);
+                }
+            }
         }
-        Ok(body)
+        if !sniffed && !wanted(&body) {
+            return Ok(None);
+        }
+        Ok(Some(body))
     }
 }
 

@@ -189,7 +189,7 @@ impl ItemShelf {
         }
     }
 
-    fn name(self) -> &'static str {
+    pub(super) fn name(self) -> &'static str {
         match self {
             Self::Library => "library",
             Self::Feed => "feed",
@@ -311,7 +311,7 @@ impl Feeds {
         }
     }
 
-    /// Every subscription, oldest first.
+    /// Every subscription, by title.
     pub fn views(&self) -> Result<Vec<FeedView>, String> {
         let library = lock(&self.library);
         let feeds = library.feeds().map_err(|e| e.to_string())?;
@@ -600,15 +600,21 @@ impl Feeds {
         Ok(aoide_feeds::opml::write(&outlines))
     }
 
+    /// Removes feed `id`, its entries and the items only they opened (saved ones stay).
     pub fn unsubscribe(&self, host: &dyn FeedsHost, id: i64) -> Result<(), String> {
-        lock(&self.library)
-            .remove_feed(id)
-            .map_err(|e| e.to_string())?;
+        let orphans = {
+            let library = lock(&self.library);
+            library.remove_feed(id).map_err(|e| e.to_string())?;
+            library.orphaned_feed_items().map_err(|e| e.to_string())?
+        };
         tracing::info!(
             event = "feed.unsubscribe",
             feed = id,
+            orphans = orphans.len(),
             "Unsubscribed from a feed"
         );
+        let orphans: Vec<String> = orphans.into_iter().map(|b| b.0).collect();
+        host.forget_items(&orphans);
         host.feeds_changed();
         Ok(())
     }
@@ -913,7 +919,7 @@ impl FeedsHost for super::Core {
 }
 
 impl super::Core {
-    /// Every subscription, oldest first.
+    /// Every subscription, by title.
     pub fn feeds(&self) -> Result<Vec<FeedView>, String> {
         self.feeds.views()
     }
@@ -962,17 +968,6 @@ impl super::Core {
             return Err("That is not a web address.".into());
         }
         (self.open_link)(url.as_str())
-    }
-
-    /// Deletes old entries and the items no entry needs (the worker does this daily).
-    #[cfg(test)]
-    pub fn clean_feeds(&self) -> Result<(), String> {
-        let orphans = self.feeds.clean(self)?;
-        self.forget_items(&orphans);
-        if !orphans.is_empty() {
-            self.emit(super::CoreEvent::FeedsChanged);
-        }
-        Ok(())
     }
 
     /// Checks every feed now ("Check now").
@@ -1082,7 +1077,7 @@ impl super::Core {
         Ok(true)
     }
 
-    fn move_shelf(&self, id: &str, event: ShelfEvent) -> Result<(), String> {
+    pub(super) fn move_shelf(&self, id: &str, event: ShelfEvent) -> Result<(), String> {
         let book = aoide_library::BookId(id.into());
         let library = lock(&self.library);
         let from = library
@@ -1131,19 +1126,17 @@ impl super::Core {
         let item = aoide_article::canonical_id(&url);
         if !self.articles.exists(&item) {
             let now = super::now_ms();
+            let shelf = next_shelf(ItemShelf::Feed, ShelfEvent::Opened);
             match full_text(&entry) {
                 Some(html) => {
                     let page = entry_document(&entry, feed.title.as_deref(), html);
-                    self.articles.create_from_feed(&url, &link, page, now)?;
+                    self.articles
+                        .create_from_feed(&url, &link, page, shelf, now)?;
                 }
                 None => {
-                    self.articles.save(&link, now)?;
+                    self.articles.save(&link, shelf, now)?;
                 }
             }
-            let shelf = next_shelf(ItemShelf::Feed, ShelfEvent::Opened);
-            lock(&self.library)
-                .set_shelf(&aoide_library::BookId(item.clone()), shelf.name())
-                .map_err(|e| e.to_string())?;
         }
         self.feeds.link(id, &item)?;
         Ok(item)

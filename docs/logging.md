@@ -93,7 +93,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `article.fetch` | info | `book`, `outcome` (`ok`, `failed`), `took_ms` | `core/articles.rs` `fetch` |
 | `article.forget` | warn | `book`, `error` (its folder could not be deleted) | `core/articles.rs` `forget` |
 | `feed.subscribe` | info | `feed` (its id), `outcome` | `core/feeds.rs` `subscribe_feed` |
-| `feed.unsubscribe` | info | `feed` | `core/feeds.rs` `unsubscribe` |
+| `feed.unsubscribe` | info | `feed`, `orphans` (items only its entries opened, deleted with it) | `core/feeds.rs` `unsubscribe` |
 | `feed.check` | info | `feed`, `outcome` (`ok`, `not_modified`, `failed`), `took_ms` | `core/feeds.rs` `check`: one per feed checked |
 | `item.shelf` | info | `book`, `from`, `to` (`library`, `feed`) | `core/feeds.rs` `move_shelf`: an entry saved, or removed from the library while its feed lists it |
 | `feed.import` | info | `added`, `skipped` (feeds) | `core/feeds.rs` `import` (OPML) |

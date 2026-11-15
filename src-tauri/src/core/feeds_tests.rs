@@ -167,6 +167,20 @@ async fn a_page_with_one_feed_subscribes_to_it_and_with_several_offers_them() {
 }
 
 #[tokio::test]
+async fn a_feed_served_as_a_page_or_plain_text_is_still_a_feed() {
+    let pages = Pages::with(&[]);
+    pages.feed_as(HARBOUR, &rss(0..2), "v1", "text/html");
+    let plain = "https://plain.example/index.rss";
+    pages.feed_as(plain, &rss(0..1), "v1", "text/plain");
+    let (feeds, _) = feeds(&pages);
+    let host = Host::at(DAY);
+
+    assert_eq!(subscribed(feeds.subscribe(&host, HARBOUR).await).unread, 2);
+    assert_eq!(subscribed(feeds.subscribe(&host, plain).await).unread, 1);
+    assert!(pages.asks() == 0, "no page fetched for a feed");
+}
+
+#[tokio::test]
 async fn checks_add_new_entries_and_ask_only_for_changes() {
     let pages = Pages::with(&[]);
     pages.feed(HARBOUR, &rss(0..12), "v1");
@@ -614,6 +628,21 @@ mod through_core {
     }
 
     #[tokio::test]
+    async fn adding_the_link_of_an_item_opened_from_a_feed_keeps_it() {
+        let pages = Pages::with(&[]);
+        let (_dir, core) = subscribed(&pages).await;
+        let id = core
+            .open_feed_entry(entry(&core, "The night ferry").id)
+            .unwrap();
+        assert!(!in_library(&core, &id));
+
+        let added = core.add_link("https://harbour.example/ferry").await;
+        assert_eq!(added, Ok(AddedLink::Saved(id.clone())));
+        assert!(in_library(&core, &id));
+        assert!(entry(&core, "The night ferry").in_library);
+    }
+
+    #[tokio::test]
     async fn subscriptions_go_out_to_an_opml_file_and_come_in_from_one() {
         let pages = Pages::with(&[]);
         let (dir, core) = subscribed(&pages).await;
@@ -688,8 +717,7 @@ mod through_core {
         assert!(folder.exists());
         let feed = core.feeds().unwrap()[0].id;
         core.unsubscribe(feed).unwrap();
-        core.clean_feeds().unwrap();
-        assert!(core.article(&id).is_err());
+        assert!(core.article(&id).is_err(), "gone with its feed");
         assert!(!folder.exists());
     }
 

@@ -18,7 +18,7 @@ use aoide_library::{ArticleRow, BookId, ItemKind, Library, NewBook};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use super::feeds::DiscoveredFeed;
+use super::feeds::{DiscoveredFeed, ItemShelf};
 use super::fetching::{next, Event, Stage};
 use super::lock;
 
@@ -57,7 +57,7 @@ impl Fetcher for HttpFetcher {
     }
 
     fn feed<'a>(&'a self, url: &'a Url, validators: &'a Validators) -> Fetching<'a, FeedResponse> {
-        Box::pin(self.fetch_feed(url, validators))
+        Box::pin(self.fetch_feed(url, validators, aoide_feeds::looks_like_feed))
     }
 }
 
@@ -265,9 +265,15 @@ impl Articles {
         self.dir.join(id).join("snapshot.html")
     }
 
-    /// Saves `link` as an article and queues its fetch; returns its id. A link already saved
-    /// is the same item, fetched again unless it is ready.
-    pub fn save(&self, link: &str, now: i64) -> Result<(String, Option<ArticleView>), String> {
+    /// Saves `link` as an article, made on `shelf`, and queues its fetch; returns its id. A
+    /// link already saved is the same item (on the shelf it was), fetched again unless it is
+    /// ready.
+    pub fn save(
+        &self,
+        link: &str,
+        shelf: ItemShelf,
+        now: i64,
+    ) -> Result<(String, Option<ArticleView>), String> {
         let url = parse_link(link)?;
         let id = aoide_article::canonical_id(&url);
         let book = BookId(id.clone());
@@ -281,14 +287,15 @@ impl Articles {
             }
             return Ok((id.clone(), self.queue_fetch(&id, ArticleSource::Http)?));
         }
-        self.create(&url, link, now)?;
+        self.create(&url, link, shelf, now)?;
         lock(&self.queue).push_back((id.clone(), ArticleSource::Http));
         self.wake.notify_one();
         Ok((id.clone(), self.view(&id).ok()))
     }
 
-    /// Stores a new article item for `url` (given as `link`), queued but not yet fetched.
-    fn create(&self, url: &Url, link: &str, now: i64) -> Result<String, String> {
+    /// Stores a new article item for `url` (given as `link`) on `shelf`, queued but not yet
+    /// fetched.
+    fn create(&self, url: &Url, link: &str, shelf: ItemShelf, now: i64) -> Result<String, String> {
         let id = aoide_article::canonical_id(url);
         let book = BookId(id.clone());
         let host = url.host_str().unwrap_or_default().to_owned();
@@ -307,6 +314,10 @@ impl Articles {
                 },
                 now,
             )
+            .map_err(|e| e.to_string())?;
+        // On its shelf before anything can list it.
+        library
+            .set_shelf(&book, shelf.name())
             .map_err(|e| e.to_string())?;
         let (stage, _) = Stage::Queued.names();
         library
@@ -337,16 +348,17 @@ impl Articles {
         Ok(id)
     }
 
-    /// Stores article `url` (given as `link`) from the whole text a feed carried: `html` is
-    /// read as the page, nothing is fetched. Returns its id.
+    /// Stores article `url` (given as `link`) on `shelf` from the whole text a feed carried:
+    /// `html` is read as the page, nothing is fetched. Returns its id.
     pub fn create_from_feed(
         &self,
         url: &Url,
         link: &str,
         html: String,
+        shelf: ItemShelf,
         now: i64,
     ) -> Result<String, String> {
-        let id = self.create(url, link, now)?;
+        let id = self.create(url, link, shelf, now)?;
         let book = BookId(id.clone());
         let row = lock(&self.library)
             .article(&book)
@@ -363,7 +375,12 @@ impl Articles {
         let extracted = extract(&snapshot.html, url);
         let path = self.snapshot_path(&id);
         self.keep(&id, &row, &snapshot, &extracted, &path, ArticleSource::Feed)?;
-        let to = next(Stage::Fetching, Event::Got(extracted.completeness));
+        // Got at once: it goes through fetching as a fetch would.
+        let queued = Stage::from_stored(&row.stage, row.reason.as_deref());
+        let to = next(
+            next(queued, Event::Started),
+            Event::Got(extracted.completeness),
+        );
         self.store_stage(&book, &row.stage, to, None);
         Ok(id)
     }
@@ -771,9 +788,13 @@ impl ArticlesHost for super::Core {
 }
 
 impl super::Core {
-    /// Saves `link` as an article (or finds it saved) and queues its fetch; returns its id.
+    /// Saves `link` as an article (or finds it saved, and keeps it in the library when it was
+    /// only opened from a feed) and queues its fetch; returns its id.
     pub fn save_article(&self, link: &str) -> Result<String, String> {
-        let (id, view) = self.articles.save(link, super::now_ms())?;
+        let (id, view) = self
+            .articles
+            .save(link, ItemShelf::Library, super::now_ms())?;
+        self.move_shelf(&id, super::feeds::ShelfEvent::Saved)?;
         if let Some(view) = view {
             self.emit(super::CoreEvent::LibraryChanged);
             self.emit(super::CoreEvent::ArticleState(self.completed(view)));
