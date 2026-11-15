@@ -417,7 +417,7 @@ impl Core {
         let mut beside = aoide_discovery::Neighbourhood::default();
         for candidate in &mut candidates {
             if candidate.status == CandidateStatus::New {
-                candidate.suggestion = self.cached_match(&query_for(candidate));
+                candidate.suggestion = self.metadata.cached_match(&query_for(candidate));
             }
             if candidate.status != CandidateStatus::Unreadable && !paired.contains(&candidate.id) {
                 candidate.audiobook = candidate
@@ -451,7 +451,7 @@ impl Core {
                 self.emit(CoreEvent::DiscoveryDetails(id.clone()));
                 continue;
             }
-            match self.lookup_query(&query_for(candidate), false).await {
+            match self.metadata.search(&query_for(candidate), false).await {
                 Ok(_) => {}
                 Err(error) => {
                     tracing::warn!(event = "metadata.lookup", book = crate::logging::book(&id), outcome = "failed", %error, "Online details lookup failed")

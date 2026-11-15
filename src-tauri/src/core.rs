@@ -126,7 +126,6 @@ mod generation_tests;
 mod recording_tests;
 #[cfg(test)]
 mod tests;
-#[cfg(debug_assertions)]
 pub use error::CoreError;
 pub use listening::ListeningStatsView;
 use preparation::Plan;
@@ -273,6 +272,8 @@ pub struct Core {
     shelf: shelf::Shelf,
     bookmarks: bookmarks::Bookmarks,
     listening: listening::Listening,
+    metadata: metadata::Metadata,
+    storage: storage::Storage,
     playback: playback::Playback,
     output: Mutex<Option<PipeOutput>>,
     /// The speech engine in use.
@@ -383,6 +384,12 @@ impl Core {
         );
         let bookmarks = bookmarks::Bookmarks::new(Arc::clone(&library));
         let listening = listening::Listening::new(Arc::clone(&library), reporter.clone());
+        let storage = storage::Storage::new(Arc::clone(&library), &paths);
+        let metadata = metadata::Metadata::new(
+            Arc::clone(&library),
+            paths.covers_dir.clone(),
+            reporter.clone(),
+        );
         let core = Arc::new(Self {
             events,
             reporter,
@@ -393,6 +400,8 @@ impl Core {
             shelf,
             bookmarks,
             listening,
+            metadata,
+            storage,
             playback: playback::Playback::new(player),
             output: Mutex::new(None),
             engine: engine_component,

@@ -33,16 +33,42 @@ fn large_cover(url: &str) -> String {
         .map_or_else(|| url.to_owned(), |stem| format!("{stem}-L.jpg"))
 }
 
-impl Core {
-    /// Candidate matches for the book; only its title, first author and ISBN are sent. Results
-    /// are cached in the library for 30 days; `refresh` asks Open Library again.
-    pub async fn lookup_metadata(&self, id: &str, refresh: bool) -> Result<Vec<Match>, String> {
-        if !self.app_settings().metadata_lookup {
-            return Err("Online lookups are turned off in Settings.".into());
+/// Details about books beyond their EPUB's: looked up on Open Library and stored.
+pub(super) struct Metadata {
+    library: Arc<Mutex<Library>>,
+    covers_dir: PathBuf,
+    reporter: error::Reporter,
+}
+
+const TURNED_OFF: &str = "Online lookups are turned off in Settings.";
+
+impl Metadata {
+    pub fn new(
+        library: Arc<Mutex<Library>>,
+        covers_dir: PathBuf,
+        reporter: error::Reporter,
+    ) -> Self {
+        Self {
+            library,
+            covers_dir,
+            reporter,
         }
-        let book = self.load_book(id)?;
+    }
+
+    /// Candidate matches for `book`; only its title, first author and ISBN are sent. Results
+    /// are cached in the library for 30 days; `refresh` asks Open Library again. `allowed`:
+    /// online lookups are turned on.
+    pub async fn lookup(
+        &self,
+        book: &BookModel,
+        allowed: bool,
+        refresh: bool,
+    ) -> Result<Vec<Match>, String> {
+        if !allowed {
+            return Err(TURNED_OFF.into());
+        }
         let stored = lock(&self.library)
-            .book_details(&BookId(id.into()))
+            .book_details(&BookId(book.id.clone()))
             .ok()
             .flatten();
         let query = Query {
@@ -50,15 +76,11 @@ impl Core {
             title: book.title.clone(),
             authors: book.authors.clone(),
         };
-        self.lookup_query(&query, refresh).await
+        self.search(&query, refresh).await
     }
 
     /// Open Library matches for a query, through the 30-day SQLite cache.
-    pub(super) async fn lookup_query(
-        &self,
-        query: &Query,
-        refresh: bool,
-    ) -> Result<Vec<Match>, String> {
+    pub async fn search(&self, query: &Query, refresh: bool) -> Result<Vec<Match>, String> {
         let cache_key = cache_key(query);
         if !refresh {
             let cached = lock(&self.library).cached_lookup(&cache_key).ok().flatten();
@@ -94,7 +116,7 @@ impl Core {
     }
 
     /// The best cached match for a query, without any network request.
-    pub(super) fn cached_match(&self, query: &Query) -> Option<Match> {
+    pub fn cached_match(&self, query: &Query) -> Option<Match> {
         let (json, _) = lock(&self.library)
             .cached_lookup(&cache_key(query))
             .ok()
@@ -105,12 +127,18 @@ impl Core {
             .next()
     }
 
-    /// Stores the picked match. The book's own description and cover win when it has them.
-    pub async fn apply_metadata(&self, id: &str, picked: Match) -> Result<BookDetails, String> {
-        if !self.app_settings().metadata_lookup {
-            return Err("Online lookups are turned off in Settings.".into());
+    /// Stores the match picked for `book`. The book's own description and cover win when it
+    /// has them. Returns the details now stored.
+    pub async fn apply(
+        &self,
+        book: &BookModel,
+        picked: Match,
+        allowed: bool,
+    ) -> Result<BookDetails, String> {
+        if !allowed {
+            return Err(TURNED_OFF.into());
         }
-        let book = self.load_book(id)?;
+        let id = BookId(book.id.clone());
         let client = client()?;
         let description = match &book.description {
             Some(own) => Some(own.clone()),
@@ -130,11 +158,9 @@ impl Core {
             open_library_key: Some(picked.key.clone()),
         };
         lock(&self.library)
-            .set_book_details(&BookId(id.into()), &details)
+            .set_book_details(&id, &details)
             .map_err(|e| e.to_string())?;
-        let record = lock(&self.library)
-            .book(&BookId(id.into()))
-            .map_err(|e| e.to_string())?;
+        let record = lock(&self.library).book(&id).map_err(|e| e.to_string())?;
         if let (Some(record), Some(url)) = (record, picked.cover_url.as_deref()) {
             if record.cover_path.is_none() {
                 if let Ok((media_type, bytes)) = client.cover(&large_cover(url)).await {
@@ -143,7 +169,7 @@ impl Core {
                     } else {
                         "jpg"
                     };
-                    let path = self.paths.covers_dir.join(format!("{id}-online.{ext}"));
+                    let path = self.covers_dir.join(format!("{}-online.{ext}", id.0));
                     if std::fs::write(&path, bytes).is_ok() {
                         let saved = lock(&self.library).upsert_book(
                             &NewBook {
@@ -158,7 +184,7 @@ impl Core {
                             now_ms(),
                         );
                         if let Err(error) = saved {
-                            self.report(
+                            self.reporter.report(
                                 "metadata.apply",
                                 "Could not save the cover found online",
                                 error,
@@ -168,17 +194,13 @@ impl Core {
                 }
             }
         }
-        self.emit(CoreEvent::LibraryChanged);
-        self.book_details(id)
+        self.details(book)
     }
-}
 
-impl Core {
     /// Stored details over the EPUB's own metadata.
-    pub fn book_details(&self, id: &str) -> Result<BookDetails, String> {
-        let book = self.load_book(id)?;
+    pub fn details(&self, book: &BookModel) -> Result<BookDetails, String> {
         let stored = lock(&self.library)
-            .book_details(&BookId(id.into()))
+            .book_details(&BookId(book.id.clone()))
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
         Ok(BookDetails {
@@ -192,8 +214,98 @@ impl Core {
     }
 }
 
+impl Core {
+    /// Candidate matches for the book from Open Library.
+    pub async fn lookup_metadata(&self, id: &str, refresh: bool) -> Result<Vec<Match>, String> {
+        let book = self.load_book(id)?;
+        let allowed = self.app_settings().metadata_lookup;
+        self.metadata.lookup(&book, allowed, refresh).await
+    }
+
+    /// Stores the picked match.
+    pub async fn apply_metadata(&self, id: &str, picked: Match) -> Result<BookDetails, String> {
+        let book = self.load_book(id)?;
+        let allowed = self.app_settings().metadata_lookup;
+        let details = self.metadata.apply(&book, picked, allowed).await?;
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(details)
+    }
+
+    /// Stored details over the EPUB's own metadata.
+    pub fn book_details(&self, id: &str) -> Result<BookDetails, String> {
+        self.metadata.details(&*self.load_book(id)?)
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::super::tests::{epub, library_with};
+    use super::*;
+
+    fn metadata(dir: &Path) -> Metadata {
+        Metadata::new(library_with(&["b"]), dir.to_path_buf(), Default::default())
+    }
+
+    fn book() -> BookModel {
+        BookModel::parse("b", &epub(), false).unwrap()
+    }
+
+    fn found(key: &str) -> Match {
+        Match {
+            key: key.into(),
+            title: "A Title".into(),
+            authors: vec!["Someone".into()],
+            published: Some("1999".into()),
+            publisher: Some("A Press".into()),
+            isbn: None,
+            subjects: vec!["Rivers".into()],
+            cover_url: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn a_lookup_answered_in_the_last_month_is_taken_from_the_cache() {
+        let dir = tempfile::tempdir().unwrap();
+        let metadata = metadata(dir.path());
+        let book = book();
+        let query = Query {
+            isbn: book.isbn.clone(),
+            title: book.title.clone(),
+            authors: book.authors.clone(),
+        };
+        let json = serde_json::to_string(&vec![found("/works/OL1W")]).unwrap();
+        lock(&metadata.library)
+            .store_lookup(&cache_key(&query), &json, now_ms())
+            .unwrap();
+
+        let matches = metadata.lookup(&book, true, false).await.unwrap();
+
+        assert_eq!(matches[0].key, "/works/OL1W");
+        assert_eq!(metadata.cached_match(&query).unwrap().key, "/works/OL1W");
+        assert!(
+            metadata.lookup(&book, false, false).await.is_err(),
+            "turned off"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_picked_match_is_stored_over_the_books_own_details() {
+        let dir = tempfile::tempdir().unwrap();
+        let metadata = metadata(dir.path());
+        let mut book = book();
+        book.description = Some("Its own words.".into());
+
+        let details = metadata
+            .apply(&book, found("/works/OL2W"), true)
+            .await
+            .unwrap();
+
+        assert_eq!(details.description.as_deref(), Some("Its own words."));
+        assert_eq!(details.publisher.as_deref(), Some("A Press"));
+        assert_eq!(details.open_library_key.as_deref(), Some("/works/OL2W"));
+        assert_eq!(metadata.details(&book).unwrap().subjects, ["Rivers"]);
+    }
+
     #[test]
     fn cache_keys_ignore_case_and_spacing() {
         let query = |title: &str| aoide_metadata::Query {

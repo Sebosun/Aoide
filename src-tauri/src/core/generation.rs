@@ -156,11 +156,6 @@ impl Generation {
         preparation.view(&lock(&self.library), id)
     }
 
-    /// Whether book `id` is queued for preparing.
-    pub fn is_queued(&self, id: &str) -> bool {
-        lock(&self.preparation).contains(id)
-    }
-
     /// The books queued for preparing.
     pub fn queued(&self) -> Vec<String> {
         lock(&self.preparation).queued()

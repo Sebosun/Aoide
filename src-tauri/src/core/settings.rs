@@ -178,7 +178,7 @@ impl Core {
         if settings.verify_audiobooks && !before.verify_audiobooks {
             self.verify_found_audiobooks();
         }
-        lock(&self.extras).last_eviction = None;
+        self.storage.limit_changed();
         self.enforce_cache_limit();
         Ok(settings)
     }

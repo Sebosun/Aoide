@@ -2,12 +2,13 @@
 //! nothing refers to any more. Source EPUBs outside Aoide's folders are never touched.
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
-use aoide_library::{BookId, CachedSegment};
+use aoide_library::{BookId, CachedSegment, Library};
 use serde::Serialize;
 
-use super::{lock, Core, CoreEvent};
+use super::{lock, Core, CoreEvent, Paths};
 
 /// Audio files younger than this may still be on their way into the index.
 const SETTLE: Duration = Duration::from_secs(10 * 60);
@@ -135,7 +136,46 @@ pub(super) fn find_unused(
     unused
 }
 
-impl Core {
+/// What storage asks of the rest of the app.
+pub(super) trait StorageHost {
+    /// The book playing; its audio is evicted last.
+    fn playing(&self) -> Option<String>;
+    /// Books whose audio is never evicted: being prepared or exported.
+    fn protected(&self) -> HashSet<String>;
+}
+
+/// Audio evicted to keep the cache within its limit.
+pub(super) struct Evicted {
+    pub books: HashSet<String>,
+    pub keys: HashSet<String>,
+}
+
+/// Aoide's files on disk: how much they take, cleaning up the unused ones and keeping the
+/// audio cache within its limit.
+pub(super) struct Storage {
+    library: Arc<Mutex<Library>>,
+    audio_dir: PathBuf,
+    covers_dir: PathBuf,
+    library_dir: PathBuf,
+    models_dir: PathBuf,
+    db_path: PathBuf,
+    /// When the cache was last trimmed; trimming is throttled.
+    last_eviction: Mutex<Option<Instant>>,
+}
+
+impl Storage {
+    pub fn new(library: Arc<Mutex<Library>>, paths: &Paths) -> Self {
+        Self {
+            library,
+            audio_dir: paths.audio_dir.clone(),
+            covers_dir: paths.covers_dir.clone(),
+            library_dir: paths.library_dir.clone(),
+            models_dir: paths.models_dir.clone(),
+            db_path: paths.db_path.clone(),
+            last_eviction: Mutex::new(None),
+        }
+    }
+
     fn unused(&self) -> Result<Unused, String> {
         let (indexed, books) = {
             let library = lock(&self.library);
@@ -147,15 +187,16 @@ impl Core {
             .checked_sub(SETTLE)
             .unwrap_or(SystemTime::UNIX_EPOCH);
         Ok(find_unused(
-            &self.paths.audio_dir,
-            &self.paths.covers_dir,
+            &self.audio_dir,
+            &self.covers_dir,
             &indexed,
             &books,
             before,
         ))
     }
 
-    pub fn storage_report(&self) -> Result<StorageReport, String> {
+    /// `in_use`: whether a book is playing, being prepared or being exported.
+    pub fn report(&self, in_use: &dyn Fn(&str) -> bool) -> Result<StorageReport, String> {
         let (audio_bytes, usage, sync_bytes) = {
             let library = lock(&self.library);
             (
@@ -165,28 +206,27 @@ impl Core {
             )
         };
         let unused = self.unused()?;
-        let db = &self.paths.db_path;
         let database_bytes: u64 = ["", "-wal", "-shm"]
             .iter()
             .map(|suffix| {
-                let mut name = db.as_os_str().to_owned();
+                let mut name = self.db_path.as_os_str().to_owned();
                 name.push(suffix);
                 file_len(Path::new(&name))
             })
             .sum();
         Ok(StorageReport {
             audio_bytes,
-            covers_bytes: tree_bytes(&self.paths.covers_dir),
-            books_bytes: tree_bytes(&self.paths.library_dir),
+            covers_bytes: tree_bytes(&self.covers_dir),
+            books_bytes: tree_bytes(&self.library_dir),
             database_bytes: database_bytes.saturating_sub(sync_bytes),
             sync_bytes,
-            models_bytes: tree_bytes(&self.paths.models_dir),
+            models_bytes: tree_bytes(&self.models_dir),
             unused_files: unused.files.len() as u64,
             unused_bytes: unused.bytes,
             books: usage
                 .into_iter()
                 .map(|u| BookStorage {
-                    in_use: self.audio_in_use(&u.book_id),
+                    in_use: in_use(&u.book_id.0),
                     book_id: u.book_id.0,
                     bytes: u.bytes,
                     segments: u.segments,
@@ -196,8 +236,8 @@ impl Core {
         })
     }
 
-    /// Deletes the files `storage_report` counts as unused and removes empty book folders.
-    pub fn clean_unused_files(&self) -> Result<CleanResult, String> {
+    /// Deletes the files `report` counts as unused and removes empty book folders.
+    pub fn clean_unused(&self) -> Result<CleanResult, String> {
         let unused = self.unused()?;
         let mut result = CleanResult { files: 0, bytes: 0 };
         for file in &unused.files {
@@ -213,52 +253,38 @@ impl Core {
         Ok(result)
     }
 
-    /// Whether the book is playing, being prepared or being exported.
-    fn audio_in_use(&self, id: &BookId) -> bool {
-        self.playback.is_book(&id.0)
-            || self.generation.is_queued(&id.0)
-            || lock(&self.extras).exporting.as_deref() == Some(id.0.as_str())
+    /// Lets the next [`Storage::evict`] run at once (the limit changed).
+    pub fn limit_changed(&self) {
+        *lock(&self.last_eviction) = None;
     }
-}
 
-/// Cache-size checks run at most this often.
-const EVICTION_INTERVAL: Duration = Duration::from_secs(20);
-const EVICTION_BATCH: usize = 400;
-
-impl Core {
-    /// Deletes the oldest generated audio until the cache fits the configured limit. Audio of
-    /// the playing book and of books being prepared is kept. Throttled.
-    pub(super) fn enforce_cache_limit(&self) {
+    /// Deletes the oldest generated audio until the cache fits `limit`. Audio of the playing
+    /// book goes last and that of protected books stays. Throttled; returns what was deleted.
+    pub fn evict(&self, limit: Option<u64>, host: &dyn StorageHost) -> Option<Evicted> {
         {
-            let mut extras = lock(&self.extras);
-            if extras
-                .last_eviction
-                .is_some_and(|at| at.elapsed() < EVICTION_INTERVAL)
-            {
-                return;
+            let mut last = lock(&self.last_eviction);
+            if last.is_some_and(|at| at.elapsed() < EVICTION_INTERVAL) {
+                return None;
             }
-            extras.last_eviction = Some(Instant::now());
+            *last = Some(Instant::now());
         }
-        let Some(limit) = self.app_settings().cache_limit_bytes else {
-            return;
+        let limit = limit?;
+        let playing = host.playing().map(BookId);
+        let protected = host.protected();
+        let mut evicted = Evicted {
+            books: HashSet::new(),
+            keys: HashSet::new(),
         };
-        let playing = self.playback.book().map(|b| BookId(b.id.clone()));
-        let mut protected: HashSet<String> = self.generation.queued().into_iter().collect();
-        protected.extend(lock(&self.extras).exporting.clone());
-        let mut evicted_books = HashSet::new();
-        let mut evicted_keys = HashSet::new();
         loop {
             let library = lock(&self.library);
-            let Ok(total) = library.total_audio_bytes() else {
-                return;
-            };
+            let total = library.total_audio_bytes().ok()?;
             if total <= limit {
                 break;
             }
             // Read well past the batch: protected books' old audio may come first.
-            let Ok(oldest) = library.oldest_segments(playing.as_ref(), EVICTION_BATCH * 25) else {
-                return;
-            };
+            let oldest = library
+                .oldest_segments(playing.as_ref(), EVICTION_BATCH * 25)
+                .ok()?;
             let mut excess = total - limit;
             let victims: Vec<CachedSegment> = oldest
                 .into_iter()
@@ -274,33 +300,71 @@ impl Core {
                 break; // Everything left belongs to protected books.
             }
             let keys: Vec<String> = victims.iter().map(|s| s.key.clone()).collect();
-            if library.delete_segments(&keys).is_err() {
-                return;
-            }
+            library.delete_segments(&keys).ok()?;
             drop(library);
             for victim in victims {
-                let _ = std::fs::remove_file(self.paths.audio_dir.join(&victim.file));
-                evicted_books.insert(victim.book_id.0);
-                evicted_keys.insert(victim.key);
+                let _ = std::fs::remove_file(self.audio_dir.join(&victim.file));
+                evicted.books.insert(victim.book_id.0);
+                evicted.keys.insert(victim.key);
             }
         }
-        if evicted_keys.is_empty() {
-            return;
+        if evicted.keys.is_empty() {
+            return None;
         }
         tracing::info!(
             event = "cache.evict",
-            segments = evicted_keys.len(),
-            books = evicted_books.len(),
+            segments = evicted.keys.len(),
+            books = evicted.books.len(),
             "Deleted the oldest made audio to keep the cache within its limit"
         );
-        self.playback.audio_lost(&evicted_keys);
+        Some(evicted)
+    }
+}
+
+impl Core {
+    pub fn storage_report(&self) -> Result<StorageReport, String> {
+        self.storage.report(&|id| self.audio_in_use(id))
+    }
+
+    pub fn clean_unused_files(&self) -> Result<CleanResult, String> {
+        self.storage.clean_unused()
+    }
+
+    /// Whether the book is playing, being prepared or being exported.
+    fn audio_in_use(&self, id: &str) -> bool {
+        self.playback.is_book(id) || self.protected().contains(id)
+    }
+
+    /// Trims the audio cache to its limit, and tells playback and generation what went.
+    pub(super) fn enforce_cache_limit(&self) {
+        let limit = self.app_settings().cache_limit_bytes;
+        let Some(evicted) = self.storage.evict(limit, self) else {
+            return;
+        };
+        self.playback.audio_lost(&evicted.keys);
         self.plan(super::PlanEvent::AudioLost {
-            books: evicted_books,
-            keys: evicted_keys,
+            books: evicted.books,
+            keys: evicted.keys,
         });
         self.emit(CoreEvent::LibraryChanged);
     }
 }
+
+impl StorageHost for Core {
+    fn playing(&self) -> Option<String> {
+        self.playback.book().map(|book| book.id.clone())
+    }
+
+    fn protected(&self) -> HashSet<String> {
+        let mut protected: HashSet<String> = self.generation.queued().into_iter().collect();
+        protected.extend(lock(&self.extras).exporting.clone());
+        protected
+    }
+}
+
+/// Cache-size checks run at most this often.
+const EVICTION_INTERVAL: Duration = Duration::from_secs(20);
+const EVICTION_BATCH: usize = 400;
 
 #[cfg(test)]
 mod tests {
@@ -347,5 +411,68 @@ mod tests {
             "files written just now are left alone"
         );
         assert_eq!(tree_bytes(&covers), 4 + 6 + 2);
+    }
+
+    struct Host {
+        playing: Option<String>,
+        protected: HashSet<String>,
+    }
+
+    impl StorageHost for Host {
+        fn playing(&self) -> Option<String> {
+            self.playing.clone()
+        }
+        fn protected(&self) -> HashSet<String> {
+            self.protected.clone()
+        }
+    }
+
+    fn storage_with_audio(root: &Path, books: &[(&str, usize)]) -> Storage {
+        let ids: Vec<&str> = books.iter().map(|(id, _)| *id).collect();
+        let library = crate::core::tests::library_with(&ids);
+        let mut at = 0;
+        for (id, segments) in books {
+            for n in 0..*segments {
+                at += 1;
+                let file = PathBuf::from(format!("{id}/{n}.opus"));
+                write(&root.join("audio").join(&file), 100);
+                lock(&library)
+                    .record_segment(&CachedSegment {
+                        key: format!("{id}-{n}"),
+                        book_id: BookId((*id).into()),
+                        file,
+                        duration_ms: 1_000,
+                        bytes: 100,
+                        word_timings: None,
+                        created_at: at,
+                    })
+                    .unwrap();
+            }
+        }
+        let paths = Paths {
+            audio_dir: root.join("audio"),
+            ..crate::core::tests::paths(root)
+        };
+        Storage::new(library, &paths)
+    }
+
+    #[test]
+    fn eviction_deletes_the_oldest_audio_of_books_not_protected_until_it_fits() {
+        let root = tempfile::tempdir().unwrap();
+        let storage = storage_with_audio(root.path(), &[("kept", 3), ("old", 3)]);
+        let host = Host {
+            playing: None,
+            protected: ["kept".to_string()].into(),
+        };
+
+        let evicted = storage.evict(Some(400), &host).expect("something evicted");
+
+        assert_eq!(evicted.books, ["old".to_string()].into());
+        assert_eq!(evicted.keys.len(), 2);
+        assert!(!root.path().join("audio/old/0.opus").exists());
+        assert!(root.path().join("audio/old/2.opus").exists());
+        assert!(storage.evict(Some(0), &host).is_none(), "throttled");
+        storage.limit_changed();
+        assert!(storage.evict(None, &host).is_none(), "no limit");
     }
 }
