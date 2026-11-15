@@ -77,6 +77,7 @@ impl Environment {
     }
 
     /// A real-time-paced sink that plays nothing (debug smoke runs, tests).
+    #[cfg(any(test, debug_assertions))]
     pub fn silent_audio() -> Vec<OutputCommand> {
         vec![OutputCommand {
             program: "sh".into(),

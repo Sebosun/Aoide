@@ -163,6 +163,7 @@ impl Core {
     }
 
     /// Replaces every app setting (for tests and smoke runs; the window sends patches).
+    #[cfg(any(test, debug_assertions))]
     pub fn save_app_settings(&self, settings: AppSettings) -> Result<(), String> {
         self.update_app_settings(settings.into()).map(drop)
     }

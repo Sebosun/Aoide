@@ -226,6 +226,7 @@ impl Generation {
         lock(&self.state).generating_segment_id.is_some()
     }
 
+    #[cfg(any(test, debug_assertions))]
     pub fn state(&self) -> GenerationStateView {
         lock(&self.state).clone()
     }
