@@ -9,7 +9,11 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE, LOCATION};
+use reqwest::header::{
+    HeaderMap, HeaderValue, CONTENT_LENGTH, CONTENT_TYPE, ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH,
+    LAST_MODIFIED, LOCATION,
+};
+use reqwest::StatusCode;
 use url::{Host, Url};
 
 #[derive(Debug, Clone)]
@@ -82,10 +86,33 @@ pub enum FetchError {
     TooLarge,
     #[error("Not a web page ({0}).")]
     NotHtml(String),
+    #[error("Not a feed ({0}).")]
+    NotAFeed(String),
     #[error("The site answered with status {0}.")]
     Status(u16),
     #[error("Could not reach the site: {0}")]
     Transport(String),
+}
+
+/// What a feed was last served with, to ask whether it changed.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Validators {
+    pub etag: Option<String>,
+    pub last_modified: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FeedResponse {
+    /// Unchanged since the validators were given.
+    NotModified,
+    Body {
+        bytes: Vec<u8>,
+        etag: Option<String>,
+        last_modified: Option<String>,
+        final_url: Url,
+        /// It was redirected, permanently at every hop: `final_url` is its address now.
+        moved: bool,
+    },
 }
 
 pub struct HttpFetcher {
@@ -142,6 +169,55 @@ impl HttpFetcher {
         }
     }
 
+    /// Fetches the feed at `url`, asking only for a newer copy than `validators` describe.
+    /// Redirects, size, time and reach are as for pages; XML and JSON types are accepted.
+    pub async fn fetch_feed(
+        &self,
+        url: &Url,
+        validators: &Validators,
+    ) -> Result<FeedResponse, FetchError> {
+        let mut headers = HeaderMap::new();
+        let mut add = |name, value: &Option<String>| {
+            if let Some(value) = value.as_deref().and_then(|v| HeaderValue::from_str(v).ok()) {
+                headers.insert(name, value);
+            }
+        };
+        add(IF_NONE_MATCH, &validators.etag);
+        add(IF_MODIFIED_SINCE, &validators.last_modified);
+        let (final_url, response, moved) = self.send_with(url, headers).await?;
+        if response.status() == StatusCode::NOT_MODIFIED {
+            return Ok(FeedResponse::NotModified);
+        }
+        let essence = essence(&content_type(&response));
+        let feed_type = essence.ends_with("/xml")
+            || essence.ends_with("+xml")
+            || essence.ends_with("/json")
+            || essence.ends_with("+json");
+        if !feed_type {
+            return Err(FetchError::NotAFeed(if essence.is_empty() {
+                "no type".into()
+            } else {
+                essence
+            }));
+        }
+        let header = |name| {
+            response
+                .headers()
+                .get(name)
+                .and_then(|v: &HeaderValue| v.to_str().ok())
+                .map(str::to_owned)
+        };
+        let (etag, last_modified) = (header(ETAG), header(LAST_MODIFIED));
+        let bytes = self.body(response, self.options.max_bytes).await?;
+        Ok(FeedResponse::Body {
+            bytes,
+            etag,
+            last_modified,
+            final_url,
+            moved,
+        })
+    }
+
     /// Fetches the image at `url`, of at most `max_bytes`.
     pub async fn image(&self, url: &Url, max_bytes: usize) -> Result<Image, FetchError> {
         let (_, response) = self.send(url).await?;
@@ -179,19 +255,40 @@ impl HttpFetcher {
 
     /// Asks for `url`, following redirects one hop at a time; a successful answer.
     async fn send(&self, url: &Url) -> Result<(Url, reqwest::Response), FetchError> {
+        let (url, response, _) = self.send_with(url, HeaderMap::new()).await?;
+        Ok((url, response))
+    }
+
+    /// Sends a GET with `headers`, following redirects one checked hop at a time. Returns the
+    /// final address, its response (a success, or `304 Not Modified`) and whether every hop
+    /// was a permanent redirect.
+    async fn send_with(
+        &self,
+        url: &Url,
+        headers: HeaderMap,
+    ) -> Result<(Url, reqwest::Response, bool), FetchError> {
         let mut current = url.clone();
         let mut hops = 0;
+        let mut permanent = true;
         loop {
             self.allow(&current).await?;
             let response = self
                 .client
                 .get(current.clone())
+                .headers(headers.clone())
                 .send()
                 .await
                 .map_err(failure)?;
             let status = response.status();
+            if status == StatusCode::NOT_MODIFIED {
+                return Ok((current, response, hops > 0 && permanent));
+            }
             if status.is_redirection() {
                 if let Some(location) = response.headers().get(LOCATION) {
+                    permanent &= matches!(
+                        status,
+                        StatusCode::MOVED_PERMANENTLY | StatusCode::PERMANENT_REDIRECT
+                    );
                     hops += 1;
                     if hops > self.options.max_redirects {
                         return Err(FetchError::Refused(format!(
@@ -214,7 +311,7 @@ impl HttpFetcher {
             if !status.is_success() {
                 return Err(FetchError::Status(status.as_u16()));
             }
-            return Ok((current, response));
+            return Ok((current, response, hops > 0 && permanent));
         }
     }
 

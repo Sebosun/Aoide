@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use aoide_fetch::{FetchError, FetchOptions, HttpFetcher, Reach, Via};
+use aoide_fetch::{FeedResponse, FetchError, FetchOptions, HttpFetcher, Reach, Validators, Via};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use url::Url;
 
@@ -37,6 +37,8 @@ fn redirect(status: u16, location: &str) -> Reply {
 struct Server {
     url: String,
     seen: Arc<Mutex<Vec<String>>>,
+    /// Each request's head, lowercased.
+    heads: Arc<Mutex<Vec<String>>>,
 }
 
 impl Server {
@@ -45,6 +47,14 @@ impl Server {
     }
     fn seen(&self) -> Vec<String> {
         self.seen.lock().unwrap().clone()
+    }
+    fn last_head(&self) -> String {
+        self.heads
+            .lock()
+            .unwrap()
+            .last()
+            .cloned()
+            .unwrap_or_default()
     }
 }
 
@@ -55,17 +65,21 @@ async fn serve(routes: Vec<(&'static str, Reply)>) -> Server {
     let routes: HashMap<&str, Reply> = routes.into_iter().collect();
     let seen = Arc::new(Mutex::new(Vec::new()));
     let log = Arc::clone(&seen);
+    let heads = Arc::new(Mutex::new(Vec::new()));
+    let head_log = Arc::clone(&heads);
     tokio::spawn(async move {
         loop {
             let (mut stream, _) = listener.accept().await.unwrap();
             let routes = routes.clone();
             let log = Arc::clone(&log);
+            let head_log = Arc::clone(&head_log);
             tokio::spawn(async move {
                 let mut buffer = vec![0; 8192];
                 let n = stream.read(&mut buffer).await.unwrap_or(0);
                 let head = String::from_utf8_lossy(&buffer[..n]).to_string();
                 let target = head.split_whitespace().nth(1).unwrap_or("/").to_owned();
                 log.lock().unwrap().push(target.clone());
+                head_log.lock().unwrap().push(head.to_lowercase());
                 let reply = routes.get(target.as_str()).cloned().unwrap_or(Reply {
                     status: 404,
                     headers: vec![("Content-Type", "text/html".into())],
@@ -86,7 +100,7 @@ async fn serve(routes: Vec<(&'static str, Reply)>) -> Server {
             });
         }
     });
-    Server { url, seen }
+    Server { url, seen, heads }
 }
 
 fn options() -> FetchOptions {
@@ -349,4 +363,113 @@ async fn a_page_that_only_refreshes_to_another_is_followed() {
         .await
         .unwrap();
     assert_eq!(again.final_url, server.at("/again"));
+}
+
+fn with_headers(mut reply: Reply, headers: &[(&'static str, &str)]) -> Reply {
+    reply
+        .headers
+        .extend(headers.iter().map(|(n, v)| (*n, v.to_string())));
+    reply
+}
+
+const RSS: &[u8] =
+    b"<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>T</title></channel></rss>";
+
+#[tokio::test]
+async fn a_feed_comes_with_its_validators_and_is_asked_for_conditionally() {
+    let modified = "Tue, 03 Mar 2026 08:00:00 GMT";
+    let server = serve(vec![
+        (
+            "/feed",
+            with_headers(
+                html("application/rss+xml; charset=utf-8", RSS),
+                &[("ETag", "\"v1\""), ("Last-Modified", modified)],
+            ),
+        ),
+        (
+            "/same",
+            Reply {
+                status: 304,
+                headers: vec![("ETag", "\"v1\"".into())],
+                body: Vec::new(),
+                delay: Duration::ZERO,
+            },
+        ),
+    ])
+    .await;
+    let fetcher = fetcher(options());
+    let got = fetcher
+        .fetch_feed(&server.at("/feed"), &Validators::default())
+        .await
+        .unwrap();
+    let FeedResponse::Body {
+        bytes,
+        etag,
+        last_modified,
+        final_url,
+        moved,
+    } = got
+    else {
+        panic!("a body: {got:?}")
+    };
+    assert_eq!(bytes, RSS);
+    assert_eq!(etag.as_deref(), Some("\"v1\""));
+    assert_eq!(last_modified.as_deref(), Some(modified));
+    assert_eq!(final_url, server.at("/feed"));
+    assert!(!moved);
+    assert!(!server.last_head().contains("if-none-match"));
+
+    let validators = Validators {
+        etag: etag.clone(),
+        last_modified: last_modified.clone(),
+    };
+    let again = fetcher
+        .fetch_feed(&server.at("/same"), &validators)
+        .await
+        .unwrap();
+    assert_eq!(again, FeedResponse::NotModified);
+    let head = server.last_head();
+    assert!(head.contains("if-none-match: \"v1\""), "{head}");
+    assert!(head.contains(&format!("if-modified-since: {}", modified.to_lowercase())));
+}
+
+#[tokio::test]
+async fn a_moved_feed_says_whether_it_moved_for_good() {
+    let server = serve(vec![
+        ("/old", redirect(301, "/feed")),
+        ("/for-now", redirect(302, "/feed")),
+        ("/feed", html("application/atom+xml", RSS)),
+        ("/page", html("text/html", b"<p>A page.</p>")),
+        ("/json", html("application/feed+json", b"{}")),
+        ("/big", html("application/xml", &vec![b' '; 2048])),
+    ])
+    .await;
+    let fetcher = fetcher(FetchOptions {
+        max_bytes: 1024,
+        ..options()
+    });
+    let body = |r: FeedResponse| match r {
+        FeedResponse::Body {
+            final_url, moved, ..
+        } => (final_url, moved),
+        FeedResponse::NotModified => panic!("a body"),
+    };
+    let none = Validators::default();
+    let got = fetcher.fetch_feed(&server.at("/old"), &none).await.unwrap();
+    assert_eq!(body(got), (server.at("/feed"), true));
+    let got = fetcher
+        .fetch_feed(&server.at("/for-now"), &none)
+        .await
+        .unwrap();
+    assert_eq!(body(got), (server.at("/feed"), false));
+
+    assert!(fetcher.fetch_feed(&server.at("/json"), &none).await.is_ok());
+    assert!(matches!(
+        fetcher.fetch_feed(&server.at("/page"), &none).await,
+        Err(FetchError::NotAFeed(_))
+    ));
+    assert!(matches!(
+        fetcher.fetch_feed(&server.at("/big"), &none).await,
+        Err(FetchError::TooLarge)
+    ));
 }
