@@ -136,7 +136,8 @@ pub struct Core {
     show_in_folder: ShowInFolder,
     pub paths: Paths,
     library: Arc<Mutex<Library>>,
-    shelf: shelf::Shelf,
+    shelf: Arc<shelf::Shelf>,
+    discovery: Arc<discovery::Discovery>,
     bookmarks: bookmarks::Bookmarks,
     listening: listening::Listening,
     metadata: metadata::Metadata,
@@ -150,7 +151,6 @@ pub struct Core {
     generation: generation::Generation,
     /// The sleep timer, the media keys and the player state last sent.
     controls: controls::Controls,
-    extras: Mutex<listening::ExtrasState>,
     /// Exact word timings being asked for.
     aligner: align::Aligner,
     settings: config::Settings,
@@ -219,6 +219,12 @@ impl Core {
         let bookmarks = bookmarks::Bookmarks::new(Arc::clone(&library));
         let listening = listening::Listening::new(Arc::clone(&library), reporter.clone());
         let storage = storage::Storage::new(Arc::clone(&library), &paths);
+        let discovery = Arc::new(discovery::Discovery::new(
+            Arc::clone(&library),
+            &paths,
+            Arc::clone(&events),
+            reporter.clone(),
+        ));
         let aligner = align::Aligner::new(Arc::clone(&library), paths.audio_dir.clone());
         let exports = export::Exports::new(Arc::clone(&library), &paths, Arc::clone(&events));
         let metadata = metadata::Metadata::new(
@@ -232,7 +238,8 @@ impl Core {
             show_in_folder,
             paths,
             library,
-            shelf,
+            shelf: Arc::new(shelf),
+            discovery,
             bookmarks,
             listening,
             metadata,
@@ -243,7 +250,6 @@ impl Core {
             engine: engine_component,
             generation,
             controls: Default::default(),
-            extras: Mutex::new(Default::default()),
             aligner,
             settings: config::Settings::new(config),
             recordings,

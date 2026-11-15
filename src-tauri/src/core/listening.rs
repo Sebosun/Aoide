@@ -24,13 +24,6 @@ pub struct ListeningStatsView {
     pub by_day: Vec<aoide_library::DayListening>,
 }
 
-/// What is left of the core's loose state, until each part has its component.
-#[derive(Default)]
-pub struct ExtrasState {
-    /// Set while a "Find books" scan runs; storing `true` cancels it.
-    pub(super) scan_cancel: Option<Arc<std::sync::atomic::AtomicBool>>,
-}
-
 /// Listening time not yet saved.
 #[derive(Default)]
 struct Tally {

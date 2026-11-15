@@ -216,20 +216,74 @@ fn query_for(candidate: &Candidate) -> Query {
     }
 }
 
-impl Core {
-    fn scan_options(&self) -> aoide_discovery::ScanOptions {
-        let settings = self.app_settings().scan;
+/// What finding books asks of the rest of the app.
+pub(super) trait DiscoveryHost: Sync {
+    /// Books the reader removed from the library.
+    fn removed(&self) -> HashSet<String>;
+    /// The best Open Library match already looked up for `query`.
+    fn cached_match(&self, query: &Query) -> Option<Match>;
+    /// Looks `query` up on Open Library.
+    fn look_up<'a>(
+        &'a self,
+        query: &'a Query,
+    ) -> aoide_tts::BoxFuture<'a, Result<Vec<Match>, String>>;
+    /// Books `ids` were copied into the library folder: they join the library.
+    fn imported(&self, ids: Vec<String>) -> aoide_tts::BoxFuture<'_, Result<(), String>>;
+    /// Pairs book `id` with its audiobook's files.
+    fn pair(&self, id: &str, audiobook: Vec<String>) -> Result<(), String>;
+    /// Stores `picked` as book `id`'s details.
+    fn apply<'a>(
+        &'a self,
+        id: &'a str,
+        picked: Match,
+    ) -> aoide_tts::BoxFuture<'a, Result<(), String>>;
+}
+
+/// "Find books": scans folders for EPUBs, compares them with the library and copies the
+/// chosen ones in.
+pub(super) struct Discovery {
+    library: Arc<Mutex<Library>>,
+    events: Arc<dyn Events>,
+    reporter: error::Reporter,
+    /// Where a scan starts when no folders are set.
+    home_dir: PathBuf,
+    library_dir: PathBuf,
+    covers_dir: PathBuf,
+    /// Aoide's own folders, never scanned.
+    private_dirs: Vec<PathBuf>,
+    /// Set while a scan runs; storing `true` cancels it.
+    scanning: Mutex<Option<Arc<AtomicBool>>>,
+}
+
+impl Discovery {
+    pub fn new(
+        library: Arc<Mutex<Library>>,
+        paths: &Paths,
+        events: Arc<dyn Events>,
+        reporter: error::Reporter,
+    ) -> Self {
+        let mut private_dirs = vec![paths.library_dir.clone(), paths.audio_dir.clone()];
+        private_dirs.extend(paths.db_path.parent().map(Path::to_path_buf));
+        Self {
+            library,
+            events,
+            reporter,
+            home_dir: paths.home_dir.clone(),
+            library_dir: paths.library_dir.clone(),
+            covers_dir: paths.covers_dir.clone(),
+            private_dirs,
+            scanning: Mutex::new(None),
+        }
+    }
+
+    fn scan_options(&self, settings: ScanSettings) -> aoide_discovery::ScanOptions {
         let roots: Vec<PathBuf> = if settings.roots.is_empty() {
-            vec![self.paths.home_dir.clone()]
+            vec![self.home_dir.clone()]
         } else {
             settings.roots.iter().map(PathBuf::from).collect()
         };
         let mut exclude: Vec<PathBuf> = settings.exclude.iter().map(PathBuf::from).collect();
-        exclude.push(self.paths.library_dir.clone());
-        exclude.push(self.paths.audio_dir.clone());
-        if let Some(data) = self.paths.db_path.parent() {
-            exclude.push(data.to_path_buf());
-        }
+        exclude.extend(self.private_dirs.iter().cloned());
         aoide_discovery::ScanOptions {
             roots,
             exclude,
@@ -242,22 +296,34 @@ impl Core {
         self.emit(CoreEvent::ScanProgress(progress));
     }
 
+    fn emit(&self, event: CoreEvent) {
+        match event.payload() {
+            Ok(value) => self.events.emit(event.name(), value),
+            Err(error) => {
+                tracing::error!(event = "app.emit", name = event.name(), %error, "Cannot send an event to the window")
+            }
+        }
+    }
+
     /// Scans the configured folders. Returns the candidates afterwards.
-    pub async fn scan_for_books(self: &Arc<Self>) -> Result<Vec<Candidate>, String> {
-        {
-            let mut extras = lock(&self.extras);
-            if extras.scan_cancel.is_some() {
+    pub async fn scan(
+        self: &Arc<Self>,
+        settings: ScanSettings,
+        host: &dyn DiscoveryHost,
+    ) -> Result<Vec<Candidate>, String> {
+        let cancel = {
+            let mut scanning = lock(&self.scanning);
+            if scanning.is_some() {
                 return Err("a scan is already running".into());
             }
-            extras.scan_cancel = Some(Arc::new(AtomicBool::new(false)));
-        }
-        let cancel = lock(&self.extras).scan_cancel.clone().expect("set above");
-        let core = Arc::clone(self);
-        let result = tokio::task::spawn_blocking(move || core.scan_blocking(&cancel))
+            Arc::clone(scanning.insert(Arc::new(AtomicBool::new(false))))
+        };
+        let this = Arc::clone(self);
+        let result = tokio::task::spawn_blocking(move || this.scan_blocking(&cancel, settings))
             .await
             .map_err(|e| e.to_string())
             .and_then(|r| r);
-        lock(&self.extras).scan_cancel = None;
+        *lock(&self.scanning) = None;
         if let Err(error) = &result {
             self.emit_scan(ScanProgress {
                 stage: if error == "cancelled" {
@@ -274,17 +340,17 @@ impl Core {
             });
         }
         result?;
-        self.discovered_books()
+        self.candidates(host)
     }
 
-    pub fn cancel_scan(&self) {
-        if let Some(cancel) = lock(&self.extras).scan_cancel.as_ref() {
+    pub fn cancel(&self) {
+        if let Some(cancel) = lock(&self.scanning).as_ref() {
             cancel.store(true, std::sync::atomic::Ordering::Relaxed);
         }
     }
 
-    fn scan_blocking(&self, cancel: &AtomicBool) -> Result<(), String> {
-        let options = self.scan_options();
+    fn scan_blocking(&self, cancel: &AtomicBool, settings: ScanSettings) -> Result<(), String> {
+        let options = self.scan_options(settings);
         let started = Instant::now();
         let last_emit = Mutex::new(Instant::now());
         let found = aoide_discovery::find_epubs(&options, cancel, &|p| {
@@ -323,7 +389,7 @@ impl Core {
             .map_err(|e| e.to_string())?;
         let total = changed.len() as u64;
         let read = std::sync::atomic::AtomicU64::new(0);
-        let covers = self.paths.covers_dir.join("discovered");
+        let covers = self.covers_dir.join("discovered");
         let _ = std::fs::create_dir_all(&covers);
         let process = |f: &aoide_discovery::Found| {
             let record = describe_file(f, &covers, scan_started);
@@ -366,7 +432,7 @@ impl Core {
         let forgot = library.forget_discovered_before(scan_started);
         drop(library);
         if let Err(error) = forgot {
-            self.report(
+            self.reporter.report(
                 "discovery.save",
                 "Could not forget books no longer found",
                 error,
@@ -395,11 +461,11 @@ impl Core {
     }
 
     /// What the last scan found, grouped and compared with the library.
-    pub fn discovered_books(&self) -> Result<Vec<Candidate>, String> {
+    pub fn candidates(&self, host: &dyn DiscoveryHost) -> Result<Vec<Candidate>, String> {
         let files = lock(&self.library)
             .discovered_files()
             .map_err(|e| e.to_string())?;
-        let removed = self.shelf.ignored();
+        let removed = host.removed();
         let in_library: HashSet<String> = lock(&self.library)
             .books()
             .map_err(|e| e.to_string())?
@@ -417,7 +483,7 @@ impl Core {
         let mut beside = aoide_discovery::Neighbourhood::default();
         for candidate in &mut candidates {
             if candidate.status == CandidateStatus::New {
-                candidate.suggestion = self.metadata.cached_match(&query_for(candidate));
+                candidate.suggestion = host.cached_match(&query_for(candidate));
             }
             if candidate.status != CandidateStatus::Unreadable && !paired.contains(&candidate.id) {
                 candidate.audiobook = candidate
@@ -438,11 +504,12 @@ impl Core {
 
     /// Looks the given candidates up on Open Library, one at a time (cached for 30 days).
     /// Emits `discovery://details` with each candidate id as its lookup finishes.
-    pub async fn fetch_discovered_details(&self, ids: Vec<String>) -> Result<(), String> {
-        if !self.app_settings().metadata_lookup {
-            return Err("Online lookups are turned off in Settings.".into());
-        }
-        let candidates = self.discovered_books()?;
+    pub async fn fetch_details(
+        &self,
+        ids: Vec<String>,
+        host: &dyn DiscoveryHost,
+    ) -> Result<(), String> {
+        let candidates = self.candidates(host)?;
         for id in ids {
             let Some(candidate) = candidates.iter().find(|c| c.id == id) else {
                 continue;
@@ -451,7 +518,7 @@ impl Core {
                 self.emit(CoreEvent::DiscoveryDetails(id.clone()));
                 continue;
             }
-            match self.metadata.search(&query_for(candidate), false).await {
+            match host.look_up(&query_for(candidate)).await {
                 Ok(_) => {}
                 Err(error) => {
                     tracing::warn!(event = "metadata.lookup", book = crate::logging::book(&id), outcome = "failed", %error, "Online details lookup failed")
@@ -465,11 +532,12 @@ impl Core {
 
     /// Copies the chosen books into the library folder (reflink when the filesystem supports
     /// it) and optionally applies their suggested Open Library match. Returns per-book results.
-    pub async fn import_discovered(
-        self: &Arc<Self>,
+    pub async fn import(
+        &self,
         choices: Vec<ImportChoice>,
+        host: &dyn DiscoveryHost,
     ) -> Result<Vec<ImportResult>, String> {
-        let candidates = self.discovered_books()?;
+        let candidates = self.candidates(host)?;
         let total = choices.len();
         let mut results = Vec::with_capacity(total);
         let mut imported = Vec::new();
@@ -506,18 +574,13 @@ impl Core {
                 }),
             }
         }
-        // Re-imported books are no longer "removed".
-        self.shelf
-            .restore(imported.iter().map(|(candidate, _)| candidate.id.as_str()));
-        let core = Arc::clone(self);
-        tokio::task::spawn_blocking(move || core.rescan())
-            .await
-            .map_err(|e| e.to_string())??;
+        host.imported(imported.iter().map(|(c, _)| c.id.clone()).collect())
+            .await?;
         for (candidate, choice) in &imported {
             if !choice.pair_audiobook || candidate.audiobook.is_empty() {
                 continue;
             }
-            if let Err(error) = self.attach_recording(&candidate.id, candidate.audiobook.clone()) {
+            if let Err(error) = host.pair(&candidate.id, candidate.audiobook.clone()) {
                 results.push(ImportResult {
                     path: candidate.audiobook[0].clone(),
                     book_id: Some(candidate.id.clone()),
@@ -529,7 +592,7 @@ impl Core {
         }
         for (candidate, choice) in imported {
             if let (true, Some(suggestion)) = (choice.apply_suggestion, candidate.suggestion) {
-                if let Err(error) = self.apply_metadata(&candidate.id, suggestion).await {
+                if let Err(error) = host.apply(&candidate.id, suggestion).await {
                     tracing::warn!(
                         event = "metadata.apply",
                         book = crate::logging::book(&candidate.id),
@@ -560,7 +623,7 @@ impl Core {
             .map(PathBuf::from)
             .find(|p| p.is_file())
             .ok_or("the file is gone; scan again")?;
-        let library_dir = self.paths.library_dir.clone();
+        let library_dir = self.library_dir.clone();
         let id = candidate.id.clone();
         tokio::task::spawn_blocking(move || {
             let name = source
@@ -580,6 +643,78 @@ impl Core {
         })
         .await
         .map_err(|e| e.to_string())?
+    }
+}
+
+impl Core {
+    /// Scans the configured folders. Returns the candidates afterwards.
+    pub async fn scan_for_books(&self) -> Result<Vec<Candidate>, String> {
+        self.discovery.scan(self.app_settings().scan, self).await
+    }
+
+    pub fn cancel_scan(&self) {
+        self.discovery.cancel()
+    }
+
+    /// What the last scan found, grouped and compared with the library.
+    pub fn discovered_books(&self) -> Result<Vec<Candidate>, String> {
+        self.discovery.candidates(self)
+    }
+
+    /// Looks the given candidates up on Open Library, one at a time (cached for 30 days).
+    pub async fn fetch_discovered_details(&self, ids: Vec<String>) -> Result<(), String> {
+        if !self.app_settings().metadata_lookup {
+            return Err("Online lookups are turned off in Settings.".into());
+        }
+        self.discovery.fetch_details(ids, self).await
+    }
+
+    /// Copies the chosen books into the library folder and returns per-book results.
+    pub async fn import_discovered(
+        &self,
+        choices: Vec<ImportChoice>,
+    ) -> Result<Vec<ImportResult>, String> {
+        self.discovery.import(choices, self).await
+    }
+}
+
+impl DiscoveryHost for Core {
+    fn removed(&self) -> HashSet<String> {
+        self.shelf.ignored()
+    }
+
+    fn cached_match(&self, query: &Query) -> Option<Match> {
+        self.metadata.cached_match(query)
+    }
+
+    fn look_up<'a>(
+        &'a self,
+        query: &'a Query,
+    ) -> aoide_tts::BoxFuture<'a, Result<Vec<Match>, String>> {
+        Box::pin(self.metadata.search(query, false))
+    }
+
+    fn imported(&self, ids: Vec<String>) -> aoide_tts::BoxFuture<'_, Result<(), String>> {
+        Box::pin(async move {
+            // Re-imported books are no longer "removed".
+            self.shelf.restore(ids.iter().map(String::as_str));
+            let shelf = Arc::clone(&self.shelf);
+            tokio::task::spawn_blocking(move || shelf.rescan())
+                .await
+                .map_err(|e| e.to_string())?
+        })
+    }
+
+    fn pair(&self, id: &str, audiobook: Vec<String>) -> Result<(), String> {
+        self.attach_recording(id, audiobook).map(drop)
+    }
+
+    fn apply<'a>(
+        &'a self,
+        id: &'a str,
+        picked: Match,
+    ) -> aoide_tts::BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move { self.apply_metadata(id, picked).await.map(drop) })
     }
 }
 
@@ -698,5 +833,78 @@ mod tests {
             unique_target(dir.path(), "Book.EPUB"),
             dir.path().join("Book (3).epub")
         );
+    }
+
+    /// A host with nothing removed, no matches, and imports that need nothing more.
+    #[derive(Default)]
+    struct Host {
+        imported: Mutex<Vec<String>>,
+    }
+
+    impl DiscoveryHost for Host {
+        fn removed(&self) -> HashSet<String> {
+            HashSet::new()
+        }
+        fn cached_match(&self, _: &Query) -> Option<Match> {
+            None
+        }
+        fn look_up<'a>(
+            &'a self,
+            _: &'a Query,
+        ) -> aoide_tts::BoxFuture<'a, Result<Vec<Match>, String>> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn imported(&self, ids: Vec<String>) -> aoide_tts::BoxFuture<'_, Result<(), String>> {
+            lock(&self.imported).extend(ids);
+            Box::pin(async { Ok(()) })
+        }
+        fn pair(&self, _: &str, _: Vec<String>) -> Result<(), String> {
+            Ok(())
+        }
+        fn apply<'a>(
+            &'a self,
+            _: &'a str,
+            _: Match,
+        ) -> aoide_tts::BoxFuture<'a, Result<(), String>> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+
+    #[tokio::test]
+    async fn a_scan_finds_a_new_epub_and_importing_it_copies_it_into_the_library() {
+        let dir = tempfile::tempdir().unwrap();
+        let paths = super::super::tests::paths(dir.path());
+        for folder in [&paths.home_dir, &paths.library_dir, &paths.covers_dir] {
+            std::fs::create_dir_all(folder).unwrap();
+        }
+        std::fs::write(
+            paths.home_dir.join("Found.epub"),
+            super::super::tests::epub(),
+        )
+        .unwrap();
+        let discovery = Arc::new(Discovery::new(
+            Arc::new(Mutex::new(Library::open_in_memory().unwrap())),
+            &paths,
+            Arc::new(super::super::tests::Recorder::default()),
+            Default::default(),
+        ));
+        let host = Host::default();
+
+        let found = discovery
+            .scan(ScanSettings::default(), &host)
+            .await
+            .unwrap();
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].status, CandidateStatus::New);
+        let choice = ImportChoice {
+            id: found[0].id.clone(),
+            apply_suggestion: false,
+            pair_audiobook: false,
+        };
+        let results = discovery.import(vec![choice], &host).await.unwrap();
+        assert_eq!(results[0].error, None);
+        assert!(paths.library_dir.join("Found.epub").is_file());
+        assert_eq!(*lock(&host.imported), [found[0].id.clone()]);
     }
 }
