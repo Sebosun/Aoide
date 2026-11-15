@@ -164,6 +164,10 @@ fn contract() -> String {
         super::recording::RecognitionOptions,
         super::recording::DownloadStage,
         super::recording::ModelDownloadView,
+        super::browser_download::BrowserDownloadStage,
+        super::browser_download::BrowserDownloadView,
+        super::browsing::BrowserBinaryView,
+        super::browsing::BrowserStatusView,
     );
     // Type aliases the commands use.
     names.insert("Params".into(), name::<aoide_tts::Params>(&config));
@@ -224,6 +228,10 @@ fn contract() -> String {
             name::<super::articles::ArticleView>(&config),
         ),
         (CoreEvent::FEEDS_CHANGED, "null".to_owned()),
+        (
+            CoreEvent::BROWSER_DOWNLOAD,
+            name::<super::browser_download::BrowserDownloadView>(&config),
+        ),
     ];
     out.push_str(
         "/** Every event Core emits, by name, with its payload. */\nexport type CoreEvents = {\n",

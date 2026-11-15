@@ -1,7 +1,9 @@
 //! The optional browser for articles plain HTTP cannot read: whether it is used at all
 //! ([`BrowserUse`], off by default), which routes one fetch walks ([`plan_fetch`]), the
 //! per-site rules, and the browser itself, started on first need and shut down when idle.
-//! With `Off`, nothing here looks for, downloads or starts a browser.
+//! With `Off`, nothing here runs, downloads or starts a browser.
+
+use super::browser_download::{BrowserDownloadView, Download, DownloadHost, Source};
 
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -162,9 +164,41 @@ pub trait BrowserDriver: Send + Sync {
 }
 
 /// What the browser component needs from the rest of the app.
-pub(super) trait BrowsingHost: Send + Sync {
+pub(super) trait BrowsingHost: DownloadHost {
     fn now_ms(&self) -> i64;
     fn browser_settings(&self) -> BrowserSettings;
+}
+
+/// The browser Aoide would run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", tag = "kind")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum BrowserBinaryView {
+    #[serde(rename_all = "camelCase")]
+    Found {
+        path: String,
+        /// Its version (`None` while the browser is off: finding out runs it).
+        version: Option<String>,
+        /// Whether it is the one Aoide downloaded.
+        downloaded: bool,
+    },
+    Missing,
+}
+
+/// The browser's state, as Settings › Sites shows it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct BrowserStatusView {
+    #[serde(rename = "use")]
+    pub use_: BrowserUse,
+    pub binary: BrowserBinaryView,
+    /// The download under way or last made in this run.
+    pub download: Option<BrowserDownloadView>,
+    /// The version "Download Chrome" would get; `None` where none is offered.
+    pub offered_version: Option<String>,
+    /// Whether a browser was downloaded (it can be removed).
+    pub downloaded: bool,
 }
 
 /// How long a page may take to be ready.
@@ -183,6 +217,10 @@ pub(super) struct Browsing {
     busy: AtomicUsize,
     /// Where the browser's tasks run, to shut it down from outside them.
     runtime: tokio::runtime::Handle,
+    /// The downloaded browser.
+    download: Download,
+    /// The last program asked for its version, and its answer.
+    version: Mutex<Option<(PathBuf, Option<String>)>>,
 }
 
 /// Marks the browser in use for as long as it lives, and when it was last used.
@@ -208,7 +246,12 @@ impl Drop for InUse<'_> {
 
 impl Browsing {
     /// Must be called inside the async runtime.
-    pub fn new(driver: Arc<dyn BrowserDriver>, dir: PathBuf, config_dir: &Path) -> Self {
+    pub fn new(
+        driver: Arc<dyn BrowserDriver>,
+        dir: PathBuf,
+        config_dir: &Path,
+        download: Option<Source>,
+    ) -> Self {
         let rules_path = config_dir.join(aoide_config::SITE_RULES_FILE);
         let rules = SiteRules::load(&rules_path).unwrap_or_else(|error| {
             tracing::warn!(event = "config.problem", %error, "Cannot read the site rules");
@@ -216,12 +259,14 @@ impl Browsing {
         });
         Self {
             driver,
-            dir,
             rules_path,
             rules: Mutex::new(rules),
             last_used: Mutex::new(None),
             busy: AtomicUsize::new(0),
             runtime: tokio::runtime::Handle::current(),
+            download: Download::new(download, dir.clone()),
+            version: Mutex::new(None),
+            dir,
         }
     }
 
@@ -231,9 +276,80 @@ impl Browsing {
 
     /// Where a downloaded browser's program is.
     pub fn downloaded_binary(&self) -> PathBuf {
-        self.dir
-            .join("chrome")
-            .join(super::browser_download::PROGRAM)
+        self.download.program()
+    }
+
+    /// What browser would run, and the download.
+    pub fn status(&self, host: &dyn BrowsingHost) -> BrowserStatusView {
+        let settings = host.browser_settings();
+        let configured = settings.path.as_deref().map(Path::new);
+        let found = aoide_browser::find::find_binary(
+            configured,
+            &aoide_browser::find::path_dirs(),
+            &self.downloaded_binary(),
+        );
+        let binary = match found {
+            Some(found) => {
+                let version = if found.downloaded {
+                    self.download.installed_version()
+                } else if settings.use_ == BrowserUse::Off {
+                    None
+                } else {
+                    self.version_of(&found.path)
+                };
+                BrowserBinaryView::Found {
+                    path: found.path.to_string_lossy().into_owned(),
+                    version,
+                    downloaded: found.downloaded,
+                }
+            }
+            None => BrowserBinaryView::Missing,
+        };
+        BrowserStatusView {
+            use_: settings.use_,
+            binary,
+            download: self.download.view(),
+            offered_version: self.download.offered().map(str::to_owned),
+            downloaded: self.download.folder().exists(),
+        }
+    }
+
+    /// `binary --version`, asked once per program.
+    fn version_of(&self, binary: &Path) -> Option<String> {
+        if let Some((path, version)) = lock(&self.version).as_ref() {
+            if path == binary {
+                return version.clone();
+            }
+        }
+        let version = aoide_browser::find::version(binary);
+        *lock(&self.version) = Some((binary.to_owned(), version.clone()));
+        version
+    }
+
+    /// Downloads the pinned browser (not while the browser is off).
+    pub async fn download(&self, host: &dyn BrowsingHost) -> Result<(), String> {
+        if host.browser_settings().use_ == BrowserUse::Off {
+            return Err(BROWSER_OFF.into());
+        }
+        self.download.download(host).await
+    }
+
+    pub fn cancel_download(&self) {
+        self.download.cancel();
+    }
+
+    /// Deletes the downloaded browser, shutting it down first.
+    pub async fn remove_download(&self) -> Result<(), String> {
+        if self.driver.running() {
+            self.driver.shutdown().await;
+            *lock(&self.last_used) = None;
+            tracing::info!(
+                event = "browser.stop",
+                outcome = "removed",
+                "Shut the browser down"
+            );
+        }
+        self.download.remove()
     }
 
     /// The rule for `host`, if any covers it.
@@ -377,6 +493,33 @@ impl Browsing {
             tokio::time::sleep(Duration::from_secs(5)).await;
             self.idle(host).await;
         }
+    }
+}
+
+impl DownloadHost for super::Core {
+    fn download_changed(&self, view: BrowserDownloadView) {
+        self.emit(super::CoreEvent::BrowserDownload(view));
+    }
+}
+
+impl super::Core {
+    /// What browser would run, and the download.
+    pub fn browser_status(&self) -> BrowserStatusView {
+        self.browsing.status(self)
+    }
+
+    /// Downloads the pinned Chrome for Testing; returns once it is done, cancelled or failed.
+    pub async fn download_browser(&self) -> Result<(), String> {
+        self.browsing.download(self).await
+    }
+
+    pub fn cancel_browser_download(&self) {
+        self.browsing.cancel_download();
+    }
+
+    /// Deletes the downloaded browser.
+    pub async fn remove_browser(&self) -> Result<(), String> {
+        self.browsing.remove_download().await
     }
 }
 
@@ -700,6 +843,10 @@ mod tests {
         settings: Mutex<BrowserSettings>,
     }
 
+    impl DownloadHost for Host {
+        fn download_changed(&self, _: BrowserDownloadView) {}
+    }
+
     impl BrowsingHost for Host {
         fn now_ms(&self) -> i64 {
             *self.now.lock().unwrap()
@@ -715,7 +862,7 @@ mod tests {
         use std::sync::atomic::Ordering;
         let dir = tempfile::tempdir().unwrap();
         let driver = Arc::new(testing::ScriptedBrowser::default());
-        let browsing = Browsing::new(driver.clone(), dir.path().join("browser"), dir.path());
+        let browsing = Browsing::new(driver.clone(), dir.path().join("browser"), dir.path(), None);
         let host = Host {
             now: Mutex::new(1_000_000),
             settings: Mutex::new(BrowserSettings {

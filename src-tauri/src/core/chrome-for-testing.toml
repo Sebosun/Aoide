@@ -1,0 +1,39 @@
+# The Chrome for Testing build "Download Chrome" fetches, one per platform.
+#
+# Source: https://googlechromelabs.github.io/chrome-for-testing/ (the JSON endpoints list the
+# download addresses; they publish no checksums). Each SHA-256 below was computed from the
+# downloaded zip and cross-checked against the MD5 the storage host states in `x-goog-hash`.
+# Aoide does not redistribute the browser: each user's app downloads it from Google, and its
+# use is under Google's Chrome terms (https://www.google.com/chrome/terms/).
+#
+# To move to a newer build: take the Stable version from
+# last-known-good-versions-with-downloads.json, then for each platform:
+#   curl -sS "$url" | tee >(md5sum) | sha256sum     and   curl -sSI "$url"  (size, x-goog-hash)
+
+version = "157.0.8103.78"
+base = "https://storage.googleapis.com/chrome-for-testing-public"
+
+[platforms.linux64]
+bytes = 203266906
+sha256 = "9223832977a13db3646201b1341c1f9cf08afa3ceae92540116d7b0c062364fb"
+program = "chrome-linux64/chrome"
+
+[platforms.linux-arm64]
+bytes = 203144198
+sha256 = "f354d666822a11d8fe99e923c44be77dd226fab2750c5b5947e6318818bf10f1"
+program = "chrome-linux-arm64/chrome"
+
+[platforms.mac-arm64]
+bytes = 196634479
+sha256 = "bf3b49d0fe62a62397e98641aa736ef813c46014f03ec13d4913442e6966c7fc"
+program = "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+
+[platforms.mac-x64]
+bytes = 207246731
+sha256 = "8f9590a4e011ba4ea135f50c711f8bf2c7f32b1fac20de68d1b85f010f095ab3"
+program = "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+
+[platforms.win64]
+bytes = 209854321
+sha256 = "5f6ec40206407112702e163bf694d07f9fdc8ccbd346c70ce61fa62f716493f9"
+program = "chrome-win64/chrome.exe"

@@ -43,6 +43,8 @@ pub struct StorageReport {
     pub sync_bytes: u64,
     /// Speech-recognition models.
     pub models_bytes: u64,
+    /// The optional browser: a downloaded one, and its profile (sign-ins, site data).
+    pub browser_bytes: u64,
     /// Files nothing refers to: unindexed audio, and covers and article pages of removed items.
     pub unused_files: u64,
     pub unused_bytes: u64,
@@ -81,16 +83,15 @@ fn file_len(path: &Path) -> u64 {
     std::fs::metadata(path).map_or(0, |m| m.len())
 }
 
-/// Total size of the files under `dir`, recursively.
+/// The bytes of the files under `dir`; links are not followed (an app bundle links folders
+/// inside itself).
 fn tree_bytes(dir: &Path) -> u64 {
     entries(dir)
         .iter()
-        .map(|path| {
-            if path.is_dir() {
-                tree_bytes(path)
-            } else {
-                file_len(path)
-            }
+        .map(|path| match std::fs::symlink_metadata(path) {
+            Ok(meta) if meta.is_dir() => tree_bytes(path),
+            Ok(meta) if meta.is_file() => meta.len(),
+            _ => 0,
         })
         .sum()
 }
@@ -183,6 +184,7 @@ pub(super) struct Storage {
     articles_dir: PathBuf,
     library_dir: PathBuf,
     models_dir: PathBuf,
+    browser_dir: PathBuf,
     db_path: PathBuf,
     /// When the cache was last trimmed; trimming is throttled.
     last_eviction: Mutex<Option<Instant>>,
@@ -197,6 +199,7 @@ impl Storage {
             articles_dir: paths.articles_dir.clone(),
             library_dir: paths.library_dir.clone(),
             models_dir: paths.models_dir.clone(),
+            browser_dir: paths.browser_dir.clone(),
             db_path: paths.db_path.clone(),
             last_eviction: Mutex::new(None),
         }
@@ -249,6 +252,7 @@ impl Storage {
             database_bytes: database_bytes.saturating_sub(sync_bytes),
             sync_bytes,
             models_bytes: tree_bytes(&self.models_dir),
+            browser_bytes: tree_bytes(&self.browser_dir),
             unused_files: unused.files.len() as u64,
             unused_bytes: unused.bytes,
             books: usage

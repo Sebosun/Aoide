@@ -186,3 +186,39 @@ async fn a_failed_plain_fetch_falls_back_to_the_browser_and_asked_for_it_goes_st
     assert_eq!(settled(&s.core, &id).await, Stage::Ready);
     assert_eq!(s.pages.asks(), 1);
 }
+
+#[tokio::test]
+async fn the_status_names_the_browser_and_runs_it_for_its_version_only_once_turned_on() {
+    use super::browsing::BrowserBinaryView;
+    let s = setup(BrowserUse::Off, "");
+    let status = s.core.browser_status();
+    let BrowserBinaryView::Found {
+        path,
+        version,
+        downloaded,
+    } = status.binary
+    else {
+        panic!("the configured program is found: {status:?}")
+    };
+    assert!(path.ends_with("fake-chrome"));
+    assert_eq!((version, downloaded), (None, false));
+    assert_eq!(status.download, None);
+    assert!(!status.downloaded);
+    assert_eq!(s.core.download_browser().await, Err(BROWSER_OFF.into()));
+
+    let mut settings = s.core.app_settings().browser;
+    settings.use_ = BrowserUse::Fallback;
+    s.core
+        .update_app_settings(AppSettingsPatch {
+            browser: Some(settings),
+            ..Default::default()
+        })
+        .unwrap();
+    let BrowserBinaryView::Found { version, .. } = s.core.browser_status().binary else {
+        panic!("still found")
+    };
+    assert_eq!(version.as_deref(), Some("Chromium 1.0"));
+    // No download is offered in tests.
+    assert!(s.core.download_browser().await.is_err());
+    assert_eq!(s.core.browser_status().offered_version, None);
+}

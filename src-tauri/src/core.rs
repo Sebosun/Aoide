@@ -38,6 +38,7 @@ mod facets;
 mod feeds;
 mod fetching;
 pub use articles::{ArticleSource, ArticleSummary, ArticleView};
+pub use browsing::BrowserStatusView;
 pub use facets::HomeView;
 pub use feeds::{
     AddedLink, EntryFilter, EntryQuery, EntryView, FeedView, OpmlImport, SubscribeResult,
@@ -206,6 +207,7 @@ impl Core {
             transcribers,
             fetcher,
             browser,
+            browser_download,
         } = environment;
         for dir in [&paths.library_dir, &paths.covers_dir, &paths.audio_dir] {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -285,6 +287,7 @@ impl Core {
             browser,
             paths.browser_dir.clone(),
             &paths.config_dir,
+            browser_download,
         ));
         let core = Arc::new(Self {
             articles,

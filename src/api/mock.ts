@@ -11,6 +11,8 @@ import type {
   SyncStage,
   InspectionView,
   ModelDownloadView,
+  BrowserDownloadView,
+  BrowserStatusView,
   SyncReportView,
   PrepareState,
   Preferences,
@@ -249,7 +251,41 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     verifyAudiobooks: false,
     readingWpm: 230,
     feeds: { checkMinutes: 60, keepReadDays: 30, keepUnreadDays: 90 },
-    browser: { use: "off", path: null, idleSeconds: 60 },
+    browser: {
+      use: ["missing", "ready"].includes(new URLSearchParams(search).get("browser") ?? "") ? "fallback" : "off",
+      path: null,
+      idleSeconds: 60,
+    },
+  };
+  /** The browser for articles, as the core finds it (core/browsing.rs). `?browser=off|missing|ready`:
+   *  off (the default) finds Chromium but does not run it; missing finds none; ready finds one. */
+  const systemChromium = new URLSearchParams(search).get("browser") !== "missing";
+  let browserDownloaded = false;
+  let browserDownload: BrowserDownloadView | null = null;
+  let cancelBrowser = false;
+  const browserDownloadHandlers = new Set<(d: BrowserDownloadView) => void>();
+  const BROWSER_VERSION = "157.0.8103.78";
+  const BROWSER_BYTES = 203_266_906;
+  const browserStatus = (): BrowserStatusView => {
+    const on = appSettings.browser.use !== "off";
+    const binary: BrowserStatusView["binary"] = appSettings.browser.path
+      ? { kind: "found", path: appSettings.browser.path, version: on ? "Chromium 1.0" : null, downloaded: false }
+      : systemChromium
+        ? { kind: "found", path: "/usr/bin/chromium", version: on ? "Chromium 154.0.8037.97" : null, downloaded: false }
+        : browserDownloaded
+          ? { kind: "found", path: "~/.local/share/aoide/browser/chrome/chrome-linux64/chrome", version: BROWSER_VERSION, downloaded: true }
+          : { kind: "missing" };
+    return {
+      use: appSettings.browser.use,
+      binary,
+      download: browserDownload && { ...browserDownload },
+      offeredVersion: BROWSER_VERSION,
+      downloaded: browserDownloaded,
+    };
+  };
+  const tellBrowserDownload = (change: Partial<BrowserDownloadView>) => {
+    browserDownload = { ...browserDownload!, ...change };
+    browserDownloadHandlers.forEach((h) => h({ ...browserDownload! }));
   };
   /** Minutes read silently, per book. */
   const readMs = new Map<string, number>([["book-1", 1_800_000]]);
@@ -1128,6 +1164,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         databaseBytes: 240_000,
         syncBytes: recordings.size * 1_900_000,
         modelsBytes: recordings.size ? 147_964_211 : 0,
+        browserBytes: browserDownloaded ? 512_000_000 : 0,
         unusedFiles: unused.files,
         unusedBytes: unused.bytes,
         books: audio.map((b) => ({
@@ -1859,6 +1896,37 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     onSyncState: (h) => subscribe(syncHandlers, h),
     onArticleState: (h) => subscribe(articleHandlers, h),
     onModelDownload: (h) => subscribe(downloadHandlers, h),
+    onBrowserDownload: (h) => subscribe(browserDownloadHandlers, h),
+    async browserStatus() {
+      return browserStatus();
+    },
+    /** As the core does: refused while off; progress, a check, unpacking, done; resumable. */
+    async downloadBrowser() {
+      if (appSettings.browser.use === "off") throw new Error("The browser is off. Turn it on in Settings › Sites.");
+      if (browserDownload && ["downloading", "checking", "unpacking"].includes(browserDownload.stage)) return;
+      const from = browserDownload?.stage === "cancelled" ? browserDownload.doneBytes : 0;
+      cancelBrowser = false;
+      browserDownload = { stage: "downloading", version: BROWSER_VERSION, doneBytes: from, totalBytes: BROWSER_BYTES, error: null };
+      tellBrowserDownload({});
+      for (const share of [0.3, 0.65, 1]) {
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        if (cancelBrowser) return tellBrowserDownload({ stage: "cancelled" });
+        tellBrowserDownload({ doneBytes: Math.max(from, Math.round(BROWSER_BYTES * share)) });
+      }
+      tellBrowserDownload({ stage: "checking" });
+      tellBrowserDownload({ stage: "unpacking" });
+      browserDownloaded = true;
+      tellBrowserDownload({ stage: "done" });
+    },
+    async cancelBrowserDownload() {
+      cancelBrowser = true;
+    },
+    async removeBrowser() {
+      if (browserDownload && ["downloading", "checking", "unpacking"].includes(browserDownload.stage))
+        throw new Error("The browser is still downloading. Cancel it first.");
+      browserDownloaded = false;
+      browserDownload = null;
+    },
     onProblem: (h) => subscribe(problemHandlers, h),
   };
   /** Test hooks: put a book at a share of its length, or give it generated audio. */

@@ -486,6 +486,10 @@ syncBytes: number,
  */
 modelsBytes: number, 
 /**
+ * The optional browser: a downloaded one, and its profile (sign-ins, site data).
+ */
+browserBytes: number, 
+/**
  * Files nothing refers to: unindexed audio, and covers and article pages of removed items.
  */
 unusedFiles: number, unusedBytes: number, 
@@ -832,6 +836,38 @@ export type DownloadStage = "downloading" | "done" | "failed";
 
 export type ModelDownloadView = { id: string, stage: DownloadStage, doneBytes: number, totalBytes: number, error: string | null, };
 
+export type BrowserDownloadStage = "downloading" | "checking" | "unpacking" | "done" | "cancelled" | "failed";
+
+export type BrowserDownloadView = { stage: BrowserDownloadStage, 
+/**
+ * The version being downloaded.
+ */
+version: string, doneBytes: number, totalBytes: number, error: string | null, };
+
+export type BrowserBinaryView = { "kind": "found", path: string, 
+/**
+ * Its version (`None` while the browser is off: finding out runs it).
+ */
+version: string | null, 
+/**
+ * Whether it is the one Aoide downloaded.
+ */
+downloaded: boolean, } | { "kind": "missing" };
+
+export type BrowserStatusView = { use: BrowserUse, binary: BrowserBinaryView, 
+/**
+ * The download under way or last made in this run.
+ */
+download: BrowserDownloadView | null, 
+/**
+ * The version "Download Chrome" would get; `None` where none is offered.
+ */
+offeredVersion: string | null, 
+/**
+ * Whether a browser was downloaded (it can be removed).
+ */
+downloaded: boolean, };
+
 /** Every event Core emits, by name, with its payload. */
 export type CoreEvents = {
   "library://changed": null,
@@ -850,6 +886,7 @@ export type CoreEvents = {
   "core://problem": ProblemView,
   "article://state": ArticleView,
   "feeds://changed": null,
+  "browser://download": BrowserDownloadView,
 };
 
 /** Every command Core answers, by name, with its arguments and result. */
@@ -925,6 +962,10 @@ export type Commands = {
   "audiobook_matches": { args: Record<string, never>; result: AudiobookMatch[] };
   "merge_audiobook": { args: { audiobookId: string; bookId: string }; result: void };
   "save_article": { args: { url: string }; result: string };
+  "browser_status": { args: Record<string, never>; result: BrowserStatusView };
+  "download_browser": { args: Record<string, never>; result: void };
+  "cancel_browser_download": { args: Record<string, never>; result: void };
+  "remove_browser": { args: Record<string, never>; result: void };
   "refetch_article": { args: { bookId: string; source: ArticleSource }; result: void };
   "article": { args: { bookId: string }; result: ArticleView };
   "feeds": { args: Record<string, never>; result: FeedView[] };

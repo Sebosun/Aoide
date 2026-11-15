@@ -197,6 +197,7 @@ fn start_full(
         transcribers,
         fetcher,
         browser,
+        browser_download: None,
     };
     (Core::start(environment, paths(root)).unwrap(), events)
 }

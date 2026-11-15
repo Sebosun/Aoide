@@ -76,3 +76,25 @@ it("simulates words, segment and chapter transitions, and respects pause, speed,
     mock.dispose();
   }
 });
+
+it("the mock's browser download, as the core's: refused while off, then progress, done, counted and removable", async () => {
+  const off = createMockApi("?browser=off");
+  expect((await off.browserStatus()).binary).toMatchObject({ kind: "found", version: null });
+  await expect(off.downloadBrowser()).rejects.toThrow("The browser is off.");
+
+  vi.useFakeTimers();
+  const mock = createMockApi("?browser=missing");
+  expect((await mock.browserStatus()).binary).toEqual({ kind: "missing" });
+  const stages: string[] = [];
+  await mock.onBrowserDownload((d) => stages.push(d.stage));
+  const done = mock.downloadBrowser();
+  await vi.advanceTimersByTimeAsync(1000);
+  await done;
+  expect([...new Set(stages)]).toEqual(["downloading", "checking", "unpacking", "done"]);
+  const status = await mock.browserStatus();
+  expect(status.binary).toMatchObject({ kind: "found", downloaded: true });
+  expect((await mock.storageReport()).browserBytes).toBeGreaterThan(0);
+  await mock.removeBrowser();
+  expect((await mock.browserStatus()).binary).toEqual({ kind: "missing" });
+  expect((await mock.storageReport()).browserBytes).toBe(0);
+});

@@ -11,6 +11,8 @@ import type {
   AppSettingsPatch,
   Appearance,
   ArticleSource,
+  BrowserDownloadView,
+  BrowserStatusView,
   ArticleView,
   AddedLink,
   EntryFilter,
@@ -258,6 +260,16 @@ export interface AoideApi {
   saveArticle(url: string): Promise<string>;
   /** Fetches an article again, from the page or an archived copy. */
   refetchArticle(bookId: string, source: ArticleSource): Promise<void>;
+  /** What browser would run for articles, and its download. */
+  browserStatus(): Promise<BrowserStatusView>;
+  /** Downloads the pinned Chrome for Testing (progress on "browser://download"); refused while
+   *  the browser is off. Resolves once done, cancelled or failed. */
+  downloadBrowser(): Promise<void>;
+  /** Stops a browser download; downloading again continues it. */
+  cancelBrowserDownload(): Promise<void>;
+  /** Deletes the downloaded browser. */
+  removeBrowser(): Promise<void>;
+  onBrowserDownload(handler: (download: BrowserDownloadView) => void): Promise<() => void>;
   /** An article's source and where its fetch stands. */
   article(bookId: string): Promise<ArticleView>;
   /** Opens an article's page, as it was kept, in the system's browser. */

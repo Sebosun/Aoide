@@ -539,6 +539,28 @@ fn save_article(core: CoreState<'_>, url: String) -> Result<String, CoreError> {
 }
 
 #[tauri::command]
+fn browser_status(core: CoreState<'_>) -> crate::core::BrowserStatusView {
+    core.browser_status()
+}
+
+#[tauri::command]
+async fn download_browser(core: CoreState<'_>) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.download_browser().await?)
+}
+
+#[tauri::command]
+fn cancel_browser_download(core: CoreState<'_>) {
+    core.cancel_browser_download();
+}
+
+#[tauri::command]
+async fn remove_browser(core: CoreState<'_>) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.remove_browser().await?)
+}
+
+#[tauri::command]
 fn refetch_article(
     core: CoreState<'_>,
     book_id: String,
@@ -1045,6 +1067,10 @@ pub fn run() {
             merge_audiobook,
             save_article,
             refetch_article,
+            browser_status,
+            download_browser,
+            cancel_browser_download,
+            remove_browser,
             article,
             feeds,
             subscribe,

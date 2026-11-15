@@ -247,6 +247,8 @@ pub enum CoreEvent {
     ArticleState(super::ArticleView),
     /// Feeds, their health or their entries changed.
     FeedsChanged,
+    /// The browser download moved on.
+    BrowserDownload(super::browser_download::BrowserDownloadView),
 }
 
 impl CoreEvent {
@@ -266,6 +268,7 @@ impl CoreEvent {
     pub const PROBLEM: &'static str = "core://problem";
     pub const ARTICLE_STATE: &'static str = "article://state";
     pub const FEEDS_CHANGED: &'static str = "feeds://changed";
+    pub const BROWSER_DOWNLOAD: &'static str = "browser://download";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -285,6 +288,7 @@ impl CoreEvent {
             Self::Problem(_) => Self::PROBLEM,
             Self::ArticleState(_) => Self::ARTICLE_STATE,
             Self::FeedsChanged => Self::FEEDS_CHANGED,
+            Self::BrowserDownload(_) => Self::BROWSER_DOWNLOAD,
         }
     }
 
@@ -306,6 +310,7 @@ impl CoreEvent {
             Self::Problem(p) => serde_json::to_value(p),
             Self::ArticleState(p) => serde_json::to_value(p),
             Self::FeedsChanged => Ok(serde_json::Value::Null),
+            Self::BrowserDownload(p) => serde_json::to_value(p),
         }
     }
 }

@@ -71,6 +71,8 @@ pub struct Environment {
     pub fetcher: Arc<dyn super::articles::Fetcher>,
     /// Drives the optional browser (started only when the user turned it on).
     pub browser: Arc<dyn super::browsing::BrowserDriver>,
+    /// The browser "Download Chrome" gets; `None` where none is offered.
+    pub browser_download: Option<super::browser_download::Source>,
 }
 
 impl Environment {
@@ -90,6 +92,7 @@ impl Environment {
             transcribers: app_transcribers(),
             fetcher: super::articles::web_fetcher(),
             browser: Arc::new(super::browsing::ChromeDriver::default()),
+            browser_download: super::browser_download::Source::pinned(),
         }
     }
 
