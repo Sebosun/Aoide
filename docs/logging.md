@@ -64,10 +64,10 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | Event | Level | Fields | Where |
 |---|---|---|---|
 | **App** | | | |
-| `app.start` | info | `version`, `profile`, `gpu`, `os`, `smoke` | `lib.rs` setup |
+| `app.start` | info | `version`, `profile`, `gpu`, `os`, `smoke` | `lib.rs` `start` |
 | `app.exit` | info | | `lib.rs` exit |
 | `app.panic` | error | `location`, `error` | `logging.rs` panic hook |
-| `app.migrate` | info | | `lib.rs`, moving Folio's folders |
+| `app.migrate` | info | | `lib.rs` `migrate_from_folio` |
 | `app.log` | warn | `error` | `logging.rs`, the file cannot be written |
 | `app.emit` | error | `name`, `error` | `core.rs`, an event the window did not get |
 | `app.poisoned` | error | `error` (reported) | `core.rs` `lock`, the first lock a panic poisoned |
@@ -165,7 +165,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `playback.cache` | warn | `key`, `error` | `core/playback.rs` |
 | `feeder.read` | warn | `error` | `core/feeder.rs` |
 | `cache.evict` | info | `segments`, `books` | `core/storage.rs` `enforce_cache_limit` |
-| `export.done` | info, warn | `kind`, `book`, `file`, `took_ms`, `outcome`, `error` | `lib.rs` export commands |
+| `export.done` | info, warn | `kind`, `book`, `file`, `took_ms`, `outcome`, `error` | `core/export.rs` (`Exports`) |
 | `proc.spawn` | info, error | `program`, `pid`, `outcome`, `error` | `core.rs` (engine), `core/align.rs` (aligner) |
 | `proc.exit` | warn | `program`, `code`, `stderr_tail` | `core/export.rs`, `core/read_along.rs` (ffmpeg) |
 | **Smoke runs** | | | |

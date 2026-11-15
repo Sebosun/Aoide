@@ -180,10 +180,12 @@ impl Exports {
     /// Exports `id` as an M4B into the Exports folder next to the library folder, making its
     /// speech first.
     pub async fn audiobook(&self, id: &str, host: &dyn ExportHost) -> Result<String, String> {
+        let started = Instant::now();
         let result = {
             let _slot = self.claim(id)?;
             self.make_audiobook(id, host).await
         };
+        log_export("m4b", id, started, &result);
         self.encoder.finished(id, &result);
         result
     }
@@ -216,6 +218,7 @@ impl Exports {
 
     /// Exports `id` with its synced recording as a read-along EPUB into the Exports folder.
     pub async fn read_along(&self, id: &str, host: &dyn ExportHost) -> Result<String, String> {
+        let started = Instant::now();
         let result = {
             let _slot = self.claim(id)?;
             match host.recording_plan(id) {
@@ -229,8 +232,23 @@ impl Exports {
                 Err(error) => Err(error),
             }
         };
+        log_export("read-along", id, started, &result);
         self.encoder.finished(id, &result);
         result
+    }
+}
+
+/// Logs how an export ended.
+fn log_export(kind: &str, id: &str, started: Instant, result: &Result<String, String>) {
+    let book = crate::logging::book(id);
+    let took_ms = crate::logging::took(started);
+    match result {
+        Ok(path) => {
+            tracing::info!(event = "export.done", kind, book, took_ms, file = %crate::logging::file(Path::new(path)), outcome = "ok", "Exported a book")
+        }
+        Err(error) => {
+            tracing::warn!(event = "export.done", kind, book, took_ms, outcome = "failed", %error, "Export failed")
+        }
     }
 }
 

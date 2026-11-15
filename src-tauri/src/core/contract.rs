@@ -1,6 +1,6 @@
 //! The UI↔core contract, generated into `src/api/contract.ts`: TypeScript declarations of every
 //! type the commands and events carry (from the Rust types), every event with its payload, and
-//! every Tauri command in `lib.rs` with its arguments and result.
+//! every Tauri command in `commands/` with its arguments and result.
 //!
 //! The test fails when the file is out of date. Regenerate it with
 //! `AOIDE_WRITE_CONTRACT=1 cargo test -p aoide contract`.
@@ -254,17 +254,24 @@ fn contract() -> String {
     out
 }
 
-/// The Tauri commands in `lib.rs` as a TypeScript map from name to arguments and result.
+/// The Tauri commands in `commands/` as a TypeScript map from name to arguments and result.
 fn commands(names: &HashMap<String, String>) -> String {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/lib.rs");
-    let file = syn::parse_file(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let parse = |path: &Path| syn::parse_file(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let mut files: Vec<_> = std::fs::read_dir(src.join("commands"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    files.sort();
+    files.insert(0, src.join("lib.rs"));
+    let items: Vec<syn::Item> = files.iter().flat_map(|f| parse(f).items).collect();
     let mut registered = BTreeSet::new();
     let mut out = String::from(
         "/** Every command Core answers, by name, with its arguments and result. */\n\
          export type Commands = {\n",
     );
     let mut declared = BTreeSet::new();
-    for item in &file.items {
+    for item in &items {
         let syn::Item::Fn(function) = item else {
             continue;
         };
@@ -313,7 +320,7 @@ fn commands(names: &HashMap<String, String>) -> String {
     out.push_str("};\n");
     assert_eq!(
         declared, registered,
-        "every #[tauri::command] in lib.rs is registered in generate_handler!, and only those"
+        "every #[tauri::command] in commands/ is registered in generate_handler!, and only those"
     );
     out
 }
@@ -327,7 +334,7 @@ fn handler_names(run: &syn::ItemFn) -> BTreeSet<String> {
     let list = &text[start..];
     let list = &list[list.find('[').unwrap() + 1..list.find(']').unwrap()];
     list.split(',')
-        .map(|n| n.trim().to_owned())
+        .map(|n| n.rsplit("::").next().unwrap_or(n).trim().to_owned())
         .filter(|n| !n.is_empty())
         .collect()
 }
