@@ -26,62 +26,84 @@ afterEach(() => {
 const nav = (wrapper: ReturnType<typeof mount>, label: string) =>
   wrapper.get(`nav[aria-label="Main"] [aria-label="${label}"]`);
 
-it("navigates with the top bar pills and the settings button, marking the current screen", async () => {
+it("opens on Home and shows each sidebar entry's screen, marking the current one", async () => {
   const wrapper = mount(App);
   await flushPromises();
-  expect(wrapper.get("header").text()).toContain("aoide");
-  expect(nav(wrapper, "Library").attributes("aria-current")).toBe("page");
+  expect(wrapper.get('nav[aria-label="Main"]').text()).toContain("aoide");
+  expect(wrapper.find(".home").exists()).toBe(true);
+  expect(nav(wrapper, "Home").attributes("aria-current")).toBe("page");
 
-  await nav(wrapper, "Stats").trigger("click");
-  await flushPromises();
-  expect(wrapper.find(".stats").exists()).toBe(true);
-  expect(nav(wrapper, "Stats").attributes("aria-current")).toBe("page");
+  for (const [label, screen] of [
+    ["Library", ".library"],
+    ["Activity", ".stats"],
+    ["Home", ".home"],
+  ]) {
+    await nav(wrapper, label).trigger("click");
+    await flushPromises();
+    expect(wrapper.find(screen).exists()).toBe(true);
+    expect(nav(wrapper, label).attributes("aria-current")).toBe("page");
+  }
   expect(nav(wrapper, "Library").attributes("aria-current")).toBeUndefined();
 
-  await wrapper.get('header [aria-label="Settings"]').trigger("click");
+  await nav(wrapper, "Settings").trigger("click");
   await flushPromises();
   expect(wrapper.find('[role="dialog"][aria-label="Settings"]').exists()).toBe(true);
-  expect(wrapper.find(".stats").exists()).toBe(true);
+  expect(wrapper.find(".home").exists()).toBe(true);
   wrapper.unmount();
 });
 
-it("enables Now Playing once a book is open and returns to it", async () => {
+it("hides the sidebar in the reader and goes back to the screen the reader was opened from", async () => {
   const wrapper = mount(App);
   await flushPromises();
-  expect(nav(wrapper, "Now Playing").attributes("disabled")).toBeDefined();
+  await nav(wrapper, "Library").trigger("click");
+  await flushPromises();
   await wrapper.get('[aria-label="Open The Lantern Keeper"]').trigger("click");
   await flushPromises();
-  expect(nav(wrapper, "Now Playing").attributes("aria-current")).toBe("page");
-  await nav(wrapper, "Library").trigger("click");
-  await nav(wrapper, "Now Playing").trigger("click");
-  await flushPromises();
   expect(wrapper.find('[aria-label="Chapter text"]').exists()).toBe(true);
+  expect(wrapper.find('nav[aria-label="Main"]').exists()).toBe(false);
+
+  await wrapper.get('[aria-label="Back to Library"]').trigger("click");
+  await flushPromises();
+  expect(wrapper.find(".library").exists()).toBe(true);
+  expect(nav(wrapper, "Library").attributes("aria-current")).toBe("page");
   wrapper.unmount();
 });
 
-it("opens the playing book from Now Playing when no book is open", async () => {
+it("shows what is playing in the sidebar and opens the reader from it", async () => {
   const wrapper = mount(App);
   await flushPromises();
+  expect(wrapper.find('nav [aria-label="Now playing"]').exists()).toBe(false);
   await mock.play("book-0", 0, null);
   await flushPromises();
-  await nav(wrapper, "Now Playing").trigger("click");
+  const card = wrapper.get('nav [aria-label="Now playing"]');
+  expect(card.text()).toContain("The Lantern Keeper");
+  expect(card.text()).toContain("Playing");
+  await card.get('[aria-label="Open The Lantern Keeper in the reader"]').trigger("click");
   await flushPromises();
   expect(wrapper.find('[aria-label="Chapter text"]').exists()).toBe(true);
+  await wrapper.get('[aria-label="Back to Home"]').trigger("click");
+  await flushPromises();
+  expect(wrapper.find(".home").exists()).toBe(true);
   wrapper.unmount();
 });
 
-it("shows every engine state in the top bar pill, with the detail as its title", async () => {
+it("opens Library filtered to a collection from the sidebar", async () => {
   const wrapper = mount(App);
   await flushPromises();
-  for (const state of ["offline", "loading", "ready", "busy", "error"] as const) {
-    mock.emitEngine({ profileName: "Local voice", state, detail: `detail ${state}` });
-    await flushPromises();
-    const pill = wrapper.get("header .engine-pill");
-    expect(pill.text()).toContain("Local voice");
-    expect(pill.text()).toContain(state);
-    expect(pill.attributes("title")).toBe(`detail ${state}`);
-    expect(pill.classes()).toContain(`engine-pill--${state}`);
-  }
+  const library = useLibraryStore();
+  const night = await library.createCollection("Night reading");
+  await library.setBookCollections("book-1", [night]);
+  await flushPromises();
+  const link = wrapper.get('nav[aria-label="Main"] [aria-labelledby="sidebar-collections"] button');
+  expect(link.text()).toBe("Night reading1");
+  await link.trigger("click");
+  await flushPromises();
+  expect(link.attributes("aria-current")).toBe("page");
+  expect(nav(wrapper, "Library").attributes("aria-current")).toBeUndefined();
+  expect(wrapper.findAll(".book-card")).toHaveLength(1);
+  await nav(wrapper, "Library").trigger("click");
+  await flushPromises();
+  expect(wrapper.findAll(".book-card")).toHaveLength(4);
   wrapper.unmount();
 });
 
@@ -119,10 +141,13 @@ it("starts subscriptions once and switches from library to the selected reader",
   await flushPromises();
   await usePlayerStore().start();
   expect(subscribe).toHaveBeenCalledTimes(1);
+  await nav(wrapper, "Library").trigger("click");
+  await flushPromises();
   await wrapper.get('[aria-label="Open The Lantern Keeper"]').trigger("click");
   await flushPromises();
   expect(wrapper.find('[aria-label="Chapter text"]').exists()).toBe(true);
-  await wrapper.get('[aria-label="Library"]').trigger("click");
+  await wrapper.get('[aria-label="Back to Library"]').trigger("click");
+  await flushPromises();
   expect(wrapper.findAll(".book-card")).toHaveLength(4);
   wrapper.unmount();
 });
@@ -151,38 +176,5 @@ it("shows the drop overlay only for files dragged in from outside, never for thi
   expect(wrapper.find(".drop-overlay").exists()).toBe(false);
 
   for (const image of wrapper.findAll("img")) expect(image.attributes("draggable")).toBe("false");
-  wrapper.unmount();
-});
-
-it("takes the wordmark to Now Playing when a book is open, else to the library", async () => {
-  const wrapper = mount(App);
-  await flushPromises();
-  const home = () => wrapper.get('header [aria-label="Aoide home"]');
-  await nav(wrapper, "Stats").trigger("click");
-  await home().trigger("click");
-  await flushPromises();
-  expect(nav(wrapper, "Library").attributes("aria-current")).toBe("page");
-
-  await mock.play("book-0", 0, null);
-  await flushPromises();
-  await nav(wrapper, "Stats").trigger("click");
-  await home().trigger("click");
-  await flushPromises();
-  expect(nav(wrapper, "Now Playing").attributes("aria-current")).toBe("page");
-  expect(wrapper.find('[aria-label="Chapter text"]').exists()).toBe(true);
-  wrapper.unmount();
-});
-
-it("opens Now Playing from the title on the Continue listening card", async () => {
-  const play = vi.spyOn(mock, "play");
-  const wrapper = mount(App);
-  await flushPromises();
-  await wrapper
-    .get('[aria-label="Continue listening"] [aria-label="Open The Lantern Keeper in Now Playing"]')
-    .trigger("click");
-  await flushPromises();
-  expect(nav(wrapper, "Now Playing").attributes("aria-current")).toBe("page");
-  expect(wrapper.find('[aria-label="Chapter text"]').exists()).toBe(true);
-  expect(play).not.toHaveBeenCalled();
   wrapper.unmount();
 });

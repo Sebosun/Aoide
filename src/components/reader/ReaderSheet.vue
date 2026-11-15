@@ -84,7 +84,7 @@ const jump = (index: number) => reader.startChapter(index);
           @chapter="jump"
           @details="emit('tools', 'details')"
           @voice="emit('tools', 'voice')"
-          @about="navigation.openBook(reader.book.id)"
+          @about="navigation.openItem(reader.book.id)"
           @prepare="prepareChapter(reader.book.id, $event)"
         />
         <ReaderTools class="sheet__tools" />

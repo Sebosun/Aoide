@@ -64,7 +64,7 @@ async function pair() {
     else await recordings.attach(bookId.value, pairing.paths);
     const id = bookId.value;
     recordings.closePairing();
-    if (navigation.view !== "reader") navigation.openBook(id);
+    if (navigation.view !== "reader") navigation.openItem(id);
   } catch (e) {
     error.value = String(e);
   } finally {

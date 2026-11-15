@@ -241,7 +241,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
                 type="button"
                 class="stats__book"
                 :disabled="!row.book"
-                @click="row.book && navigation.openBook(row.bookId)"
+                @click="row.book && navigation.openItem(row.bookId)"
               >
                 <CoverArt
                   class="stats__thumb"

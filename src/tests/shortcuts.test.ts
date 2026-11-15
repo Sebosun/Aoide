@@ -29,7 +29,9 @@ const press = (key: string, init: KeyboardEventInit = {}) => {
   (document.activeElement ?? document.body).dispatchEvent(event);
   return event;
 };
+/** The app, on Library unless a test has opened another screen first. */
 async function app() {
+  if (useNavigationStore().view === "home") useNavigationStore().view = "library";
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
   return wrapper;
@@ -52,16 +54,16 @@ it("plays and pauses with Space, except while typing, on a control or under a di
   await flushPromises();
   expect(player.state.status).toBe("paused");
 
-  await wrapper.get('nav[aria-label="Main"] [aria-label="Library"]').trigger("click");
+  await wrapper.get('[aria-label="Back to Library"]').trigger("click");
   await flushPromises();
   wrapper.get<HTMLInputElement>('[aria-label="Search library"]').element.focus();
   expect(press(" ").defaultPrevented).toBe(false);
   // A button reached with the keyboard keeps Space for itself…
-  wrapper.get<HTMLElement>('[aria-label="Open Now Playing"]').element.focus();
+  wrapper.get<HTMLElement>('[aria-label="Open The Lantern Keeper in the reader"]').element.focus();
   expect(press(" ").defaultPrevented).toBe(false);
   // …one that was clicked does not: Space still plays.
   document.body.dispatchEvent(new Event("pointerdown", { bubbles: true }));
-  wrapper.get<HTMLElement>('nav[aria-label="Main"] [aria-label="Stats"]').element.focus();
+  wrapper.get<HTMLElement>('nav[aria-label="Main"] [aria-label="Activity"]').element.focus();
   expect(press(" ").defaultPrevented).toBe(true);
   await flushPromises();
   expect(player.state.status).toBe("playing");
@@ -101,7 +103,7 @@ it("moves a sentence back or forward with the arrow keys, also when the text is 
   wrapper.unmount();
 });
 
-it("searches with Ctrl F: the open book from Now Playing, the library from its screen", async () => {
+it("searches with Ctrl F: the open book from the reader, the library from its screen", async () => {
   const wrapper = await app();
   expect(press("f", { ctrlKey: true }).defaultPrevented).toBe(true);
   expect((document.activeElement as HTMLElement).getAttribute("aria-label")).toBe("Search library");

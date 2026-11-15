@@ -57,7 +57,7 @@ function ahead(ms: number) {
 
 function openBook(id: string) {
   emit("close");
-  navigation.openBook(id);
+  navigation.openItem(id);
 }
 const recordings = useRecordingsStore(),
   ui = useUiStore();

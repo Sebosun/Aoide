@@ -22,7 +22,9 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
+/** The app, on Library unless a test has opened another screen first. */
 async function app() {
+  if (useNavigationStore().view === "home") useNavigationStore().view = "library";
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
   return wrapper;
@@ -34,7 +36,7 @@ it("opens an unread book on its details page, without playing", async () => {
   const wrapper = await app();
   await wrapper.get('[aria-label="Open A Map of Quiet Places"]').trigger("click");
   await flushPromises();
-  expect(useNavigationStore().view).toBe("book");
+  expect(useNavigationStore().view).toBe("item");
   const about = page(wrapper);
   expect(about.get("h1").text()).toBe("A Map of Quiet Places");
   expect(about.text()).toContain("Ellis Reed");
@@ -68,7 +70,7 @@ it("starts listening from the beginning, or from a chosen chapter", async () => 
   expect(useNavigationStore().view).toBe("reader");
   expect(wrapper.find('[aria-label="Chapter text"]').exists()).toBe(true);
 
-  useNavigationStore().openBook("book-1");
+  useNavigationStore().openItem("book-1");
   await flushPromises();
   await page(wrapper).get('[aria-label="Contents"] [aria-label="Play chapter 2: The long way home"]').trigger("click");
   await flushPromises();
@@ -93,7 +95,7 @@ it("opens details from the card menu, and goes back to the library", async () =>
 });
 
 it("shows the time spent with a started book: total, days, a bar per day and time left", async () => {
-  useNavigationStore().openBook("book-0");
+  useNavigationStore().openItem("book-0");
   const wrapper = await app();
   const listening = wrapper.get('[aria-label="About The Lantern Keeper"] [aria-label="Your listening"]');
   expect(listening.get(".book-listening__total").text()).toBe("1 h 30 min");
@@ -106,7 +108,7 @@ it("shows the time spent with a started book: total, days, a bar per day and tim
 });
 
 it("leaves the listening section out for a book nobody has listened to", async () => {
-  useNavigationStore().openBook("book-1");
+  useNavigationStore().openItem("book-1");
   const wrapper = await app();
   expect(wrapper.find('[aria-label="Your listening"]').exists()).toBe(false);
   wrapper.unmount();

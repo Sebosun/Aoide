@@ -6,6 +6,8 @@ import type { MenuEntry } from "../ui/types";
 import { useLibraryStore } from "../../stores/library";
 import { useNavigationStore } from "../../stores/navigation";
 
+/** `wide` is the sidebar's full-width Add button. */
+defineProps<{ wide?: boolean }>();
 const library = useLibraryStore(),
   navigation = useNavigationStore();
 const items = computed<MenuEntry[]>(() => [
@@ -52,8 +54,15 @@ const items = computed<MenuEntry[]>(() => [
 </script>
 
 <template>
-  <UiMenu v-slot="{ toggle, trigger }" label="Add books" :items="items" align="end" :width="300">
-    <button type="button" class="add-books__button" aria-label="Add books" v-bind="trigger" @click="toggle">
+  <UiMenu v-slot="{ toggle, trigger }" label="Add books" :items="items" :align="wide ? 'start' : 'end'" :width="300">
+    <button
+      type="button"
+      class="add-books__button"
+      :class="{ 'add-books__button--wide': wide }"
+      aria-label="Add books"
+      v-bind="trigger"
+      @click="toggle"
+    >
       <Plus :size="16" /> Add
     </button>
   </UiMenu>
@@ -71,5 +80,15 @@ const items = computed<MenuEntry[]>(() => [
   font-weight: 700;
   font-size: 13px;
   white-space: nowrap;
+}
+.add-books__button--wide {
+  width: 100%;
+  height: 44px;
+  justify-content: center;
+  border-radius: 22px;
+  background: var(--ink);
+  color: var(--ground);
+  font-size: 14px;
+  font-weight: 600;
 }
 </style>

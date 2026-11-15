@@ -2,15 +2,15 @@
 import { onMounted, onUnmounted, ref, watch } from "vue";
 import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import AppTopBar from "./components/shell/AppTopBar.vue";
+import AppSidebar from "./components/shell/AppSidebar.vue";
 import DropOverlay from "./components/shell/DropOverlay.vue";
+import HomeView from "./views/HomeView.vue";
 import LibraryView from "./views/LibraryView.vue";
 import ReaderView from "./views/ReaderView.vue";
 import StatsView from "./views/StatsView.vue";
 import FindBooksView from "./views/FindBooksView.vue";
 import FindAudiobooksView from "./views/FindAudiobooksView.vue";
 import BookDetailsView from "./views/BookDetailsView.vue";
-import MiniPlayer from "./components/player/MiniPlayer.vue";
 import UiHost from "./components/ui/UiHost.vue";
 import SettingsDialog from "./components/settings/SettingsDialog.vue";
 import PairRecordingDialog from "./components/recording/PairRecordingDialog.vue";
@@ -39,7 +39,7 @@ function dropped(paths: string[]) {
     audio = paths.filter(isAudioPath);
   if (audio.length) {
     const open =
-      navigation.view === "book" ? navigation.bookId : navigation.view === "reader" ? (reader.book?.id ?? null) : null;
+      navigation.view === "item" ? navigation.bookId : navigation.view === "reader" ? (reader.book?.id ?? null) : null;
     recordings.openPairing(audio, open);
   }
   if (books.length) {
@@ -144,16 +144,17 @@ function browserDrop(event: DragEvent) {
     @dragend="endDrag"
     @drop.prevent="browserDrop"
   >
-    <AppTopBar />
+    <AppSidebar v-if="navigation.view !== 'reader'" />
     <main class="app__main">
       <p v-if="dropError" class="app__error" role="alert">{{ dropError }}</p>
       <Transition name="app__view" mode="out-in" @enter="placeScroll">
-        <LibraryView v-if="navigation.view === 'library'" />
-        <StatsView v-else-if="navigation.view === 'stats'" />
+        <HomeView v-if="navigation.view === 'home'" />
+        <LibraryView v-else-if="navigation.view === 'library'" />
+        <StatsView v-else-if="navigation.view === 'activity'" />
         <FindBooksView v-else-if="navigation.view === 'find'" />
         <FindAudiobooksView v-else-if="navigation.view === 'audiobooks'" />
         <BookDetailsView
-          v-else-if="navigation.view === 'book' && navigation.bookId"
+          v-else-if="navigation.view === 'item' && navigation.bookId"
           :key="navigation.bookId"
           :book-id="navigation.bookId"
         />
@@ -161,7 +162,6 @@ function browserDrop(event: DragEvent) {
       </Transition>
     </main>
     <DropOverlay v-if="dragging" />
-    <MiniPlayer />
     <SettingsDialog v-if="navigation.settingsOpen" />
     <PairRecordingDialog v-if="recordings.pairing" :key="recordings.pairing.paths.join('|')" />
     <SyncReport v-if="recordings.report" :key="recordings.report" />
@@ -173,18 +173,24 @@ function browserDrop(event: DragEvent) {
 .app {
   min-height: 100vh;
   display: flex;
-  flex-direction: column;
-  padding-bottom: 110px;
 }
 .app__main {
   flex: 1;
   min-width: 0;
+  padding: 20px 0 40px;
 }
 .app--reader {
   height: 100vh;
   min-height: 0;
-  padding-bottom: 0;
   overflow: hidden;
+}
+.app--reader .app__main {
+  padding: 0;
+}
+@media (max-width: 719px) {
+  .app {
+    flex-direction: column;
+  }
 }
 .app__view-enter-active {
   transition:

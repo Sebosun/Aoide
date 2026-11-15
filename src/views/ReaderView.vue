@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onUnmounted, watch } from "vue";
-import { Headphones } from "@lucide/vue";
+import { ArrowLeft, Headphones } from "@lucide/vue";
 import ReaderSheet from "../components/reader/ReaderSheet.vue";
 import ReaderLines from "../components/reader/ReaderLines.vue";
 import { usePreferencesStore } from "../stores/preferences";
 import BookToolsSheet from "../components/book/BookToolsSheet.vue";
-import { useNavigationStore, type ToolsTab } from "../stores/navigation";
+import { useNavigationStore, VIEW_NAMES, type ToolsTab } from "../stores/navigation";
 import { useReaderStore } from "../stores/reader";
 import { usePlayerStore } from "../stores/player";
 
@@ -32,10 +32,16 @@ function openTools(tab: ToolsTab | undefined) {
   else navigation.openTools(tab);
 }
 onUnmounted(() => navigation.closeTools());
+const backLabel = computed(() => VIEW_NAMES[navigation.readerFrom]);
 </script>
 
 <template>
   <div v-if="reader.book" class="reader">
+    <header class="reader__header">
+      <button type="button" class="reader__back" :aria-label="`Back to ${backLabel}`" @click="navigation.leaveReader()">
+        <ArrowLeft :size="18" aria-hidden="true" />{{ backLabel }}
+      </button>
+    </header>
     <ReaderLines v-if="preferences.appearance.readerMode === 'lines'" @tools="openTools(undefined)" />
     <ReaderSheet v-else @tools="openTools" />
     <Transition name="reader__chip">
@@ -50,9 +56,31 @@ onUnmounted(() => navigation.closeTools());
 <style scoped>
 .reader {
   position: relative;
-  height: calc(100vh - 64px);
+  height: 100vh;
   display: flex;
-  padding: 4px 28px 0;
+  flex-direction: column;
+  padding: 0 28px;
+}
+.reader__header {
+  height: 60px;
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.reader__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 12px 0 8px;
+  margin-left: -8px;
+  border-radius: 12px;
+  font-weight: 600;
+  color: var(--dim);
+}
+.reader__back:hover {
+  color: var(--ink);
+  background: var(--glass);
 }
 .reader__chip {
   position: absolute;
@@ -82,7 +110,7 @@ onUnmounted(() => navigation.closeTools());
 }
 @media (max-width: 760px) {
   .reader {
-    padding: 4px 10px 0;
+    padding: 0 10px;
   }
 }
 </style>

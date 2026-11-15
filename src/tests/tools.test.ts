@@ -119,7 +119,7 @@ it("shows the book's file in the file manager from Details", async () => {
 it("goes from the reader to the book's page through its cover and title in the margin", async () => {
   const wrapper = await reader("book-0");
   await wrapper.get('[aria-label="About this book"] [aria-label="Book page for The Lantern Keeper"]').trigger("click");
-  expect(useNavigationStore().view).toBe("book");
+  expect(useNavigationStore().view).toBe("item");
   expect(useNavigationStore().bookId).toBe("book-0");
   wrapper.unmount();
 });

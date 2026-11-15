@@ -153,16 +153,4 @@ onUnmounted(() => document.removeEventListener("pointerdown", outside, true));
     opacity: 0.35;
   }
 }
-@media (max-width: 760px) {
-  .engine-pill {
-    padding: 0 11px;
-  }
-  .engine-pill__label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
-}
 </style>

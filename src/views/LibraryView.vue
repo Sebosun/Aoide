@@ -42,7 +42,7 @@ const importErrors = computed(() => library.imports.filter((r) => r.error));
  *  is playing, playback moves to this one where it was left. */
 async function openCard(book: BookSummary) {
   if (!book.progress) {
-    navigation.openBook(book.id);
+    navigation.openItem(book.id);
     return;
   }
   const status = player.state.status;
@@ -203,7 +203,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
         :book="book"
         :busy="reader.loading"
         @open="openCard(book)"
-        @details="navigation.openBook(book.id)"
+        @details="navigation.openItem(book.id)"
         @remove="library.remove(book.id)"
       />
     </ul>

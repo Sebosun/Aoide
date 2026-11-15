@@ -33,7 +33,7 @@ const button = (label: string) => {
 async function openQueue() {
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
-  const pill = wrapper.get('header [aria-haspopup="dialog"].engine-pill');
+  const pill = wrapper.get('nav [aria-haspopup="dialog"].engine-pill');
   expect(pill.attributes("aria-expanded")).toBe("false");
   await pill.trigger("click");
   await flushPromises();
@@ -127,7 +127,7 @@ it("says when nothing is waiting, opens a book or the engine settings, and close
   await flushPromises();
   rows()[0].querySelector("button")!.click();
   await flushPromises();
-  expect(navigation.view).toBe("book");
+  expect(navigation.view).toBe("item");
   expect(navigation.bookId).toBe("book-1");
   expect(panel()).toBeNull();
 

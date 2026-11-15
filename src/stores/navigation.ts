@@ -1,17 +1,39 @@
 import { defineStore } from "pinia";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 
-/** "reader" is the Now Playing screen; "book" is a book's details page (`bookId`); "find" and
- *  "audiobooks" find books and audiobooks on this computer. */
-export type View = "library" | "reader" | "stats" | "find" | "audiobooks" | "book";
+/** The screens. "reader" is the reader, which takes the whole window; "item" is one item's page
+ *  (`bookId`); "find" and "audiobooks" find books and audiobooks on this computer. */
+export type View = "home" | "library" | "activity" | "item" | "reader" | "find" | "audiobooks";
 export type ToolsTab = "bookmarks" | "search" | "voice" | "details";
 export type SettingsTab = "appearance" | "engine" | "recordings" | "library" | "highlighting" | "storage" | "about";
+/** The names the sidebar and the reader's back button give each screen. */
+export const VIEW_NAMES: Record<View, string> = {
+  home: "Home",
+  library: "Library",
+  activity: "Activity",
+  item: "Details",
+  reader: "Reader",
+  find: "Find books",
+  audiobooks: "Find audiobooks",
+};
 export const useNavigationStore = defineStore("navigation", () => {
-  const view = ref<View>("library");
+  const view = ref<View>("home");
   const bookId = ref<string | null>(null);
-  function openBook(id: string) {
+  /** The screen the reader was opened from, where its back button returns. */
+  const readerFrom = ref<View>("home");
+  watch(
+    view,
+    (to, from) => {
+      if (to === "reader" && from !== "reader") readerFrom.value = from;
+    },
+    { flush: "sync" },
+  );
+  function openItem(id: string) {
     bookId.value = id;
-    view.value = "book";
+    view.value = "item";
+  }
+  function leaveReader() {
+    view.value = readerFrom.value === "item" && !bookId.value ? "home" : readerFrom.value;
   }
   /** Settings is a dialog over the current screen; it reopens on the last tab. */
   const settingsOpen = ref(false),
@@ -23,7 +45,7 @@ export const useNavigationStore = defineStore("navigation", () => {
   function closeSettings() {
     settingsOpen.value = false;
   }
-  /** Book tools is a sheet over Now Playing. `findRequest` rises each time Ctrl F asks for the
+  /** Book tools is a sheet over the reader. `findRequest` rises each time Ctrl F asks for the
    *  search field, and is 0 when the sheet was opened any other way. */
   const tools = ref<ToolsTab | null>(null),
     findRequest = ref(0);
@@ -43,7 +65,9 @@ export const useNavigationStore = defineStore("navigation", () => {
   return {
     view,
     bookId,
-    openBook,
+    readerFrom,
+    openItem,
+    leaveReader,
     settingsOpen,
     settingsTab,
     openSettings,

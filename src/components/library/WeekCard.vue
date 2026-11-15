@@ -36,7 +36,7 @@ const max = computed(() => Math.max(1, ...days.value.map((d) => d.ms)));
 
 <template>
   <section class="week-card" aria-label="Last 7 days">
-    <button type="button" class="week-card__eyebrow" title="Listening stats" @click="navigation.view = 'stats'">
+    <button type="button" class="week-card__eyebrow" title="Listening stats" @click="navigation.view = 'activity'">
       Last 7 days
     </button>
     <b class="week-card__total">{{ total ? formatDuration(total) : "0 min" }}</b>

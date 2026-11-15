@@ -19,7 +19,7 @@ const ARROWS = '[role="slider"], [role="tablist"], [role="menu"], [role="listbox
  *  - Space plays or pauses and ← / → move a sentence. Both are left alone while typing, on a
  *    control that uses the key (for Space: one reached with the keyboard), under a dialog, and
  *    when a component already handled the key.
- *  - Ctrl F searches the open book (Now Playing) or the library; Ctrl , opens Settings.
+ *  - Ctrl F searches the open book (in the reader) or the library; Ctrl , opens Settings.
  *  - Ctrl + / Ctrl − / Ctrl 0 and Ctrl + wheel zoom, also while typing. */
 export function useShortcuts() {
   const preferences = usePreferencesStore(),

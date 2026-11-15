@@ -5,7 +5,7 @@ import { useLibraryStore } from "./stores/library";
 import { api } from "./api";
 import { useRecordingsStore } from "./stores/recordings";
 
-/** Browser preview only: `?view=reader&book=book-0&play=1500&theme=dark&mode=lines&zoom=1.25` opens a
+/** Browser preview only: `?view=home|library|activity|item|reader|find|audiobooks&book=book-0&play=1500&theme=dark&mode=lines&zoom=1.25` opens a
  *  screen in a known state (used for screenshots). `play` plays for that many ms, then pauses;
  *  `tools=voice` opens book tools on that tab; `settings=engine` opens settings on that tab; `click=<selector>|<selector>` clicks those
  *  elements in turn once the screen is up (to show an open menu or dialog). `zoom=1.25` sets the
@@ -51,7 +51,7 @@ export async function applyPreviewParams(search = location.search) {
         void player.pause();
       }, ms);
   }
-  if (view === "book") navigation.openBook(book);
+  if (view === "item") navigation.openItem(book);
   else navigation.view = view;
   const tools = query.get("tools");
   if (tools)

@@ -70,7 +70,7 @@ const play = (segment: SegmentView) => {
         class="reader-lines__cover-link"
         :aria-label="`Book page for ${reader.book.title}`"
         title="Book page: details, contents and your listening"
-        @click="navigation.openBook(reader.book.id)"
+        @click="navigation.openItem(reader.book.id)"
       >
         <CoverArt class="reader-lines__cover" :title="reader.book.title" :url="coverUrl" />
       </button>
@@ -81,7 +81,7 @@ const play = (segment: SegmentView) => {
             class="reader-lines__title-link"
             tabindex="-1"
             aria-hidden="true"
-            @click="navigation.openBook(reader.book.id)"
+            @click="navigation.openItem(reader.book.id)"
           >
             {{ reader.book.title }}
           </button>

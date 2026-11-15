@@ -63,7 +63,7 @@ function onKey(event: KeyboardEvent) {
   <UiDialog
     label="Settings"
     initial-focus='[role="tab"][aria-selected="true"]'
-    return-focus='header [aria-label="Settings"]'
+    return-focus='nav [aria-label="Settings"]'
     @close="navigation.closeSettings()"
   >
     <div class="settings">

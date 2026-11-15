@@ -268,7 +268,7 @@ it("shows listening for a chosen range with a streak, a calendar, weekdays and b
   expect(books[0].text()).toContain("The Lantern Keeper");
   expect(books[0].text()).toContain("1 h 30 min");
   await books[1].get("button").trigger("click");
-  expect(useNavigationStore().view).toBe("book");
+  expect(useNavigationStore().view).toBe("item");
   expect(useNavigationStore().bookId).toBe("book-1");
   wrapper.unmount();
   vi.useRealTimers();

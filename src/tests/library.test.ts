@@ -61,7 +61,7 @@ it("opens a chapter of the continued book from the hero", async () => {
   expect(play).toHaveBeenCalledWith("book-0", 1, "1:0:0");
   expect(useNavigationStore().view).toBe("reader");
   expect(useReaderStore().book?.id).toBe("book-0");
-  // Now Playing has the full transport, so the pill steps aside.
+  // The reader has the full transport, so the card steps aside.
   expect(wrapper.find('[aria-label="Now playing"]').exists()).toBe(false);
   wrapper.unmount();
 });
@@ -167,7 +167,7 @@ it("removes a book after confirming in a dialog from its card menu", async () =>
   host.unmount();
 });
 
-it("floats a mini player once something is playing, and opens Now Playing from it", async () => {
+it("shows the playing book in the now-playing card, and opens the reader from it", async () => {
   await useLibraryStore().start();
   await usePlayerStore().start();
   const wrapper = mount(MiniPlayer);
@@ -177,30 +177,30 @@ it("floats a mini player once something is playing, and opens Now Playing from i
   await mock.setSpeed(1.25);
   await mock.setSleepTimer(30, false);
   await flushPromises();
-  const mini = wrapper.get('[aria-label="Now playing"]');
-  expect(mini.text()).toContain("Across the water");
-  expect(mini.text()).toContain("The Lantern Keeper · 1.25× · sleep 30:00");
-  await mini.get('[aria-label="Pause"]').trigger("click");
+  const card = wrapper.get('[aria-label="Now playing"]');
+  expect(card.text()).toContain("The Lantern Keeper");
+  expect(card.text()).toContain("Playing · Across the water · 1.25× · sleep 30:00");
+  await card.get('[aria-label="Pause The Lantern Keeper"]').trigger("click");
   await flushPromises();
   expect(usePlayerStore().state.status).toBe("paused");
-  const skip = vi.spyOn(mock, "skipChapter");
-  await mini.get('[aria-label="Next chapter"]').trigger("click");
-  expect(skip).toHaveBeenCalledWith(1);
-  await mini.get('[aria-label="Open Now Playing"]').trigger("click");
+  expect(card.text()).toContain("Paused · 1.25×");
+  await card.get('[aria-label="Open The Lantern Keeper in the reader"]').trigger("click");
   await flushPromises();
   expect(useNavigationStore().view).toBe("reader");
   expect(useReaderStore().book?.id).toBe("book-0");
-  // Now Playing has the full transport, so the pill steps aside.
+  // The reader has the full transport, so the card steps aside.
   expect(wrapper.find('[aria-label="Now playing"]').exists()).toBe(false);
   wrapper.unmount();
 });
 
-it("keeps the playing chapter in the mini player when another book is open, and shows errors", async () => {
+it("keeps the playing book in the card when another book is open, and shows errors", async () => {
   await useReaderStore().open("book-1");
   useNavigationStore().view = "library";
   await usePlayerStore().start();
   const wrapper = mount(MiniPlayer);
   await mock.play("book-0", 1, "1:1:0");
+  await flushPromises();
+  expect(wrapper.text()).toContain("Across the water");
   mock.emitGeneration({
     bookId: "book-0",
     generatingSegmentId: null,
@@ -210,7 +210,6 @@ it("keeps the playing chapter in the mini player when another book is open, and 
     preparing: null,
   });
   await flushPromises();
-  expect(wrapper.text()).toContain("Across the water");
   expect(wrapper.text()).toContain("The Lantern Keeper");
   expect(wrapper.get('[role="alert"]').text()).toContain("Engine offline");
   wrapper.unmount();

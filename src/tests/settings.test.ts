@@ -38,9 +38,10 @@ const tabNames = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('[role="
 const selected = (wrapper: ReturnType<typeof mount>) => wrapper.get('[role="tab"][aria-selected="true"]');
 
 it("opens settings from the gear as a modal with a tab per section, and Escape closes it", async () => {
+  useNavigationStore().view = "library";
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
-  const gear = wrapper.get('header [aria-label="Settings"]');
+  const gear = wrapper.get('nav [aria-label="Settings"]');
   await gear.trigger("click");
   await flushPromises();
   const dialog = wrapper.get('[role="dialog"][aria-label="Settings"]');

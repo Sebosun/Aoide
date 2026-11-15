@@ -76,7 +76,7 @@ async function chapter(index: number) {
           <button
             type="button"
             class="continue__title-link"
-            :aria-label="`Open ${book.title} in Now Playing`"
+            :aria-label="`Open ${book.title} in the reader`"
             @click="openNowPlaying"
           >
             {{ book.title }}

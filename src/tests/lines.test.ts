@@ -119,7 +119,7 @@ it("keeps each sentence's element as the playhead moves, so lines can glide to t
 it("goes to the book's page from the cover in lines mode", async () => {
   const wrapper = await lines();
   await wrapper.get('[aria-label="Book page for The Lantern Keeper"]').trigger("click");
-  expect(useNavigationStore().view).toBe("book");
+  expect(useNavigationStore().view).toBe("item");
   wrapper.unmount();
 });
 

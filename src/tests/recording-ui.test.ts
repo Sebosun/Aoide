@@ -48,7 +48,7 @@ it("pairs dropped audio with the suggested book and shows its sync on the book's
 
   await click(byText(pair, "button", "Check and sync"));
   expect(dialog("Pair an audiobook")).toBeNull();
-  expect(useNavigationStore().view).toBe("book");
+  expect(useNavigationStore().view).toBe("item");
   const card = document.body.querySelector<HTMLElement>('[aria-label="Recording"]')!;
   expect(card.textContent).toMatch(/Checking the audio|Syncing/);
 });
@@ -116,7 +116,7 @@ it("lists recordings being synced in the queue with their pause button", async (
   await flushPromises();
   mock.setRecordingForTest("book-1", "transcribing");
   await flushPromises();
-  await click(document.body.querySelector<HTMLElement>("header .engine-pill"));
+  await click(document.body.querySelector<HTMLElement>("nav .engine-pill"));
   const rows = [...document.body.querySelectorAll<HTMLElement>('[aria-label="Recordings being synced"] > li')];
   expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining("A Map of Quiet Places")]);
   expect(rows[0].textContent).toContain("about 14 min left");
