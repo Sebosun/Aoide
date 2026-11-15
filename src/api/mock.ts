@@ -563,7 +563,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const changed = () => libraryHandlers.forEach((h) => h());
   /** Saved articles, like the app (core/articles.rs): the preview's article (`article.json`,
    *  book-6) with an explicit fetch stage. `?article=ready|fetching|needsyou-signin|
-   *  needsyou-cutshort|failed` saves it in that stage. */
+   *  needsyou-cutshort|needsyou-check|failed` saves it in that stage. */
   const articleHandlers = new Set<(a: ArticleView) => void>();
   const articles = new Map<string, ArticleView>();
   /** Articles with a stored copy (read once fetched, kept when a later fetch fails). */
@@ -635,6 +635,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       fetching: { kind: "fetching" },
       "needsyou-signin": { kind: "needsYou", reason: "signIn" },
       "needsyou-cutshort": { kind: "needsYou", reason: "cutShort" },
+      "needsyou-check": { kind: "needsYou", reason: "check" },
       failed: { kind: "failed" },
     } as Record<string, ArticleView["stage"]>
   )[query.get("article") ?? ""];
@@ -723,7 +724,12 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const inLibrary = (id: string | null) => id !== null && books.some((b) => b.id === id) && !feedShelf.has(id);
   const feedViews = () =>
     feeds.map((f) => ({ ...f, unread: entries.filter((e) => e.feedId === f.id && !e.read).length }));
-  const entryViews = () => entries.map((e) => ({ ...e, inLibrary: inLibrary(e.bookId) }));
+  /** As the core does: what the entry's item needs, when its fetch fell short. */
+  const needsOf = (id: string | null) => {
+    const stage = id ? articles.get(id)?.stage : undefined;
+    return stage?.kind === "needsYou" ? stage.reason : null;
+  };
+  const entryViews = () => entries.map((e) => ({ ...e, inLibrary: inLibrary(e.bookId), needsYou: needsOf(e.bookId) }));
   const getEntry = (id: number) => {
     const entry = entries.find((e) => e.id === id);
     if (!entry) throw new Error("No such entry.");

@@ -15,6 +15,7 @@ import { usePreferencesStore } from "../stores/preferences";
 
 import { choose, openMenu, pickMenuItem } from "./helpers";
 import { useUiStore } from "../stores/ui";
+import { useNavigationStore } from "../stores/navigation";
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("../api", () => ({
   get api() {
@@ -559,10 +560,10 @@ it("bookmarks a moment of an audiobook and plays from it", async () => {
 });
 
 /** The reader on the preview's article (book-6), saved in `stage`. */
-async function openArticle(stage: string) {
+async function openArticle(stage: string, more = "") {
   mock.dispose();
   setActivePinia(createPinia());
-  mock = createMockApi(`?article=${stage}`);
+  mock = createMockApi(`?article=${stage}${more}`);
   backend.api = mock;
   return openReader({ book: "book-6", attach: true });
 }
@@ -614,7 +615,8 @@ it("says what an article that needs you is missing, and fetches it again", async
         notice()
           .findAll("button")
           .find((b) => b.text() === text)!;
-      expect(button("Open original").exists()).toBe(true);
+      // The original is opened from the article's header.
+      expect(button("Open original")).toBeUndefined();
       await button(action).trigger("click");
       await flushPromises();
       expect(refetch).toHaveBeenLastCalledWith("book-6", source);
@@ -624,4 +626,23 @@ it("says what an article that needs you is missing, and fetches it again", async
       wrapper.unmount();
     }
   }
+});
+
+it("offers a sign-in window first once the browser is on, else turning it on", async () => {
+  let wrapper = await openArticle("needsyou-signin");
+  const notice = () => wrapper.get('[aria-label="This article needs you"]');
+  const first = () => notice().findAll("button")[0];
+  expect(first().text()).toBe("Turn on the browser…");
+  await first().trigger("click");
+  const navigation = useNavigationStore();
+  expect([navigation.settingsOpen, navigation.settingsTab]).toEqual([true, "sites"]);
+  wrapper.unmount();
+
+  wrapper = await openArticle("needsyou-signin", "&browser=ready");
+  const start = vi.spyOn(mock, "startSignIn");
+  expect(first().text()).toBe("Sign in to Quay Weekly…");
+  await first().trigger("click");
+  await flushPromises();
+  expect(start).toHaveBeenCalledWith("book-6");
+  wrapper.unmount();
 });

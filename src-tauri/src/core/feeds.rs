@@ -251,6 +251,8 @@ pub struct EntryView {
     /// The item it was opened as.
     pub book_id: Option<String>,
     pub in_library: bool,
+    /// What the item it was opened as needs from the user, when its fetch fell short.
+    pub needs_you: Option<super::fetching::Reason>,
 }
 
 /// Words a feed's text must have to be read as the whole article.
@@ -361,7 +363,8 @@ impl Feeds {
 
     /// A page of entries.
     pub fn entries(&self, query: &EntryQuery) -> Result<Vec<EntryView>, String> {
-        let rows = lock(&self.library)
+        let library = lock(&self.library);
+        let rows = library
             .list_entries(
                 query.feed,
                 query.filter.name(),
@@ -369,11 +372,19 @@ impl Feeds {
                 query.limit.unwrap_or(50).min(200),
             )
             .map_err(|e| e.to_string())?;
+        let needs_you = |book: &Option<aoide_library::BookId>| {
+            let row = library.article(book.as_ref()?).ok()??;
+            match super::fetching::Stage::from_stored(&row.stage, row.reason.as_deref()) {
+                super::fetching::Stage::NeedsYou(reason) => Some(reason),
+                _ => None,
+            }
+        };
         Ok(rows
             .into_iter()
             .map(|listing| {
                 let e = listing.entry;
                 EntryView {
+                    needs_you: needs_you(&e.book_id),
                     has_full_text: full_text(&e).is_some(),
                     id: e.id,
                     feed_id: e.feed_id,

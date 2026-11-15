@@ -259,3 +259,14 @@ it("fetches the page of a summary-only entry, then reads it", async () => {
   await vi.waitFor(() => expect(useNavigationStore().view).toBe("reader"), { timeout: 3000 });
   expect(useReaderStore().error).toBe("");
 });
+
+it("marks an entry whose article needs the user", async () => {
+  start("?article=needsyou-signin");
+  const wrapper = await openFeeds();
+  const night = () => entry(wrapper, "The quiet return of the night train");
+  expect(night().find(".feed-entry__note--needs").exists()).toBe(false);
+  // Saving it links the entry to the saved article, which needs a sign-in.
+  await night().get(".feed-entry__save").trigger("click");
+  await flushPromises();
+  expect(night().get(".feed-entry__note--needs").text()).toBe("Needs you · sign in to get the rest");
+});

@@ -13,6 +13,8 @@ import FindBooksView from "./views/FindBooksView.vue";
 import FindAudiobooksView from "./views/FindAudiobooksView.vue";
 import ItemView from "./views/ItemView.vue";
 import UiHost from "./components/ui/UiHost.vue";
+import SignInDialog from "./components/article/SignInDialog.vue";
+import { useSignInStore } from "./stores/signin";
 import SettingsDialog from "./components/settings/SettingsDialog.vue";
 import AddDialog from "./components/library/AddDialog.vue";
 import PairRecordingDialog from "./components/recording/PairRecordingDialog.vue";
@@ -35,7 +37,8 @@ const library = useLibraryStore(),
   navigation = useNavigationStore(),
   preferences = usePreferencesStore();
 const recordings = useRecordingsStore(),
-  reader = useReaderStore();
+  reader = useReaderStore(),
+  signIn = useSignInStore();
 /** Dropped EPUBs join the library; dropped audio (files or a folder) is paired with the book whose
  *  page or reader is open, else added on its own unless its name comes close to a book's. */
 function dropped(paths: string[]) {
@@ -91,6 +94,7 @@ onMounted(async () => {
   void player.start();
   void preferences.start();
   void recordings.start();
+  void signIn.init();
   void listenForProblems(api).then((off) => {
     if (disposed) off();
     else unlistenProblems = off;
@@ -193,6 +197,7 @@ function browserDrop(event: DragEvent) {
     <SettingsDialog v-if="navigation.settingsOpen" />
     <PairRecordingDialog v-if="recordings.pairing" :key="recordings.pairing.paths.join('|')" />
     <SyncReport v-if="recordings.report" :key="recordings.report" />
+    <SignInDialog v-if="signIn.shown && signIn.view" />
     <UiHost />
   </div>
 </template>

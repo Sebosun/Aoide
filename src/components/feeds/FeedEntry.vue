@@ -4,6 +4,7 @@ import { BookmarkCheck, BookmarkPlus } from "@lucide/vue";
 import type { EntryView } from "../../api/types";
 import { age } from "../../days";
 import { formatDuration, readingMs } from "../../estimate";
+import { NEEDS } from "../../articles";
 import { useLibraryStore } from "../../stores/library";
 
 /** One feed entry: its feed, age and length, headline and summary; opening reads it, the
@@ -32,6 +33,9 @@ const meta = computed(() => {
       <span class="feed-entry__title">{{ entry.title ?? entry.url ?? "Untitled" }}</span>
       <span v-if="entry.summary" class="feed-entry__summary">{{ entry.summary }}</span>
       <span v-if="opening" class="feed-entry__note" role="status">Fetching the article…</span>
+      <span v-else-if="entry.needsYou" class="feed-entry__note feed-entry__note--needs"
+        >Needs you · {{ NEEDS[entry.needsYou] }}</span
+      >
       <span v-else-if="!entry.hasFullText && !entry.bookId" class="feed-entry__note"
         >The feed carries a summary. The full article is fetched when you open it.</span
       >
@@ -114,6 +118,10 @@ const meta = computed(() => {
 .feed-entry__note {
   font-size: 12px;
   color: var(--dim);
+}
+.feed-entry__note--needs {
+  color: var(--warn);
+  font-weight: 600;
 }
 .feed-entry__save {
   flex: none;

@@ -129,3 +129,14 @@ it("shows an article to continue, next and recently added by its site and headli
   expect(tile.text()).toContain("The Quay Lights");
   wrapper.unmount();
 });
+
+it("marks an article in Up next that needs the user", async () => {
+  mock.dispose();
+  mock = createMockApi("?article=needsyou-check");
+  backend.api = mock;
+  const wrapper = mount(App);
+  await flushPromises();
+  const rows = wrapper.findAll('[aria-labelledby="home-next"] .home__row-meta');
+  expect(rows[0].text()).toMatch(/· Needs you · the site asks for a check$/);
+  expect(wrapper.findAll(".home__row-needs")).toHaveLength(1);
+});

@@ -11,6 +11,7 @@ import HomeContinueCard from "../components/home/HomeContinueCard.vue";
 import { useLibraryStore } from "../stores/library";
 import { useNavigationStore } from "../stores/navigation";
 import { dayName } from "../days";
+import { NEEDS } from "../articles";
 
 /** Home: what to continue, what is next, this week, and what was added recently. The core
  *  chooses the items (`home`); this screen looks them up in the library it already has. */
@@ -74,7 +75,10 @@ const added = (at: number) => dayName(at);
                     book.title
                   }}</b>
                   <span v-if="book.kind === 'article'" class="home__row-meta"
-                    >{{ book.article?.siteName ?? book.title }} · saved {{ added(book.addedAt) }}</span
+                    >{{ book.article?.siteName ?? book.title }} · saved {{ added(book.addedAt)
+                    }}<b v-if="book.article?.stage.kind === 'needsYou'" class="home__row-needs">
+                      · Needs you · {{ NEEDS[book.article.stage.reason] }}</b
+                    ></span
                   >
                   <span v-else class="home__row-meta"
                     >{{ book.kind === "audiobook" ? "Audiobook" : "Book"
@@ -221,6 +225,10 @@ const added = (at: number) => dayName(at);
 .home__row-meta {
   font-size: 13px;
   color: var(--dim);
+}
+.home__row-needs {
+  color: var(--warn);
+  font-weight: 600;
 }
 .home__covers {
   margin: 0;

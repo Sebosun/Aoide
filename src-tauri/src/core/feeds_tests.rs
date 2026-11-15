@@ -548,6 +548,26 @@ mod through_core {
     }
 
     #[tokio::test]
+    async fn an_entry_whose_page_fell_short_says_what_it_needs() {
+        let pages = Pages::with(&[(LIGHTS_URL, &super::super::article_tests::cut_short())]);
+        let (_dir, core) = subscribed(&pages).await;
+        assert_eq!(entry(&core, "The Quay Lights").needs_you, None);
+        let id = core
+            .open_feed_entry(entry(&core, "The Quay Lights").id)
+            .unwrap();
+        until("the page is fetched", || {
+            core.article(&id)
+                .is_ok_and(|a| matches!(a.stage, Stage::NeedsYou(_)))
+        })
+        .await;
+        assert_eq!(
+            entry(&core, "The Quay Lights").needs_you,
+            Some(super::super::fetching::Reason::CutShort)
+        );
+        assert_eq!(entry(&core, "The night ferry").needs_you, None);
+    }
+
+    #[tokio::test]
     async fn a_summary_only_entry_fetches_its_page() {
         let pages = Pages::with(&[(LIGHTS_URL, LIGHTS)]);
         let (_dir, core) = subscribed(&pages).await;

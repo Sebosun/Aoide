@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { ArrowRight, LocateFixed } from "@lucide/vue";
 import ChapterText from "./ChapterText.vue";
 import BookMargin from "./BookMargin.vue";
@@ -17,6 +17,8 @@ import type { FetchReason, Shape } from "../../api/types";
 import { useLibraryStore } from "../../stores/library";
 import { useReaderStore } from "../../stores/reader";
 import { useNavigationStore } from "../../stores/navigation";
+import { useSignInStore } from "../../stores/signin";
+import { api } from "../../api";
 import { prepareChapter } from "../../preparation";
 
 /** Page mode: a full-width sheet with the text in a 640px column, the book in the left
@@ -47,6 +49,23 @@ watch(
   },
   { immediate: true },
 );
+/** Whether the browser for articles is on: the notice offers a sign-in window, else turning
+ *  it on. Read again when Settings closes. */
+const browserOn = ref(false);
+const loadBrowser = () =>
+  api
+    .appSettings()
+    .then((s) => (browserOn.value = s.browser.use !== "off"))
+    .catch(() => {});
+onMounted(loadBrowser);
+watch(
+  () => navigation.settingsOpen,
+  (open) => !open && void loadBrowser(),
+);
+const signIn = useSignInStore();
+const startSignIn = async () => {
+  if (article.value && !(await signIn.start(article.value.id))) reader.error = signIn.error;
+};
 const refetch = (source: "http" | "archive") =>
   article.value && articles.refetch(article.value.id, source).catch((e) => (reader.error = String(e)));
 
@@ -163,9 +182,11 @@ const next = computed(() => {
             <NeedsYouNotice
               :article="article"
               :reason="needs"
+              :browser-on="browserOn"
+              @sign-in="startSignIn"
+              @turn-on="navigation.openSettings('sites')"
               @fetch="refetch('http')"
               @archive="refetch('archive')"
-              @original="openOriginal"
             />
           </template>
         </ChapterText>

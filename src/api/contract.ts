@@ -683,7 +683,11 @@ hasFullText: boolean,
 /**
  * The item it was opened as.
  */
-bookId: string | null, inLibrary: boolean, };
+bookId: string | null, inLibrary: boolean, 
+/**
+ * What the item it was opened as needs from the user, when its fetch fell short.
+ */
+needsYou: FetchReason | null, };
 
 export type BrowserUse = "off" | "fallback" | "first";
 

@@ -5,12 +5,24 @@ import type { ArticleView, FetchReason } from "../../api/types";
 import { fetching, siteOf } from "../../articles";
 
 /** Shown after an article's captured text when the fetch got only part of it: what is
- *  missing and why (`reason`, the last one the core gave), and the ways to get the rest. The
- *  kept copy stays until a fuller one arrives; a fetch under way or failed says so. */
-const props = defineProps<{ article: ArticleView; reason: FetchReason }>();
+ *  missing and why (`reason`, the last one the core gave), and the ways to get the rest: first
+ *  opening the page in a browser window to sign in or pass a check (or turning the browser on,
+ *  while it is off). The kept copy stays until a fuller one arrives; a fetch under way or
+ *  failed says so. */
+const props = defineProps<{ article: ArticleView; reason: FetchReason; browserOn: boolean }>();
 /** A fetch is under way: the actions wait for it. */
 const busy = computed(() => fetching(props.article.stage));
-const emit = defineEmits<{ fetch: []; archive: []; original: [] }>();
+const emit = defineEmits<{ fetch: []; archive: []; signIn: []; turnOn: [] }>();
+const primary = computed(() => {
+  if (!props.browserOn) return "Turn on the browser…";
+  return {
+    signIn: `Sign in to ${siteOf(props.article)}…`,
+    paywall: `Sign in to ${siteOf(props.article)}…`,
+    check: "Open the check in a window…",
+    cutShort: "Open in a window…",
+    empty: "Open in a window…",
+  }[props.reason];
+});
 const words = (n: number) => n.toLocaleString("en-US");
 const copy = computed(() => {
   const site = siteOf(props.article);
@@ -49,11 +61,18 @@ const copy = computed(() => {
     <h2 class="needs-you__heading">{{ copy.heading }}</h2>
     <p class="needs-you__body">{{ copy.body }}</p>
     <div class="needs-you__actions">
-      <button type="button" class="needs-you__button needs-you__button--main" :disabled="busy" @click="emit('archive')">
+      <button
+        type="button"
+        class="needs-you__button needs-you__button--main"
+        :disabled="busy"
+        @click="browserOn ? emit('signIn') : emit('turnOn')"
+      >
+        {{ primary }}
+      </button>
+      <button type="button" class="needs-you__button" :disabled="busy" @click="emit('archive')">
         Try an archived copy
       </button>
       <button type="button" class="needs-you__button" :disabled="busy" @click="emit('fetch')">Fetch again</button>
-      <button type="button" class="needs-you__button" @click="emit('original')">Open original</button>
     </div>
     <p v-if="busy" class="needs-you__status" role="status">Fetching again…</p>
     <p v-else-if="article.error" class="needs-you__status" role="alert">{{ article.error }}</p>
