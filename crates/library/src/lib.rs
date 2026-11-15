@@ -9,6 +9,7 @@ use rusqlite::OptionalExtension;
 use sha2::{Digest, Sha256};
 
 mod activity;
+mod merge;
 mod recordings;
 mod store;
 pub use activity::{ActivityStats, BookActivity, DayActivity};
@@ -1019,7 +1020,13 @@ pub enum BookKey {
     ProgressFraction,
     /// How many segments made it prepared (0: not prepared). Removed with the book.
     Prepared,
+    /// Where on its recording the listener was, kept from the audiobook it was merged from
+    /// until the sync reaches it (milliseconds). Removed with the book.
+    PendingPlace,
 }
+
+/// [`BookKey::PendingPlace`]'s key in `book_values`.
+const PENDING_PLACE: &str = "pending_place";
 
 /// Where a book's value is stored.
 enum Place {
@@ -1035,6 +1042,7 @@ impl BookKey {
             BookKey::Settings => Place::Settings(format!("book.{}.settings", id.0)),
             BookKey::ProgressFraction => Place::Settings(format!("progress.fraction.{}", id.0)),
             BookKey::Prepared => Place::Book("prepared"),
+            BookKey::PendingPlace => Place::Book(PENDING_PLACE),
         }
     }
 }

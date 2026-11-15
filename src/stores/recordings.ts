@@ -5,6 +5,7 @@ import type { Narration, RecordingView, SyncAction } from "../api/types";
 import { useReaderStore } from "./reader";
 import { useLibraryStore } from "./library";
 import { useUiStore } from "./ui";
+import { useNavigationStore } from "./navigation";
 
 /** Books' recordings, kept current from "sync://state", and the pairing dialog and sync report
  *  that are open over any screen. */
@@ -99,6 +100,29 @@ export const useRecordingsStore = defineStore("recordings", () => {
       return null;
     }
   }
+  /** "Add the EPUB…" on an audiobook on its own: the chosen EPUB joins the library and takes
+   *  the audiobook's recording, which syncs with it; its page opens. */
+  async function addText(audiobookId: string) {
+    const ui = useUiStore(),
+      library = useLibraryStore();
+    try {
+      const paths = await api.chooseBooks();
+      if (!paths?.length) return;
+      const [imported] = await api.importFiles(paths.slice(0, 1));
+      if (!imported?.bookId) {
+        ui.toast(imported?.error ?? "Could not add the EPUB.", "error");
+        return;
+      }
+      await api.mergeAudiobook(audiobookId, imported.bookId);
+      await library.refresh();
+      await load(imported.bookId);
+      const title = library.books.find((b) => b.id === imported.bookId)?.title ?? "The book";
+      ui.toast(`“${title}” has its text; the recording syncs with it`);
+      useNavigationStore().openItem(imported.bookId);
+    } catch (e) {
+      ui.toast(String(e), "error");
+    }
+  }
   function dispose() {
     unlisten?.();
     startup = undefined;
@@ -118,6 +142,7 @@ export const useRecordingsStore = defineStore("recordings", () => {
     openPairing,
     receive,
     addOnItsOwn,
+    addText,
     closePairing: () => {
       pairing.value = null;
     },

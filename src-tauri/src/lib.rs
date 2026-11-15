@@ -519,6 +519,15 @@ fn audiobook_matches(core: CoreState<'_>) -> Vec<crate::core::AudiobookMatch> {
 }
 
 #[tauri::command]
+fn merge_audiobook(
+    core: CoreState<'_>,
+    audiobook_id: String,
+    book_id: String,
+) -> Result<(), CoreError> {
+    Ok(core.merge_audiobook(&audiobook_id, &book_id)?)
+}
+
+#[tauri::command]
 fn unmatched_audiobooks(core: CoreState<'_>) -> Vec<crate::core::AudiobookSuggestion> {
     core.unmatched_audiobooks()
 }
@@ -877,6 +886,7 @@ pub fn run() {
             scan_for_audiobooks,
             audiobook_matches,
             unmatched_audiobooks,
+            merge_audiobook,
             cancel_audiobook_scan,
             look_for_audiobooks,
             pair_audiobooks,

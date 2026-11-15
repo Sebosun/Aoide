@@ -9,6 +9,7 @@ import {
   Headphones,
   Library,
   Mic,
+  Plus,
   RotateCcw,
   Settings2,
   Sparkles,
@@ -325,6 +326,11 @@ const collectionItems = computed<MenuEntry[]>(() => {
           >Add the EPUB of this book to read it, or to see the words highlighted as they are spoken. Your place in the
           recording is kept.</span
         >
+        <div class="item-page__row">
+          <button type="button" class="item-page__small" @click="recordings.addText(bookId)">
+            <Plus :size="15" aria-hidden="true" /> Add the EPUB…
+          </button>
+        </div>
       </section>
       <section v-else class="item-page__card" aria-labelledby="item-text">
         <div class="item-page__card-head">

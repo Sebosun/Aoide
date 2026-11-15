@@ -132,6 +132,7 @@ export const tauriApi: AoideApi = {
   scanForAudiobooks: () => call("scan_for_audiobooks"),
   audiobookMatches: () => call("audiobook_matches"),
   unmatchedAudiobooks: () => call("unmatched_audiobooks"),
+  mergeAudiobook: (audiobookId, bookId) => call("merge_audiobook", { audiobookId, bookId }),
   cancelAudiobookScan: () => call("cancel_audiobook_scan"),
   lookForAudiobooks: (ids) => call("look_for_audiobooks", { ids }),
   pairAudiobooks: (choices) => call("pair_audiobooks", { choices }),

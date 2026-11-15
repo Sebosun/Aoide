@@ -1335,6 +1335,25 @@ export function createMockApi() {
         suggestedBook: audio.some((p) => p.toLowerCase().includes("lantern")) ? "book-0" : null,
       };
     },
+    /** As the core does: the book takes the audiobook's recording (which starts syncing),
+     *  bookmarks and collections, and the audiobook item goes. */
+    async mergeAudiobook(audiobookId, bookId) {
+      if (!isAudiobook(audiobookId)) throw new Error("That is not an audiobook on its own.");
+      const book = getBook(bookId),
+        audio = getBook(audiobookId);
+      if (book.kind !== "book") throw new Error("That is not a book with text.");
+      if (recordings.has(bookId)) throw new Error("That book already has a recording.");
+      if (state.bookId === audiobookId) await api.stop();
+      const recording = recordings.get(audiobookId)!;
+      recordings.delete(audiobookId);
+      for (const mark of bookmarks) if (mark.bookId === audiobookId) mark.bookId = bookId;
+      book.collections = [...new Set([...book.collections, ...audio.collections])];
+      book.addedAt = Math.min(book.addedAt, audio.addedAt);
+      books.splice(books.indexOf(audio), 1);
+      emitSync({ ...recording, bookId, stage: "checking", transcribedMs: 0, remainingMs: null });
+      changed();
+      simulateSync(bookId);
+    },
     async attachRecording(bookId, paths) {
       getBook(bookId);
       const found = await api.inspectRecording(paths);

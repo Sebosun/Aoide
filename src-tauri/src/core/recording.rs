@@ -447,6 +447,7 @@ impl SyncHost for Core {
         if ready {
             self.narrate_with_recording_by_default(id);
         }
+        self.settle_pending_place(id, ready);
         self.follow_sync(id, ready);
     }
 

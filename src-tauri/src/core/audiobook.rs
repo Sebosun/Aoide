@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use aoide_library::{BookId, ItemKind, NewBook};
+use aoide_library::{BookId, BookKey, ItemKind, NewBook};
 
 use super::recordings::Recordings;
 use super::{lock, now_ms, Core, CoreEvent, ImportResult};
@@ -55,6 +55,97 @@ impl Core {
             book_id,
             error,
         }
+    }
+
+    /// Gives audiobook `audiobook` the EPUB it reads, book `book` (already in the library, with
+    /// no recording): the book takes its recording (which starts syncing with the text), its
+    /// bookmarks, collections and listening time, and keeps its place until the sync reaches
+    /// it; the audiobook item is removed.
+    pub fn merge_audiobook(&self, audiobook: &str, book: &str) -> Result<(), String> {
+        if self.kind_of(audiobook) != Some(ItemKind::Audiobook) {
+            return Err("That is not an audiobook on its own.".into());
+        }
+        if self.kind_of(book) != Some(ItemKind::Book) {
+            return Err("That is not a book with text.".into());
+        }
+        if self.recording_stage(book).is_some() {
+            return Err("That book already has a recording.".into());
+        }
+        if self.playback.is_book(audiobook) {
+            self.stop();
+        }
+        let merged = lock(&self.library)
+            .merge_audiobook(&BookId(audiobook.into()), &BookId(book.into()))
+            .map_err(|e| e.to_string());
+        tracing::info!(
+            event = "library.merge",
+            book = crate::logging::book(book),
+            from = crate::logging::book(audiobook),
+            outcome = if merged.is_ok() { "ok" } else { "failed" },
+            error = merged.as_ref().err(),
+            "Give an audiobook its text"
+        );
+        // On failure nothing moved, and the audiobook plays on as it was.
+        merged?;
+        // Its recording was standalone, so no sync work runs for it.
+        self.recordings.forget_recording(audiobook);
+        self.shelf.prefer_recording(book)?;
+        self.recordings.text_attached(self, book)?;
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+
+    /// The place book `id` kept from the audiobook it was merged from becomes its progress
+    /// once the sync has reached it: the first synced sentence whose audio goes on past it
+    /// (once all of it is synced, the last one with audio).
+    pub(super) fn settle_pending_place(&self, id: &str, ready: bool) {
+        let pending = lock(&self.library)
+            .book_value::<u64>(&BookId(id.into()), BookKey::PendingPlace)
+            .ok()
+            .flatten();
+        let Some(at) = pending else { return };
+        let Ok(book) = self.load_book(id) else { return };
+        let Ok((plan, synced)) = self.recordings.playable(self, &book) else {
+            return;
+        };
+        let clips = &plan.clips[..synced.min(plan.clips.len())];
+        let heard = |c: &&aoide_sync::Clip| !c.audio.is_empty();
+        let index = match clips.iter().position(|c| heard(&c) && c.audio.end > at) {
+            Some(index) => index,
+            None if ready => match clips.iter().rposition(|c| heard(&c)) {
+                Some(index) => index,
+                None => return,
+            },
+            None => return,
+        };
+        self.drop_pending_place(id, "settled");
+        let stored = self.store_place(super::playback::Place::Entry { book, index });
+        if let Err(error) = stored {
+            self.report("progress.save", "Could not save your place", error);
+        }
+    }
+
+    /// Forgets book `id`'s pending place, if it has one: it was `outcome` ("settled" into its
+    /// progress, or "dropped" since the user read or listened first).
+    pub(super) fn drop_pending_place(&self, id: &str, outcome: &str) {
+        let book = BookId(id.into());
+        let library = lock(&self.library);
+        if !matches!(
+            library.book_value::<u64>(&book, BookKey::PendingPlace),
+            Ok(Some(_))
+        ) {
+            return;
+        }
+        if let Err(error) = library.remove_book_value(&book, BookKey::PendingPlace) {
+            tracing::warn!(event = "progress.pending", book = crate::logging::book(id), %error, "Could not forget a pending place");
+            return;
+        }
+        tracing::info!(
+            event = "progress.pending",
+            book = crate::logging::book(id),
+            outcome,
+            "Place kept from an audiobook"
+        );
     }
 
     fn store_audiobook(&self, chosen: Vec<PathBuf>) -> Result<String, String> {

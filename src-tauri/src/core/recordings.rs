@@ -1107,6 +1107,33 @@ impl Recordings {
         })
     }
 
+    /// The recording moved to book `id` (from an audiobook on its own, by the merge) syncs with
+    /// the book's text from now on.
+    pub(super) fn text_attached(&self, host: &dyn SyncHost, id: &str) -> Result<(), String> {
+        let (row, _) = self.stored_recording(id)?;
+        let transcribed_ms = lock(&self.library)
+            .transcript_blocks(&row.book_id)
+            .ok()
+            .and_then(|b| b.last().map(|b| b.end_ms))
+            .unwrap_or(0);
+        lock(&self.state).live.insert(
+            id.to_owned(),
+            Live {
+                stage: SyncStage::from_stored(&row.stage),
+                added_at: row.added_at,
+                total_ms: row.total_ms,
+                transcribed_ms,
+                pace_from: None,
+                abort: Arc::new(AtomicBool::new(false)),
+                sample_checked: false,
+                changes: next_change(),
+            },
+        );
+        self.sync_event(host, id, SyncEvent::TextAttached, None);
+        self.wake_sync();
+        Ok(())
+    }
+
     /// Every audio file paired with a book (other than book `except`).
     pub(super) fn paired_files(&self, except: Option<&str>) -> Vec<PathBuf> {
         let rows = lock(&self.library).recordings().unwrap_or_default();

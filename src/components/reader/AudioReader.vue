@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { Pause, Play } from "@lucide/vue";
+import { Pause, Play, Plus } from "@lucide/vue";
 import CoverArt from "../CoverArt.vue";
 import PlayerScrubber from "../player/PlayerScrubber.vue";
 import SpeedPill from "../player/SpeedPill.vue";
@@ -9,13 +9,15 @@ import { formatClock, formatDuration, partsOf } from "../../estimate";
 import { useLibraryStore } from "../../stores/library";
 import { usePlayerStore } from "../../stores/player";
 import { useReaderStore } from "../../stores/reader";
+import { useRecordingsStore } from "../../stores/recordings";
 
 /** The reader for an audiobook on its own (shape `listen`): cover, a scrubber over the part
  *  playing, the transport with ±30 s, the parts to jump to, and what adding its text would
  *  give. Before it plays, it shows and moves the saved place. */
 const reader = useReaderStore(),
   player = usePlayerStore(),
-  library = useLibraryStore();
+  library = useLibraryStore(),
+  recordings = useRecordingsStore();
 const SKIP_MS = 30_000;
 
 const book = computed(() => reader.book!);
@@ -142,6 +144,9 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
           Add the EPUB of this book and the words are highlighted as they are spoken. You can also read it silently and
           pick the recording up where you stopped.
         </p>
+        <button type="button" class="audio-reader__add" @click="recordings.addText(book.id)">
+          <Plus :size="16" aria-hidden="true" /> Add the EPUB…
+        </button>
       </section>
     </div>
   </div>
@@ -303,6 +308,17 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
   margin: 0;
   font-size: 16px;
   font-weight: 700;
+}
+.audio-reader__add {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 22px;
+  background: var(--ground);
+  font-weight: 600;
 }
 .audio-reader__copy {
   margin: 0;

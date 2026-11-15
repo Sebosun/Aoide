@@ -703,6 +703,10 @@ impl super::Core {
     pub(super) fn store_place(&self, place: Place) -> Result<(), String> {
         let id = place.id().to_owned();
         let at_end = place.at_end();
+        // Read or played before its sync reached the audiobook's place: that place is moot.
+        if matches!(place, Place::Entry { .. }) {
+            self.drop_pending_place(&id, "dropped");
+        }
         place.save(&self.library)?;
         self.read_event(&id, super::reading::ReadEvent::Progressed { at_end })
             .map(drop)

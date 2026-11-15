@@ -323,3 +323,37 @@ it("adds audio on its own from the pairing dialog instead of pairing it", async 
   expect(useNavigationStore().bookId).toBe("book-5");
   expect(toasts()).toContain("Added “Winter Radio” as an audiobook");
 });
+
+it("gives an audiobook its EPUB from its page: the book takes its recording and bookmarks", async () => {
+  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  await mock.addBookmark("book-5", "by the window");
+  vi.spyOn(mock, "chooseBooks").mockResolvedValue(["~/Books/a-map-of-quiet-places.epub"]);
+  vi.spyOn(mock, "importFiles").mockResolvedValue([
+    { path: "~/Books/a-map-of-quiet-places.epub", bookId: "book-1", error: null },
+  ]);
+  const merge = vi.spyOn(mock, "mergeAudiobook");
+  useNavigationStore().openItem("book-5");
+  mount(App, { attachTo: document.body });
+  await flushPromises();
+  const text = document.body.querySelector<HTMLElement>('[aria-labelledby="item-text"]')!;
+  await click(byText(text, "button", "Add the EPUB…"));
+  expect(merge).toHaveBeenCalledWith("book-5", "book-1");
+  expect(useLibraryStore().books.some((b) => b.id === "book-5")).toBe(false);
+  expect(useNavigationStore().bookId).toBe("book-1");
+  expect(useRecordingsStore().byBook["book-1"]?.stage).not.toBe("standalone");
+  expect((await mock.bookmarks("book-1")).map((b) => b.note)).toContain("by the window");
+  expect(toasts().some((t) => t.includes("has its text"))).toBe(true);
+});
+
+it("offers to add the EPUB from an audiobook's reader", async () => {
+  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  vi.spyOn(mock, "chooseBooks").mockResolvedValue([]);
+  await useLibraryStore().start();
+  await useReaderStore().open("book-5");
+  const reader = mount(ReaderView, { attachTo: document.body });
+  await flushPromises();
+  const choose = vi.spyOn(mock, "chooseBooks");
+  await click(byText(document.body, ".audio-reader button", "Add the EPUB…"));
+  expect(choose).toHaveBeenCalled();
+  reader.unmount();
+});

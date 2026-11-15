@@ -241,6 +241,10 @@ export interface AoideApi {
   audiobookMatches(): Promise<AudiobookMatch[]>;
   /** What the last whole search found that comes close to no book, to add on its own. */
   unmatchedAudiobooks(): Promise<AudiobookSuggestion[]>;
+  /** Gives an audiobook on its own the book it reads (already imported, with no recording):
+   *  the book takes its recording, which syncs, its bookmarks, collections and listening time,
+   *  and its place once the sync reaches it. The audiobook item is removed. */
+  mergeAudiobook(audiobookId: string, bookId: string): Promise<void>;
   cancelAudiobookScan(): Promise<void>;
   /** After books were added: how many have audiobooks waiting for the user (0 when looking on
    *  adding is off or Aoide verifies them). */

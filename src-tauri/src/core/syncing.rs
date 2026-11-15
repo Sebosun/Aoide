@@ -75,7 +75,6 @@ pub enum Event {
     /// Transcribe and match again from scratch (the caller clears what is stored).
     Resync,
     /// An audiobook on its own was given its text: it syncs like any recording from now on.
-    #[allow(dead_code)] // Sent by the merge with an EPUB (phase 3.8).
     TextAttached,
 }
 

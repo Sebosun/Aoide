@@ -1586,3 +1586,110 @@ async fn fixture_of_a_synced_recording_for_the_ui_mock() {
         ],
     );
 }
+
+/// The test book read aloud into an audiobook added on its own, and where its second
+/// chapter's third word is heard.
+async fn audiobook_of_the_book(f: &Fixture) -> (String, u64) {
+    let texts = texts(&f.core, &f.id);
+    let words = read(&texts, 1_000);
+    let total = words.last().unwrap().1 + 1_000;
+    let first_chapter = texts[0].split_whitespace().count();
+    let at = words[first_chapter + 2].0;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    let added = f.core.add_audiobook(vec![f.audio.to_string_lossy().into()]);
+    (added.book_id.expect("added"), at)
+}
+
+fn pending_place(core: &Core, id: &str) -> Option<u64> {
+    super::lock(&core.library)
+        .book_value(
+            &aoide_library::BookId(id.into()),
+            aoide_library::BookKey::PendingPlace,
+        )
+        .unwrap()
+}
+
+#[tokio::test]
+async fn an_audiobook_given_its_text_syncs_and_picks_up_where_it_was() {
+    let f = fixture().await;
+    let (audiobook, at) = audiobook_of_the_book(&f).await;
+    f.core.seek_to(&audiobook, at).unwrap();
+    f.core.add_bookmark(&audiobook, "here").unwrap();
+    super::lock(&f.core.library)
+        .record_listening(
+            &aoide_library::BookId(audiobook.clone()),
+            "2026-11-14",
+            4_000,
+        )
+        .unwrap();
+
+    f.core.merge_audiobook(&audiobook, &f.id).unwrap();
+    let books = f.core.list_books().unwrap();
+    assert_eq!(books.len(), 1, "the audiobook item is gone");
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Checking));
+    assert_eq!(f.core.recording(&audiobook), None);
+    let marks = f.core.bookmarks(&f.id).unwrap();
+    assert_eq!((marks.len(), marks[0].position_ms), (1, Some(at)));
+    assert!(f
+        .core
+        .book_listening(&f.id)
+        .unwrap()
+        .iter()
+        .any(|d| d.ms == 4_000));
+    assert_eq!(pending_place(&f.core, &f.id), Some(at));
+    assert!(
+        f.core.merge_audiobook(&audiobook, &f.id).is_err(),
+        "done once"
+    );
+
+    put_model(&f.root);
+    f.core.models_changed();
+    sync(&f.core);
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Ready));
+    assert_eq!(pending_place(&f.core, &f.id), None, "settled");
+    let progress = super::lock(&f.core.library)
+        .progress(&aoide_library::BookId(f.id.clone()))
+        .unwrap()
+        .expect("the place became progress");
+    let book = f.core.load_book(&f.id).unwrap();
+    let segment = progress.segment_id.expect("a sentence");
+    let index = book.index_of(&segment).unwrap();
+    // The sentence of chapter two that holds its third word.
+    let mut words = 0;
+    let holding = book.chapters[1]
+        .segments
+        .iter()
+        .position(|segment| {
+            words += segment.words.len();
+            words > 2
+        })
+        .unwrap();
+    assert_eq!(progress.chapter, 1);
+    assert_eq!(book.locate(index).map(|(_, local)| local), Some(holding));
+}
+
+#[tokio::test]
+async fn reading_a_merged_book_first_drops_the_place_it_kept() {
+    let f = fixture().await;
+    let (audiobook, at) = audiobook_of_the_book(&f).await;
+    f.core.seek_to(&audiobook, at).unwrap();
+    f.core.merge_audiobook(&audiobook, &f.id).unwrap();
+    let book = f.core.load_book(&f.id).unwrap();
+    let first = book.chapters[0].segments[0].id.clone();
+    f.core.set_reading_place(&f.id, 0, &first).unwrap();
+    assert_eq!(pending_place(&f.core, &f.id), None);
+
+    put_model(&f.root);
+    f.core.models_changed();
+    sync(&f.core);
+    let progress = super::lock(&f.core.library)
+        .progress(&aoide_library::BookId(f.id.clone()))
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        (progress.chapter, progress.segment_id),
+        (0, Some(first)),
+        "where the reader is, not where the audiobook was"
+    );
+}
