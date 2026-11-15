@@ -130,20 +130,20 @@ const exportList = () =>
 <style scoped>
 .feed-settings {
   display: grid;
-  gap: 22px;
+  gap: var(--space-11);
 }
 .feed-settings__buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .feed-settings__button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 36px;
-  padding: 0 16px;
-  border-radius: 999px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-weight: 700;
   font-size: 13px;

@@ -347,13 +347,13 @@ const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start
 <style scoped>
 .site-settings {
   display: grid;
-  gap: 22px;
+  gap: var(--space-11);
 }
 .site-settings__browser {
   display: grid;
-  gap: 10px;
-  padding: 14px 16px;
-  border-radius: 16px;
+  gap: var(--space-5);
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-lg);
   background: var(--ground);
 }
 .site-settings__browser--off,
@@ -362,7 +362,7 @@ const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start
 }
 .site-settings__which {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -373,15 +373,15 @@ const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start
 .site-settings__buttons {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .site-settings__button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 36px;
-  padding: 0 16px;
-  border-radius: 999px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-pill);
   background: var(--page);
   border: 1px solid var(--line);
   font-weight: 700;
@@ -416,7 +416,7 @@ const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start
 }
 .site-settings__table th,
 .site-settings__table td {
-  padding: 8px 6px;
+  padding: var(--space-4) var(--space-3);
   text-align: left;
   vertical-align: middle;
   border-top: 1px solid var(--line);
@@ -458,7 +458,7 @@ const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-6);
 }
 .site-settings__error {
   font-size: 12.5px;

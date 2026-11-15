@@ -117,8 +117,8 @@ const position = () =>
 .chapter-menu__button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 0;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--dim);
@@ -130,10 +130,10 @@ const position = () =>
 .chapter-menu__pill {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 46px;
-  padding: 0 20px;
-  border-radius: 999px;
+  padding: 0 var(--space-10);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   font-weight: 700;
   font-size: 14px;
@@ -141,10 +141,10 @@ const position = () =>
 .chapter-menu__chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   max-width: 100%;
-  padding: 8px 14px;
-  border-radius: 999px;
+  padding: var(--space-4) var(--space-7);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   font-weight: 700;
   font-size: 13px;
@@ -152,11 +152,11 @@ const position = () =>
 .chapter-menu__title-button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   max-width: 100%;
   height: 44px;
-  padding: 0 16px;
-  border-radius: 22px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-xl);
   font-weight: 600;
 }
 .chapter-menu__title-button:hover {

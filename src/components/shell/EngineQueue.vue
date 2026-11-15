@@ -185,16 +185,16 @@ function settings() {
 <style scoped>
 .engine-queue {
   display: grid;
-  gap: 14px;
+  gap: var(--space-7);
 }
 .engine-queue__head {
   display: grid;
-  gap: 3px;
+  gap: var(--space-1);
 }
 .engine-queue__engine {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   font-weight: 700;
   font-size: 13.5px;
 }
@@ -226,8 +226,8 @@ function settings() {
 }
 .engine-queue__section {
   display: grid;
-  gap: 6px;
-  padding-top: 12px;
+  gap: var(--space-3);
+  padding-top: var(--space-6);
   border-top: 1px solid var(--line);
 }
 .engine-queue__heading {
@@ -260,21 +260,21 @@ function settings() {
 }
 .engine-queue__list {
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
   list-style: none;
   max-height: 300px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  margin: 0 -6px;
+  margin: 0 calc(-1 * var(--space-3));
   padding: 0;
 }
 .engine-queue__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 5px 8px;
-  padding: 8px 6px;
-  border-radius: 10px;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-4) var(--space-3);
+  border-radius: var(--radius-md);
 }
 .engine-queue__row:hover {
   background: var(--wash);
@@ -287,14 +287,14 @@ function settings() {
   text-align: left;
   font-weight: 700;
   font-size: 13px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .engine-queue__book:hover {
   text-decoration: underline;
 }
 .engine-queue__actions {
   display: flex;
-  gap: 2px;
+  gap: var(--space-1);
 }
 .engine-queue__icon {
   display: grid;
@@ -311,7 +311,7 @@ function settings() {
 .engine-queue__track {
   grid-column: 1 / -1;
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--line);
   overflow: hidden;
 }
@@ -331,16 +331,16 @@ function settings() {
 }
 .engine-queue__foot {
   display: flex;
-  padding-top: 10px;
+  padding-top: var(--space-5);
   border-top: 1px solid var(--line);
 }
 .engine-queue__link {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 10px;
-  margin-left: -10px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  margin-left: calc(-1 * var(--space-5));
+  border-radius: var(--radius-pill);
   font-weight: 600;
   font-size: 12.5px;
   color: var(--dim);

@@ -74,7 +74,7 @@ const notes = computed(() => props.book.warnings.length + props.book.excluded.le
 <style scoped>
 .book-margin {
   display: grid;
-  gap: 8px;
+  gap: var(--space-4);
   align-content: start;
   justify-items: start;
   font: 500 13px/1.4 var(--font-ui);
@@ -82,10 +82,10 @@ const notes = computed(() => props.book.warnings.length + props.book.excluded.le
 }
 .book-margin__book {
   display: grid;
-  gap: 8px;
+  gap: var(--space-4);
   justify-items: start;
   text-align: left;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 .book-margin__book:hover .book-margin__title {
   text-decoration: underline;
@@ -94,8 +94,8 @@ const notes = computed(() => props.book.warnings.length + props.book.excluded.le
 .book-margin__cover {
   width: 112px;
   font-size: 10px;
-  border-radius: 10px;
-  margin-bottom: 6px;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
 }
 .book-margin__title {
   font-size: 15px;
@@ -108,28 +108,28 @@ const notes = computed(() => props.book.warnings.length + props.book.excluded.le
   width: 100%;
   height: 1px;
   border: 0;
-  margin: 6px 0;
+  margin: var(--space-3) 0;
   background: var(--line);
 }
 .book-margin__warning {
   display: inline-flex;
   align-items: flex-start;
-  gap: 6px;
-  margin-top: 6px;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
   text-align: left;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--warn);
 }
 .book-margin__warning svg {
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 @media (max-width: 999px) {
   .book-margin {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 14px;
+    gap: var(--space-2) var(--space-7);
   }
   .book-margin__book,
   .book-margin__rule {

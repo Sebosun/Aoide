@@ -73,11 +73,11 @@ function findBooks() {
 <style scoped>
 .library-settings {
   display: grid;
-  gap: 22px;
+  gap: var(--space-11);
 }
 .library-settings__path {
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
   background: var(--ground);
   font-size: 12.5px;
   overflow-wrap: anywhere;
@@ -85,10 +85,10 @@ function findBooks() {
 .library-settings__button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 36px;
-  padding: 0 16px;
-  border-radius: 999px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-weight: 700;
   font-size: 13px;
@@ -96,7 +96,7 @@ function findBooks() {
 .library-settings__check {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   font-size: 13px;
 }
 .library-settings__error {

@@ -42,10 +42,10 @@ async function subscribe() {
 .feed-offer {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-top: 16px;
-  padding: 8px 8px 8px 14px;
-  border-radius: 14px;
+  gap: var(--space-6);
+  margin-top: var(--space-8);
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-7);
+  border-radius: var(--radius-md);
   background: var(--wash);
   font-family: var(--font-ui);
   font-size: 14px;
@@ -57,8 +57,8 @@ async function subscribe() {
 }
 .feed-offer__button {
   height: 36px;
-  padding: 0 14px;
-  border-radius: 18px;
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-lg);
   background: var(--ink);
   color: var(--ground);
   font-weight: 600;

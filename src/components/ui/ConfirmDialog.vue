@@ -43,8 +43,8 @@ const id = useId();
 .confirm {
   width: min(420px, calc(100vw - 32px));
   display: grid;
-  gap: 10px;
-  padding: 24px;
+  gap: var(--space-5);
+  padding: var(--space-12);
 }
 .confirm__title {
   font-size: 18px;
@@ -59,13 +59,13 @@ const id = useId();
 .confirm__actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 10px;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
 }
 .confirm__button {
   height: 38px;
-  padding: 0 18px;
-  border-radius: 999px;
+  padding: 0 var(--space-9);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   box-shadow: inset 0 0 0 1px var(--line);
   font-weight: 700;

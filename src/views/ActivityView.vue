@@ -305,16 +305,16 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 .activity {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 8px 28px 40px;
+  padding: var(--space-4) var(--space-14) var(--space-20);
   display: grid;
-  gap: 18px;
+  gap: var(--space-9);
 }
 .activity__header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-6);
 }
 .activity__title {
   font-size: 32px;
@@ -323,14 +323,14 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 }
 .activity__ranges {
   display: flex;
-  gap: 2px;
-  padding: 4px;
-  border-radius: 999px;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-pill);
   background: var(--glass);
 }
 .activity__range {
-  padding: 7px 14px;
-  border-radius: 999px;
+  padding: var(--space-3) var(--space-7);
+  border-radius: var(--radius-pill);
   font-weight: 600;
   font-size: 13px;
   color: var(--dim);
@@ -346,15 +346,15 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 .activity__tiles {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-6);
 }
 .activity__tile {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 4px 10px;
-  padding: 16px 18px;
-  border-radius: 18px;
+  gap: var(--space-2) var(--space-5);
+  padding: var(--space-8) var(--space-9);
+  border-radius: var(--radius-lg);
   background: var(--page);
   color: var(--dim);
   font-size: 12.5px;
@@ -370,7 +370,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 }
 .activity__tile small {
   grid-column: 1 / -1;
-  margin-top: -4px;
+  margin-top: calc(-1 * var(--space-2));
   font-size: 12px;
   color: var(--faint);
 }
@@ -382,25 +382,25 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 }
 .activity__ghost-tile {
   height: 96px;
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
 }
 .activity__ghost-card {
   height: 240px;
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
 }
 .activity__empty {
-  padding: 40px 20px;
-  border-radius: 20px;
+  padding: var(--space-20) var(--space-10);
+  border-radius: var(--radius-lg);
   background: var(--page);
   color: var(--dim);
   text-align: center;
 }
 .activity__card {
   display: grid;
-  gap: 12px;
+  gap: var(--space-6);
   align-content: start;
-  padding: 20px;
-  border-radius: 20px;
+  padding: var(--space-10);
+  border-radius: var(--radius-lg);
   background: var(--page);
   min-width: 0;
 }
@@ -412,28 +412,28 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   color: var(--dim);
 }
 .activity__heading small {
-  margin-left: 6px;
+  margin-left: var(--space-3);
   font-weight: 600;
   color: var(--faint);
   text-transform: none;
   letter-spacing: 0;
 }
 .activity__note {
-  margin-top: -6px;
+  margin-top: calc(-1 * var(--space-3));
   font-size: 13px;
   font-weight: 700;
 }
 .activity__bars {
   display: flex;
   align-items: stretch;
-  gap: 8px;
+  gap: var(--space-4);
   height: 200px;
   padding: 0;
   margin: 0;
   list-style: none;
 }
 .activity__bars--dense {
-  gap: 3px;
+  gap: var(--space-1);
 }
 .activity__bar {
   flex: 1;
@@ -442,7 +442,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   grid-template-rows: minmax(0, 1fr) 18px;
   align-items: end;
   justify-items: center;
-  gap: 6px;
+  gap: var(--space-3);
 }
 .activity__stack {
   width: 100%;
@@ -451,11 +451,11 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 2px;
+  gap: var(--space-1);
 }
 .activity__bar-fill {
   display: block;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   transition: height var(--dur-2) var(--ease);
 }
 .activity__bar-fill--reading,
@@ -479,12 +479,12 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   display: inline-block;
   width: 8px;
   height: 8px;
-  margin-right: 6px;
-  border-radius: 2px;
+  margin-right: var(--space-3);
+  border-radius: var(--radius-xs);
 }
 .activity__track--split {
   display: flex;
-  gap: 2px;
+  gap: var(--space-1);
 }
 .activity__bar-label {
   font-size: 11px;
@@ -496,23 +496,23 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 .activity__pair {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-  gap: 18px;
+  gap: var(--space-9);
 }
 .activity__calendar {
   display: grid;
   grid-template-columns: repeat(26, minmax(0, 1fr));
-  gap: 3px;
+  gap: var(--space-1);
 }
 .activity__week {
   display: grid;
   grid-template-rows: repeat(7, auto);
-  gap: 3px;
+  gap: var(--space-1);
 }
 .activity__cell {
   display: block;
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--wash);
 }
 .activity__cell--1 {
@@ -533,7 +533,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 .activity__scale {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: var(--space-1);
   font-size: 11px;
   color: var(--dim);
 }
@@ -544,7 +544,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 }
 .activity__weekdays {
   display: grid;
-  gap: 7px;
+  gap: var(--space-3);
   padding: 0;
   margin: 0;
   list-style: none;
@@ -554,7 +554,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) 76px;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   color: var(--dim);
   font-weight: 600;
 }
@@ -566,14 +566,14 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 .activity__track {
   position: relative;
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--wash);
   overflow: hidden;
 }
 .activity__track i {
   position: absolute;
   inset: 0 auto 0 0;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--ink);
 }
 .activity__track--split i {
@@ -588,7 +588,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 }
 .activity__books {
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
   padding: 0;
   margin: 0;
   list-style: none;
@@ -597,10 +597,10 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   display: grid;
   grid-template-columns: 40px minmax(0, 1.2fr) minmax(0, 1fr) 90px;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-7);
   width: 100%;
-  padding: 8px;
-  border-radius: 12px;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
   text-align: left;
 }
 .activity__book:hover:not(:disabled) {
@@ -611,12 +611,12 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   cursor: default;
 }
 .activity__thumb {
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   box-shadow: none;
 }
 .activity__book-text {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 0;
 }
 .activity__book-text b {
@@ -636,7 +636,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 }
 @media (max-width: 860px) {
   .activity {
-    padding: 8px 16px 32px;
+    padding: var(--space-4) var(--space-8) var(--space-16);
   }
   .activity__tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -170,13 +170,13 @@ async function remove() {
   max-height: 84vh;
   overflow-y: auto;
   display: grid;
-  gap: 16px;
-  padding: 20px 22px;
+  gap: var(--space-8);
+  padding: var(--space-10) var(--space-11);
 }
 .sync-report__head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   color: var(--accent);
 }
 .sync-report__title {
@@ -208,8 +208,8 @@ async function remove() {
 }
 .sync-report__section {
   display: grid;
-  gap: 8px;
-  padding-top: 12px;
+  gap: var(--space-4);
+  padding-top: var(--space-6);
   border-top: 1px solid var(--line);
 }
 .sync-report__heading {
@@ -234,10 +234,10 @@ async function remove() {
   text-align: left;
   font-weight: 600;
   color: var(--dim);
-  padding: 4px 6px;
+  padding: var(--space-2) var(--space-3);
 }
 .sync-report__table td {
-  padding: 4px 6px;
+  padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--line);
 }
 .sync-report__name {
@@ -258,14 +258,14 @@ async function remove() {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
   font-size: 12.5px;
 }
 .sync-report__gap {
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr);
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .sync-report__excerpt {
   color: var(--dim);
@@ -280,9 +280,9 @@ async function remove() {
 .sync-report__time {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  border-radius: 999px;
-  padding: 2px 8px;
+  gap: var(--space-2);
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-4);
   background: var(--ground);
   font-size: 12px;
   font-weight: 700;
@@ -298,8 +298,8 @@ async function remove() {
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
-  gap: 8px;
-  padding-top: 12px;
+  gap: var(--space-4);
+  padding-top: var(--space-6);
   border-top: 1px solid var(--line);
 }
 .sync-report__actions .sync-report__hint {
@@ -308,9 +308,9 @@ async function remove() {
 .sync-report__button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 999px;
-  padding: 9px 16px;
+  gap: var(--space-3);
+  border-radius: var(--radius-pill);
+  padding: var(--space-4) var(--space-8);
   font-size: 13px;
   font-weight: 700;
   background: var(--ground);

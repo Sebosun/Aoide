@@ -26,16 +26,16 @@ const ui = useUiStore();
   translate: -50% 0;
   display: grid;
   justify-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   pointer-events: none;
 }
 .toasts__item {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   max-width: min(460px, calc(100vw - 32px));
-  padding: 9px 10px 9px 16px;
-  border-radius: 999px;
+  padding: var(--space-4) var(--space-5) var(--space-4) var(--space-8);
+  border-radius: var(--radius-pill);
   background: var(--ink);
   color: var(--ground);
   font-weight: 700;

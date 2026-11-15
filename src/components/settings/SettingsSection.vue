@@ -19,10 +19,10 @@ defineProps<{ title: string; icon?: Component }>();
 <style scoped>
 .settings-section {
   display: grid;
-  gap: 14px;
+  gap: var(--space-7);
 }
 .settings-section + .settings-section {
-  padding-top: 22px;
+  padding-top: var(--space-11);
   border-top: 1px solid var(--line);
 }
 .settings-section__head {
@@ -30,18 +30,18 @@ defineProps<{ title: string; icon?: Component }>();
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .settings-section__title {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-4);
   font-size: 16px;
   font-weight: 800;
   letter-spacing: -0.01em;
 }
 .settings-section__body {
   display: grid;
-  gap: 14px;
+  gap: var(--space-7);
 }
 </style>

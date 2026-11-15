@@ -107,22 +107,22 @@ async function choose(next: Narration) {
 <style scoped>
 .book-narration {
   display: grid;
-  gap: 20px;
+  gap: var(--space-10);
 }
 .book-narration__switch {
   justify-self: start;
   display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
   background: var(--ground);
 }
 .book-narration__option {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-7);
+  border-radius: var(--radius-pill);
   font-size: 13px;
   font-weight: 700;
   color: var(--dim);
@@ -135,7 +135,7 @@ async function choose(next: Narration) {
   opacity: 0.45;
 }
 .book-narration__speech {
-  padding-top: 20px;
+  padding-top: var(--space-10);
   border-top: 1px solid var(--line);
 }
 .book-narration__hint {
@@ -146,17 +146,17 @@ async function choose(next: Narration) {
 .book-narration__check {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  margin-top: 14px;
+  gap: var(--space-5);
+  margin-top: var(--space-7);
   font-size: 13px;
   font-weight: 600;
 }
 .book-narration__check input {
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 .book-narration__check small {
   display: block;
-  margin-top: 3px;
+  margin-top: var(--space-1);
   font-weight: 400;
   font-size: 12px;
   color: var(--dim);

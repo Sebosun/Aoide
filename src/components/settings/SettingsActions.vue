@@ -22,12 +22,12 @@ withDefaults(defineProps<{ label?: string; busy?: boolean; message?: string; err
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-6);
 }
 .settings-actions__save {
   height: 38px;
-  padding: 0 20px;
-  border-radius: 999px;
+  padding: 0 var(--space-10);
+  border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 800;

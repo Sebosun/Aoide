@@ -86,10 +86,10 @@ const copy = computed(() => {
 .needs-you {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-top: 10px;
-  padding: 22px;
-  border-radius: 20px;
+  gap: var(--space-6);
+  margin-top: var(--space-5);
+  padding: var(--space-11);
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--warn) 14%, var(--page));
   font: 400 15px / 1.5 var(--font-ui);
   color: var(--ink);
@@ -97,7 +97,7 @@ const copy = computed(() => {
 .needs-you__kicker {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -117,18 +117,18 @@ const copy = computed(() => {
 .needs-you__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 6px;
+  gap: var(--space-5);
+  margin-top: var(--space-3);
 }
 .needs-you__button {
   height: 48px;
-  padding: 0 20px;
-  border-radius: 24px;
+  padding: 0 var(--space-10);
+  border-radius: var(--radius-xl);
   background: var(--page);
   font-weight: 600;
 }
 .needs-you__button--main {
-  padding: 0 22px;
+  padding: 0 var(--space-11);
   background: var(--ink);
   color: var(--ground);
   font-weight: 700;

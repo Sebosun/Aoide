@@ -94,7 +94,7 @@ onUnmounted(() => {
 }
 .ui-dialog--center {
   align-items: center;
-  padding: 24px 16px;
+  padding: var(--space-12) var(--space-8);
 }
 .ui-dialog__backdrop {
   position: absolute;
@@ -124,12 +124,12 @@ onUnmounted(() => {
   min-height: 0;
 }
 .ui-dialog--sheet .ui-dialog__panel {
-  border-radius: 22px 22px 0 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   box-shadow: 0 -18px 50px -20px var(--shadow);
   animation: ui-dialog-rise var(--dur-2) var(--ease);
 }
 .ui-dialog--center .ui-dialog__panel {
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   box-shadow:
     0 30px 70px -24px var(--shadow),
     0 0 0 1px var(--line);

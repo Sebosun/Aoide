@@ -38,7 +38,7 @@ const art = computed(() => {
   width: 100%;
   padding: 10%;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   color: var(--art-ink);
   font-weight: 800;
   line-height: 1.1;

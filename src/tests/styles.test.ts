@@ -41,3 +41,19 @@ it("imports modules by the @/ alias, never by a relative path", () => {
     expect(relative, file).toEqual([]);
   }
 });
+
+it("spaces and rounds components with the size tokens, not pixel values", () => {
+  for (const [file, source] of Object.entries(components)) {
+    const styles = [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("\n");
+    for (const [, property, value] of styles.matchAll(/(?<![\w-])([a-z-]+)\s*:\s*([^;{}]+);/g)) {
+      const spacing = /^(gap|row-gap|column-gap|padding(-.+)?|margin(-.+)?)$/.test(property);
+      const radius = /^border(-.+)?-radius$/.test(property);
+      if (!spacing && !radius) continue;
+      // 1px hairlines, and large layout room (the reader's side tools), are not on the scale.
+      const literals = [...value.matchAll(/(\d+(?:\.\d+)?)px/g)]
+        .map((m) => Number(m[1]))
+        .filter((px) => px > 1 && !(spacing && px >= 100));
+      expect(literals, `${file}: ${property}: ${value}`).toEqual([]);
+    }
+  }
+});

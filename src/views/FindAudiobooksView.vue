@@ -353,15 +353,15 @@ function openSettings() {
 .find-audiobooks {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 8px 28px 0;
+  padding: var(--space-4) var(--space-14) 0;
 }
 .find-audiobooks__back {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin: 8px 0 18px;
-  padding: 6px 12px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-9);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   font-weight: 700;
   font-size: 13px;
@@ -371,8 +371,8 @@ function openSettings() {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: var(--space-10);
+  margin-bottom: var(--space-10);
 }
 .find-audiobooks__header h1 {
   font-size: 32px;
@@ -381,22 +381,22 @@ function openSettings() {
 }
 .find-audiobooks__subtitle {
   color: var(--dim);
-  margin-top: 4px;
+  margin-top: var(--space-2);
 }
 .find-audiobooks__actions,
 .find-audiobooks__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .find-audiobooks__primary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 42px;
-  padding: 0 20px;
-  border-radius: 999px;
+  padding: 0 var(--space-10);
+  border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 800;
@@ -404,10 +404,10 @@ function openSettings() {
 .find-audiobooks__button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   font-size: 13px;
   font-weight: 700;
@@ -439,10 +439,10 @@ function openSettings() {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 16px;
-  margin: 0 0 12px;
-  padding: 12px 18px;
-  border-radius: 18px;
+  gap: var(--space-4) var(--space-8);
+  margin: 0 0 var(--space-6);
+  padding: var(--space-6) var(--space-9);
+  border-radius: var(--radius-lg);
   background: var(--page);
   font-size: 13px;
   color: var(--dim);
@@ -450,18 +450,18 @@ function openSettings() {
 .find-audiobooks__link {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-6);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-size: 12px;
   font-weight: 700;
   color: var(--ink);
 }
 .find-audiobooks__settings {
-  margin: 0 0 26px;
-  padding: 16px 20px;
-  border-radius: 22px;
+  margin: 0 0 var(--space-12);
+  padding: var(--space-8) var(--space-10);
+  border-radius: var(--radius-xl);
   background: var(--page);
   font-size: 13px;
 }
@@ -478,13 +478,13 @@ function openSettings() {
 }
 .find-audiobooks__folders {
   display: grid;
-  gap: 12px;
-  margin-top: 14px;
+  gap: var(--space-6);
+  margin-top: var(--space-7);
 }
 .find-audiobooks__field {
   display: grid;
   grid-template-columns: 170px minmax(0, 1fr);
-  gap: 12px;
+  gap: var(--space-6);
   align-items: start;
 }
 .find-audiobooks__field small {
@@ -493,18 +493,18 @@ function openSettings() {
 .find-audiobooks__check {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   font-size: 13px;
 }
 .find-audiobooks__tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
 }
 .find-audiobooks__tab {
-  padding: 6px 13px;
-  border-radius: 999px;
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   font-size: 12.5px;
   font-weight: 600;
@@ -515,24 +515,24 @@ function openSettings() {
   color: var(--ground);
 }
 .find-audiobooks__count {
-  margin-left: 5px;
+  margin-left: var(--space-2);
   font-variant-numeric: tabular-nums;
 }
 .find-audiobooks__grid {
   list-style: none;
   padding: 0;
-  margin: 18px 0;
+  margin: var(--space-9) 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 14px;
+  gap: var(--space-7);
 }
 .find-audiobooks__card {
   position: relative;
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
-  gap: 14px;
-  padding: 12px;
-  border-radius: 16px;
+  gap: var(--space-7);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
   background: var(--page);
 }
 .find-audiobooks__card--selected {
@@ -546,7 +546,7 @@ function openSettings() {
 .find-audiobooks__cover {
   width: 56px;
   height: 80px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--wash);
   display: grid;
   place-items: center;
@@ -561,9 +561,9 @@ function openSettings() {
 .find-audiobooks__info {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
   align-content: start;
-  padding-right: 22px;
+  padding-right: var(--space-11);
 }
 .find-audiobooks__info h3 {
   font-size: 14px;
@@ -585,16 +585,16 @@ function openSettings() {
 .find-audiobooks__current {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   min-width: 0;
-  margin: 2px 0 0;
+  margin: var(--space-1) 0 0;
   font-size: 12px;
   font-weight: 600;
 }
 .find-audiobooks__candidates {
   display: grid;
-  gap: 4px;
-  margin: 4px 0 0;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
   padding: 0;
   border: 0;
   min-width: 0;
@@ -602,10 +602,10 @@ function openSettings() {
 .find-audiobooks__candidate {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   min-width: 0;
-  padding: 6px 10px;
-  border-radius: 12px;
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius-md);
   background: var(--ground);
   font-size: 12px;
   font-weight: 600;
@@ -639,7 +639,7 @@ function openSettings() {
 }
 .find-audiobooks__eyebrow {
   justify-self: end;
-  margin: 0 0 2px;
+  margin: 0 0 var(--space-1);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -656,9 +656,9 @@ function openSettings() {
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 999px;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  border-radius: var(--radius-pill);
   background: var(--page);
   box-shadow: 0 18px 40px -16px var(--shadow);
   font-size: 13px;
@@ -669,8 +669,8 @@ function openSettings() {
 }
 .find-audiobooks__unmatched {
   display: grid;
-  gap: 8px;
-  margin-top: 28px;
+  gap: var(--space-4);
+  margin-top: var(--space-14);
 }
 .find-audiobooks__heading {
   margin: 0;
@@ -682,14 +682,14 @@ function openSettings() {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .find-audiobooks__other {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 12px;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-md);
   background: var(--page);
 }
 .find-audiobooks__other .find-audiobooks__label {
@@ -701,14 +701,14 @@ function openSettings() {
 .find-audiobooks__empty {
   text-align: center;
   color: var(--dim);
-  padding: 40px 16px;
+  padding: var(--space-20) var(--space-8);
   display: grid;
   justify-items: center;
-  gap: 12px;
+  gap: var(--space-6);
 }
 @media (max-width: 560px) {
   .find-audiobooks {
-    padding: 8px 16px 0;
+    padding: var(--space-4) var(--space-8) 0;
   }
   .find-audiobooks__field {
     grid-template-columns: 1fr;
@@ -717,7 +717,7 @@ function openSettings() {
     grid-template-columns: 1fr;
   }
   .find-audiobooks__footer {
-    border-radius: 22px;
+    border-radius: var(--radius-xl);
   }
 }
 </style>

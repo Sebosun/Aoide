@@ -248,11 +248,11 @@ async function prepareAction(action: PrepareAction) {
 .book-voice__form,
 .book-voice__audio {
   display: grid;
-  gap: 12px;
+  gap: var(--space-6);
 }
 .book-voice__audio {
-  margin-top: 28px;
-  padding-top: 22px;
+  margin-top: var(--space-14);
+  padding-top: var(--space-11);
   border-top: 1px solid var(--line);
   justify-items: start;
 }
@@ -267,12 +267,12 @@ async function prepareAction(action: PrepareAction) {
 .book-voice__hint {
   font-size: 11px;
   color: var(--dim);
-  margin: -4px 0 0;
+  margin: calc(-1 * var(--space-2)) 0 0;
 }
 .book-voice__field {
   display: grid;
   grid-template-columns: 90px minmax(0, 1fr);
-  gap: 10px;
+  gap: var(--space-5);
   align-items: center;
   font-size: 13px;
 }
@@ -282,32 +282,32 @@ async function prepareAction(action: PrepareAction) {
 .book-voice__check {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   font-size: 13px;
 }
 .book-voice__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .book-voice__primary {
   background: var(--accent);
   color: var(--on-accent);
-  border-radius: 999px;
-  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  padding: var(--space-4) var(--space-9);
   font-size: 13px;
   font-weight: 800;
 }
 .book-voice__button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-size: 12.5px;
   font-weight: 700;
-  padding: 8px 14px;
+  padding: var(--space-4) var(--space-7);
   white-space: nowrap;
 }
 .book-voice__ok {

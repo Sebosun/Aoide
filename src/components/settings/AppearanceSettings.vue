@@ -152,12 +152,12 @@ const themeOptions = computed(() => [
 <style scoped>
 .appearance {
   display: grid;
-  gap: 16px;
+  gap: var(--space-8);
 }
 .appearance__title {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-4);
   font-size: 16px;
   font-weight: 800;
   letter-spacing: -0.01em;
@@ -166,7 +166,7 @@ const themeOptions = computed(() => [
   display: grid;
   grid-template-columns: 160px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: var(--space-6);
   font-size: 13px;
 }
 .appearance__label {
@@ -176,14 +176,14 @@ const themeOptions = computed(() => [
 .appearance__modes {
   display: inline-flex;
   justify-self: start;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
   background: var(--ground);
 }
 .appearance__mode {
-  padding: 6px 14px;
-  border-radius: 999px;
+  padding: var(--space-3) var(--space-7);
+  border-radius: var(--radius-pill);
   font-weight: 700;
   font-size: 13px;
   color: var(--dim);
@@ -196,9 +196,9 @@ const themeOptions = computed(() => [
   display: inline-flex;
   justify-self: start;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
   background: var(--ground);
 }
 .appearance__step {
@@ -216,8 +216,8 @@ const themeOptions = computed(() => [
 .appearance__percent {
   min-width: 58px;
   height: 30px;
-  padding: 0 8px;
-  border-radius: 999px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
   font-weight: 700;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
@@ -241,7 +241,7 @@ const themeOptions = computed(() => [
   justify-self: start;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   color: var(--dim);
 }
 .appearance__number {
@@ -249,7 +249,7 @@ const themeOptions = computed(() => [
 }
 .appearance__problems {
   margin: 0;
-  padding-left: 18px;
+  padding-left: var(--space-9);
   font-size: 12px;
   color: var(--accent);
   overflow-wrap: anywhere;

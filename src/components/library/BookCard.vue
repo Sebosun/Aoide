@@ -289,7 +289,7 @@ const items = computed<MenuEntry[]>(() => {
   display: grid;
   /* Its one column keeps to the library's track, whatever the tile's text. */
   grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
+  gap: var(--space-3);
   align-content: start;
   min-width: 0;
   font-size: 12.5px;
@@ -298,7 +298,7 @@ const items = computed<MenuEntry[]>(() => {
 .book-card__open {
   display: block;
   width: 100%;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 /* A square cover sits at the foot of a portrait frame, so the titles below line up. */
 .book-card__open:has(.book-card__cover--square) {
@@ -321,7 +321,7 @@ const items = computed<MenuEntry[]>(() => {
 }
 .book-card__cover {
   font-size: 13px;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   transition: box-shadow var(--dur-2) var(--ease);
 }
 .book-card__open:not(:disabled):hover .book-card__cover {
@@ -334,7 +334,7 @@ const items = computed<MenuEntry[]>(() => {
   opacity: 0.35;
 }
 .book-card__title {
-  margin-top: 4px;
+  margin-top: var(--space-2);
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
@@ -354,13 +354,13 @@ const items = computed<MenuEntry[]>(() => {
 }
 .book-card__mark {
   vertical-align: -1px;
-  margin-right: 4px;
+  margin-right: var(--space-2);
   color: var(--accent);
 }
 .book-card__track {
   position: relative;
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--line);
   overflow: hidden;
 }

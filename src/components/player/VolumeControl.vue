@@ -102,9 +102,9 @@ onUnmounted(() => document.removeEventListener("pointerdown", outside, true));
   z-index: 40;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px 6px 6px;
-  border-radius: 999px;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-6) var(--space-3) var(--space-3);
+  border-radius: var(--radius-pill);
   background: var(--page);
   color: var(--ink);
   box-shadow:

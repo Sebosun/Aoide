@@ -46,15 +46,15 @@ const { state, error, play, stop } = useVoicePreview();
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
+  gap: var(--space-4) var(--space-6);
 }
 .voice-preview__button {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-3);
   height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-weight: 700;
   font-size: 13px;

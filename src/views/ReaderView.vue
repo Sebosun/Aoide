@@ -118,24 +118,24 @@ const { isArticle } = useOpenArticle();
   height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 0 28px;
+  padding: 0 var(--space-14);
 }
 .reader__header {
   flex: none;
   display: grid;
   grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
   align-items: center;
-  gap: 10px;
-  padding: 14px 0;
+  gap: var(--space-5);
+  padding: var(--space-7) 0;
 }
 .reader__back {
   justify-self: start;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 44px;
-  padding: 0 16px 0 12px;
-  border-radius: 22px;
+  padding: 0 var(--space-8) 0 var(--space-6);
+  border-radius: var(--radius-xl);
   background: var(--glass);
   font-weight: 600;
 }
@@ -148,7 +148,7 @@ const { isArticle } = useOpenArticle();
   justify-self: end;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .reader__round {
   display: grid;
@@ -181,9 +181,9 @@ const { isArticle } = useOpenArticle();
   z-index: 2;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 14px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-7);
+  border-radius: var(--radius-pill);
   background: var(--ink);
   color: var(--ground);
   font-size: 12.5px;
@@ -201,7 +201,7 @@ const { isArticle } = useOpenArticle();
 }
 @media (max-width: 760px) {
   .reader {
-    padding: 0 10px;
+    padding: 0 var(--space-5);
   }
 }
 </style>

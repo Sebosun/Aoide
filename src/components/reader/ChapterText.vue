@@ -128,7 +128,7 @@ const chapterMissing = computed(
 <style scoped>
 .chapter-text {
   display: grid;
-  row-gap: 18px;
+  row-gap: var(--space-9);
   font: 400 calc(20.5px * var(--read-scale)) / 1.68 var(--font-read);
   color: var(--reading);
 }
@@ -142,7 +142,7 @@ const chapterMissing = computed(
   font: 600 calc(34px * var(--read-scale)) / 1.15 var(--font-read);
   color: var(--ink);
   letter-spacing: -0.012em;
-  padding-bottom: 6px;
+  padding-bottom: var(--space-3);
 }
 h3.chapter-text__block--heading {
   font-size: calc(26px * var(--read-scale));
@@ -160,7 +160,7 @@ h3.chapter-text__block--heading {
 }
 .chapter-text__segment {
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   transition:
@@ -190,9 +190,9 @@ h3.chapter-text__block--heading {
   text-underline-offset: 4px;
 }
 .chapter-text__missing {
-  margin: 0 0 18px;
-  padding: 10px 14px;
-  border-radius: 12px;
+  margin: 0 0 var(--space-9);
+  padding: var(--space-5) var(--space-7);
+  border-radius: var(--radius-md);
   background: var(--wash);
   color: var(--dim);
   font-family: var(--font-ui, inherit);
@@ -214,7 +214,7 @@ h3.chapter-text__block--heading {
   vertical-align: super;
   font: 700 11px/1 var(--font-ui);
   color: var(--accent);
-  padding: 0 2px;
+  padding: 0 var(--space-1);
 }
 .chapter-text__popover {
   position: absolute;
@@ -223,8 +223,8 @@ h3.chapter-text__block--heading {
   z-index: 4;
   transform: translateX(-50%);
   width: min(320px, 70vw);
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: var(--space-6) var(--space-7);
+  border-radius: var(--radius-md);
   background: var(--page);
   color: var(--dim);
   box-shadow:
@@ -237,11 +237,11 @@ h3.chapter-text__block--heading {
 }
 .chapter-text__margin {
   display: grid;
-  gap: 14px;
+  gap: var(--space-7);
   align-content: start;
 }
 .chapter-text__margin-note {
-  padding-top: 6px;
+  padding-top: var(--space-3);
   font: 400 14.5px/1.5 var(--font-read);
   color: var(--dim);
 }
@@ -254,7 +254,7 @@ h3.chapter-text__block--heading {
 }
 .chapter-text__note-label {
   display: block;
-  margin-bottom: 3px;
+  margin-bottom: var(--space-1);
   font: 700 11px/1.4 var(--font-ui);
   letter-spacing: 0.06em;
   text-transform: uppercase;

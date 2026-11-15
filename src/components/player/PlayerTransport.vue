@@ -107,22 +107,22 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
 <style scoped>
 .transport {
   display: grid;
-  gap: 12px;
+  gap: var(--space-6);
   align-content: center;
   min-height: 140px;
-  padding: 14px 0;
+  padding: var(--space-7) 0;
   border-top: 1px solid var(--line);
 }
 .transport__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
+  gap: var(--space-8);
 }
 .transport__side {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   min-width: 0;
 }
 .transport__side > * {
@@ -133,7 +133,7 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
 }
 .transport__status {
   min-width: 0;
-  margin-top: -6px;
+  margin-top: calc(-1 * var(--space-3));
   text-align: center;
   font-size: 12px;
   font-weight: 600;
@@ -146,13 +146,13 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
   display: none;
 }
 .transport__error {
-  margin-right: 8px;
+  margin-right: var(--space-4);
   color: var(--accent);
 }
 .transport__main {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: var(--space-9);
 }
 .transport__icon {
   display: grid;
@@ -181,13 +181,13 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
 }
 @media (max-width: 620px) {
   .transport__row {
-    gap: 10px;
+    gap: var(--space-5);
   }
   .transport__side {
-    gap: 6px;
+    gap: var(--space-3);
   }
   .transport__main {
-    gap: 8px;
+    gap: var(--space-4);
   }
   .transport__play {
     width: 56px;
@@ -198,7 +198,7 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
   .transport__row {
     grid-template-columns: 1fr 1fr;
     grid-template-areas: "main main" "start end";
-    row-gap: 12px;
+    row-gap: var(--space-6);
   }
   .transport__main {
     grid-area: main;

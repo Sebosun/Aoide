@@ -122,24 +122,24 @@ function moveTab(delta: number) {
 .book-tools__head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 14px 12px 20px;
+  gap: var(--space-6);
+  padding: var(--space-7) var(--space-7) var(--space-6) var(--space-10);
   border-bottom: 1px solid var(--line);
 }
 .book-tools__tabs {
   flex-shrink: 0;
   display: flex;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 999px;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
   background: var(--ground);
 }
 .book-tools__tab {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-7);
+  border-radius: var(--radius-pill);
   font-size: 13px;
   font-weight: 700;
   color: var(--dim);
@@ -170,7 +170,7 @@ function moveTab(delta: number) {
 }
 .book-tools__body {
   overflow-y: auto;
-  padding: 20px 24px 28px;
+  padding: var(--space-10) var(--space-12) var(--space-14);
 }
 @media (max-width: 600px) {
   .book-tools {
@@ -185,7 +185,7 @@ function moveTab(delta: number) {
   .book-tools__tab {
     flex: 1;
     justify-content: center;
-    padding: 8px;
+    padding: var(--space-4);
   }
   .book-tools__tab span {
     position: absolute;
@@ -195,7 +195,7 @@ function moveTab(delta: number) {
     clip: rect(0 0 0 0);
   }
   .book-tools__body {
-    padding: 16px;
+    padding: var(--space-8);
   }
 }
 </style>

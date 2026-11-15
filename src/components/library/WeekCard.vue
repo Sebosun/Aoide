@@ -85,10 +85,10 @@ const height = (ms: number) => `${(ms / max.value) * 100}%`;
 <style scoped>
 .week-card {
   display: grid;
-  gap: 12px;
+  gap: var(--space-6);
   align-content: start;
-  padding: 20px;
-  border-radius: 22px;
+  padding: var(--space-10);
+  border-radius: var(--radius-xl);
   background: var(--page);
 }
 .week-card__eyebrow {
@@ -105,7 +105,7 @@ const height = (ms: number) => `${(ms / max.value) * 100}%`;
 .week-card__totals {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 28px;
+  gap: var(--space-4) var(--space-14);
 }
 .week-card__total {
   display: grid;
@@ -120,14 +120,14 @@ const height = (ms: number) => `${(ms / max.value) * 100}%`;
 .week-card__total span {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   font-size: 13px;
   color: var(--dim);
 }
 .week-card__key {
   width: 8px;
   height: 8px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 .week-card__key--reading,
 .week-card__bar--reading {
@@ -140,26 +140,26 @@ const height = (ms: number) => `${(ms / max.value) * 100}%`;
 .week-card__bars {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
+  gap: var(--space-4);
   padding: 0;
   list-style: none;
 }
 .week-card__day {
   display: grid;
   grid-template-rows: 84px auto;
-  gap: 6px;
+  gap: var(--space-3);
   text-align: center;
 }
 .week-card__stack {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 2px;
+  gap: var(--space-1);
 }
 .week-card__bar {
   display: block;
   min-height: 3px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 .week-card__bar--none {
   height: 3px;

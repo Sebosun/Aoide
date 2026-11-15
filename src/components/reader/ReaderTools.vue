@@ -87,7 +87,7 @@ const modes: { value: ReaderMode; label: string }[] = [
 .reader-tools {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .reader-tools__size {
   position: relative;
@@ -108,9 +108,9 @@ const modes: { value: ReaderMode; label: string }[] = [
   z-index: 7;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px;
-  border-radius: 999px;
+  gap: var(--space-5);
+  padding: var(--space-3);
+  border-radius: var(--radius-pill);
   background: var(--page);
   box-shadow:
     0 14px 34px -14px var(--shadow),
@@ -126,7 +126,7 @@ const modes: { value: ReaderMode; label: string }[] = [
 }
 .reader-tools__dots {
   display: flex;
-  gap: 5px;
+  gap: var(--space-2);
 }
 .reader-tools__dot {
   width: 6px;
@@ -139,16 +139,16 @@ const modes: { value: ReaderMode; label: string }[] = [
 }
 .reader-tools__mode {
   display: flex;
-  gap: 2px;
-  padding: 4px;
-  border-radius: 22px;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-radius: var(--radius-xl);
   background: var(--glass);
   font-weight: 600;
 }
 .reader-tools__option {
   height: 36px;
-  padding: 0 14px;
-  border-radius: 18px;
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-lg);
   color: var(--dim);
 }
 .reader-tools__option--on {

@@ -231,17 +231,17 @@ onBeforeUnmount(() => watcher?.disconnect());
 .feeds {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 8px 36px 40px;
+  padding: var(--space-4) var(--space-16) var(--space-20);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-10);
 }
 .feeds__header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-6);
 }
 .feeds__title {
   margin: 0;
@@ -250,22 +250,22 @@ onBeforeUnmount(() => watcher?.disconnect());
   letter-spacing: -0.01em;
 }
 .feeds__summary {
-  margin: 2px 0 0;
+  margin: var(--space-1) 0 0;
   font-size: 13px;
   color: var(--dim);
 }
 .feeds__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .feeds__button {
   height: 44px;
-  padding: 0 16px;
+  padding: 0 var(--space-8);
   display: flex;
   align-items: center;
-  gap: 8px;
-  border-radius: 22px;
+  gap: var(--space-4);
+  border-radius: var(--radius-xl);
   background: var(--page);
   font-weight: 600;
 }
@@ -274,7 +274,7 @@ onBeforeUnmount(() => watcher?.disconnect());
   cursor: default;
 }
 .feeds__button--main {
-  padding: 0 18px;
+  padding: 0 var(--space-9);
   background: var(--ink);
   color: var(--ground);
 }
@@ -286,18 +286,18 @@ onBeforeUnmount(() => watcher?.disconnect());
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 24px;
+  gap: var(--space-12);
 }
 .feeds__sources {
   flex: 1 1 230px;
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
 }
 .feeds__heading {
   margin: 0;
-  padding: 16px 12px 6px;
+  padding: var(--space-8) var(--space-6) var(--space-3);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -315,11 +315,11 @@ onBeforeUnmount(() => watcher?.disconnect());
 }
 .feeds__source {
   min-height: 44px;
-  padding: 6px 12px;
+  padding: var(--space-3) var(--space-6);
   display: flex;
   flex-direction: column;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   color: var(--dim);
   font-weight: 500;
   text-align: left;
@@ -327,7 +327,7 @@ onBeforeUnmount(() => watcher?.disconnect());
 .feeds__line {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-4);
   width: 100%;
 }
 .feeds__source:hover {
@@ -355,7 +355,7 @@ onBeforeUnmount(() => watcher?.disconnect());
 .feeds__failing {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   font-size: 12px;
   font-weight: 600;
   color: var(--warn);
@@ -388,11 +388,11 @@ onBeforeUnmount(() => watcher?.disconnect());
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .feeds__day {
-  margin: 12px 0 0;
-  padding: 0 4px;
+  margin: var(--space-6) 0 0;
+  padding: 0 var(--space-2);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -403,16 +403,16 @@ onBeforeUnmount(() => watcher?.disconnect());
   margin-top: 0;
 }
 .feeds__card {
-  padding: 2px 18px;
-  border-radius: 18px;
+  padding: var(--space-1) var(--space-9);
+  border-radius: var(--radius-lg);
   background: var(--page);
 }
 .feeds__more {
   align-self: center;
   height: 40px;
-  margin-top: 8px;
-  padding: 0 16px;
-  border-radius: 20px;
+  margin-top: var(--space-4);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-lg);
   color: var(--dim);
   font-weight: 600;
 }
@@ -421,26 +421,26 @@ onBeforeUnmount(() => watcher?.disconnect());
   background: var(--glass);
 }
 .feeds__empty {
-  padding: 28px;
-  border-radius: 18px;
+  padding: var(--space-14);
+  border-radius: var(--radius-lg);
   background: var(--page);
   color: var(--dim);
 }
 .feeds__empty p {
-  margin: 6px 0 0;
+  margin: var(--space-3) 0 0;
 }
 .feeds__empty--start {
   max-width: 560px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: var(--space-2);
 }
 .feeds__empty--start .feeds__button {
-  margin-top: 14px;
+  margin-top: var(--space-7);
 }
 .feeds__link {
-  margin-top: 6px;
+  margin-top: var(--space-3);
   padding: 0;
   color: var(--dim);
   text-decoration: underline;
@@ -455,7 +455,7 @@ onBeforeUnmount(() => watcher?.disconnect());
 }
 @media (max-width: 719px) {
   .feeds {
-    padding: 8px 16px 32px;
+    padding: var(--space-4) var(--space-8) var(--space-16);
   }
 }
 </style>

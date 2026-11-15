@@ -55,7 +55,7 @@ const left = computed(() => {
     <h2 class="book-listening__heading">Your listening</h2>
     <p class="book-listening__summary">
       <b class="book-listening__total">{{ formatDuration(total) }}</b>
-      <span>on {{ days.length }} {{ days.length === 1 ? "day" : "days" }}</span>
+      {{ " " }}<span>on {{ days.length }} {{ days.length === 1 ? "day" : "days" }}</span>
     </p>
     <div class="book-listening__bars" role="img" :aria-label="`Listening per day, the latest ${bars.length}`">
       <i
@@ -76,7 +76,7 @@ const left = computed(() => {
 <style scoped>
 .book-listening {
   display: grid;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .book-listening__heading {
   font-size: 12px;
@@ -99,15 +99,15 @@ const left = computed(() => {
 .book-listening__bars {
   display: flex;
   align-items: flex-end;
-  gap: 4px;
+  gap: var(--space-2);
   height: 44px;
-  padding: 2px 0;
+  padding: var(--space-1) 0;
 }
 .book-listening__bar {
   flex: 1;
   max-width: 18px;
   min-width: 4px;
-  border-radius: 4px 4px 2px 2px;
+  border-radius: var(--radius-xs) var(--radius-xs) 0 0;
   background: var(--accent);
   opacity: 0.85;
 }

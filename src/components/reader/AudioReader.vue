@@ -159,8 +159,8 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
   overflow-y: auto;
   display: flex;
   flex-wrap: wrap;
-  gap: 40px;
-  padding: 24px 20px 32px;
+  gap: var(--space-20);
+  padding: var(--space-12) var(--space-10) var(--space-16);
   align-items: flex-start;
   justify-content: center;
 }
@@ -170,13 +170,13 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 18px;
+  gap: var(--space-9);
   text-align: center;
 }
 .audio-reader__cover {
   width: 300px;
   max-width: 100%;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   box-shadow: 0 24px 48px -12px var(--shadow);
 }
 .audio-reader__title {
@@ -186,7 +186,7 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
   letter-spacing: -0.01em;
 }
 .audio-reader__authors {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--dim);
   font-size: 15px;
 }
@@ -194,7 +194,7 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .audio-reader__part {
   margin: 0;
@@ -204,13 +204,13 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
 .audio-reader__transport {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-8);
 }
 .audio-reader__pill {
   height: 44px;
   min-width: 52px;
-  padding: 0 12px;
-  border-radius: 22px;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-xl);
   justify-content: center;
 }
 .audio-reader__skip {
@@ -248,14 +248,14 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
   max-width: 460px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-8);
 }
 .audio-reader__card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 18px;
-  border-radius: 20px;
+  gap: var(--space-5);
+  padding: var(--space-9);
+  border-radius: var(--radius-lg);
   background: var(--page);
 }
 .audio-reader__label {
@@ -279,7 +279,7 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
   min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--space-7);
   background: none;
   color: var(--dim);
   text-align: left;
@@ -313,10 +313,10 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 44px;
-  padding: 0 18px;
-  border-radius: 22px;
+  padding: 0 var(--space-9);
+  border-radius: var(--radius-xl);
   background: var(--ground);
   font-weight: 600;
 }
@@ -328,8 +328,8 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
 }
 @media (max-width: 760px) {
   .audio-reader {
-    padding: 12px 6px 24px;
-    gap: 24px;
+    padding: var(--space-6) var(--space-3) var(--space-12);
+    gap: var(--space-12);
   }
 }
 </style>

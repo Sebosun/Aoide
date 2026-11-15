@@ -80,9 +80,9 @@ async function open() {
   max-width: 560px;
   min-height: 196px;
   display: flex;
-  gap: 16px;
-  padding: 18px;
-  border-radius: 22px;
+  gap: var(--space-8);
+  padding: var(--space-9);
+  border-radius: var(--radius-xl);
   background: var(--page);
   text-align: left;
   transition: transform var(--dur-1) var(--ease);
@@ -96,9 +96,9 @@ async function open() {
 .continue-card .continue-card__cover {
   flex: none;
   width: 106px;
-  padding: 10px;
+  padding: var(--space-5);
   align-self: flex-start;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   box-shadow: 0 10px 22px -6px var(--shadow);
 }
 .continue-card__body {
@@ -106,7 +106,7 @@ async function open() {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-3);
 }
 .continue-card__kind {
   font-size: 11px;
@@ -132,11 +132,11 @@ async function open() {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .continue-card__track {
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--wash);
 }
 .continue-card--hero .continue-card__track {
@@ -145,7 +145,7 @@ async function open() {
 .continue-card__track i {
   display: block;
   height: 100%;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--accent);
 }
 .continue-card__details {

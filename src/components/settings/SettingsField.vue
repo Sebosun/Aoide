@@ -18,7 +18,7 @@ withDefaults(defineProps<{ label: string; sub?: string; top?: boolean; as?: "lab
   display: grid;
   grid-template-columns: 160px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
+  gap: var(--space-6);
   font-size: 13px;
 }
 .settings-field--top {
@@ -39,13 +39,13 @@ withDefaults(defineProps<{ label: string; sub?: string; top?: boolean; as?: "lab
   grid-template-columns: minmax(0, 1fr);
   grid-auto-columns: auto;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   min-width: 0;
 }
 @media (max-width: 560px) {
   .settings-field {
     grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
+    gap: var(--space-3);
   }
 }
 </style>

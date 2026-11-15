@@ -72,10 +72,10 @@ async function toggle() {
 .listen-button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 44px;
-  padding: 0 16px;
-  border-radius: 22px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-xl);
   background: var(--glass);
   font-weight: 600;
 }

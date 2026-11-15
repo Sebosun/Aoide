@@ -136,13 +136,13 @@ const added = (at: number) => dayName(at);
 .home {
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  padding: 8px 36px 0;
+  gap: var(--space-16);
+  padding: var(--space-4) var(--space-16) 0;
 }
 .home__section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-6);
   min-width: 0;
 }
 .home__title {
@@ -159,12 +159,12 @@ const added = (at: number) => dayName(at);
 .home__continue {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: var(--space-8);
 }
 .home__pair {
   display: flex;
   flex-wrap: wrap;
-  gap: 32px;
+  gap: var(--space-16);
   align-items: flex-start;
 }
 .home__section--next {
@@ -180,9 +180,9 @@ const added = (at: number) => dayName(at);
 }
 .home__rows {
   margin: 0;
-  padding: 4px 18px;
+  padding: var(--space-2) var(--space-9);
   list-style: none;
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   background: var(--page);
 }
 .home__rows li + li {
@@ -192,8 +192,8 @@ const added = (at: number) => dayName(at);
   width: 100%;
   display: flex;
   align-items: baseline;
-  gap: 14px;
-  padding: 14px 0;
+  gap: var(--space-7);
+  padding: var(--space-7) 0;
   text-align: left;
 }
 .home__row-text {
@@ -201,7 +201,7 @@ const added = (at: number) => dayName(at);
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
 }
 .home__row-title--article {
   font-family: var(--font-read);
@@ -236,13 +236,13 @@ const added = (at: number) => dayName(at);
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
+  gap: var(--space-9);
   align-items: flex-end;
 }
 .home__cover {
   display: block;
   width: 96px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   transition: transform var(--dur-1) var(--ease);
 }
 .home__cover:hover {
@@ -257,23 +257,23 @@ const added = (at: number) => dayName(at);
 .home__welcome {
   display: grid;
   justify-items: start;
-  gap: 12px;
+  gap: var(--space-6);
   max-width: 520px;
-  padding: 28px;
-  border-radius: 22px;
+  padding: var(--space-14);
+  border-radius: var(--radius-xl);
   background: var(--page);
 }
 .home__lead {
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-3);
   color: var(--dim);
 }
 .home__add {
   height: 44px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 20px;
-  border-radius: 22px;
+  gap: var(--space-4);
+  padding: 0 var(--space-10);
+  border-radius: var(--radius-xl);
   background: var(--ink);
   color: var(--ground);
   font-weight: 600;
@@ -285,7 +285,7 @@ const added = (at: number) => dayName(at);
 }
 @media (max-width: 719px) {
   .home {
-    padding: 0 16px;
+    padding: 0 var(--space-8);
   }
 }
 </style>

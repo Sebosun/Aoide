@@ -59,8 +59,8 @@ const meta = computed(() => {
 .feed-entry {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 16px 0;
+  gap: var(--space-7);
+  padding: var(--space-8) 0;
   border-bottom: 1px solid var(--line);
 }
 .feed-entry:last-child {
@@ -70,7 +70,7 @@ const meta = computed(() => {
   flex: none;
   width: 8px;
   height: 8px;
-  margin-top: 8px;
+  margin-top: var(--space-4);
   border-radius: 50%;
   background: var(--accent);
 }
@@ -82,9 +82,9 @@ const meta = computed(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-2);
   text-align: left;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 .feed-entry__meta {
   font-size: 12px;

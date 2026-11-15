@@ -235,21 +235,21 @@ function submit() {
 <style scoped>
 .recording-settings {
   display: grid;
-  gap: 22px;
+  gap: var(--space-11);
 }
 .recording-settings__check {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   font-size: 13px;
 }
 .recording-settings__find {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 36px;
-  padding: 0 16px;
-  border-radius: 999px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-weight: 700;
   font-size: 13px;
@@ -259,14 +259,14 @@ function submit() {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
 }
 .recording-settings__model {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0;
+  gap: var(--space-6);
+  padding: var(--space-4) 0;
   border-bottom: 1px solid var(--line);
   font-size: 13px;
 }
@@ -282,7 +282,7 @@ function submit() {
 .recording-settings__have {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-2);
   color: var(--ok);
   font-weight: 600;
   font-size: 12.5px;
@@ -290,12 +290,12 @@ function submit() {
 .recording-settings__download {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-size: 12.5px;
   font-weight: 700;
-  padding: 7px 14px;
+  padding: var(--space-3) var(--space-7);
 }
 .recording-settings__model progress {
   width: 140px;

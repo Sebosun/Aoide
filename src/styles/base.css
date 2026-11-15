@@ -59,8 +59,8 @@ select,
 select {
   background: var(--page);
   border: 1px solid var(--line);
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
 }
 input[type="text"],
 input[type="number"],
@@ -69,8 +69,8 @@ input:not([type]),
 textarea {
   background: var(--page);
   border: 1px solid var(--line);
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
   min-width: 0;
 }
 input[type="checkbox"],
@@ -90,7 +90,7 @@ img {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 ::selection {
   background: var(--wash);
@@ -100,7 +100,7 @@ progress {
   appearance: none;
   border: 0;
   height: 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--line);
   overflow: hidden;
   accent-color: var(--accent);
@@ -110,11 +110,11 @@ progress::-webkit-progress-bar {
 }
 progress::-webkit-progress-value {
   background: var(--accent);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 progress::-moz-progress-bar {
   background: var(--accent);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 .visually-hidden {
   position: absolute;

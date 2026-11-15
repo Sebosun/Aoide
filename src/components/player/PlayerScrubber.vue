@@ -65,7 +65,7 @@ function key(event: KeyboardEvent) {
 .scrubber {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 14px;
+  gap: var(--space-7);
   align-items: center;
   font-size: 12.5px;
   font-weight: 600;
@@ -82,7 +82,7 @@ function key(event: KeyboardEvent) {
 .scrubber__track {
   position: relative;
   height: 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   background: var(--line);
   overflow: hidden;
   cursor: pointer;
@@ -102,7 +102,7 @@ function key(event: KeyboardEvent) {
 }
 .scrubber__played {
   background: var(--accent);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 .scrubber__ahead {
   background: var(--ink);

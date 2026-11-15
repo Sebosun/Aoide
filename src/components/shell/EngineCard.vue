@@ -110,9 +110,9 @@ onUnmounted(() => document.removeEventListener("pointerdown", outside, true));
 .engine-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: 16px;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-7);
+  border-radius: var(--radius-lg);
   background: var(--page);
   text-align: left;
 }
@@ -129,13 +129,13 @@ onUnmounted(() => document.removeEventListener("pointerdown", outside, true));
 }
 .engine-card__track {
   height: 3px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--wash);
 }
 .engine-card__track i {
   display: block;
   height: 100%;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--accent);
 }
 .engine-card__line {
@@ -153,8 +153,8 @@ onUnmounted(() => document.removeEventListener("pointerdown", outside, true));
   max-width: calc(100vw - 16px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 14px 16px;
-  border-radius: 16px;
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-lg);
   background: var(--page);
   color: var(--ink);
   font-family: var(--font-ui);

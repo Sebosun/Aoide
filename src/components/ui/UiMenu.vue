@@ -122,8 +122,8 @@ const isAction = (entry: MenuEntry): entry is MenuAction => entry.kind === undef
   max-width: calc(100vw - 16px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 6px;
-  border-radius: 14px;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
   background: var(--page);
   color: var(--ink);
   font: 600 13px/1.3 var(--font-ui);
@@ -153,12 +153,12 @@ const isAction = (entry: MenuEntry): entry is MenuAction => entry.kind === undef
   gap: 1px;
 }
 .ui-menu__group + .ui-menu__group {
-  margin-top: 4px;
-  padding-top: 4px;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
   border-top: 1px solid var(--line);
 }
 .ui-menu__heading {
-  padding: 4px 10px 2px;
+  padding: var(--space-2) var(--space-5) var(--space-1);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -168,11 +168,11 @@ const isAction = (entry: MenuEntry): entry is MenuAction => entry.kind === undef
 .ui-menu__item {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: var(--space-4);
   width: 100%;
   min-width: 0;
-  padding: 9px 10px;
-  border-radius: 9px;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-sm);
   text-align: left;
 }
 .ui-menu__item:hover:not(:disabled),
@@ -205,8 +205,8 @@ const isAction = (entry: MenuEntry): entry is MenuAction => entry.kind === undef
 .ui-menu__note {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 8px 10px 6px;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-3);
   font-size: 12.5px;
   font-weight: 500;
   color: var(--dim);

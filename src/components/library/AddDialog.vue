@@ -197,8 +197,8 @@ function rescan() {
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 28px;
+  gap: var(--space-11);
+  padding: var(--space-14);
   overflow-y: auto;
 }
 .add-dialog__head {
@@ -223,7 +223,7 @@ function rescan() {
 .add-dialog__section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .add-dialog__label {
   margin: 0;
@@ -237,10 +237,10 @@ function rescan() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 28px 20px;
+  gap: var(--space-6);
+  padding: var(--space-14) var(--space-10);
   border: 1.5px dashed var(--faint);
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   background: var(--ground);
   text-align: center;
 }
@@ -258,7 +258,7 @@ function rescan() {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .add-dialog__buttons--start {
   justify-content: flex-start;
@@ -267,22 +267,22 @@ function rescan() {
   height: 44px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 18px;
-  border-radius: 22px;
+  gap: var(--space-4);
+  padding: 0 var(--space-9);
+  border-radius: var(--radius-xl);
   background: var(--wash);
   font-weight: 600;
 }
 .add-dialog__row {
   display: flex;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .add-dialog__field {
   flex: 1;
   min-width: 0;
   height: 48px;
-  padding: 0 16px;
-  border-radius: 24px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-xl);
   border: 1px solid var(--line);
   background: var(--page);
   color: var(--ink);
@@ -297,14 +297,14 @@ function rescan() {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .add-dialog__choice {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 10px 10px 14px;
-  border-radius: 14px;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-5) var(--space-5) var(--space-7);
+  border-radius: var(--radius-md);
   background: var(--wash);
 }
 .add-dialog__choice-text {
@@ -331,8 +331,8 @@ function rescan() {
 }
 .add-dialog__button--accent {
   height: 48px;
-  padding: 0 22px;
-  border-radius: 24px;
+  padding: 0 var(--space-11);
+  border-radius: var(--radius-xl);
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 700;

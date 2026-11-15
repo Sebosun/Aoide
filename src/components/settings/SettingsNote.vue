@@ -18,7 +18,7 @@ withDefaults(defineProps<{ tone?: "info" | "warn" }>(), { tone: "info" });
 <style scoped>
 .settings-note {
   display: flex;
-  gap: 8px;
+  gap: var(--space-4);
   align-items: flex-start;
   font-size: 12.5px;
   line-height: 1.5;
@@ -29,8 +29,8 @@ withDefaults(defineProps<{ tone?: "info" | "warn" }>(), { tone: "info" });
   color: var(--faint);
 }
 .settings-note--warn {
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-md);
   background: var(--wash);
   color: var(--warn);
   font-weight: 600;

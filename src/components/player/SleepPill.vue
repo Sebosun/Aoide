@@ -38,7 +38,7 @@ const options = computed(() => [
 
 <style scoped>
 .sleep-pill {
-  gap: 6px;
+  gap: var(--space-3);
   min-width: 34px;
   justify-content: center;
   color: var(--dim);

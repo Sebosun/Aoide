@@ -210,7 +210,7 @@ function browserDrop(event: DragEvent) {
 .app__main {
   flex: 1;
   min-width: 0;
-  padding: 20px 0 40px;
+  padding: var(--space-10) 0 var(--space-20);
 }
 .app--reader {
   height: 100vh;
@@ -241,9 +241,9 @@ function browserDrop(event: DragEvent) {
   opacity: 0;
 }
 .app__error {
-  margin: 0 28px 12px;
-  padding: 10px 14px;
-  border-radius: 12px;
+  margin: 0 var(--space-14) var(--space-6);
+  padding: var(--space-5) var(--space-7);
+  border-radius: var(--radius-md);
   background: var(--page);
   color: var(--accent);
   font-weight: 600;

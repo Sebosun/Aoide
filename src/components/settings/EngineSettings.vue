@@ -234,13 +234,13 @@ async function save() {
 <style scoped>
 .engine-settings {
   display: grid;
-  gap: 22px;
+  gap: var(--space-11);
 }
 .engine-settings__status {
   font-size: 12px;
   font-weight: 600;
-  padding: 5px 11px;
-  border-radius: 999px;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   color: var(--dim);
 }
@@ -257,7 +257,7 @@ async function save() {
 .engine-settings__check {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   font-size: 13px;
 }
 .engine-settings__icon {

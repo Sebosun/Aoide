@@ -68,9 +68,9 @@ async function openReader() {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 16px;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
   background: var(--page);
   overflow: hidden;
 }
@@ -79,14 +79,14 @@ async function openReader() {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   text-align: left;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 .mini-player__art {
   width: 40px;
   flex: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 0;
   box-shadow: none;
 }

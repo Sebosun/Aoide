@@ -279,15 +279,15 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 .find {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 8px 28px 0;
+  padding: var(--space-4) var(--space-14) 0;
 }
 .find__back {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin: 8px 0 18px;
-  padding: 6px 12px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-9);
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   font-weight: 700;
   font-size: 13px;
@@ -297,8 +297,8 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: var(--space-10);
+  margin-bottom: var(--space-10);
 }
 .find__header h1 {
   font-size: 32px;
@@ -307,22 +307,22 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 }
 .find__subtitle {
   color: var(--dim);
-  margin-top: 4px;
+  margin-top: var(--space-2);
 }
 .find__actions,
 .find__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .find__primary {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 42px;
-  padding: 0 20px;
-  border-radius: 999px;
+  padding: 0 var(--space-10);
+  border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 800;
@@ -330,10 +330,10 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 .find__button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   height: 36px;
-  padding: 0 14px;
-  border-radius: 999px;
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   font-size: 13px;
   font-weight: 700;
@@ -361,9 +361,9 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   color: var(--dim);
 }
 .find__settings {
-  margin: 8px 0 26px;
-  padding: 16px 20px;
-  border-radius: 22px;
+  margin: var(--space-4) 0 var(--space-12);
+  padding: var(--space-8) var(--space-10);
+  border-radius: var(--radius-xl);
   background: var(--page);
   font-size: 13px;
 }
@@ -380,13 +380,13 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 }
 .find__folders {
   display: grid;
-  gap: 12px;
-  margin-top: 14px;
+  gap: var(--space-6);
+  margin-top: var(--space-7);
 }
 .find__field {
   display: grid;
   grid-template-columns: 170px minmax(0, 1fr);
-  gap: 12px;
+  gap: var(--space-6);
   align-items: start;
 }
 .find__field small {
@@ -395,7 +395,7 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 .find__check {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   font-size: 13px;
 }
 .find__toolbar {
@@ -403,17 +403,17 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 8px;
+  gap: var(--space-6);
+  margin-bottom: var(--space-4);
 }
 .find__tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .find__tab {
-  padding: 6px 13px;
-  border-radius: 999px;
+  padding: var(--space-3) var(--space-6);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   font-size: 12.5px;
   font-weight: 600;
@@ -424,24 +424,24 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   color: var(--ground);
 }
 .find__count {
-  margin-left: 5px;
+  margin-left: var(--space-2);
   font-variant-numeric: tabular-nums;
 }
 .find__grid {
   list-style: none;
   padding: 0;
-  margin: 18px 0;
+  margin: var(--space-9) 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 14px;
+  gap: var(--space-7);
 }
 .find__card {
   position: relative;
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
-  gap: 14px;
-  padding: 12px;
-  border-radius: 16px;
+  gap: var(--space-7);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
   background: var(--page);
 }
 .find__card--selected {
@@ -455,7 +455,7 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 .find__cover {
   width: 64px;
   height: 92px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--wash);
   display: grid;
   place-items: center;
@@ -470,9 +470,9 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 .find__info {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  gap: var(--space-1);
   align-content: start;
-  padding-right: 22px;
+  padding-right: var(--space-11);
 }
 .find__info h3 {
   font-size: 14px;
@@ -501,9 +501,9 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 .find__audiobook {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-2);
   min-width: 0;
-  margin-top: 2px;
+  margin-top: var(--space-1);
   font-size: 11.5px;
   font-weight: 600;
   color: var(--dim);
@@ -517,8 +517,8 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 .find__pair {
   flex: none;
   margin-left: auto;
-  padding: 3px 10px;
-  border-radius: 999px;
+  padding: var(--space-1) var(--space-5);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-size: 11.5px;
   font-weight: 700;
@@ -531,7 +531,7 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 .find__suggestion {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-2);
   font-size: 11px;
   font-weight: 600;
   color: var(--accent);
@@ -544,9 +544,9 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 999px;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  border-radius: var(--radius-pill);
   background: var(--page);
   box-shadow: 0 18px 40px -16px var(--shadow);
   font-size: 13px;
@@ -558,14 +558,14 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 .find__empty {
   text-align: center;
   color: var(--dim);
-  padding: 40px 16px;
+  padding: var(--space-20) var(--space-8);
   display: grid;
   justify-items: center;
-  gap: 12px;
+  gap: var(--space-6);
 }
 @media (max-width: 560px) {
   .find {
-    padding: 8px 16px 0;
+    padding: var(--space-4) var(--space-8) 0;
   }
   .find__field {
     grid-template-columns: 1fr;
@@ -574,7 +574,7 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
     grid-template-columns: 1fr;
   }
   .find__footer {
-    border-radius: 22px;
+    border-radius: var(--radius-xl);
   }
 }
 </style>

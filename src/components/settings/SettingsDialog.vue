@@ -128,28 +128,28 @@ function onKey(event: KeyboardEvent) {
 .settings__nav {
   display: grid;
   align-content: start;
-  gap: 14px;
-  padding: 22px 14px;
+  gap: var(--space-7);
+  padding: var(--space-11) var(--space-7);
   border-right: 1px solid var(--line);
   background: color-mix(in srgb, var(--ground) 45%, var(--page));
-  border-radius: 20px 0 0 20px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
 }
 .settings__title {
-  padding: 0 10px;
+  padding: 0 var(--space-5);
   font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.02em;
 }
 .settings__tabs {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
 }
 .settings__tab {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: 10px;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
   text-align: left;
   font-weight: 600;
   font-size: 13.5px;
@@ -168,7 +168,7 @@ function onKey(event: KeyboardEvent) {
   position: relative;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 26px 30px 32px;
+  padding: var(--space-12) var(--space-14) var(--space-16);
   scroll-behavior: smooth;
 }
 .settings__close {
@@ -180,14 +180,14 @@ function onKey(event: KeyboardEvent) {
   place-items: center;
   width: 34px;
   height: 34px;
-  margin: -6px -10px 0 12px;
+  margin: calc(-1 * var(--space-3)) calc(-1 * var(--space-5)) 0 var(--space-6);
   border-radius: 50%;
   background: var(--ground);
 }
 .settings__problems {
-  margin: 0 0 18px;
-  padding: 10px 14px 10px 30px;
-  border-radius: 12px;
+  margin: 0 0 var(--space-9);
+  padding: var(--space-5) var(--space-7) var(--space-5) var(--space-14);
+  border-radius: var(--radius-md);
   background: var(--wash);
   font-size: 12.5px;
   font-weight: 600;
@@ -201,22 +201,22 @@ function onKey(event: KeyboardEvent) {
     height: calc(100vh - 48px);
   }
   .settings__nav {
-    padding: 16px 14px 10px;
+    padding: var(--space-8) var(--space-7) var(--space-5);
     border-right: 0;
     border-bottom: 1px solid var(--line);
-    border-radius: 20px 20px 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
   .settings__tabs {
     grid-auto-flow: column;
     overflow-x: auto;
-    padding: 4px;
-    margin: -4px;
+    padding: var(--space-2);
+    margin: calc(-1 * var(--space-2));
   }
   .settings__tab {
     white-space: nowrap;
   }
   .settings__body {
-    padding: 18px 16px 24px;
+    padding: var(--space-9) var(--space-8) var(--space-12);
   }
 }
 </style>

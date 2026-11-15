@@ -183,16 +183,16 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 <style scoped>
 .library {
   display: grid;
-  gap: 26px;
+  gap: var(--space-12);
   align-content: start;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 8px 36px 0;
+  padding: var(--space-4) var(--space-16) 0;
 }
 .library__alert {
   margin: 0;
-  padding: 10px 14px;
-  border-radius: 12px;
+  padding: var(--space-5) var(--space-7);
+  border-radius: var(--radius-md);
   background: var(--page);
   color: var(--accent);
   font-weight: 600;
@@ -201,23 +201,23 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 }
 .library__failed {
   display: grid;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: 14px;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-7);
+  border-radius: var(--radius-md);
   background: var(--glass);
   font-size: 13px;
 }
 .library__failed-title {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-3);
   margin: 0;
   font-weight: 700;
   color: var(--warn);
 }
 .library__failed-list {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -225,7 +225,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 .library__failed-item {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--space-5);
   min-width: 0;
 }
 .library__failed-name {
@@ -248,7 +248,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   place-items: center;
   width: 26px;
   height: 26px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--dim);
 }
 .library__failed-remove:hover {
@@ -259,10 +259,10 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .library__title {
-  margin: 0 10px 0 0;
+  margin: 0 var(--space-5) 0 0;
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -270,10 +270,10 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 .library__bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-6);
   align-items: center;
   justify-content: space-between;
-  margin-top: -8px;
+  margin-top: calc(-1 * var(--space-4));
 }
 .library__bar:empty {
   display: none;
@@ -281,15 +281,15 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 .library__kinds {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 24px;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-xl);
   background: var(--wash);
 }
 .library__kind {
   height: 40px;
-  padding: 0 16px;
-  border-radius: 20px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-lg);
   background: transparent;
   font-weight: 600;
   color: var(--dim);
@@ -301,12 +301,12 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 .library__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .library__chip {
   height: 40px;
-  padding: 0 14px;
-  border-radius: 20px;
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-lg);
   background: var(--page);
   font-weight: 500;
   color: var(--dim);
@@ -320,7 +320,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   font-weight: 600;
 }
 .library__count {
-  margin-left: 6px;
+  margin-left: var(--space-3);
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
 }
@@ -330,10 +330,10 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 .library__search {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 44px;
-  padding: 0 14px;
-  border-radius: 22px;
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-xl);
   background: var(--page);
   color: var(--dim);
 }
@@ -353,7 +353,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 }
 .library__sort {
   height: 44px;
-  padding: 0 16px;
+  padding: 0 var(--space-8);
   font-weight: 600;
   background: var(--page);
 }
@@ -363,9 +363,9 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 .library__empty {
   display: grid;
   justify-items: center;
-  gap: 10px;
-  padding: 48px 20px;
-  border-radius: 22px;
+  gap: var(--space-5);
+  padding: var(--space-24) var(--space-10);
+  border-radius: var(--radius-xl);
   background: var(--page);
   color: var(--dim);
   text-align: center;
@@ -376,17 +376,17 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 }
 .library__ghost {
   display: grid;
-  gap: 8px;
+  gap: var(--space-4);
   align-content: start;
 }
 .library__ghost-cover {
   aspect-ratio: 2 / 3;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 .library__ghost-line {
   height: 12px;
   width: 80%;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .library__ghost-line--short {
   width: 50%;
@@ -394,7 +394,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 .library__grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 24px 18px;
+  gap: var(--space-12) var(--space-9);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -411,7 +411,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 }
 @media (max-width: 760px) {
   .library {
-    padding: 8px 16px 0;
+    padding: var(--space-4) var(--space-8) 0;
   }
   .library__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

@@ -62,8 +62,8 @@ function parts(hit: SearchHit) {
 <style scoped>
 .book-search__form {
   display: flex;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-7);
 }
 .book-search__form input {
   flex: 1;
@@ -71,12 +71,12 @@ function parts(hit: SearchHit) {
 .book-search__button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-size: 12.5px;
   font-weight: 700;
-  padding: 8px 14px;
+  padding: var(--space-4) var(--space-7);
   white-space: nowrap;
 }
 .book-search__list {
@@ -84,15 +84,15 @@ function parts(hit: SearchHit) {
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
 }
 .book-search__hit {
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
   text-align: left;
   width: 100%;
-  padding: 10px;
-  border-radius: 8px;
+  padding: var(--space-5);
+  border-radius: var(--radius-sm);
   font: 14px/1.55 var(--font-read);
 }
 .book-search__hit:hover {
@@ -105,8 +105,8 @@ function parts(hit: SearchHit) {
 .book-search__hit mark {
   background: var(--wash);
   color: inherit;
-  border-radius: 3px;
-  padding: 0 2px;
+  border-radius: var(--radius-xs);
+  padding: 0 var(--space-1);
 }
 .book-search__empty {
   font-size: 12px;

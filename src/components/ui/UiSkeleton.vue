@@ -12,7 +12,7 @@
 .ui-skeleton {
   display: block;
   min-height: 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   background: var(--line);
   animation:
     ui-skeleton-in var(--dur-2) 150ms both,

@@ -138,14 +138,14 @@ const play = (segment: SegmentView) => {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
-  column-gap: 56px;
-  padding-top: 10px;
+  column-gap: var(--space-28);
+  padding-top: var(--space-5);
 }
 .reader-lines__side {
   grid-column: 1;
   grid-row: 1;
   display: grid;
-  gap: 14px;
+  gap: var(--space-7);
   align-content: center;
   justify-items: start;
   min-height: 0;
@@ -153,7 +153,7 @@ const play = (segment: SegmentView) => {
 .reader-lines__cover-link {
   display: block;
   width: min(100%, 44vh * 2 / 3);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 .reader-lines__cover {
   width: 100%;
@@ -188,7 +188,7 @@ const play = (segment: SegmentView) => {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  gap: 20px;
+  gap: var(--space-10);
   overflow: hidden;
   -webkit-mask-image: linear-gradient(transparent, var(--ink) 14%, var(--ink) 86%, transparent);
   mask-image: linear-gradient(transparent, var(--ink) 14%, var(--ink) 86%, transparent);
@@ -198,7 +198,7 @@ const play = (segment: SegmentView) => {
   font: 400 calc(21px * var(--read-scale)) / 1.45 var(--font-read);
   color: var(--dim);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .reader-lines__line:hover {
   color: var(--reading);
@@ -264,13 +264,13 @@ const play = (segment: SegmentView) => {
   .reader-lines {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto minmax(0, 1fr) auto;
-    padding-top: 6px;
+    padding-top: var(--space-3);
   }
   .reader-lines__side {
     grid-row: 1;
     grid-template-columns: 72px minmax(0, 1fr);
     align-items: center;
-    gap: 4px 14px;
+    gap: var(--space-2) var(--space-7);
     padding-right: 180px;
   }
   .reader-lines__cover-link {

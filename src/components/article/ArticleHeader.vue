@@ -57,14 +57,14 @@ const readTime = computed(() => `${formatDuration(readingMs(props.words, props.w
 .article-header {
   display: flex;
   flex-direction: column;
-  padding-bottom: 10px;
+  padding-bottom: var(--space-5);
   font-family: var(--font-ui);
 }
 .article-header__facts {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 14px;
+  gap: var(--space-3) var(--space-7);
   font-size: 13px;
   color: var(--dim);
 }
@@ -77,7 +77,7 @@ const readTime = computed(() => `${formatDuration(readingMs(props.words, props.w
 .article-header__original {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-2);
   padding: 0;
   background: none;
   color: var(--dim);
@@ -91,13 +91,13 @@ const readTime = computed(() => `${formatDuration(readingMs(props.words, props.w
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   font-weight: 600;
 }
 .article-header__save {
   height: 36px;
-  padding: 0 14px;
-  border-radius: 18px;
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-lg);
   background: var(--ink);
   color: var(--ground);
 }
@@ -105,7 +105,7 @@ const readTime = computed(() => `${formatDuration(readingMs(props.words, props.w
   color: var(--ink);
 }
 .article-header__title {
-  margin: 14px 0 8px;
+  margin: var(--space-7) 0 var(--space-4);
   font: 500 calc(44px * var(--read-scale)) / 1.08 var(--font-read);
   letter-spacing: -0.01em;
   color: var(--ink);

@@ -92,11 +92,11 @@ ground = "#101326"</code></pre>
 <style scoped>
 .about-settings {
   display: grid;
-  gap: 22px;
+  gap: var(--space-11);
 }
 .about-settings__path {
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-md);
   background: var(--ground);
   font-size: 12.5px;
   overflow-wrap: anywhere;
@@ -112,7 +112,7 @@ ground = "#101326"</code></pre>
 }
 .about-settings__themes {
   display: grid;
-  gap: 10px;
+  gap: var(--space-5);
   font-size: 13px;
   color: var(--dim);
   line-height: 1.55;
@@ -128,8 +128,8 @@ ground = "#101326"</code></pre>
 }
 .about-settings__code {
   margin: 0;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: var(--space-6) var(--space-7);
+  border-radius: var(--radius-md);
   background: var(--ground);
   color: var(--ink);
   font-size: 12px;
@@ -138,7 +138,7 @@ ground = "#101326"</code></pre>
 }
 .about-settings__keys {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   margin: 0;
   font-size: 13px;
 }
@@ -146,14 +146,14 @@ ground = "#101326"</code></pre>
   display: grid;
   grid-template-columns: 160px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
-  padding: 5px 0;
+  gap: var(--space-6);
+  padding: var(--space-2) 0;
 }
 .about-settings__shortcut dt {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-2);
 }
 .about-settings__shortcut dd {
   margin: 0;
@@ -162,15 +162,15 @@ ground = "#101326"</code></pre>
 }
 .about-settings__shortcut kbd {
   min-width: 26px;
-  padding: 3px 7px;
-  border-radius: 7px;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
   background: var(--ground);
   box-shadow: inset 0 -1px 0 var(--line);
   font: 700 12px/1.4 var(--font-ui);
   text-align: center;
 }
 .about-settings__or {
-  margin: 0 2px;
+  margin: 0 var(--space-1);
   font-size: 12px;
   color: var(--faint);
 }

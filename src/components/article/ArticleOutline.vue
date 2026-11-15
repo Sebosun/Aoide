@@ -44,11 +44,11 @@ const items = computed<MenuEntry[]>(() =>
 .article-outline__button {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   max-width: 100%;
   height: 44px;
-  padding: 0 16px;
-  border-radius: 22px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-xl);
   font-weight: 600;
 }
 .article-outline__button:hover {
@@ -61,7 +61,7 @@ const items = computed<MenuEntry[]>(() =>
 }
 .article-outline__title--plain {
   min-width: 0;
-  padding: 0 16px;
+  padding: 0 var(--space-8);
   font-weight: 600;
 }
 </style>

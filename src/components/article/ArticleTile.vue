@@ -22,10 +22,10 @@ defineProps<{ site: string; title: string; lead: string | null; loading?: boolea
   overflow-wrap: anywhere;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px;
+  gap: var(--space-4);
+  padding: var(--space-8);
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   background: var(--page);
   color: var(--ink);
   text-align: left;
@@ -67,9 +67,9 @@ defineProps<{ site: string; title: string; lead: string | null; loading?: boolea
   overflow: hidden;
 }
 .article-tile--small {
-  gap: 6px;
-  padding: 12px;
-  border-radius: 8px;
+  gap: var(--space-3);
+  padding: var(--space-6);
+  border-radius: var(--radius-sm);
 }
 .article-tile--small .article-tile__headline {
   font-size: 17px;
@@ -83,7 +83,7 @@ defineProps<{ site: string; title: string; lead: string | null; loading?: boolea
 .article-tile--loading i {
   display: block;
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--line);
   animation: article-tile-pulse 1.4s ease-in-out infinite;
 }

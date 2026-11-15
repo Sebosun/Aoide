@@ -89,12 +89,12 @@ function submit() {
 <style scoped>
 .word-timing {
   display: grid;
-  gap: 22px;
+  gap: var(--space-11);
 }
 .word-timing__check {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   font-size: 13px;
 }
 </style>

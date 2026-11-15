@@ -119,7 +119,7 @@ const when = (seconds: number) => new Date(seconds * 1000).toLocaleDateString();
 <style scoped>
 .book-bookmarks__add {
   display: flex;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .book-bookmarks__add input {
   flex: 1;
@@ -127,37 +127,37 @@ const when = (seconds: number) => new Date(seconds * 1000).toLocaleDateString();
 .book-bookmarks__button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-size: 12.5px;
   font-weight: 700;
-  padding: 8px 14px;
+  padding: var(--space-4) var(--space-7);
   white-space: nowrap;
 }
 .book-bookmarks__hint {
   font-size: 11px;
   color: var(--dim);
-  margin: 8px 0 16px;
+  margin: var(--space-4) 0 var(--space-8);
 }
 .book-bookmarks__list {
   list-style: none;
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 12px;
+  gap: var(--space-6);
 }
 .book-bookmarks__item {
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 6px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
 }
 .book-bookmarks__play {
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
   text-align: left;
   width: 100%;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font: 14px/1.5 var(--font-read);
 }
 .book-bookmarks__play:hover {
@@ -169,22 +169,22 @@ const when = (seconds: number) => new Date(seconds * 1000).toLocaleDateString();
 }
 .book-bookmarks__row {
   display: flex;
-  gap: 6px;
+  gap: var(--space-3);
   align-items: center;
-  padding: 0 4px 4px;
+  padding: 0 var(--space-2) var(--space-2);
 }
 .book-bookmarks__row input {
   flex: 1;
   font-size: 12px;
-  padding: 6px 8px;
+  padding: var(--space-3) var(--space-4);
 }
 .book-bookmarks__note {
   flex: 1;
   text-align: left;
   font-size: 12px;
   color: var(--dim);
-  padding: 6px 8px;
-  border-radius: 6px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
 }
 .book-bookmarks__note:hover {
   background: var(--wash);

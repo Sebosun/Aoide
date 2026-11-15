@@ -151,13 +151,13 @@ const actions = (collection: Collection): MenuEntry[] => [
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 22px 16px;
+  gap: var(--space-11);
+  padding: var(--space-11) var(--space-8);
   border-right: 1px solid var(--line);
   overflow-y: auto;
 }
 .sidebar__brand {
-  padding: 0 10px;
+  padding: 0 var(--space-5);
   font-size: 21px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -167,8 +167,8 @@ const actions = (collection: Collection): MenuEntry[] => [
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border-radius: 22px;
+  gap: var(--space-4);
+  border-radius: var(--radius-xl);
   background: var(--ink);
   color: var(--ground);
   font-weight: 600;
@@ -177,16 +177,16 @@ const actions = (collection: Collection): MenuEntry[] => [
 .sidebar__collections {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
 }
 .sidebar__link,
 .sidebar__collection {
   height: 44px;
-  padding: 0 12px;
+  padding: 0 var(--space-6);
   display: flex;
   align-items: center;
-  gap: 12px;
-  border-radius: 12px;
+  gap: var(--space-6);
+  border-radius: var(--radius-md);
   color: var(--dim);
   font-weight: 500;
   text-align: left;
@@ -208,8 +208,8 @@ const actions = (collection: Collection): MenuEntry[] => [
 }
 .sidebar__badge {
   margin-left: auto;
-  padding: 2px 8px;
-  border-radius: 10px;
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-md);
   background: var(--wash);
   font-size: 12px;
   font-weight: 700;
@@ -219,11 +219,11 @@ const actions = (collection: Collection): MenuEntry[] => [
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 4px 4px 0;
+  padding: 0 var(--space-2) var(--space-2) 0;
 }
 .sidebar__heading {
   margin: 0;
-  padding: 0 12px;
+  padding: 0 var(--space-6);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -234,7 +234,7 @@ const actions = (collection: Collection): MenuEntry[] => [
   position: relative;
   display: flex;
   align-items: center;
-  border-radius: 12px;
+  border-radius: var(--radius-md);
 }
 .sidebar__shelf .sidebar__collection {
   flex: 1;
@@ -298,7 +298,7 @@ const actions = (collection: Collection): MenuEntry[] => [
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .sidebar__settings {
   justify-content: flex-start;
@@ -308,8 +308,8 @@ const actions = (collection: Collection): MenuEntry[] => [
     position: static;
     height: auto;
     width: auto;
-    gap: 14px;
-    padding: 14px 16px;
+    gap: var(--space-7);
+    padding: var(--space-7) var(--space-8);
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }

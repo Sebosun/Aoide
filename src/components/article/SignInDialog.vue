@@ -136,8 +136,8 @@ function close() {
 .signin {
   width: min(520px, calc(100vw - 32px));
   display: grid;
-  gap: 18px;
-  padding: 26px;
+  gap: var(--space-9);
+  padding: var(--space-12);
   font: 400 14px / 1.5 var(--font-ui);
   color: var(--ink);
 }
@@ -145,7 +145,7 @@ function close() {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-8);
 }
 .signin__title {
   margin: 0;
@@ -155,7 +155,7 @@ function close() {
   overflow-wrap: anywhere;
 }
 .signin__for {
-  margin: 4px 0 0;
+  margin: var(--space-2) 0 0;
   color: var(--dim);
   font-size: 13px;
 }
@@ -170,7 +170,7 @@ function close() {
 }
 .signin__steps {
   display: grid;
-  gap: 14px;
+  gap: var(--space-7);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -179,7 +179,7 @@ function close() {
 .signin__stay {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--space-6);
 }
 .signin__mark {
   display: grid;
@@ -206,7 +206,7 @@ function close() {
 }
 .signin__text {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
 }
 .signin__step-title {
   font-weight: 700;
@@ -216,15 +216,15 @@ function close() {
   color: var(--dim);
 }
 .signin__stay {
-  padding: 14px 16px;
-  border-radius: 16px;
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-lg);
   background: var(--ground);
   cursor: pointer;
 }
 .signin__stay input {
   width: 18px;
   height: 18px;
-  margin-top: 2px;
+  margin-top: var(--space-1);
   accent-color: var(--accent);
 }
 .signin__note {
@@ -241,12 +241,12 @@ function close() {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .signin__button {
   height: 44px;
-  padding: 0 18px;
-  border-radius: 22px;
+  padding: 0 var(--space-9);
+  border-radius: var(--radius-xl);
   background: var(--ground);
   font-weight: 600;
 }

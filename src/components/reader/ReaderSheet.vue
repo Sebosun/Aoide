@@ -230,7 +230,7 @@ const next = computed(() => {
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr) auto;
-  border-radius: 22px 22px 0 0;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   background: var(--page);
   box-shadow: 0 -10px 44px -30px var(--shadow);
   overflow: hidden;
@@ -246,9 +246,9 @@ const next = computed(() => {
 .sheet__grid {
   display: grid;
   grid-template-columns: minmax(150px, 204px) minmax(0, 640px) minmax(150px, 204px);
-  column-gap: clamp(24px, 3.4vw, 48px);
+  column-gap: clamp(var(--space-12), 3.4vw, var(--space-24));
   justify-content: center;
-  padding: 34px 0 16vh;
+  padding: var(--space-16) 0 16vh;
 }
 .sheet__margin {
   grid-column: 1;
@@ -256,14 +256,14 @@ const next = computed(() => {
   align-self: start;
   position: sticky;
   top: 0;
-  padding-left: 28px;
+  padding-left: var(--space-14);
 }
 .sheet__error {
   grid-column: 2;
   grid-row: 1;
   color: var(--accent);
   font-weight: 600;
-  margin-bottom: 18px;
+  margin-bottom: var(--space-9);
 }
 .sheet__text {
   grid-column: 2;
@@ -280,7 +280,7 @@ const next = computed(() => {
   align-items: start;
 }
 .sheet__text--margins :deep(.chapter-text__margin) {
-  padding-right: 28px;
+  padding-right: var(--space-14);
 }
 .sheet__error ~ .sheet__text {
   margin-top: 3em;
@@ -291,29 +291,29 @@ const next = computed(() => {
   justify-self: start;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 28px;
+  gap: var(--space-4);
+  margin-top: var(--space-14);
   height: 44px;
-  padding: 0 18px;
-  border-radius: 22px;
+  padding: 0 var(--space-9);
+  border-radius: var(--radius-xl);
   background: var(--glass);
   font-weight: 600;
 }
 .sheet__foot {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 0 28px 14px;
+  gap: var(--space-4);
+  padding: 0 var(--space-14) var(--space-7);
 }
 .sheet__progress {
   height: 3px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--wash);
 }
 .sheet__progress i {
   display: block;
   height: 100%;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   background: var(--ink);
 }
 .sheet__facts {
@@ -331,10 +331,10 @@ const next = computed(() => {
   z-index: 3;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   height: 40px;
-  padding: 0 18px;
-  border-radius: 999px;
+  padding: 0 var(--space-9);
+  border-radius: var(--radius-pill);
   background: var(--ink);
   color: var(--ground);
   font-weight: 700;
@@ -344,14 +344,14 @@ const next = computed(() => {
 @media (max-width: 999px) {
   .sheet__grid {
     grid-template-columns: minmax(0, 640px);
-    padding: 18px 20px 16vh;
-    row-gap: 22px;
+    padding: var(--space-9) var(--space-10) 16vh;
+    row-gap: var(--space-11);
   }
   .sheet__margin {
     grid-column: 1;
     grid-row: 1;
     position: static;
-    padding: 6px 150px 0 0;
+    padding: var(--space-3) 150px 0 0;
   }
   .sheet__error {
     grid-column: 1;

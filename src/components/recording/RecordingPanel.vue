@@ -188,21 +188,21 @@ const downloading = computed(() => download.value?.stage === "downloading");
 <style scoped>
 .recording-panel {
   display: grid;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .recording-panel__head {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--space-6);
 }
 .recording-panel__icon {
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: var(--space-1);
   color: var(--accent);
 }
 .recording-panel__text {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   min-width: 0;
 }
 .recording-panel__label {
@@ -236,7 +236,7 @@ const downloading = computed(() => download.value?.stage === "downloading");
 .recording-panel__track {
   position: relative;
   height: 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--line);
   overflow: hidden;
 }
@@ -270,17 +270,17 @@ const downloading = computed(() => download.value?.stage === "downloading");
 .recording-panel__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .recording-panel__button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-size: 12.5px;
   font-weight: 700;
-  padding: 8px 14px;
+  padding: var(--space-4) var(--space-7);
   white-space: nowrap;
 }
 .recording-panel__button--primary {

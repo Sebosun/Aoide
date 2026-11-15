@@ -80,9 +80,9 @@ async function showInFolder() {
 .book-info__details {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px 14px;
+  gap: var(--space-4) var(--space-7);
   font-size: 13px;
-  margin: 0 0 14px;
+  margin: 0 0 var(--space-7);
 }
 .book-info__details dt {
   color: var(--dim);
@@ -99,7 +99,7 @@ async function showInFolder() {
   overflow-y: auto;
 }
 .book-info__extraction {
-  margin-top: 22px;
+  margin-top: var(--space-11);
   font-size: 12px;
   color: var(--dim);
 }
@@ -109,10 +109,10 @@ async function showInFolder() {
 .book-info__folder {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  margin-top: 14px;
-  padding: 7px 14px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  margin-top: var(--space-7);
+  padding: var(--space-3) var(--space-7);
+  border-radius: var(--radius-pill);
   background: var(--wash);
   font-size: 13px;
   font-weight: 600;

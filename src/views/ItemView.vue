@@ -610,10 +610,10 @@ const collectionItems = computed<MenuEntry[]>(() => {
 <style scoped>
 .item-page {
   max-width: 1120px;
-  padding: 8px 36px 0;
+  padding: var(--space-4) var(--space-16) 0;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: var(--space-14);
 }
 .item-page__error {
   margin: 0;
@@ -623,15 +623,15 @@ const collectionItems = computed<MenuEntry[]>(() => {
 .item-page__hero {
   display: flex;
   flex-wrap: wrap;
-  gap: 32px;
+  gap: var(--space-16);
 }
 /* A fixed width and padding: CoverArt's 10% padding would be taken from the whole row. */
 .item-page__hero .item-page__cover {
   flex: none;
   width: 200px;
-  padding: 20px;
+  padding: var(--space-10);
   align-self: flex-start;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: 18px;
   box-shadow: 0 18px 36px -10px var(--shadow);
 }
@@ -640,7 +640,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .item-page__kind,
 .item-page__heading {
@@ -666,29 +666,29 @@ const collectionItems = computed<MenuEntry[]>(() => {
 .item-page__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 8px;
+  gap: var(--space-5);
+  margin-top: var(--space-4);
 }
 .item-page__primary,
 .item-page__secondary {
   height: 48px;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 22px;
-  border-radius: 24px;
+  gap: var(--space-5);
+  padding: 0 var(--space-11);
+  border-radius: var(--radius-xl);
   font-size: 15px;
   font-weight: 600;
   background: var(--page);
 }
 .item-page__primary {
-  padding: 0 26px;
+  padding: 0 var(--space-12);
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 700;
 }
 .item-page__about {
-  margin-top: 10px;
+  margin-top: var(--space-5);
   max-width: 60ch;
 }
 .item-page__description {
@@ -706,21 +706,21 @@ const collectionItems = computed<MenuEntry[]>(() => {
   overflow: hidden;
 }
 .item-page__more {
-  margin-top: 6px;
+  margin-top: var(--space-3);
   font-weight: 700;
   color: var(--dim);
 }
 .item-page__subjects {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-3);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .item-page__subjects li {
-  padding: 4px 10px;
-  border-radius: 999px;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   font-size: 12px;
   color: var(--dim);
@@ -728,7 +728,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
 .item-page__cards {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: var(--space-10);
   align-items: stretch;
 }
 .item-page__cards > .item-page__card {
@@ -738,16 +738,16 @@ const collectionItems = computed<MenuEntry[]>(() => {
 .item-page__card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  border-radius: 20px;
+  gap: var(--space-6);
+  padding: var(--space-10);
+  border-radius: var(--radius-lg);
   background: var(--page);
 }
 .item-page__problem {
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   font-size: 13px;
   font-weight: 600;
   color: var(--warn);
@@ -757,13 +757,13 @@ const collectionItems = computed<MenuEntry[]>(() => {
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
   font-size: 13px;
   color: var(--dim);
 }
 .item-page__files li {
   display: flex;
-  gap: 12px;
+  gap: var(--space-6);
 }
 .item-page__file-name {
   flex: 1;
@@ -783,7 +783,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
 .item-page__badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-3);
   font-size: 12px;
   font-weight: 700;
   color: var(--dim);
@@ -813,7 +813,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   color: var(--warn);
   font-weight: 600;
 }
@@ -822,15 +822,15 @@ const collectionItems = computed<MenuEntry[]>(() => {
   color: var(--dim);
 }
 .item-page__notes p {
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-3);
 }
 .item-page__option {
   min-height: 60px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 14px;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-7);
+  border-radius: var(--radius-md);
   background: var(--ground);
   text-align: left;
 }
@@ -848,15 +848,15 @@ const collectionItems = computed<MenuEntry[]>(() => {
 .item-page__row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .item-page__small {
   height: 36px;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 0 14px;
-  border-radius: 18px;
+  gap: var(--space-3);
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-lg);
   background: var(--ground);
   font-weight: 600;
   font-size: 13px;
@@ -874,7 +874,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
   color: var(--ink);
 }
 .item-page__listening {
-  margin-top: 8px;
+  margin-top: var(--space-4);
 }
 .item-page__chapters {
   margin: 0;
@@ -884,7 +884,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
 .item-page__chapters li {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   border-bottom: 1px solid var(--wash);
 }
 .item-page__chapters li:last-child {
@@ -896,7 +896,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
   min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: var(--space-9);
   text-align: left;
 }
 .item-page__chapter:hover .item-page__chapter-title {
@@ -926,7 +926,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
 .item-page__chapter-audio {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-2);
   font-size: 12.5px;
   color: var(--dim);
   white-space: nowrap;
@@ -960,16 +960,16 @@ const collectionItems = computed<MenuEntry[]>(() => {
 .item-page__ghost-title {
   height: 40px;
   width: 60%;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 .item-page__ghost-text {
   display: grid;
-  gap: 8px;
-  margin-top: 10px;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
 }
 .item-page__ghost-line {
   height: 14px;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
 }
 .item-page__ghost-line:last-child {
   width: 60%;
@@ -977,18 +977,18 @@ const collectionItems = computed<MenuEntry[]>(() => {
 .item-page__ghost-card {
   flex: 1 1 320px;
   height: 200px;
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
 }
 @media (max-width: 719px) {
   .item-page {
-    padding: 0 16px;
+    padding: 0 var(--space-8);
   }
   .item-page__hero {
-    gap: 20px;
+    gap: var(--space-10);
   }
   .item-page__hero .item-page__cover {
     width: 140px;
-    padding: 14px;
+    padding: var(--space-7);
   }
   .item-page__title {
     font-size: 28px;

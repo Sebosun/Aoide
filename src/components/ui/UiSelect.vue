@@ -198,16 +198,16 @@ onUnmounted(() => {
 .ui-select {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   min-width: 0;
   text-align: left;
   white-space: nowrap;
 }
 .ui-select--field {
   justify-content: space-between;
-  padding: 8px 10px 8px 12px;
+  padding: var(--space-4) var(--space-5) var(--space-4) var(--space-6);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--page);
   font-weight: 600;
 }
@@ -219,8 +219,8 @@ onUnmounted(() => {
 }
 .ui-select--pill {
   height: 34px;
-  padding: 0 13px;
-  border-radius: 999px;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   font-weight: 700;
   font-size: 13px;
@@ -242,11 +242,11 @@ onUnmounted(() => {
   z-index: 40;
   max-width: calc(100vw - 16px);
   margin: 0;
-  padding: 6px;
+  padding: var(--space-3);
   list-style: none;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--page);
   color: var(--ink);
   font: 600 13px/1.3 var(--font-ui);
@@ -272,9 +272,9 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 9px;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   white-space: nowrap;
 }

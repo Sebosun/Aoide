@@ -91,25 +91,25 @@ async function apply(match: MetadataMatch) {
 <style scoped>
 .lookup {
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
   justify-items: start;
 }
 .lookup__button {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  border-radius: var(--radius-pill);
   background: var(--ground);
   font-size: 12.5px;
   font-weight: 700;
-  padding: 8px 14px;
+  padding: var(--space-4) var(--space-7);
   white-space: nowrap;
 }
 .lookup__link {
   font-size: 11px;
   color: var(--accent);
   text-decoration: underline;
-  padding: 4px 0;
+  padding: var(--space-2) 0;
 }
 .lookup__hint {
   font-size: 11px;
@@ -121,29 +121,29 @@ async function apply(match: MetadataMatch) {
   padding: 0;
   margin: 0;
   display: grid;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .lookup__match {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 10px;
+  gap: var(--space-5);
   align-items: center;
-  padding: 8px;
+  padding: var(--space-4);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
 }
 .lookup__match img {
   width: 40px;
   height: 60px;
   object-fit: cover;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 .lookup__match:not(:has(img)) {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 .lookup__match div {
   display: grid;
-  gap: 2px;
+  gap: var(--space-1);
   font-size: 12px;
   min-width: 0;
 }

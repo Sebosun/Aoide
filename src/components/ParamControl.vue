@@ -77,7 +77,7 @@ const shown = computed(() =>
   display: grid;
   grid-template-columns: minmax(110px, 160px) minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-6);
   font-size: 13px;
 }
 .param__label {

@@ -40,8 +40,8 @@ onMounted(() => requestAnimationFrame(() => input.value?.select()));
 .prompt {
   width: min(420px, calc(100vw - 32px));
   display: grid;
-  gap: 14px;
-  padding: 24px;
+  gap: var(--space-7);
+  padding: var(--space-12);
 }
 .prompt__title {
   font-size: 18px;
@@ -50,7 +50,7 @@ onMounted(() => requestAnimationFrame(() => input.value?.select()));
 }
 .prompt__field {
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
   font-size: 13px;
   font-weight: 600;
   color: var(--dim);
@@ -58,18 +58,18 @@ onMounted(() => requestAnimationFrame(() => input.value?.select()));
 .prompt__field input {
   color: var(--ink);
   font-size: 14px;
-  padding: 10px 12px;
+  padding: var(--space-5) var(--space-6);
 }
 .prompt__actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 4px;
+  gap: var(--space-4);
+  margin-top: var(--space-2);
 }
 .prompt__button {
   height: 38px;
-  padding: 0 18px;
-  border-radius: 999px;
+  padding: 0 var(--space-9);
+  border-radius: var(--radius-pill);
   background: var(--glass);
   box-shadow: inset 0 0 0 1px var(--line);
   font-weight: 700;

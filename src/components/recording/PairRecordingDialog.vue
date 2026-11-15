@@ -179,13 +179,13 @@ async function addOnItsOwn() {
 .pair {
   width: min(560px, 92vw);
   display: grid;
-  gap: 14px;
-  padding: 20px 22px;
+  gap: var(--space-7);
+  padding: var(--space-10) var(--space-11);
 }
 .pair__head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   color: var(--accent);
 }
 .pair__title {
@@ -213,7 +213,7 @@ async function addOnItsOwn() {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 4px;
+  gap: var(--space-2);
   max-height: 200px;
   overflow-y: auto;
 }
@@ -221,13 +221,13 @@ async function addOnItsOwn() {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   font-size: 12.5px;
   color: var(--dim);
 }
 .pair__order {
   display: inline-flex;
-  gap: 2px;
+  gap: var(--space-1);
 }
 .pair__move {
   display: grid;
@@ -256,20 +256,20 @@ async function addOnItsOwn() {
 }
 .pair__problem {
   display: flex;
-  gap: 8px;
+  gap: var(--space-4);
   font-size: 12.5px;
   color: var(--warn);
   line-height: 1.45;
 }
 .pair__problem svg {
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: var(--space-1);
 }
 .pair__field {
   display: grid;
   grid-template-columns: 60px minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-5);
   font-size: 13px;
 }
 .pair__field > span {
@@ -298,11 +298,11 @@ async function addOnItsOwn() {
 .pair__actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .pair__button {
-  border-radius: 999px;
-  padding: 9px 18px;
+  border-radius: var(--radius-pill);
+  padding: var(--space-4) var(--space-9);
   font-size: 13px;
   font-weight: 700;
   background: var(--ground);

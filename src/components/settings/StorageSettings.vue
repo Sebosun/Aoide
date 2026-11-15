@@ -254,10 +254,10 @@ function submit() {
 <style scoped>
 .storage {
   display: grid;
-  gap: 22px;
+  gap: var(--space-11);
 }
 .storage__limit {
-  padding-top: 22px;
+  padding-top: var(--space-11);
   border-top: 1px solid var(--line);
 }
 .storage__error {
@@ -267,7 +267,7 @@ function submit() {
 }
 .storage__usage {
   display: grid;
-  gap: 10px;
+  gap: var(--space-5);
 }
 .storage__total {
   font-size: 13px;
@@ -278,13 +278,13 @@ function submit() {
   font-weight: 800;
   color: var(--ink);
   letter-spacing: -0.02em;
-  margin-right: 4px;
+  margin-right: var(--space-2);
 }
 .storage__bar {
   display: flex;
-  gap: 2px;
+  gap: var(--space-1);
   height: 12px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   background: var(--line);
 }
@@ -323,7 +323,7 @@ function submit() {
 .storage__legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 18px;
+  gap: var(--space-3) var(--space-9);
   padding: 0;
   margin: 0;
   list-style: none;
@@ -333,7 +333,7 @@ function submit() {
 .storage__legend li {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-3);
 }
 .storage__legend b {
   color: var(--ink);
@@ -347,14 +347,14 @@ function submit() {
 .storage__cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 10px;
+  gap: var(--space-5);
 }
 .storage__card {
   display: grid;
-  gap: 6px;
+  gap: var(--space-3);
   align-content: start;
-  padding: 14px;
-  border-radius: 14px;
+  padding: var(--space-7);
+  border-radius: var(--radius-md);
   background: var(--ground);
   font-size: 12.5px;
 }
@@ -367,18 +367,18 @@ function submit() {
   line-height: 1.45;
 }
 .storage__card b {
-  margin-top: 4px;
+  margin-top: var(--space-2);
   font-variant-numeric: tabular-nums;
 }
 .storage__button {
   justify-self: start;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 6px;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
   height: 32px;
-  padding: 0 14px;
-  border-radius: 999px;
+  padding: 0 var(--space-7);
+  border-radius: var(--radius-pill);
   background: var(--page);
   font-weight: 700;
   font-size: 12.5px;
@@ -395,7 +395,7 @@ function submit() {
 }
 .storage__table th,
 .storage__table td {
-  padding: 8px 10px;
+  padding: var(--space-4) var(--space-5);
   text-align: left;
   border-bottom: 1px solid var(--line);
 }
@@ -436,7 +436,7 @@ function submit() {
 .storage__unit {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .storage__unit input {
   width: 120px;
