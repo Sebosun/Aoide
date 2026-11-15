@@ -8,11 +8,12 @@ use std::sync::{Arc, Mutex};
 use aoide_transcribe::{Error, Request, Transcriber, Word};
 use aoide_tts::testing::FakeEngine;
 
+use super::recording::TranscriberFactory;
 use super::recording::{Narration, RecognitionEngine, RecognitionSettings, TranscriberChoice};
 use super::recordings::{Recordings, SyncHost};
 use super::syncing::Stage;
 use super::tests::{epub, epub_with, library_folder, start_with, until};
-use super::{Core, CoreEvent, TranscriberFactory};
+use super::{Core, CoreEvent};
 
 /// Sample value per millisecond of the recording.
 const SCALE: f32 = 100_000.0;

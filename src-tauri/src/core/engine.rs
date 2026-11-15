@@ -466,6 +466,71 @@ impl Engine {
     }
 }
 
+impl super::Core {
+    pub(super) async fn ensure_voice(&self) -> Result<String, String> {
+        self.engine.ensure_voice().await
+    }
+
+    pub(super) async fn check_voices(&self, ready: bool) -> Result<(), String> {
+        self.engine.check_voices(ready).await
+    }
+
+    pub(super) async fn ensure_model(&self) {
+        self.engine.ensure_model().await
+    }
+
+    pub(super) fn language_warning(&self, language: Option<&str>) -> Option<String> {
+        self.engine.language_warning(language)
+    }
+
+    pub(super) fn voice_warning(&self, book: &crate::book::BookModel) -> Option<String> {
+        self.engine.voice_warning(&self.book_settings(&book.id))
+    }
+
+    pub fn engine_options(&self) -> EngineOptions {
+        self.engine.options()
+    }
+
+    pub async fn engine_voices(&self) -> Result<Vec<aoide_tts::Voice>, String> {
+        self.engine.voices().await
+    }
+
+    /// Speaks a short sample sentence; see [`engine::Engine::preview`].
+    pub async fn preview_voice(
+        &self,
+        profile: EngineProfile,
+        voice_id: Option<String>,
+        params: Params,
+        language: Option<String>,
+    ) -> Result<Vec<u8>, String> {
+        self.engine
+            .preview(profile, voice_id, params, language)
+            .await
+    }
+
+    /// Validates, persists and activates a new engine profile. Must run inside the runtime.
+    pub async fn save_engine_profile(&self, profile: EngineProfile) -> Result<(), String> {
+        let engine = self.engine.create(&profile)?;
+        self.settings.save(super::config::ENGINE, &profile)?;
+        self.activate_profile(profile, engine).await
+    }
+
+    /// Switches generation to a validated profile.
+    pub(super) async fn activate_profile(
+        &self,
+        profile: EngineProfile,
+        engine: Arc<dyn SpeechEngine>,
+    ) -> Result<(), String> {
+        self.engine.switch(profile, Arc::clone(&engine));
+        self.plan(super::PlanEvent::EngineSwitched(engine));
+        self.restart_session().await
+    }
+
+    pub fn engine_status(&self) -> EngineStatusView {
+        self.engine.status()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::Ordering;

@@ -406,6 +406,44 @@ impl Shelf {
         Ok(book)
     }
 
+    /// Book `id`'s EPUB file, if it is there.
+    pub fn file(&self, id: &str) -> Result<PathBuf, String> {
+        let record = lock(&self.library)
+            .book(&BookId(id.into()))
+            .map_err(|e| e.to_string())?
+            .ok_or("no such book")?;
+        if !record.path.is_file() {
+            return Err(format!(
+                "the book's file is missing: {}",
+                record.path.display()
+            ));
+        }
+        Ok(record.path)
+    }
+
+    /// Notes that book `id` was opened now.
+    pub fn opened(&self, id: &str) {
+        if let Err(error) = lock(&self.library).set_last_opened(&BookId(id.into()), now_ms()) {
+            self.reporter.report(
+                "library.save",
+                "Could not save when the book was opened",
+                error,
+            );
+        }
+    }
+
+    pub fn collections(&self) -> Result<Vec<aoide_library::Collection>, String> {
+        lock(&self.library).collections().map_err(|e| e.to_string())
+    }
+
+    /// Runs a change to the collections.
+    pub fn shelve<T>(
+        &self,
+        change: impl FnOnce(&Library) -> aoide_library::Result<T>,
+    ) -> Result<T, String> {
+        change(&lock(&self.library)).map_err(|e| e.to_string())
+    }
+
     /// Forgets the parsed book `id`, so it is read again (how it is read changed).
     pub fn unload(&self, id: &str) {
         lock(&self.books).remove(id);
@@ -419,6 +457,82 @@ impl Shelf {
                 tracing::error!(event = "app.emit", name, %error, "Cannot send an event to the window")
             }
         }
+    }
+}
+
+impl ShelfHost for super::Core {
+    fn reads_notes(&self, id: &str) -> bool {
+        let settings = self.book_settings(id);
+        // A recording is laid onto the book's own text, without footnotes read in between.
+        settings.read_notes && !self.plays_recording(id, &settings)
+    }
+
+    fn playing(&self) -> Option<String> {
+        self.playback.book().map(|book| book.id.clone())
+    }
+
+    fn prepare_of(&self, id: &str) -> Option<PrepareView> {
+        self.prepare_view(id)
+    }
+
+    fn recording_of(&self, id: &str) -> Option<SyncStage> {
+        self.recording_stage(id)
+    }
+}
+
+impl super::Core {
+    /// Scans the library folder, importing new books and marking vanished ones missing.
+    pub fn rescan(&self) -> Result<(), String> {
+        self.shelf.rescan()
+    }
+
+    pub fn import_files(&self, paths: Vec<String>) -> Vec<ImportResult> {
+        self.shelf.import_files(paths)
+    }
+
+    pub fn list_books(&self) -> Result<Vec<BookSummary>, String> {
+        self.shelf.list(self)
+    }
+
+    pub fn load_book(&self, id: &str) -> Result<Arc<BookModel>, String> {
+        self.shelf.load(id, self)
+    }
+
+    /// Opens the file manager on the book's folder with its EPUB selected.
+    pub fn show_in_folder(&self, id: &str) -> Result<(), String> {
+        (self.show_in_folder)(&self.shelf.file(id)?)
+    }
+
+    pub fn collections(&self) -> Result<Vec<aoide_library::Collection>, String> {
+        self.shelf.collections()
+    }
+
+    pub fn create_collection(&self, name: &str) -> Result<i64, String> {
+        let id = self
+            .shelf
+            .shelve(|library| library.create_collection(name, now_ms()))?;
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(id)
+    }
+
+    pub fn rename_collection(&self, id: i64, name: &str) -> Result<(), String> {
+        self.shelf
+            .shelve(|library| library.rename_collection(id, name))?;
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+
+    pub fn delete_collection(&self, id: i64) -> Result<(), String> {
+        self.shelf.shelve(|library| library.delete_collection(id))?;
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+
+    pub fn set_book_collections(&self, book_id: &str, ids: &[i64]) -> Result<(), String> {
+        self.shelf
+            .shelve(|library| library.set_book_collections(&BookId(book_id.into()), ids))?;
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(())
     }
 }
 

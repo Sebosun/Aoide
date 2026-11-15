@@ -8,8 +8,8 @@ use std::ops::Range;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use aoide_audio::{Pcm, PlayerCore, Position, Status};
-use aoide_library::WordTiming;
+use aoide_audio::{codec, Pcm, PlayerCore, Position, Status};
+use aoide_library::{Library, WordTiming};
 use aoide_text::WordEstimate;
 
 use super::align::Alignable;
@@ -445,6 +445,26 @@ impl Playback {
             }),
             waiting_for_sync: narration.waits_for_sync(index),
         }
+    }
+}
+
+/// Made speech, read from the library's audio files.
+pub struct LibraryAudio<'a> {
+    pub library: &'a Mutex<Library>,
+    pub audio_dir: &'a std::path::Path,
+}
+
+impl SpeechAudio for LibraryAudio<'_> {
+    fn read(&self, key: &str) -> Result<Option<MadeSpeech>, String> {
+        let segment = lock(self.library).segment(key).map_err(|e| e.to_string())?;
+        let Some(segment) = segment else {
+            return Ok(None);
+        };
+        let bytes = std::fs::read(self.audio_dir.join(&segment.file)).map_err(|e| e.to_string())?;
+        Ok(Some(MadeSpeech {
+            pcm: codec::decode(&bytes).map_err(|e| e.to_string())?,
+            timings: segment.word_timings,
+        }))
     }
 }
 

@@ -130,7 +130,7 @@ fn start(root: &Path, engine: &Arc<FakeEngine>) -> (Arc<Core>, Arc<Recorder>) {
 pub(super) fn start_with(
     root: &Path,
     engine: &Arc<FakeEngine>,
-    transcribers: super::TranscriberFactory,
+    transcribers: super::recording::TranscriberFactory,
 ) -> (Arc<Core>, Arc<Recorder>) {
     let events = Arc::new(Recorder::default());
     let mut engines = aoide_tts::Registry::new();

@@ -449,6 +449,91 @@ impl SegmentStore for Store {
     }
 }
 
+impl GenerationHost for super::Core {
+    fn with_listening(&self, f: &mut dyn FnMut(Option<Listened<'_>>)) {
+        let playhead = self.playback.position().index;
+        let mut called = false;
+        self.playback.with_narration(|book, narration| {
+            called = true;
+            f(Some(Listened {
+                book,
+                narration,
+                playhead,
+            }))
+        });
+        if !called {
+            f(None);
+        }
+    }
+
+    fn book_plan(&self, id: &str, chapters: Option<&[usize]>) -> Option<Result<Plan, String>> {
+        if self.engine.default_voice().is_none() && self.book_settings(id).voice_id.is_none() {
+            return None;
+        }
+        Some(self.load_book(id).and_then(|book| {
+            let mut plan = self.speech_plan(&book)?;
+            if let Some(chapters) = chapters {
+                plan.only(|index| {
+                    book.locate(index)
+                        .is_some_and(|(chapter, _)| chapters.contains(&chapter))
+                });
+            }
+            Ok(plan)
+        }))
+    }
+}
+
+impl super::Core {
+    pub async fn prepare_book(&self, id: &str) -> Result<(), String> {
+        self.load_book(id)?;
+        self.ensure_voice().await?;
+        self.ensure_model().await;
+        // Plans it now: a book whose audio is all made already finishes here.
+        self.plan(PlanEvent::BookQueued(id.into()));
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+
+    pub fn cancel_prepare(&self, id: &str) {
+        self.plan(PlanEvent::PrepareCancelled(id.into()));
+        self.emit(CoreEvent::LibraryChanged);
+    }
+
+    /// Pauses or resumes a queued book's preparation; the choice survives restarts.
+    pub fn set_prepare_paused(&self, id: &str, paused: bool) {
+        self.plan(PlanEvent::PreparePaused {
+            book: id.into(),
+            paused,
+        });
+        self.emit(CoreEvent::LibraryChanged);
+    }
+
+    /// Queues one chapter of a book for preparation (joining the book's entry if it has one).
+    pub async fn prepare_chapter(&self, id: &str, chapter: usize) -> Result<(), String> {
+        let book = self.load_book(id)?;
+        if chapter >= book.chapters.len() {
+            return Err("no such chapter".into());
+        }
+        self.ensure_voice().await?;
+        self.ensure_model().await;
+        self.plan(PlanEvent::ChapterQueued {
+            book: id.into(),
+            chapter,
+        });
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+
+    pub fn prepare_view(&self, id: &str) -> Option<PrepareView> {
+        self.generation.prepare_view(id)
+    }
+
+    /// Tells generation what changed; see [`generation::Generation::apply`].
+    pub(super) fn plan(&self, event: PlanEvent) {
+        self.generation.apply(event, self);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;

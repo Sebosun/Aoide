@@ -17,11 +17,8 @@ use aoide_generation::{estimate_ms, Job, PlanItem, WorkerEvent};
 use aoide_library::{
     content_hash, BookId, BookKey, BookStatus, CachedSegment, Library, NewBook, Progress,
 };
-use aoide_tts::{
-    cache_key, EngineProfile, LaunchCommand, NetworkScope, Params, Registry, SpeechEngine,
-};
+use aoide_tts::{cache_key, EngineProfile, LaunchCommand, NetworkScope};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
 
 /// Spoken by voice previews: original text, long enough to hear the voice's pace and tone.
 mod align;
@@ -31,6 +28,9 @@ mod controls;
 pub use config::PreferencesView;
 mod discovery;
 mod engine;
+mod environment;
+use environment::{default_profile, OUTPUT_RATE};
+pub use environment::{Environment, Events, Paths, ShowInFolder};
 mod error;
 mod generation;
 mod shelf;
@@ -53,68 +53,13 @@ mod recordings;
 mod settings;
 mod syncing;
 pub use recording::{
-    app_transcribers, InspectionView, Narration, RecognitionOptions, RecordingView, SyncAction,
-    SyncReportView, TranscriberFactory,
+    InspectionView, Narration, RecognitionOptions, RecordingView, SyncAction, SyncReportView,
 };
 pub use syncing::Stage as SyncStage;
 mod session;
 mod voicing;
 mod wire;
 pub use wire::*;
-
-impl shelf::ShelfHost for Core {
-    fn reads_notes(&self, id: &str) -> bool {
-        let settings = self.book_settings(id);
-        // A recording is laid onto the book's own text, without footnotes read in between.
-        settings.read_notes && !self.plays_recording(id, &settings)
-    }
-
-    fn playing(&self) -> Option<String> {
-        self.playback.book().map(|book| book.id.clone())
-    }
-
-    fn prepare_of(&self, id: &str) -> Option<PrepareView> {
-        self.prepare_view(id)
-    }
-
-    fn recording_of(&self, id: &str) -> Option<SyncStage> {
-        self.recording_stage(id)
-    }
-}
-
-impl generation::GenerationHost for Core {
-    fn with_listening(&self, f: &mut dyn FnMut(Option<generation::Listened<'_>>)) {
-        let playhead = self.playback.position().index;
-        let mut called = false;
-        self.playback.with_narration(|book, narration| {
-            called = true;
-            f(Some(generation::Listened {
-                book,
-                narration,
-                playhead,
-            }))
-        });
-        if !called {
-            f(None);
-        }
-    }
-
-    fn book_plan(&self, id: &str, chapters: Option<&[usize]>) -> Option<Result<Plan, String>> {
-        if self.engine.default_voice().is_none() && self.book_settings(id).voice_id.is_none() {
-            return None;
-        }
-        Some(self.load_book(id).and_then(|book| {
-            let mut plan = self.speech_plan(&book)?;
-            if let Some(chapters) = chapters {
-                plan.only(|index| {
-                    book.locate(index)
-                        .is_some_and(|(chapter, _)| chapters.contains(&chapter))
-                });
-            }
-            Ok(plan)
-        }))
-    }
-}
 
 #[cfg(test)]
 mod contract;
@@ -134,16 +79,7 @@ pub use settings::{AlignerSettings, AppSettings, AppSettingsPatch};
 
 use crate::book::{BookModel, ChapterSummary, ChapterView, ExcludedView, SearchHit};
 
-const OUTPUT_RATE: u32 = 48_000;
 const TICK: Duration = Duration::from_millis(33);
-
-/// All built-in engine adapters.
-pub fn registry() -> Registry {
-    let mut registry = Registry::new();
-    aoide_chatterbox::engine::register(&mut registry);
-    aoide_openai_speech::register(&mut registry);
-    registry
-}
 
 fn now_ms() -> i64 {
     SystemTime::now()
@@ -189,76 +125,10 @@ fn recover<G>(
 
 // ---------------------------------------------------------------- core
 
-pub struct Paths {
-    /// Where "Find books" looks by default.
-    pub home_dir: PathBuf,
-    pub library_dir: PathBuf,
-    pub covers_dir: PathBuf,
-    pub audio_dir: PathBuf,
-    pub db_path: PathBuf,
-    /// User settings and themes (`~/.config/aoide`).
-    pub config_dir: PathBuf,
-    /// Speech-recognition models.
-    pub models_dir: PathBuf,
-}
-
 /// A book and how each of its entries is narrated.
 struct Target {
     book: Arc<BookModel>,
     narration: narration::NarrationPlan,
-}
-
-/// Where Core's events go: Tauri's app handle in the app, a recorder in tests.
-pub trait Events: Send + Sync {
-    fn emit(&self, name: &str, payload: serde_json::Value);
-}
-
-impl Events for AppHandle {
-    fn emit(&self, name: &str, payload: serde_json::Value) {
-        let _ = Emitter::emit(self, name, payload);
-    }
-}
-
-/// What Core needs from the world outside the library folder.
-/// Opens the file manager on a file's folder with the file selected.
-pub type ShowInFolder = Arc<dyn Fn(&Path) -> Result<(), String> + Send + Sync>;
-
-pub struct Environment {
-    pub events: Arc<dyn Events>,
-    pub engines: Registry,
-    /// Commands tried in order to play audio.
-    pub audio: Vec<OutputCommand>,
-    /// Media keys, file and config watchers, and the startup scan. Tests leave them off.
-    pub background: bool,
-    /// Opens the file manager on a file's folder with the file selected.
-    pub show_in_folder: ShowInFolder,
-    /// Speech recognition for syncing recordings.
-    pub transcribers: TranscriberFactory,
-}
-
-impl Environment {
-    /// The desktop app: Tauri events, the built-in engines, the system's audio player.
-    pub fn desktop(app: AppHandle) -> Self {
-        Self {
-            events: Arc::new(app),
-            engines: registry(),
-            audio: OutputCommand::candidates(OUTPUT_RATE),
-            background: true,
-            show_in_folder: Arc::new(|path| {
-                tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| e.to_string())
-            }),
-            transcribers: app_transcribers(),
-        }
-    }
-
-    /// A real-time-paced sink that plays nothing (debug smoke runs, tests).
-    pub fn silent_audio() -> Vec<OutputCommand> {
-        vec![OutputCommand {
-            program: "sh".into(),
-            args: vec!["-c".into(), "exec cat > /dev/null".into()],
-            device_latency_ms: 0,
-        }]
-    }
 }
 
 pub struct Core {
@@ -291,40 +161,6 @@ pub struct Core {
     recordings: recordings::Recordings,
     /// What "Find audiobooks" found.
     audiobooks: Mutex<audiobooks::Matches>,
-}
-
-fn default_profile() -> EngineProfile {
-    EngineProfile {
-        id: "chatterbox-local".into(),
-        name: "Chatterbox (local)".into(),
-        kind: aoide_chatterbox::engine::KIND.into(),
-        base_url: "http://127.0.0.1:8004".into(),
-        model: None,
-        network: NetworkScope::Loopback,
-        voice_id: None,
-        params: Default::default(),
-        launch: None,
-    }
-}
-
-/// Made speech, read from the library's audio files.
-struct LibraryAudio<'a>(&'a Core);
-
-impl playback::SpeechAudio for LibraryAudio<'_> {
-    fn read(&self, key: &str) -> Result<Option<playback::MadeSpeech>, String> {
-        let segment = lock(&self.0.library)
-            .segment(key)
-            .map_err(|e| e.to_string())?;
-        let Some(segment) = segment else {
-            return Ok(None);
-        };
-        let bytes =
-            std::fs::read(self.0.paths.audio_dir.join(&segment.file)).map_err(|e| e.to_string())?;
-        Ok(Some(playback::MadeSpeech {
-            pcm: codec::decode(&bytes).map_err(|e| e.to_string())?,
-            timings: segment.word_timings,
-        }))
-    }
 }
 
 impl Core {
@@ -489,30 +325,6 @@ impl Core {
 
     // ------------------------------------------------------------ library
 
-    /// Scans the library folder, importing new books and marking vanished ones missing.
-    pub fn rescan(&self) -> Result<(), String> {
-        self.shelf.rescan()
-    }
-
-    pub fn import_files(&self, paths: Vec<String>) -> Vec<ImportResult> {
-        self.shelf.import_files(paths)
-    }
-
-    /// Opens the file manager on the book's folder with its EPUB selected.
-    pub fn show_in_folder(&self, id: &str) -> Result<(), String> {
-        let record = lock(&self.library)
-            .book(&BookId(id.into()))
-            .map_err(|e| e.to_string())?
-            .ok_or("no such book")?;
-        if !record.path.is_file() {
-            return Err(format!(
-                "the book's file is missing: {}",
-                record.path.display()
-            ));
-        }
-        (self.show_in_folder)(&record.path)
-    }
-
     pub fn remove_book(&self, id: &str) -> Result<(), String> {
         if self.playback.is_book(id) {
             self.stop();
@@ -527,65 +339,11 @@ impl Core {
         Ok(())
     }
 
-    pub fn list_books(&self) -> Result<Vec<BookSummary>, String> {
-        self.shelf.list(self)
-    }
-
-    // ------------------------------------------------------------ collections
-
-    pub fn collections(&self) -> Result<Vec<aoide_library::Collection>, String> {
-        lock(&self.library).collections().map_err(|e| e.to_string())
-    }
-
-    /// Runs a collection change and tells the UI the library changed.
-    fn shelve<T>(
-        &self,
-        change: impl FnOnce(&Library) -> aoide_library::Result<T>,
-    ) -> Result<T, String> {
-        let result = change(&lock(&self.library)).map_err(|e| e.to_string())?;
-        self.emit(CoreEvent::LibraryChanged);
-        Ok(result)
-    }
-
-    pub fn create_collection(&self, name: &str) -> Result<i64, String> {
-        self.shelve(|library| library.create_collection(name, now_ms()))
-    }
-
-    pub fn rename_collection(&self, id: i64, name: &str) -> Result<(), String> {
-        self.shelve(|library| library.rename_collection(id, name))
-    }
-
-    pub fn delete_collection(&self, id: i64) -> Result<(), String> {
-        self.shelve(|library| library.delete_collection(id))
-    }
-
-    pub fn set_book_collections(&self, book_id: &str, ids: &[i64]) -> Result<(), String> {
-        self.shelve(|library| library.set_book_collections(&BookId(book_id.into()), ids))
-    }
-
     // ------------------------------------------------------------ books
-
-    pub fn load_book(&self, id: &str) -> Result<Arc<BookModel>, String> {
-        self.shelf.load(id, self)
-    }
-
-    fn language_warning(&self, language: Option<&str>) -> Option<String> {
-        self.engine.language_warning(language)
-    }
-
-    fn voice_warning(&self, book: &BookModel) -> Option<String> {
-        self.engine.voice_warning(&self.book_settings(&book.id))
-    }
 
     pub fn open_book(&self, id: &str) -> Result<BookView, String> {
         let view = self.book_overview(id)?;
-        if let Err(error) = lock(&self.library).set_last_opened(&BookId(id.into()), now_ms()) {
-            self.report(
-                "library.save",
-                "Could not save when the book was opened",
-                error,
-            );
-        }
+        self.shelf.opened(id);
         Ok(view)
     }
 
@@ -617,18 +375,6 @@ impl Core {
     }
 
     // ------------------------------------------------------------ playback
-
-    async fn ensure_voice(&self) -> Result<String, String> {
-        self.engine.ensure_voice().await
-    }
-
-    async fn check_voices(&self, ready: bool) -> Result<(), String> {
-        self.engine.check_voices(ready).await
-    }
-
-    async fn ensure_model(&self) {
-        self.engine.ensure_model().await
-    }
 
     fn ensure_output(&self) -> Result<(), String> {
         let mut output = lock(&self.output);
@@ -747,45 +493,6 @@ impl Core {
         Ok(())
     }
 
-    pub fn engine_options(&self) -> EngineOptions {
-        self.engine.options()
-    }
-
-    pub async fn engine_voices(&self) -> Result<Vec<aoide_tts::Voice>, String> {
-        self.engine.voices().await
-    }
-
-    /// Speaks a short sample sentence; see [`engine::Engine::preview`].
-    pub async fn preview_voice(
-        &self,
-        profile: EngineProfile,
-        voice_id: Option<String>,
-        params: Params,
-        language: Option<String>,
-    ) -> Result<Vec<u8>, String> {
-        self.engine
-            .preview(profile, voice_id, params, language)
-            .await
-    }
-
-    /// Validates, persists and activates a new engine profile. Must run inside the runtime.
-    pub async fn save_engine_profile(&self, profile: EngineProfile) -> Result<(), String> {
-        let engine = self.engine.create(&profile)?;
-        self.settings.save(config::ENGINE, &profile)?;
-        self.activate_profile(profile, engine).await
-    }
-
-    /// Switches generation to a validated profile.
-    async fn activate_profile(
-        &self,
-        profile: EngineProfile,
-        engine: Arc<dyn SpeechEngine>,
-    ) -> Result<(), String> {
-        self.engine.switch(profile, Arc::clone(&engine));
-        self.plan(PlanEvent::EngineSwitched(engine));
-        self.restart_session().await
-    }
-
     /// Rebuilds the listening session's requests and cache state (voice/engine/settings
     /// changed), keeping the playhead.
     async fn restart_session(&self) -> Result<(), String> {
@@ -831,46 +538,6 @@ impl Core {
 
     // ------------------------------------------------------------ preparation
 
-    pub async fn prepare_book(&self, id: &str) -> Result<(), String> {
-        self.load_book(id)?;
-        self.ensure_voice().await?;
-        self.ensure_model().await;
-        // Plans it now: a book whose audio is all made already finishes here.
-        self.plan(PlanEvent::BookQueued(id.into()));
-        self.emit(CoreEvent::LibraryChanged);
-        Ok(())
-    }
-
-    pub fn cancel_prepare(&self, id: &str) {
-        self.plan(PlanEvent::PrepareCancelled(id.into()));
-        self.emit(CoreEvent::LibraryChanged);
-    }
-
-    /// Pauses or resumes a queued book's preparation; the choice survives restarts.
-    pub fn set_prepare_paused(&self, id: &str, paused: bool) {
-        self.plan(PlanEvent::PreparePaused {
-            book: id.into(),
-            paused,
-        });
-        self.emit(CoreEvent::LibraryChanged);
-    }
-
-    /// Queues one chapter of a book for preparation (joining the book's entry if it has one).
-    pub async fn prepare_chapter(&self, id: &str, chapter: usize) -> Result<(), String> {
-        let book = self.load_book(id)?;
-        if chapter >= book.chapters.len() {
-            return Err("no such chapter".into());
-        }
-        self.ensure_voice().await?;
-        self.ensure_model().await;
-        self.plan(PlanEvent::ChapterQueued {
-            book: id.into(),
-            chapter,
-        });
-        self.emit(CoreEvent::LibraryChanged);
-        Ok(())
-    }
-
     /// How much of each chapter's audio is made, in the voice and settings it would be read in.
     pub async fn chapter_audio(&self, id: &str) -> Result<Vec<ChapterAudioView>, String> {
         let book = self.load_book(id)?;
@@ -887,10 +554,6 @@ impl Core {
             }
         }
         Ok(chapters)
-    }
-
-    pub fn prepare_view(&self, id: &str) -> Option<PrepareView> {
-        self.generation.prepare_view(id)
     }
 
     /// The speech engine's plan for reading all of `book` in its voice and settings.
@@ -952,11 +615,6 @@ impl Core {
     fn seek_at(&self, index: usize, offset_ms: Option<u32>) {
         self.save_place(self.playback.seek(index, offset_ms));
         self.plan(PlanEvent::ListeningChanged { jump: true });
-    }
-
-    /// Tells generation what changed; see [`generation::Generation::apply`].
-    fn plan(&self, event: PlanEvent) {
-        self.generation.apply(event, self);
     }
 
     pub fn pause(&self) {
@@ -1163,7 +821,10 @@ impl Core {
     /// Gives the player the audio near the playhead it does not have yet, and asks for exact
     /// word times for it. Returns whether the playhead moved to another entry.
     fn provide_audio(&self) -> bool {
-        let Some(tick) = self.playback.tick(&LibraryAudio(self)) else {
+        let Some(tick) = self.playback.tick(&playback::LibraryAudio {
+            library: &self.library,
+            audio_dir: &self.paths.audio_dir,
+        }) else {
             return false;
         };
         self.align(tick.to_align);
@@ -1190,10 +851,6 @@ impl Core {
             }
             tokio::time::sleep(Duration::from_secs(3)).await;
         }
-    }
-
-    pub fn engine_status(&self) -> EngineStatusView {
-        self.engine.status()
     }
 
     #[cfg(debug_assertions)]
