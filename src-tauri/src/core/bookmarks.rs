@@ -78,6 +78,33 @@ impl Bookmarks {
             .ok_or_else(|| "bookmark was not saved".into())
     }
 
+    /// Bookmarks `position_ms` in `part` of audiobook `id`, titled by the part.
+    pub fn add_time(
+        &self,
+        id: &str,
+        part: u32,
+        position_ms: u64,
+        title: &str,
+        note: &str,
+    ) -> Result<Bookmark, String> {
+        let id = BookId(id.into());
+        let library = lock(&self.library);
+        let bookmark_id = library
+            .add_time_bookmark(&id, part, position_ms, title, now_ms() / 1000)
+            .map_err(|e| e.to_string())?;
+        if !note.trim().is_empty() {
+            library
+                .update_bookmark_note(bookmark_id, note.trim())
+                .map_err(|e| e.to_string())?;
+        }
+        library
+            .bookmarks(&id)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|b| b.id == bookmark_id)
+            .ok_or_else(|| "bookmark was not saved".into())
+    }
+
     pub fn update_note(&self, bookmark: i64, note: &str) -> Result<(), String> {
         let found = lock(&self.library)
             .update_bookmark_note(bookmark, note.trim())
@@ -102,6 +129,12 @@ impl Core {
 
     /// Bookmarks the playhead when `id` is playing, else the book's saved position.
     pub fn add_bookmark(&self, id: &str, note: &str) -> Result<Bookmark, String> {
+        if self.kind_of(id) == Some(aoide_library::ItemKind::Audiobook) {
+            let (part, position_ms, title) = self.audiobook_place(id)?;
+            return self
+                .bookmarks
+                .add_time(id, part as u32, position_ms, &title, note);
+        }
         let playing = self
             .playback
             .is_book(id)

@@ -195,19 +195,24 @@ impl Metadata {
                 }
             }
         }
-        self.details(book)
+        self.details(&book.id, Some(book))
     }
 
     /// Stored details over the EPUB's own metadata.
-    pub fn details(&self, book: &BookModel) -> Result<BookDetails, String> {
+    /// Item `id`'s stored details over those of its EPUB (`book`; none for an audiobook).
+    pub fn details(&self, id: &str, book: Option<&BookModel>) -> Result<BookDetails, String> {
         let stored = lock(&self.library)
-            .book_details(&BookId(book.id.clone()))
+            .book_details(&BookId(id.into()))
             .map_err(|e| e.to_string())?
             .unwrap_or_default();
         Ok(BookDetails {
-            description: stored.description.or_else(|| book.description.clone()),
-            publisher: stored.publisher.or_else(|| book.publisher.clone()),
-            isbn: stored.isbn.or_else(|| book.isbn.clone()),
+            description: stored
+                .description
+                .or_else(|| book.and_then(|b| b.description.clone())),
+            publisher: stored
+                .publisher
+                .or_else(|| book.and_then(|b| b.publisher.clone())),
+            isbn: stored.isbn.or_else(|| book.and_then(|b| b.isbn.clone())),
             published: stored.published,
             subjects: stored.subjects,
             open_library_key: stored.open_library_key,
@@ -234,7 +239,10 @@ impl Core {
 
     /// Stored details over the EPUB's own metadata.
     pub fn book_details(&self, id: &str) -> Result<BookDetails, String> {
-        self.metadata.details(&*self.load_book(id)?)
+        if self.kind_of(id) == Some(aoide_library::ItemKind::Audiobook) {
+            return self.metadata.details(id, None);
+        }
+        self.metadata.details(id, Some(&*self.load_book(id)?))
     }
 }
 
@@ -304,7 +312,10 @@ mod tests {
         assert_eq!(details.description.as_deref(), Some("Its own words."));
         assert_eq!(details.publisher.as_deref(), Some("A Press"));
         assert_eq!(details.open_library_key.as_deref(), Some("/works/OL2W"));
-        assert_eq!(metadata.details(&book).unwrap().subjects, ["Rivers"]);
+        assert_eq!(
+            metadata.details(&book.id, Some(&book)).unwrap().subjects,
+            ["Rivers"]
+        );
     }
 
     #[test]

@@ -69,6 +69,8 @@ pub struct BlockView {
 pub struct ChapterSummary {
     pub index: usize,
     pub title: String,
+    /// An audiobook's part: how long it plays.
+    pub duration_ms: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -259,6 +261,7 @@ impl BookModel {
             .map(|(index, c)| ChapterSummary {
                 index,
                 title: c.title.clone(),
+                duration_ms: None,
             })
             .collect()
     }

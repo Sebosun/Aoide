@@ -439,6 +439,9 @@ impl Shelf {
             .book(&BookId(id.into()))
             .map_err(|e| e.to_string())?
             .ok_or("book not found")?;
+        if record.kind == aoide_library::ItemKind::Audiobook {
+            return Err(super::audiobook::NO_TEXT.into());
+        }
         match record.status {
             BookStatus::Present => {}
             BookStatus::Missing => return Err("the book file is missing".into()),
@@ -676,6 +679,9 @@ impl super::Core {
 
     /// The same view as [`Core::open_book`], without marking the book as opened.
     pub fn book_overview(&self, id: &str) -> Result<super::BookView, String> {
+        if self.kind_of(id) == Some(aoide_library::ItemKind::Audiobook) {
+            return self.audiobook_overview(id);
+        }
         let book = self.load_book(id)?;
         Ok(super::BookView {
             id: book.id.clone(),

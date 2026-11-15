@@ -21,7 +21,18 @@ fn item_path(chosen: &[PathBuf], files: &[PathBuf]) -> PathBuf {
     }
 }
 
+/// What a text-only operation says about an audiobook.
+pub(super) const NO_TEXT: &str = "Not available for an audiobook: it has no text.";
+
 impl Core {
+    /// Refuses item `id` when it is an audiobook, which has no text.
+    pub(super) fn require_text(&self, id: &str) -> Result<(), String> {
+        match self.kind_of(id) {
+            Some(ItemKind::Audiobook) => Err(NO_TEXT.into()),
+            _ => Ok(()),
+        }
+    }
+
     /// Adds the audiobook at `paths` (an M4B, audio files, or a folder of them) as an item with
     /// no text. DRM-protected and unreadable audio is refused with the reasons the pairing
     /// gives. The same files added again, from anywhere, are the same item.
@@ -205,5 +216,112 @@ pub(super) mod tests {
             .error
             .is_some());
         assert_eq!(core.list_books().unwrap().len(), 2, "the book and the FLAC");
+    }
+
+    #[tokio::test]
+    async fn text_only_operations_refuse_an_audiobook_and_change_nothing() {
+        use super::super::recording::Narration;
+        use super::NO_TEXT;
+
+        let dir = tempfile::tempdir().unwrap();
+        let core = core(dir.path()).await;
+        let folder = tagged_set(dir.path());
+        let id = core
+            .add_audiobook(vec![folder.to_string_lossy().into()])
+            .book_id
+            .unwrap();
+        let files = vec![folder.join("b-first.mp3").to_string_lossy().into_owned()];
+        let refused = |result: Result<(), String>, what: &str| {
+            assert_eq!(result, Err(NO_TEXT.to_string()), "{what}");
+        };
+        refused(core.chapter(&id, 0).map(drop), "chapter");
+        refused(core.search_book(&id, "lantern").map(drop), "search_book");
+        refused(core.prepare_book(&id).await, "prepare_book");
+        refused(core.prepare_chapter(&id, 0).await, "prepare_chapter");
+        refused(core.chapter_audio(&id).await.map(drop), "chapter_audio");
+        refused(core.regenerate_book(&id).await, "regenerate_book");
+        refused(core.export_book(&id).await.map(drop), "export_book");
+        refused(
+            core.export_read_along(&id).await.map(drop),
+            "export_read_along",
+        );
+        refused(
+            core.lookup_metadata(&id, false).await.map(drop),
+            "lookup_metadata",
+        );
+        refused(
+            core.set_reading_place(&id, 0, "0:0:0").map(drop),
+            "set_reading_place",
+        );
+        refused(core.set_mode(&id, ReadingMode::Read).map(drop), "set_mode");
+        refused(
+            core.attach_recording(&id, files.clone()).map(drop),
+            "attach_recording",
+        );
+        refused(
+            core.attach_recording_as_listed(&id, files).map(drop),
+            "attach_recording_as_listed",
+        );
+        refused(core.remove_recording(&id).await, "remove_recording");
+        refused(
+            core.set_narration(&id, Narration::Speech).await,
+            "set_narration",
+        );
+        refused(core.play_recording_at(&id, 0).await, "play_recording_at");
+
+        assert!(
+            !core.engine_status().wanted,
+            "nothing needed the speech engine"
+        );
+        assert!(core.prepare_view(&id).is_none());
+        assert_eq!(core.recording(&id).unwrap().stage, Stage::Standalone);
+        let view = core.book_overview(&id).unwrap();
+        assert_eq!(
+            (view.mode, view.shape),
+            (ReadingMode::Listen, Shape::Listen)
+        );
+        assert_eq!(core.list_books().unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn an_audiobook_shows_its_parts_and_takes_time_bookmarks() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = core(dir.path()).await;
+        let folder = tagged_set(dir.path());
+        let id = core
+            .add_audiobook(vec![folder.to_string_lossy().into()])
+            .book_id
+            .unwrap();
+        let view = core.open_book(&id).unwrap();
+        assert_eq!(view.title, "The Lantern Keeper");
+        assert_eq!(view.word_count, 0);
+        assert!(view.warnings.is_empty(), "{:?}", view.warnings);
+        assert_eq!(view.chapters.len(), 2, "one part per file");
+        assert!(view
+            .chapters
+            .iter()
+            .all(|c| c.duration_ms.is_some_and(|ms| ms > 0) && !c.title.is_empty()));
+        assert!(core.book_details(&id).is_ok());
+
+        // Not playing: the bookmark is the saved place.
+        let second = view.chapters[1].clone();
+        let start = view.chapters[0].duration_ms.unwrap();
+        core.seek_to(&id, start + 100).unwrap();
+        let bookmark = core.add_bookmark(&id, " By the door ").unwrap();
+        assert_eq!(
+            (bookmark.chapter, bookmark.position_ms, bookmark.segment_id),
+            (1, Some(start + 100), None)
+        );
+        assert_eq!(
+            (bookmark.excerpt, bookmark.note),
+            (second.title, "By the door".into())
+        );
+        assert_eq!(core.bookmarks(&id).unwrap().len(), 1);
+
+        // A file gone: the view says so instead of failing.
+        std::fs::remove_file(folder.join("a-second.mp3")).unwrap();
+        let view = core.book_overview(&id).unwrap();
+        assert!(view.chapters.is_empty());
+        assert_eq!(view.warnings, ["a-second.mp3 is missing."]);
     }
 }

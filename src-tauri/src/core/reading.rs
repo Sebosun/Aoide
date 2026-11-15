@@ -306,6 +306,9 @@ impl super::Core {
     /// The user chose to read item `id` silently or to listen to it. Reading the item that is
     /// playing pauses it; choosing to listen does not start playback by itself.
     pub fn set_mode(&self, id: &str, mode: ReadingMode) -> Result<BookView, String> {
+        if mode == ReadingMode::Read {
+            self.require_text(id)?;
+        }
         let event = match mode {
             ReadingMode::Read => ModeEvent::ReadChosen,
             ReadingMode::Listen => ModeEvent::ListenChosen,

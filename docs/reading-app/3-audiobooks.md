@@ -182,3 +182,28 @@ read-along near the same place once synced.
 - Native app: add a folder of MP3s and an M4B; listen, seek, change speed, set a sleep timer,
   bookmark, quit and resume; media keys work.
 - A book with a paired recording behaves exactly as before the phase.
+
+## Notes from implementation
+
+- 3.1: the enum is `ItemKind`, not `Kind` (the contract names TS types by their Rust name).
+  The migration is library v9 (phase 2 used v8).
+- 3.3: what plays is `Playing { Entries(Session), Timeline(TimelineSession) }`. The player
+  holds each entry's audio whole, so the timeline is laid out as stretches of at most 10 s that
+  never cross a part; the feeder decodes the six ahead of the playhead and four are kept
+  behind. `Place` is an enum too (`Entry` or `Time`). The core method behind the `seek` command
+  is `Core::seek_to` (`Core::seek` moves to a book's entry). Seeking or skipping an audiobook
+  that is not playing moves its saved place. A place within 1 s of the end is the end: it
+  finishes the item, and playing it again starts from the beginning. A file's parts, when an
+  audiobook has several files and no chapters, are titled by the file's title tag, else its
+  cleaned name; they are stored with the recording.
+- 3.4: `Shelf::load` refuses an audiobook, so everything that needs the text gets "Not
+  available for an audiobook: it has no text.": `chapter`, `search_book`, `prepare_book`
+  (before it wants the speech engine), `prepare_chapter`, `chapter_audio`,
+  `set_reading_place`, `lookup_metadata`, `apply_metadata`. Guarded up front because they
+  would change state or give a less clear error: `regenerate_book`, `export_book`,
+  `export_read_along`, `set_mode(Read)`, `attach_recording`, `attach_recording_as_listed`,
+  `remove_recording` (an audiobook goes with its recording: remove the item),
+  `set_narration`, `play_recording_at`. Made to work: `book_overview`/`open_book` (parts as
+  chapters with `duration_ms`, a missing file as a warning), `book_details` (stored details
+  only), `add_bookmark` (a time bookmark at the playhead or saved place, its excerpt the part's
+  title). Voice settings save but change nothing for an audiobook.

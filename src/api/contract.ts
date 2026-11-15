@@ -131,7 +131,11 @@ note: boolean, notes: Array<NoteMarker>, };
 
 export type BlockView = { kind: string, level: number | null, segments: Array<SegmentView>, };
 
-export type ChapterSummary = { index: number, title: string, };
+export type ChapterSummary = { index: number, title: string, 
+/**
+ * An audiobook's part: how long it plays.
+ */
+durationMs: number | null, };
 
 export type ChapterView = { index: number, title: string, blocks: Array<BlockView>, 
 /**

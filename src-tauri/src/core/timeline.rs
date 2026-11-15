@@ -228,7 +228,7 @@ impl Core {
     }
 
     /// Audiobook `id` laid out for the player.
-    fn timeline_of(&self, id: &str) -> Result<Timeline, String> {
+    pub(super) fn timeline_of(&self, id: &str) -> Result<Timeline, String> {
         let record = lock(&self.library)
             .book(&BookId(id.into()))
             .map_err(|e| e.to_string())?
@@ -264,11 +264,8 @@ impl Core {
                     .ok_or("that part is not in the audiobook")?
                     .start_ms
             }
-            None => lock(&self.library)
-                .progress(&BookId(id.into()))
-                .ok()
-                .flatten()
-                .and_then(|p| p.position_ms)
+            None => self
+                .saved_time(id)
                 .filter(|at| at + AT_END_MS < timeline.total_ms)
                 .unwrap_or(0),
         };
@@ -296,15 +293,75 @@ impl Core {
 
     /// Moves `delta_ms` back or forward on audiobook `id`'s timeline (the ±30 s buttons).
     pub fn skip(&self, id: &str, delta_ms: i64) -> Result<(), String> {
-        let at = self.playback.time_of(id).unwrap_or_else(|| {
-            lock(&self.library)
-                .progress(&BookId(id.into()))
-                .ok()
-                .flatten()
-                .and_then(|p| p.position_ms)
-                .unwrap_or(0)
-        });
+        let at = self.time_in(id);
         self.seek_to(id, at.saturating_add_signed(delta_ms))
+    }
+
+    /// Audiobook `id`'s saved place on its timeline.
+    fn saved_time(&self, id: &str) -> Option<u64> {
+        lock(&self.library)
+            .progress(&BookId(id.into()))
+            .ok()
+            .flatten()
+            .and_then(|p| p.position_ms)
+    }
+
+    /// Where the listener is in audiobook `id`: the playhead while it plays, else its saved
+    /// place.
+    pub(super) fn time_in(&self, id: &str) -> u64 {
+        self.playback
+            .time_of(id)
+            .or_else(|| self.saved_time(id))
+            .unwrap_or(0)
+    }
+
+    /// Where the listener is in audiobook `id`: the part, the time, and the part's title.
+    pub(super) fn audiobook_place(&self, id: &str) -> Result<(usize, u64, String), String> {
+        let timeline = self.timeline_of(id)?;
+        let at = self.time_in(id).min(timeline.total_ms);
+        let part = timeline.part_at(at);
+        Ok((part, at, timeline.parts[part].title.clone()))
+    }
+
+    /// The item view of audiobook `id`: its parts as chapters; a file that is gone as a
+    /// warning.
+    pub(super) fn audiobook_overview(&self, id: &str) -> Result<super::BookView, String> {
+        let record = lock(&self.library)
+            .book(&BookId(id.into()))
+            .map_err(|e| e.to_string())?
+            .ok_or("book not found")?;
+        let (chapters, warnings) = match self.timeline_of(id) {
+            Ok(timeline) => (
+                timeline
+                    .parts
+                    .iter()
+                    .enumerate()
+                    .map(|(index, part)| crate::book::ChapterSummary {
+                        index,
+                        title: part.title.clone(),
+                        duration_ms: Some(part.end_ms - part.start_ms),
+                    })
+                    .collect(),
+                Vec::new(),
+            ),
+            Err(error) => (Vec::new(), vec![error]),
+        };
+        let mode = self.mode_of(id);
+        Ok(super::BookView {
+            id: id.to_owned(),
+            title: record.title.unwrap_or_default(),
+            authors: record.authors,
+            language: record.language,
+            chapters,
+            warnings,
+            excluded: Vec::new(),
+            language_warning: None,
+            voice_warning: None,
+            progress: self.shelf.progress(&BookId(id.into())),
+            word_count: 0,
+            mode,
+            shape: super::reading::shape(false, mode),
+        })
     }
 
     /// Plays the start of the part `delta` parts away from the one playing.

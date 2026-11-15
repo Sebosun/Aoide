@@ -468,6 +468,7 @@ impl Core {
 
     /// Pairs audio files with a book (replacing any recording it had) and starts syncing.
     pub fn attach_recording(&self, id: &str, paths: Vec<String>) -> Result<RecordingView, String> {
+        self.require_text(id)?;
         self.recordings.attach_recording(self, id, paths)
     }
 
@@ -478,6 +479,7 @@ impl Core {
         id: &str,
         files: Vec<String>,
     ) -> Result<RecordingView, String> {
+        self.require_text(id)?;
         self.recordings.attach_recording_as_listed(self, id, files)
     }
 
@@ -551,6 +553,8 @@ impl Core {
 
     /// Forgets a book's recording and its sync. The audio files are left as they are.
     pub async fn remove_recording(&self, id: &str) -> Result<(), String> {
+        // An audiobook is its recording: it goes with the item.
+        self.require_text(id)?;
         self.forget_recording(id);
         lock(&self.library)
             .remove_recording(&BookId(id.into()))
@@ -566,6 +570,7 @@ impl Core {
     }
 
     pub async fn set_narration(&self, id: &str, narration: Narration) -> Result<(), String> {
+        self.require_text(id)?;
         if narration == Narration::Recording && !self.recordings.listenable(id) {
             return Err("the recording is not synced yet".into());
         }
@@ -576,6 +581,7 @@ impl Core {
 
     /// Plays the book's recording from `at_ms` on its timeline (a stretch in the sync report).
     pub async fn play_recording_at(&self, id: &str, at_ms: u64) -> Result<(), String> {
+        self.require_text(id)?;
         if !self.plays_recording(id, &self.book_settings(id)) {
             return Err("choose the recording as the book's narration to listen to it".into());
         }

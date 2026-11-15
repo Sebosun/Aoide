@@ -5,10 +5,12 @@
     ],
     "chapters": [
       {
+        "durationMs": null,
         "index": 0,
         "title": "The small light"
       },
       {
+        "durationMs": null,
         "index": 1,
         "title": "Across the water"
       }
@@ -31,14 +33,17 @@
     ],
     "chapters": [
       {
+        "durationMs": null,
         "index": 0,
         "title": "An ordinary discovery"
       },
       {
+        "durationMs": null,
         "index": 1,
         "title": "The long way home"
       },
       {
+        "durationMs": null,
         "index": 2,
         "title": "A place to begin"
       }
@@ -68,6 +73,7 @@
     ],
     "chapters": [
       {
+        "durationMs": null,
         "index": 0,
         "title": "Blank pages"
       }
