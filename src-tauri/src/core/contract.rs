@@ -119,9 +119,14 @@ fn contract() -> String {
         super::fetching::Reason,
         super::fetching::Stage,
         super::articles::ArticleSource,
-        super::articles::FeedView,
+        super::feeds::DiscoveredFeed,
         super::articles::ArticleView,
         super::articles::ArticleSummary,
+        // Feeds
+        super::feeds::FeedStage,
+        super::feeds::FeedSettings,
+        super::feeds::FeedView,
+        super::feeds::SubscribeResult,
         // Appearance
         aoide_config::Mode,
         aoide_config::ReaderMode,
@@ -211,6 +216,7 @@ fn contract() -> String {
             CoreEvent::ARTICLE_STATE,
             name::<super::articles::ArticleView>(&config),
         ),
+        (CoreEvent::FEEDS_CHANGED, "null".to_owned()),
     ];
     out.push_str(
         "/** Every event Core emits, by name, with its payload. */\nexport type CoreEvents = {\n",

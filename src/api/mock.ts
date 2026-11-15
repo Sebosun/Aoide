@@ -243,6 +243,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     audiobooks: { roots: [], exclude: [], includeHidden: [], onAdd: true },
     verifyAudiobooks: false,
     readingWpm: 230,
+    feeds: { checkMinutes: 60, keepReadDays: 30, keepUnreadDays: 90 },
   };
   /** Minutes read silently, per book. */
   const readMs = new Map<string, number>([["book-1", 1_800_000]]);

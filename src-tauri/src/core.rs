@@ -33,9 +33,11 @@ use environment::{default_profile, OUTPUT_RATE};
 pub use environment::{Environment, Events, OpenLink, Paths, ShowInFolder};
 mod error;
 mod facets;
+mod feeds;
 mod fetching;
 pub use articles::{ArticleSource, ArticleSummary, ArticleView};
 pub use facets::HomeView;
+pub use feeds::{FeedView, SubscribeResult};
 mod generation;
 mod shelf;
 use generation::PlanEvent;
@@ -77,6 +79,8 @@ mod article_tests;
 mod contract;
 #[cfg(test)]
 mod engine_tests;
+#[cfg(test)]
+mod feeds_tests;
 #[cfg(test)]
 mod fixtures;
 #[cfg(test)]
@@ -177,6 +181,8 @@ pub struct Core {
     audiobooks: Arc<audiobooks::Finder>,
     /// Articles saved from the web and their fetches.
     articles: Arc<articles::Articles>,
+    /// Feeds subscribed to and their checks.
+    feeds: Arc<feeds::Feeds>,
 }
 
 impl Core {
@@ -263,10 +269,12 @@ impl Core {
             Arc::clone(&library),
             paths.articles_dir.clone(),
             paths.covers_dir.clone(),
-            fetcher,
+            Arc::clone(&fetcher),
         ));
+        let feeds = Arc::new(feeds::Feeds::new(Arc::clone(&library), fetcher));
         let core = Arc::new(Self {
             articles,
+            feeds,
             events,
             reporter,
             show_in_folder,
@@ -296,6 +304,10 @@ impl Core {
         core.articles.load();
         let fetching = Arc::clone(&core);
         tokio::spawn(async move { fetching.articles.run(&*fetching).await });
+        if background {
+            let checking = Arc::clone(&core);
+            tokio::spawn(async move { checking.feeds.run(&*checking).await });
+        }
         if background {
             core.spawn_sync_runner();
         }

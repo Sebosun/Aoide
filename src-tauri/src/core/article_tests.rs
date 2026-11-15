@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use aoide_fetch::{FetchError, Image, Snapshot, Via};
+use aoide_fetch::{FeedResponse, FetchError, Image, Snapshot, Validators, Via};
 use aoide_library::{ArticleRow, BookId, ItemKind, Library, NewBook};
 use aoide_tts::testing::FakeEngine;
 use url::Url;
@@ -13,6 +13,9 @@ use super::fetching::{Reason, Stage};
 use super::tests::{library_folder, start_fetching, until};
 use super::Core;
 
+/// A scripted feed's body and ETag, or why it fails.
+type FeedReply = Result<(String, String), FetchError>;
+
 /// Answers each address with the page, or failure, scripted for it, and counts the asks.
 #[derive(Default)]
 pub(super) struct Pages {
@@ -20,7 +23,13 @@ pub(super) struct Pages {
     /// The archive's copy of each address it has one of.
     archive: Mutex<HashMap<String, String>>,
     images: Mutex<HashMap<String, Image>>,
+    /// Each feed's body and ETag, or why it fails.
+    feeds: Mutex<HashMap<String, FeedReply>>,
+    /// Feed addresses that moved for good, and where to.
+    moved: Mutex<HashMap<String, String>>,
     pub asked: Mutex<Vec<String>>,
+    /// The validators each feed request carried, in order.
+    pub validators: Mutex<Vec<(String, Validators)>>,
 }
 
 impl Pages {
@@ -50,6 +59,28 @@ impl Pages {
 
     pub fn asks(&self) -> usize {
         self.asked.lock().unwrap().len()
+    }
+
+    /// Serves `body` at feed address `url`, with ETag `etag` (a request carrying it is told
+    /// nothing changed).
+    pub fn feed(&self, url: &str, body: &str, etag: &str) {
+        let reply = Ok((body.to_owned(), etag.to_owned()));
+        self.feeds.lock().unwrap().insert(url.into(), reply);
+    }
+
+    pub fn feed_fails(&self, url: &str, error: FetchError) {
+        self.feeds.lock().unwrap().insert(url.into(), Err(error));
+    }
+
+    /// Feed `from` has moved for good to `to`.
+    pub fn feed_moved(&self, from: &str, to: &str) {
+        self.moved.lock().unwrap().insert(from.into(), to.into());
+    }
+
+    /// How many times feed `url` was asked for.
+    pub fn feed_asks(&self, url: &str) -> usize {
+        let validators = self.validators.lock().unwrap();
+        validators.iter().filter(|(u, _)| u == url).count()
     }
 }
 
@@ -81,6 +112,39 @@ impl Fetcher for Pages {
         Box::pin(async move {
             let image = self.images.lock().unwrap().get(url.as_str()).cloned();
             image.ok_or(FetchError::Status(404))
+        })
+    }
+
+    fn feed<'a>(&'a self, url: &'a Url, validators: &'a Validators) -> Fetching<'a, FeedResponse> {
+        Box::pin(async move {
+            let asked = url.to_string();
+            self.validators
+                .lock()
+                .unwrap()
+                .push((asked.clone(), validators.clone()));
+            let moved = self.moved.lock().unwrap().get(&asked).cloned();
+            let target = moved.clone().unwrap_or(asked);
+            let reply = self.feeds.lock().unwrap().get(&target).cloned();
+            match reply {
+                Some(Ok((body, etag))) => {
+                    if validators.etag.as_deref() == Some(etag.as_str()) {
+                        return Ok(FeedResponse::NotModified);
+                    }
+                    Ok(FeedResponse::Body {
+                        bytes: body.into_bytes(),
+                        etag: Some(etag),
+                        last_modified: None,
+                        final_url: Url::parse(&target).unwrap(),
+                        moved: moved.is_some(),
+                    })
+                }
+                Some(Err(error)) => Err(error),
+                // A page is not a feed.
+                None if self.pages.lock().unwrap().contains_key(&target) => {
+                    Err(FetchError::NotAFeed("text/html".into()))
+                }
+                None => Err(FetchError::Status(404)),
+            }
         })
     }
 }

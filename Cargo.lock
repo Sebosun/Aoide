@@ -71,6 +71,7 @@ dependencies = [
  "aoide-discovery",
  "aoide-document",
  "aoide-epub",
+ "aoide-feeds",
  "aoide-fetch",
  "aoide-generation",
  "aoide-library",

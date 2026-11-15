@@ -127,3 +127,37 @@ fn an_entry_outlives_the_item_it_was_opened_as() {
     assert_eq!(left.book_id, None);
     assert_eq!(left.title.as_deref(), Some("Entry g1"));
 }
+
+#[test]
+fn unread_entries_are_counted_and_a_new_feed_keeps_only_its_newest_unread() {
+    let lib = Library::open_in_memory().unwrap();
+    let feed = lib
+        .add_feed("https://harbour.example/feed.xml", 10)
+        .unwrap();
+    for day in 0..12 {
+        let mut e = entry(&format!("g{day}"));
+        e.published_at = Some(day * 86_400_000);
+        lib.insert_entry(feed, &e, 100).unwrap();
+    }
+    assert_eq!(lib.unread_counts().unwrap().get(&feed), Some(&12));
+    lib.mark_read_except_newest(feed, 10, 200).unwrap();
+    assert_eq!(lib.unread_counts().unwrap().get(&feed), Some(&10));
+    let row = |guid: &str| {
+        let id = lib.insert_entry(feed, &entry(guid), 300).unwrap();
+        assert_eq!(id, None);
+        lib.entries_of(feed)
+            .unwrap()
+            .into_iter()
+            .find(|e| e.guid == guid)
+            .unwrap()
+    };
+    assert_eq!(row("g0").read_at, Some(200));
+    assert_eq!(row("g11").read_at, None);
+
+    // A failing feed keeps when its failures began.
+    let mut stored = lib.feed(feed).unwrap().unwrap();
+    stored.failures = 2;
+    stored.failing_since = Some(500);
+    lib.update_feed(&stored).unwrap();
+    assert_eq!(lib.feed(feed).unwrap().unwrap(), stored);
+}

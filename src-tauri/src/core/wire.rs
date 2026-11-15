@@ -245,6 +245,8 @@ pub enum CoreEvent {
     Problem(error::ProblemView),
     /// An article's fetch changed.
     ArticleState(super::ArticleView),
+    /// Feeds, their health or their entries changed.
+    FeedsChanged,
 }
 
 impl CoreEvent {
@@ -263,6 +265,7 @@ impl CoreEvent {
     pub const AUDIOBOOK_MATCHES: &'static str = "audiobooks://matches";
     pub const PROBLEM: &'static str = "core://problem";
     pub const ARTICLE_STATE: &'static str = "article://state";
+    pub const FEEDS_CHANGED: &'static str = "feeds://changed";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -281,6 +284,7 @@ impl CoreEvent {
             Self::AudiobookMatches(_) => Self::AUDIOBOOK_MATCHES,
             Self::Problem(_) => Self::PROBLEM,
             Self::ArticleState(_) => Self::ARTICLE_STATE,
+            Self::FeedsChanged => Self::FEEDS_CHANGED,
         }
     }
 
@@ -301,6 +305,7 @@ impl CoreEvent {
             Self::AudiobookMatches(p) => serde_json::to_value(p),
             Self::Problem(p) => serde_json::to_value(p),
             Self::ArticleState(p) => serde_json::to_value(p),
+            Self::FeedsChanged => Ok(serde_json::Value::Null),
         }
     }
 }

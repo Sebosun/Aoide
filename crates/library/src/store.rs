@@ -240,7 +240,8 @@ impl Library {
                     etag TEXT,
                     last_modified TEXT,
                     error TEXT,
-                    failures INTEGER NOT NULL DEFAULT 0 CHECK(failures >= 0)
+                    failures INTEGER NOT NULL DEFAULT 0 CHECK(failures >= 0),
+                    failing_since INTEGER
                 );
                 CREATE TABLE feed_entries (
                     id INTEGER PRIMARY KEY,

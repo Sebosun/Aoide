@@ -19,6 +19,8 @@ pub struct FeedRow {
     pub error: Option<String>,
     /// Checks failed in a row.
     pub failures: u32,
+    /// The first failure of those.
+    pub failing_since: Option<i64>,
 }
 
 /// An entry as a feed gave it.
@@ -69,6 +71,7 @@ fn read_feed(row: &Row<'_>) -> rusqlite::Result<FeedRow> {
         last_modified: row.get("last_modified")?,
         error: row.get("error")?,
         failures: row.get("failures")?,
+        failing_since: row.get("failing_since")?,
     })
 }
 
@@ -122,7 +125,8 @@ impl Library {
     pub fn update_feed(&self, feed: &FeedRow) -> Result<()> {
         self.conn.execute(
             "UPDATE feeds SET url = ?2, title = ?3, site_url = ?4, last_checked_at = ?5,
-             last_ok_at = ?6, etag = ?7, last_modified = ?8, error = ?9, failures = ?10
+             last_ok_at = ?6, etag = ?7, last_modified = ?8, error = ?9, failures = ?10,
+             failing_since = ?11
              WHERE id = ?1",
             rusqlite::params![
                 feed.id,
@@ -135,6 +139,7 @@ impl Library {
                 feed.last_modified,
                 feed.error,
                 feed.failures,
+                feed.failing_since,
             ],
         )?;
         Ok(())
@@ -185,6 +190,37 @@ impl Library {
             .conn
             .query_row("SELECT * FROM feed_entries WHERE id = ?1", [id], read_entry)
             .optional()?)
+    }
+
+    /// Each feed's unread entries, by feed id (feeds with none are left out).
+    pub fn unread_counts(&self) -> Result<std::collections::HashMap<i64, u32>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT feed_id, COUNT(*) FROM feed_entries WHERE read_at IS NULL GROUP BY feed_id",
+        )?;
+        let counts = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(counts.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Marks read, at `now`, all but the `keep` newest unread entries of `feed`.
+    pub fn mark_read_except_newest(&self, feed: i64, keep: u32, now: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE feed_entries SET read_at = ?3
+             WHERE feed_id = ?1 AND read_at IS NULL AND id NOT IN (
+                SELECT id FROM feed_entries WHERE feed_id = ?1 AND read_at IS NULL
+                ORDER BY published_at IS NULL, published_at DESC, id DESC LIMIT ?2)",
+            rusqlite::params![feed, keep, now],
+        )?;
+        Ok(())
+    }
+
+    /// Every entry of `feed`, newest first.
+    pub fn entries_of(&self, feed: i64) -> Result<Vec<EntryRow>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT * FROM feed_entries WHERE feed_id = ?1
+             ORDER BY published_at IS NULL, published_at DESC, id DESC",
+        )?;
+        let entries = stmt.query_map([feed], read_entry)?;
+        Ok(entries.collect::<rusqlite::Result<_>>()?)
     }
 
     /// Records the item entry `id` was opened as.

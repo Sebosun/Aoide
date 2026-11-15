@@ -28,6 +28,8 @@ pub struct AppSettings {
     pub verify_audiobooks: bool,
     /// Reading speed in words per minute, for reading-time estimates (100–600).
     pub reading_wpm: u32,
+    /// How often feeds are checked and how long their entries are kept.
+    pub feeds: super::feeds::FeedSettings,
 }
 
 /// Reading speeds Settings offers, in words per minute.
@@ -62,6 +64,8 @@ pub struct AppSettingsPatch {
     pub verify_audiobooks: Option<bool>,
     #[cfg_attr(test, ts(optional))]
     pub reading_wpm: Option<u32>,
+    #[cfg_attr(test, ts(optional))]
+    pub feeds: Option<super::feeds::FeedSettings>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -91,6 +95,7 @@ impl AppSettingsPatch {
         set(&mut settings.audiobooks, self.audiobooks);
         set(&mut settings.verify_audiobooks, self.verify_audiobooks);
         set(&mut settings.reading_wpm, self.reading_wpm);
+        set(&mut settings.feeds, self.feeds);
         settings
     }
 }
@@ -109,6 +114,7 @@ impl From<AppSettings> for AppSettingsPatch {
             audiobooks,
             verify_audiobooks,
             reading_wpm,
+            feeds,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -121,6 +127,7 @@ impl From<AppSettings> for AppSettingsPatch {
             audiobooks: Some(audiobooks),
             verify_audiobooks: Some(verify_audiobooks),
             reading_wpm: Some(reading_wpm),
+            feeds: Some(feeds),
         }
     }
 }
@@ -152,6 +159,7 @@ impl Default for AppSettings {
             audiobooks: Default::default(),
             verify_audiobooks: false,
             reading_wpm: 230,
+            feeds: Default::default(),
         }
     }
 }
@@ -192,6 +200,9 @@ impl Core {
         }
         self.storage.limit_changed();
         self.enforce_cache_limit();
+        if before.feeds != settings.feeds {
+            self.feeds.settings_changed();
+        }
         Ok(settings)
     }
 }

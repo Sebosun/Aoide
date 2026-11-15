@@ -256,6 +256,13 @@ impl Settings {
                 super::settings::READING_WPM.end()
             ));
         }
+        if !super::feeds::CHECK_MINUTES.contains(&settings.feeds.check_minutes) {
+            return Err(format!(
+                "Feeds are checked every {} to {} minutes",
+                super::feeds::CHECK_MINUTES.start(),
+                super::feeds::CHECK_MINUTES.end()
+            ));
+        }
         if let Some(aligner) = &settings.aligner {
             aoide_aligner::Aligner::new(aoide_aligner::Options {
                 base_url: aligner.base_url.clone(),

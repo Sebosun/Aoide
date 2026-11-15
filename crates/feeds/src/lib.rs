@@ -147,12 +147,46 @@ fn text(text: &model::Text) -> Option<String> {
     (!plain.is_empty()).then_some(plain)
 }
 
+/// `html` as plain text: tags (and scripts and styles with their contents) removed, entities
+/// decoded, whitespace collapsed. Tags end words, as block elements do.
+pub fn plain_text(html: &str) -> String {
+    let decoded = html_escape::decode_html_entities(&strip_tags(&drop_hidden(html))).into_owned();
+    decoded.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// How many words `html` reads as.
+pub fn word_count(html: &str) -> usize {
+    plain_text(html).split_whitespace().count()
+}
+
+/// `html` without `<script>` and `<style>` elements.
+fn drop_hidden(html: &str) -> String {
+    let mut out = html.to_owned();
+    for name in ["script", "style"] {
+        loop {
+            let lower = out.to_ascii_lowercase();
+            let Some(start) = lower.find(&format!("<{name}")) else {
+                break;
+            };
+            let close = format!("</{name}>");
+            let end = lower[start..]
+                .find(&close)
+                .map_or(out.len(), |e| start + e + close.len());
+            out.replace_range(start..end, " ");
+        }
+    }
+    out
+}
+
 fn strip_tags(html: &str) -> String {
     let mut out = String::with_capacity(html.len());
     let mut in_tag = false;
     for c in html.chars() {
         match c {
-            '<' => in_tag = true,
+            '<' => {
+                in_tag = true;
+                out.push(' ');
+            }
             '>' if in_tag => in_tag = false,
             _ if !in_tag => out.push(c),
             _ => {}

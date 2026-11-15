@@ -438,9 +438,13 @@ verifyAudiobooks: boolean,
 /**
  * Reading speed in words per minute, for reading-time estimates (100–600).
  */
-readingWpm: number, };
+readingWpm: number, 
+/**
+ * How often feeds are checked and how long their entries are kept.
+ */
+feeds: FeedSettings, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -579,7 +583,7 @@ export type FetchStage = { "kind": "queued" } | { "kind": "fetching" } | { "kind
 
 export type ArticleSource = "http" | "archive";
 
-export type FeedView = { url: string, title: string | null, };
+export type DiscoveredFeed = { url: string, title: string | null, subscribed: boolean, };
 
 export type ArticleView = { id: string, 
 /**
@@ -597,7 +601,7 @@ via: ArticleSource | null, fetchedAt: number | null, capturedWords: number, decl
 /**
  * Feeds the page links to.
  */
-feeds: Array<FeedView>, };
+feeds: Array<DiscoveredFeed>, };
 
 export type ArticleSummary = { 
 /**
@@ -608,6 +612,30 @@ siteName: string | null,
  * Its first lines.
  */
 lead: string | null, stage: FetchStage, error: string | null, };
+
+export type FeedStage = { "kind": "idle" } | { "kind": "checking" } | { "kind": "failing", sinceMs: number, };
+
+export type FeedSettings = { 
+/**
+ * Minutes between checks of a healthy feed (15–1440).
+ */
+checkMinutes: number, 
+/**
+ * Days a read entry that was not saved is kept.
+ */
+keepReadDays: number, 
+/**
+ * Days an unread entry is kept.
+ */
+keepUnreadDays: number, };
+
+export type FeedView = { id: number, title: string | null, url: string, siteUrl: string | null, unread: number, stage: FeedStage, 
+/**
+ * Why the last check failed, while it fails.
+ */
+error: string | null, lastOkAt: number | null, };
+
+export type SubscribeResult = { "kind": "subscribed", "value": FeedView } | { "kind": "choose", "value": Array<DiscoveredFeed> } | { "kind": "notAFeed" };
 
 export type AppearanceMode = "auto" | "light" | "dark";
 
@@ -765,6 +793,7 @@ export type CoreEvents = {
   "audiobooks://matches": Array<AudiobookMatch>,
   "core://problem": ProblemView,
   "article://state": ArticleView,
+  "feeds://changed": null,
 };
 
 /** Every command Core answers, by name, with its arguments and result. */
@@ -842,6 +871,10 @@ export type Commands = {
   "save_article": { args: { url: string }; result: string };
   "refetch_article": { args: { bookId: string; source: ArticleSource }; result: void };
   "article": { args: { bookId: string }; result: ArticleView };
+  "feeds": { args: Record<string, never>; result: FeedView[] };
+  "subscribe": { args: { url: string }; result: SubscribeResult };
+  "unsubscribe": { args: { feedId: number }; result: void };
+  "check_feeds": { args: Record<string, never>; result: void };
   "unmatched_audiobooks": { args: Record<string, never>; result: AudiobookSuggestion[] };
   "cancel_audiobook_scan": { args: Record<string, never>; result: void };
   "look_for_audiobooks": { args: { ids: string[] }; result: number };

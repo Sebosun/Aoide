@@ -11,11 +11,14 @@ use std::time::Instant;
 
 use aoide_article::{Completeness, ExtractOptions, Extracted};
 use aoide_document::ParsedBook;
-use aoide_fetch::{FetchError, FetchOptions, HttpFetcher, Image, Snapshot, Via};
+use aoide_fetch::{
+    FeedResponse, FetchError, FetchOptions, HttpFetcher, Image, Snapshot, Validators, Via,
+};
 use aoide_library::{ArticleRow, BookId, ItemKind, Library, NewBook};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use super::feeds::DiscoveredFeed;
 use super::fetching::{next, Event, Stage};
 use super::lock;
 
@@ -33,6 +36,8 @@ pub trait Fetcher: Send + Sync {
     fn archived<'a>(&'a self, url: &'a Url) -> Fetching<'a, Option<Url>>;
     /// An image of at most [`COVER_BYTES`].
     fn image<'a>(&'a self, url: &'a Url) -> Fetching<'a, Image>;
+    /// The feed at `url`, unless it is unchanged since `validators`.
+    fn feed<'a>(&'a self, url: &'a Url, validators: &'a Validators) -> Fetching<'a, FeedResponse>;
 }
 
 /// The largest lead image kept as a cover.
@@ -49,6 +54,10 @@ impl Fetcher for HttpFetcher {
 
     fn image<'a>(&'a self, url: &'a Url) -> Fetching<'a, Image> {
         Box::pin(HttpFetcher::image(self, url, COVER_BYTES))
+    }
+
+    fn feed<'a>(&'a self, url: &'a Url, validators: &'a Validators) -> Fetching<'a, FeedResponse> {
+        Box::pin(self.fetch_feed(url, validators))
     }
 }
 
@@ -67,6 +76,11 @@ impl Fetcher for Unavailable {
     }
 
     fn image<'a>(&'a self, _: &'a Url) -> Fetching<'a, Image> {
+        let error = FetchError::Transport(self.0.clone());
+        Box::pin(async move { Err(error) })
+    }
+
+    fn feed<'a>(&'a self, _: &'a Url, _: &'a Validators) -> Fetching<'a, FeedResponse> {
         let error = FetchError::Transport(self.0.clone());
         Box::pin(async move { Err(error) })
     }
@@ -121,14 +135,6 @@ impl ArticleSource {
     }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(test, derive(ts_rs::TS))]
-pub struct FeedView {
-    pub url: String,
-    pub title: Option<String>,
-}
-
 /// An article's source and fetch.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -150,7 +156,7 @@ pub struct ArticleView {
     pub captured_words: u64,
     pub declared_words: Option<u64>,
     /// Feeds the page links to.
-    pub feeds: Vec<FeedView>,
+    pub feeds: Vec<DiscoveredFeed>,
 }
 
 /// What a library card shows of an article.
@@ -182,7 +188,7 @@ pub(super) struct Articles {
     queue: Mutex<VecDeque<(String, ArticleSource)>>,
     wake: tokio::sync::Notify,
     /// Feeds each extracted page links to.
-    feeds: Mutex<HashMap<String, Vec<FeedView>>>,
+    feeds: Mutex<HashMap<String, Vec<DiscoveredFeed>>>,
 }
 
 /// The formats a lead image is kept in.
@@ -437,9 +443,11 @@ impl Articles {
         let feeds = extracted
             .feeds
             .iter()
-            .map(|f| FeedView {
+            .map(|f| DiscoveredFeed {
                 url: f.url.to_string(),
                 title: f.title.clone(),
+                // The core says which are subscribed as it sends the view.
+                subscribed: false,
             })
             .collect();
         lock(&self.feeds).insert(id.into(), feeds);
@@ -703,7 +711,7 @@ impl ArticlesHost for super::Core {
             self.shelf.unload(&view.id);
         }
         self.emit(super::CoreEvent::LibraryChanged);
-        self.emit(super::CoreEvent::ArticleState(view));
+        self.emit(super::CoreEvent::ArticleState(self.subscriptions_in(view)));
     }
 }
 
@@ -713,7 +721,7 @@ impl super::Core {
         let (id, view) = self.articles.save(link, super::now_ms())?;
         if let Some(view) = view {
             self.emit(super::CoreEvent::LibraryChanged);
-            self.emit(super::CoreEvent::ArticleState(view));
+            self.emit(super::CoreEvent::ArticleState(self.subscriptions_in(view)));
         }
         Ok(id)
     }
@@ -721,13 +729,23 @@ impl super::Core {
     /// Fetches article `id` again, from the page or an archived copy.
     pub fn refetch_article(&self, id: &str, source: ArticleSource) -> Result<(), String> {
         if let Some(view) = self.articles.queue_fetch(id, source)? {
-            self.emit(super::CoreEvent::ArticleState(view));
+            self.emit(super::CoreEvent::ArticleState(self.subscriptions_in(view)));
         }
         Ok(())
     }
 
     pub fn article(&self, id: &str) -> Result<ArticleView, String> {
-        self.articles.view(id)
+        self.articles
+            .view(id)
+            .map(|view| self.subscriptions_in(view))
+    }
+
+    /// `view` with the feeds it names marked when they are subscribed.
+    fn subscriptions_in(&self, mut view: ArticleView) -> ArticleView {
+        for feed in &mut view.feeds {
+            feed.subscribed = self.feeds.subscribed(&feed.url);
+        }
+        view
     }
 
     /// Opens article `id`'s page, as it was kept, in the system's browser. Only web addresses

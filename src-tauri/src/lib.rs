@@ -553,6 +553,32 @@ fn article(core: CoreState<'_>, book_id: String) -> Result<crate::core::ArticleV
 }
 
 #[tauri::command]
+fn feeds(core: CoreState<'_>) -> Result<Vec<crate::core::FeedView>, CoreError> {
+    Ok(core.feeds()?)
+}
+
+#[tauri::command]
+async fn subscribe(
+    core: CoreState<'_>,
+    url: String,
+) -> Result<crate::core::SubscribeResult, CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.subscribe(&url).await?)
+}
+
+#[tauri::command]
+fn unsubscribe(core: CoreState<'_>, feed_id: i64) -> Result<(), CoreError> {
+    Ok(core.unsubscribe(feed_id)?)
+}
+
+#[tauri::command]
+async fn check_feeds(core: CoreState<'_>) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    core.check_feeds().await;
+    Ok(())
+}
+
+#[tauri::command]
 fn unmatched_audiobooks(core: CoreState<'_>) -> Vec<crate::core::AudiobookSuggestion> {
     core.unmatched_audiobooks()
 }
@@ -920,6 +946,10 @@ pub fn run() {
             save_article,
             refetch_article,
             article,
+            feeds,
+            subscribe,
+            unsubscribe,
+            check_feeds,
             cancel_audiobook_scan,
             look_for_audiobooks,
             pair_audiobooks,

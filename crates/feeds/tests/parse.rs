@@ -192,3 +192,14 @@ fn feeds_are_told_from_pages_by_type_and_first_bytes() {
         br#"{"name": "not a feed"}"#
     ));
 }
+
+#[test]
+fn markup_becomes_plain_text_with_its_words_counted() {
+    use aoide_feeds::{plain_text, word_count};
+    let html = "<p>The new <b>ferry</b> arrives&nbsp;in spring.</p>\n<p>Tom &amp; Jerry</p><script>x()</script>";
+    assert_eq!(
+        plain_text(html),
+        "The new ferry arrives in spring. Tom & Jerry"
+    );
+    assert_eq!(word_count(html), 9);
+}
