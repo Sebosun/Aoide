@@ -1,14 +1,16 @@
 <script setup lang="ts" generic="T extends string | number">
 /** A row of options of which one is chosen, drawn as a pill track with the chosen one in ink:
  *  Page or Lines, Light or Dark, a range of days, a kind of item. Each option is a toggle
- *  button (`aria-pressed`) in a labelled group. The `option` slot draws an option's content
- *  (a count beside its label, say); by default it is the label. `tone` matches the track to
- *  what it sits on. */
+ *  button (`aria-pressed`) in a labelled group, drawn with its label and, when it has one, a
+ *  count (books of a kind, matches in a group); the `option` slot draws something else.
+ *  `tone` matches the track to what it sits on. */
 export interface SegmentedOption<V> {
   value: V;
   label: string;
   /** Read out instead of the content, when the content is not the label alone. */
   ariaLabel?: string;
+  /** How many things the option would show, beside its label. */
+  count?: number;
 }
 
 withDefaults(
@@ -45,7 +47,10 @@ const emit = defineEmits<{ "update:modelValue": [value: T] }>();
       :aria-pressed="option.value === modelValue"
       @click="emit('update:modelValue', option.value)"
     >
-      <slot name="option" :option="option">{{ option.label }}</slot>
+      <slot name="option" :option="option"
+        >{{ option.label
+        }}<span v-if="option.count !== undefined" class="ui-segmented__count">{{ option.count }}</span></slot
+      >
     </button>
   </div>
 </template>
@@ -86,6 +91,10 @@ const emit = defineEmits<{ "update:modelValue": [value: T] }>();
 .ui-segmented--md .ui-segmented__option {
   height: var(--control-md);
   padding: 0 var(--space-8);
+}
+.ui-segmented__count {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
 }
 .ui-segmented__option:not(.ui-segmented__option--on):hover {
   color: var(--ink);

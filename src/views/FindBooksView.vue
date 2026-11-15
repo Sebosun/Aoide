@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiSegmented from "@/components/ui/UiSegmented.vue";
+import ScanFolders, { type Folders } from "@/components/find/ScanFolders.vue";
 import { computed, onMounted, ref } from "vue";
 import { ArrowLeft, BookOpen, FolderSearch, Globe, Download, Headphones, X } from "@lucide/vue";
 import { useNavigationStore } from "@/stores/navigation";
@@ -13,52 +15,28 @@ import { audiobookName } from "@/recording";
 const discovery = useDiscoveryStore(),
   navigation = useNavigationStore(),
   recordings = useRecordingsStore();
-const settings = ref<AppSettings | null>(null),
-  roots = ref(""),
-  exclude = ref(""),
-  includeHidden = ref(""),
-  onStartup = ref(false),
-  foldersMessage = ref("");
+const settings = ref<AppSettings | null>(null);
 onMounted(async () => {
   void discovery.start();
   try {
     settings.value = await api.appSettings();
-    const scan = settings.value.scan;
-    roots.value = scan.roots.join("\n");
-    exclude.value = scan.exclude.join("\n");
-    includeHidden.value = scan.includeHidden.join("\n");
-    onStartup.value = scan.onStartup;
   } catch (e) {
     discovery.error = String(e);
   }
 });
-const lines = (text: string) =>
-  text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-async function saveFolders() {
-  if (!settings.value) return;
-  foldersMessage.value = "";
-  const scan = {
-    roots: lines(roots.value),
-    exclude: lines(exclude.value),
-    includeHidden: lines(includeHidden.value),
-    onStartup: onStartup.value,
-  };
-  try {
-    settings.value = await api.updateAppSettings({ scan });
-    foldersMessage.value = "Saved.";
-  } catch (e) {
-    discovery.error = String(e);
-  }
+async function saveFolders(folders: Folders, onStartup: boolean) {
+  settings.value = await api.updateAppSettings({ scan: { ...folders, onStartup } });
 }
-const groups: { status: CandidateStatus; label: string; aria: string }[] = [
-  { status: "new", label: "New", aria: "Show new books" },
-  { status: "inLibrary", label: "In library", aria: "Show books already in the library" },
-  { status: "removed", label: "Removed earlier", aria: "Show books removed from the library" },
-  { status: "unreadable", label: "Unreadable", aria: "Show unreadable files" },
-];
+const groups = computed(() =>
+  (
+    [
+      { value: "new", label: "New", ariaLabel: "Show new books" },
+      { value: "inLibrary", label: "In library", ariaLabel: "Show books already in the library" },
+      { value: "removed", label: "Removed earlier", ariaLabel: "Show books removed from the library" },
+      { value: "unreadable", label: "Unreadable", ariaLabel: "Show unreadable files" },
+    ] as const
+  ).map((g) => ({ ...g, count: discovery.counts[g.value as CandidateStatus] })),
+);
 const importable = computed(() => discovery.filter === "new" || discovery.filter === "removed");
 const status = computed(() => {
   const p = discovery.progress;
@@ -115,55 +93,21 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
     <p v-if="status" class="find__status" role="status">{{ status }}</p>
     <p v-if="discovery.error" class="find__error" role="alert">{{ discovery.error }}</p>
 
-    <details class="find__settings">
-      <summary>
-        Folders · {{ settings?.scan.roots.length ? settings.scan.roots.join(", ") : "your home folder" }}
-      </summary>
-      <form class="find__folders" @submit.prevent="saveFolders">
-        <label class="find__field"
-          ><span>Search<br /><small>one per line; empty = home folder</small></span
-          ><textarea v-model="roots" rows="2" aria-label="Folders to search" spellcheck="false" />
-        </label>
-        <label class="find__field"
-          ><span>Skip<br /><small>one per line</small></span
-          ><textarea v-model="exclude" rows="2" aria-label="Folders to skip" spellcheck="false" />
-        </label>
-        <label class="find__field"
-          ><span>Hidden folders to include<br /><small>skipped by default</small></span
-          ><textarea v-model="includeHidden" rows="2" aria-label="Hidden folders to include" spellcheck="false" />
-        </label>
-        <label class="find__check"
-          ><input v-model="onStartup" type="checkbox" aria-label="Look for new books when Aoide starts" /> Look for new
-          books when Aoide starts</label
-        >
-        <p class="find__hint">
-          Aoide skips hidden folders, build and dependency folders, other drives, and its own library. Files are only
-          read, never changed.
-        </p>
-        <div class="find__row">
-          <UiButton size="sm" type="submit" class="find__button">Save folders</UiButton
-          ><span v-if="foldersMessage" class="find__ok" role="status">{{ foldersMessage }}</span>
-        </div>
-      </form>
-    </details>
+    <ScanFolders
+      :folders="settings?.scan ?? null"
+      :auto="settings?.scan.onStartup ?? false"
+      auto-label="Look for new books when Aoide starts"
+      :labels="{ roots: 'Folders to search', exclude: 'Folders to skip', includeHidden: 'Hidden folders to include' }"
+      :save="saveFolders"
+      @error="discovery.error = $event"
+    >
+      Aoide skips hidden folders, build and dependency folders, other drives, and its own library. Files are only read,
+      never changed.
+    </ScanFolders>
 
     <template v-if="discovery.candidates.length">
       <div class="find__toolbar">
-        <div class="find__tabs" role="tablist">
-          <button
-            v-for="g in groups"
-            :key="g.status"
-            type="button"
-            role="tab"
-            class="find__tab"
-            :class="{ 'find__tab--active': discovery.filter === g.status }"
-            :aria-selected="discovery.filter === g.status"
-            :aria-label="g.aria"
-            @click="discovery.filter = g.status"
-          >
-            {{ g.label }} <span class="find__count">{{ discovery.counts[g.status] }}</span>
-          </button>
-        </div>
+        <UiSegmented v-model="discovery.filter" label="Show" tone="wash" :options="groups" />
         <div v-if="discovery.filter === 'new'" class="find__row">
           <UiButton
             size="sm"
@@ -332,43 +276,9 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
-.find__ok {
-  color: var(--ok);
-  font-size: 12px;
-  font-weight: 600;
-}
 .find__hint {
   font-size: 12px;
   color: var(--dim);
-}
-.find__settings {
-  margin: var(--space-4) 0 var(--space-12);
-  padding: var(--space-8) var(--space-10);
-  border-radius: var(--radius-xl);
-  background: var(--page);
-  font-size: 13px;
-}
-.find__settings summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.find__folders {
-  display: grid;
-  gap: var(--space-6);
-  margin-top: var(--space-7);
-}
-.find__field {
-  display: grid;
-  grid-template-columns: 170px minmax(0, 1fr);
-  gap: var(--space-6);
-  align-items: start;
-}
-.find__field small {
-  color: var(--faint);
 }
 .find__check {
   display: inline-flex;
@@ -383,27 +293,6 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   align-items: center;
   gap: var(--space-6);
   margin-bottom: var(--space-4);
-}
-.find__tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-}
-.find__tab {
-  padding: var(--space-3) var(--space-6);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--dim);
-}
-.find__tab--active {
-  background: var(--ink);
-  color: var(--ground);
-}
-.find__count {
-  margin-left: var(--space-2);
-  font-variant-numeric: tabular-nums;
 }
 .find__grid {
   list-style: none;
@@ -538,9 +427,6 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 @media (max-width: 560px) {
   .find {
     padding: var(--space-4) var(--space-8) 0;
-  }
-  .find__field {
-    grid-template-columns: 1fr;
   }
   .find__grid {
     grid-template-columns: 1fr;

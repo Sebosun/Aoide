@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import UiSegmented from "@/components/ui/UiSegmented.vue";
+import ScanFolders, { type Folders } from "@/components/find/ScanFolders.vue";
 import { computed, onMounted, ref } from "vue";
 import { ArrowLeft, BookOpen, Folder, Headphones, Link2, Settings, X } from "@lucide/vue";
 import { api } from "@/api";
@@ -18,53 +20,30 @@ const audiobooks = useAudiobooksStore(),
   library = useLibraryStore(),
   navigation = useNavigationStore(),
   recordings = useRecordingsStore();
-const settings = ref<AppSettings | null>(null),
-  roots = ref(""),
-  exclude = ref(""),
-  includeHidden = ref(""),
-  onAdd = ref(true),
-  foldersMessage = ref("");
+const settings = ref<AppSettings | null>(null);
 onMounted(async () => {
   void library.start();
   void recordings.start();
   void audiobooks.start();
   try {
     settings.value = await api.appSettings();
-    const search = settings.value.audiobooks;
-    roots.value = search.roots.join("\n");
-    exclude.value = search.exclude.join("\n");
-    includeHidden.value = search.includeHidden.join("\n");
-    onAdd.value = search.onAdd;
   } catch (e) {
     audiobooks.error = String(e);
   }
 });
-const lines = (text: string) =>
-  text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-async function saveFolders() {
-  foldersMessage.value = "";
-  try {
-    const audiobooks = {
-      roots: lines(roots.value),
-      exclude: lines(exclude.value),
-      includeHidden: lines(includeHidden.value),
-      onAdd: onAdd.value,
-    };
-    settings.value = await api.updateAppSettings({ audiobooks });
-    foldersMessage.value = "Saved.";
-  } catch (e) {
-    audiobooks.error = String(e);
-  }
+async function saveFolders(folders: Folders, onAdd: boolean) {
+  settings.value = await api.updateAppSettings({ audiobooks: { ...folders, onAdd } });
 }
-const groups: { group: MatchGroup; label: string; aria: string }[] = [
-  { group: "found", label: "Found", aria: "Show found audiobooks" },
-  { group: "checking", label: "Being checked", aria: "Show books being checked" },
-  { group: "paired", label: "Paired", aria: "Show paired books" },
-  { group: "unverified", label: "None passed", aria: "Show books none of whose audiobooks passed" },
-];
+const groups = computed(() =>
+  (
+    [
+      { value: "found", label: "Found", ariaLabel: "Show found audiobooks" },
+      { value: "checking", label: "Being checked", ariaLabel: "Show books being checked" },
+      { value: "paired", label: "Paired", ariaLabel: "Show paired books" },
+      { value: "unverified", label: "None passed", ariaLabel: "Show books none of whose audiobooks passed" },
+    ] as const
+  ).map((g) => ({ ...g, count: audiobooks.counts[g.value as MatchGroup] })),
+);
 const status = computed(() => {
   const p = audiobooks.progress;
   if (!audiobooks.scanning || !p || p.stage !== "walking") return "";
@@ -153,63 +132,30 @@ function openSettings() {
       </button>
     </div>
 
-    <details class="find-audiobooks__settings">
-      <summary>
-        Folders · {{ settings?.audiobooks.roots.length ? settings.audiobooks.roots.join(", ") : "your home folder" }}
-      </summary>
-      <form class="find-audiobooks__folders" @submit.prevent="saveFolders">
-        <label class="find-audiobooks__field"
-          ><span>Search<br /><small>one per line; empty = home folder</small></span
-          ><textarea v-model="roots" rows="2" aria-label="Folders to search for audiobooks" spellcheck="false" />
-        </label>
-        <label class="find-audiobooks__field"
-          ><span>Skip<br /><small>one per line</small></span
-          ><textarea
-            v-model="exclude"
-            rows="2"
-            aria-label="Folders to skip when searching for audiobooks"
-            spellcheck="false"
-          />
-        </label>
-        <label class="find-audiobooks__field"
-          ><span>Hidden folders to include<br /><small>skipped by default</small></span
-          ><textarea
-            v-model="includeHidden"
-            rows="2"
-            aria-label="Hidden folders to include in the audiobook search"
-            spellcheck="false"
-          />
-        </label>
-        <label class="find-audiobooks__check"
-          ><input v-model="onAdd" type="checkbox" aria-label="Look for audiobooks when books are added" /> Look for
-          audiobooks when books are added</label
-        >
-        <p class="find-audiobooks__hint">
-          Only file and folder names are read. Audio files are never changed or copied.
-        </p>
-        <div class="find-audiobooks__row">
-          <UiButton size="sm" type="submit" class="find-audiobooks__button">Save folders</UiButton
-          ><span v-if="foldersMessage" class="find-audiobooks__ok" role="status">{{ foldersMessage }}</span>
-        </div>
-      </form>
-    </details>
+    <ScanFolders
+      :folders="settings?.audiobooks ?? null"
+      :auto="settings?.audiobooks.onAdd ?? true"
+      auto-label="Look for audiobooks when books are added"
+      :labels="{
+        roots: 'Folders to search for audiobooks',
+        exclude: 'Folders to skip when searching for audiobooks',
+        includeHidden: 'Hidden folders to include in the audiobook search',
+      }"
+      :save="saveFolders"
+      @error="audiobooks.error = $event"
+    >
+      Only file and folder names are read. Audio files are never changed or copied.
+    </ScanFolders>
 
     <template v-if="audiobooks.matches.length">
-      <div class="find-audiobooks__tabs" role="tablist">
-        <button
-          v-for="g in groups"
-          :key="g.group"
-          type="button"
-          role="tab"
-          class="find-audiobooks__tab"
-          :class="{ 'find-audiobooks__tab--active': audiobooks.filter === g.group }"
-          :aria-selected="audiobooks.filter === g.group"
-          :aria-label="g.aria"
-          @click="audiobooks.show(g.group)"
-        >
-          {{ g.label }} <span class="find-audiobooks__count">{{ audiobooks.counts[g.group] }}</span>
-        </button>
-      </div>
+      <UiSegmented
+        class="find-audiobooks__tabs"
+        :model-value="audiobooks.filter"
+        label="Show"
+        tone="wash"
+        :options="groups"
+        @update:model-value="audiobooks.show"
+      />
       <p v-if="!audiobooks.visible.length" class="find-audiobooks__empty">Nothing here.</p>
       <ul class="find-audiobooks__grid">
         <UiCard
@@ -381,8 +327,7 @@ function openSettings() {
   color: var(--dim);
   margin-top: var(--space-2);
 }
-.find-audiobooks__actions,
-.find-audiobooks__row {
+.find-audiobooks__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -400,11 +345,6 @@ function openSettings() {
   font-weight: 600;
   white-space: pre-line;
   overflow-wrap: anywhere;
-}
-.find-audiobooks__ok {
-  color: var(--ok);
-  font-size: 12px;
-  font-weight: 600;
 }
 .find-audiobooks__hint {
   font-size: 12px;
@@ -434,58 +374,8 @@ function openSettings() {
   font-weight: 700;
   color: var(--ink);
 }
-.find-audiobooks__settings {
-  margin: 0 0 var(--space-12);
-  padding: var(--space-8) var(--space-10);
-  border-radius: var(--radius-xl);
-  background: var(--page);
-  font-size: 13px;
-}
-.find-audiobooks__settings summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.find-audiobooks__folders {
-  display: grid;
-  gap: var(--space-6);
-  margin-top: var(--space-7);
-}
-.find-audiobooks__field {
-  display: grid;
-  grid-template-columns: 170px minmax(0, 1fr);
-  gap: var(--space-6);
-  align-items: start;
-}
-.find-audiobooks__field small {
-  color: var(--faint);
-}
-.find-audiobooks__check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  font-size: 13px;
-}
 .find-audiobooks__tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
   margin-bottom: var(--space-4);
-}
-.find-audiobooks__tab {
-  padding: var(--space-3) var(--space-6);
-  border-radius: var(--radius-pill);
-  background: var(--glass);
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--dim);
-}
-.find-audiobooks__tab--active {
-  background: var(--ink);
-  color: var(--ground);
 }
 .find-audiobooks__count {
   margin-left: var(--space-2);
@@ -673,9 +563,6 @@ function openSettings() {
 @media (max-width: 560px) {
   .find-audiobooks {
     padding: var(--space-4) var(--space-8) 0;
-  }
-  .find-audiobooks__field {
-    grid-template-columns: 1fr;
   }
   .find-audiobooks__grid {
     grid-template-columns: 1fr;

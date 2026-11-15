@@ -81,7 +81,7 @@ it("saves which folders are searched", async () => {
   await wrapper.get('[aria-label="Folders to search"]').setValue("/home/me/Books\n/media/shelf");
   await wrapper.get('[aria-label="Folders to skip"]').setValue("/home/me/Books/old");
   await wrapper.get('[aria-label="Look for new books when Aoide starts"]').setValue(true);
-  await wrapper.get(".find__folders").trigger("submit");
+  await wrapper.get(".scan-folders__form").trigger("submit");
   await flushPromises();
   expect(save).toHaveBeenCalledWith(
     expect.objectContaining({

@@ -119,11 +119,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
       </template>
     </div>
     <div class="library__bar">
-      <UiSegmented v-if="kinds.length" v-model="library.kind" label="Kind" tone="wash" size="md" :options="kinds">
-        <template #option="{ option }">
-          {{ option.label }}<span class="library__count">{{ kinds.find((k) => k.value === option.value)?.count }}</span>
-        </template>
-      </UiSegmented>
+      <UiSegmented v-if="kinds.length" v-model="library.kind" label="Kind" tone="wash" size="md" :options="kinds" />
       <div
         v-if="library.books.length && !library.collection"
         class="library__chips"
