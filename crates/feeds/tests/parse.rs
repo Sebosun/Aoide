@@ -203,3 +203,30 @@ fn markup_becomes_plain_text_with_its_words_counted() {
     );
     assert_eq!(word_count(html), 9);
 }
+
+#[test]
+fn an_rss_author_is_read_as_a_name() {
+    let item = |author: &str| {
+        format!(
+            "<rss version=\"2.0\"><channel><title>T</title><item><title>A</title><guid>a</guid>\
+             <author>{author}</author></item></channel></rss>"
+        )
+    };
+    let author = |text: &str| {
+        parse(item(text).as_bytes(), &url("https://h.example/feed"))
+            .unwrap()
+            .entries[0]
+            .author
+            .clone()
+    };
+    assert_eq!(author("Coll Fenwick").as_deref(), Some("Coll Fenwick"));
+    assert_eq!(
+        author("coll@harbour.example (Coll Fenwick)").as_deref(),
+        Some("Coll Fenwick")
+    );
+    assert_eq!(
+        author("coll@harbour.example"),
+        None,
+        "an address is not a byline"
+    );
+}

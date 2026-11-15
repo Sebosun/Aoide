@@ -581,7 +581,7 @@ export type FetchReason = "signIn" | "paywall" | "check" | "cutShort" | "empty";
 
 export type FetchStage = { "kind": "queued" } | { "kind": "fetching" } | { "kind": "ready" } | { "kind": "needsYou", "reason": FetchReason } | { "kind": "failed" };
 
-export type ArticleSource = "http" | "archive";
+export type ArticleSource = "http" | "archive" | "feed";
 
 export type DiscoveredFeed = { url: string, title: string | null, subscribed: boolean, };
 
@@ -636,6 +636,26 @@ export type FeedView = { id: number, title: string | null, url: string, siteUrl:
 error: string | null, lastOkAt: number | null, };
 
 export type SubscribeResult = { "kind": "subscribed", "value": FeedView } | { "kind": "choose", "value": Array<DiscoveredFeed> } | { "kind": "notAFeed" };
+
+export type EntryFilter = "all" | "unread" | "saved";
+
+export type EntryView = { id: number, feedId: number, feedTitle: string | null, title: string | null, 
+/**
+ * Plain text.
+ */
+summary: string | null, url: string | null, publishedAt: number | null, read: boolean, 
+/**
+ * Of the text the feed carried, when it carried any.
+ */
+words: number | null, 
+/**
+ * The feed carried the whole text: it opens without fetching the page.
+ */
+hasFullText: boolean, 
+/**
+ * The item it was opened as.
+ */
+bookId: string | null, inLibrary: boolean, };
 
 export type AppearanceMode = "auto" | "light" | "dark";
 
@@ -874,6 +894,11 @@ export type Commands = {
   "feeds": { args: Record<string, never>; result: FeedView[] };
   "subscribe": { args: { url: string }; result: SubscribeResult };
   "unsubscribe": { args: { feedId: number }; result: void };
+  "feed_entries": { args: { feedId: number | null; filter: EntryFilter; before: number | null; limit: number | null }; result: EntryView[] };
+  "open_feed_entry": { args: { entryId: number }; result: string };
+  "save_feed_entry": { args: { entryId: number }; result: string };
+  "mark_entry_read": { args: { entryId: number; read: boolean }; result: void };
+  "mark_all_read": { args: { feedId: number | null }; result: void };
   "check_feeds": { args: Record<string, never>; result: void };
   "unmatched_audiobooks": { args: Record<string, never>; result: AudiobookSuggestion[] };
   "cancel_audiobook_scan": { args: Record<string, never>; result: void };

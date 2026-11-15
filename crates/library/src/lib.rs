@@ -16,7 +16,7 @@ mod recordings;
 mod store;
 pub use activity::{ActivityStats, BookActivity, DayActivity};
 pub use articles::ArticleRow;
-pub use feeds::{EntryRow, FeedRow, NewEntry};
+pub use feeds::{EntryListing, EntryRow, FeedRow, NewEntry};
 pub use recordings::{RecordingRow, StoredSyncMap, TranscriptBlock};
 
 /// Lower-case hex SHA-256 of the EPUB file bytes.

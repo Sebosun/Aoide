@@ -572,6 +572,43 @@ fn unsubscribe(core: CoreState<'_>, feed_id: i64) -> Result<(), CoreError> {
 }
 
 #[tauri::command]
+fn feed_entries(
+    core: CoreState<'_>,
+    feed_id: Option<i64>,
+    filter: crate::core::EntryFilter,
+    before: Option<i64>,
+    limit: Option<u32>,
+) -> Result<Vec<crate::core::EntryView>, CoreError> {
+    let query = crate::core::EntryQuery {
+        feed: feed_id,
+        filter,
+        before,
+        limit,
+    };
+    Ok(core.feed_entries(&query)?)
+}
+
+#[tauri::command]
+fn open_feed_entry(core: CoreState<'_>, entry_id: i64) -> Result<String, CoreError> {
+    Ok(core.open_feed_entry(entry_id)?)
+}
+
+#[tauri::command]
+fn save_feed_entry(core: CoreState<'_>, entry_id: i64) -> Result<String, CoreError> {
+    Ok(core.save_feed_entry(entry_id)?)
+}
+
+#[tauri::command]
+fn mark_entry_read(core: CoreState<'_>, entry_id: i64, read: bool) -> Result<(), CoreError> {
+    Ok(core.mark_entry_read(entry_id, read)?)
+}
+
+#[tauri::command]
+fn mark_all_read(core: CoreState<'_>, feed_id: Option<i64>) -> Result<(), CoreError> {
+    Ok(core.mark_all_read(feed_id)?)
+}
+
+#[tauri::command]
 async fn check_feeds(core: CoreState<'_>) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     core.check_feeds().await;
@@ -950,6 +987,11 @@ pub fn run() {
             subscribe,
             unsubscribe,
             check_feeds,
+            feed_entries,
+            open_feed_entry,
+            save_feed_entry,
+            mark_entry_read,
+            mark_all_read,
             cancel_audiobook_scan,
             look_for_audiobooks,
             pair_audiobooks,

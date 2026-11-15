@@ -122,15 +122,29 @@ fn entry(e: model::Entry, resolve: &impl Fn(&str) -> Option<Url>) -> Entry {
         guid,
         url,
         title,
-        author: e
-            .authors
-            .first()
-            .map(|p| p.name.trim().to_owned())
-            .filter(|n| !n.is_empty()),
+        author: e.authors.first().and_then(person),
         published_ms,
         summary_html: nonempty(e.summary.map(|s| s.content)),
         content_html: nonempty(e.content.and_then(|c| c.body)),
     }
+}
+
+/// A person's name. RSS's `<author>` holds an address, often "address (Name)" or just a name;
+/// feed-rs keeps it as the email and names the person after the element.
+fn person(person: &model::Person) -> Option<String> {
+    let name = match &person.email {
+        Some(email) if person.name == "author" => {
+            let email = email.trim();
+            match (email.find('('), email.rfind(')')) {
+                (Some(open), Some(close)) if open < close => email[open + 1..close].to_owned(),
+                _ if email.contains('@') => return None,
+                _ => email.to_owned(),
+            }
+        }
+        _ => person.name.clone(),
+    };
+    let name = name.split_whitespace().collect::<Vec<_>>().join(" ");
+    (!name.is_empty()).then_some(name)
 }
 
 /// A title as plain text: markup removed when it is HTML, entities decoded (feeds often encode

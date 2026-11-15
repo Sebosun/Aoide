@@ -767,6 +767,10 @@ impl super::Core {
     }
 
     pub fn remove_book(&self, id: &str) -> Result<(), String> {
+        // An item a feed still lists goes back to the feed shelf, keeping its place.
+        if self.unsave(id)? {
+            return Ok(());
+        }
         if self.playback.is_book(id) {
             self.stop();
         }

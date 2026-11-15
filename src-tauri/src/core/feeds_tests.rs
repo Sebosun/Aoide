@@ -323,3 +323,170 @@ fn a_feeds_stage_moves_only_on_its_events() {
         assert_eq!(next(from, event), to, "{from:?} + {event:?}");
     }
 }
+
+// --- Opening, saving and unsaving entries, through the core -----------------------------------
+
+mod through_core {
+    use aoide_tts::testing::FakeEngine;
+
+    use super::super::article_tests::{Pages, LIGHTS, LIGHTS_URL};
+    use super::super::articles::ArticleSource;
+    use super::super::feeds::{next_shelf, EntryFilter, EntryQuery, ItemShelf, ShelfEvent};
+    use super::super::fetching::Stage;
+    use super::super::tests::{library_folder, start_fetching, until};
+    use super::super::Core;
+    use super::HARBOUR;
+    use std::sync::Arc;
+
+    /// A feed with one entry carrying its whole text, and one linking to `LIGHTS_URL` with a
+    /// summary only.
+    fn feed() -> String {
+        let words =
+            "The night ferry crossed in calm water with the lamps lit along the quay. ".repeat(22);
+        format!(
+            "<?xml version=\"1.0\"?><rss version=\"2.0\" \
+             xmlns:content=\"http://purl.org/rss/1.0/modules/content/\"><channel>\
+             <title>Harbour Notes</title><link>https://harbour.example/</link>\
+             <item><title>The night ferry</title><guid>full</guid>\
+             <link>https://harbour.example/ferry</link><author>Coll Fenwick</author>\
+             <pubDate>Tue, 03 Mar 2026 08:00:00 GMT</pubDate>\
+             <description>A short summary.</description>\
+             <content:encoded><![CDATA[<p>{words}</p><p>The end of the crossing.</p>]]></content:encoded></item>\
+             <item><title>The Quay Lights</title><guid>summary</guid><link>{LIGHTS_URL}</link>\
+             <pubDate>Mon, 02 Mar 2026 08:00:00 GMT</pubDate>\
+             <description>Lamps lit by hand.</description></item>\
+             </channel></rss>"
+        )
+    }
+
+    async fn subscribed(pages: &Arc<Pages>) -> (tempfile::TempDir, Arc<Core>) {
+        pages.feed(HARBOUR, &feed(), "v1");
+        let dir = tempfile::tempdir().unwrap();
+        library_folder(dir.path(), "");
+        let (core, _) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+        core.subscribe(HARBOUR).await.unwrap();
+        (dir, core)
+    }
+
+    fn entry(core: &Core, guid_title: &str) -> super::super::feeds::EntryView {
+        core.feed_entries(&EntryQuery::default())
+            .unwrap()
+            .into_iter()
+            .find(|e| e.title.as_deref() == Some(guid_title))
+            .unwrap()
+    }
+
+    fn in_library(core: &Core, id: &str) -> bool {
+        core.list_books().unwrap().iter().any(|b| b.id == id)
+    }
+
+    #[tokio::test]
+    async fn an_entry_with_its_whole_text_opens_without_fetching_the_page() {
+        let pages = Pages::with(&[]);
+        let (_dir, core) = subscribed(&pages).await;
+        let ferry = entry(&core, "The night ferry");
+        assert!(ferry.has_full_text);
+        assert!(!ferry.read);
+        assert_eq!(ferry.feed_title.as_deref(), Some("Harbour Notes"));
+
+        let id = core.open_feed_entry(ferry.id).unwrap();
+        let article = core.article(&id).unwrap();
+        assert_eq!(article.via, Some(ArticleSource::Feed));
+        assert_eq!(article.stage, Stage::Ready);
+        assert_eq!(pages.asks(), 0, "no page was fetched");
+        assert!(!in_library(&core, &id), "not saved");
+        let book = core.open_book(&id).unwrap();
+        assert_eq!(book.title, "The night ferry");
+        assert_eq!(book.authors, ["Coll Fenwick"]);
+        assert!(core.chapter(&id, 0).unwrap().blocks.len() >= 2);
+
+        let opened = entry(&core, "The night ferry");
+        assert!(opened.read);
+        assert_eq!(opened.book_id.as_deref(), Some(id.as_str()));
+        assert!(!opened.in_library);
+        // Opening it again is the same item.
+        assert_eq!(core.open_feed_entry(ferry.id).unwrap(), id);
+    }
+
+    #[tokio::test]
+    async fn a_summary_only_entry_fetches_its_page() {
+        let pages = Pages::with(&[(LIGHTS_URL, LIGHTS)]);
+        let (_dir, core) = subscribed(&pages).await;
+        let lights = entry(&core, "The Quay Lights");
+        assert!(!lights.has_full_text);
+        let id = core.open_feed_entry(lights.id).unwrap();
+        until("the page is fetched", || {
+            core.article(&id).is_ok_and(|a| a.stage == Stage::Ready)
+        })
+        .await;
+        assert_eq!(pages.asks(), 1);
+        assert_eq!(core.article(&id).unwrap().via, Some(ArticleSource::Http));
+        assert!(!in_library(&core, &id));
+    }
+
+    #[tokio::test]
+    async fn saving_puts_an_entry_in_the_library_and_removing_returns_it_to_the_feed() {
+        let pages = Pages::with(&[]);
+        let (_dir, core) = subscribed(&pages).await;
+        let ferry = entry(&core, "The night ferry");
+
+        // Saved without being opened first.
+        let id = core.save_feed_entry(ferry.id).unwrap();
+        assert!(in_library(&core, &id));
+        assert!(entry(&core, "The night ferry").in_library);
+        let saved = core
+            .feed_entries(&EntryQuery {
+                filter: EntryFilter::Saved,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(saved.len(), 1);
+
+        core.remove_book(&id).unwrap();
+        assert!(!in_library(&core, &id));
+        assert!(core.article(&id).is_ok(), "kept on the feed shelf");
+        let back = entry(&core, "The night ferry");
+        assert!(!back.in_library);
+        assert_eq!(back.book_id.as_deref(), Some(id.as_str()));
+    }
+
+    #[tokio::test]
+    async fn an_entry_for_an_article_already_saved_opens_that_article() {
+        let pages = Pages::with(&[(LIGHTS_URL, LIGHTS)]);
+        pages.feed(HARBOUR, &feed(), "v1");
+        let dir = tempfile::tempdir().unwrap();
+        library_folder(dir.path(), "");
+        let (core, _) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+        let saved = core.save_article(LIGHTS_URL).unwrap();
+        until("the article is fetched", || {
+            core.article(&saved).is_ok_and(|a| a.stage == Stage::Ready)
+        })
+        .await;
+        core.subscribe(HARBOUR).await.unwrap();
+        let lights = entry(&core, "The Quay Lights");
+        assert!(lights.in_library);
+        assert_eq!(core.open_feed_entry(lights.id).unwrap(), saved);
+        assert_eq!(pages.asks(), 1, "not fetched again");
+        assert!(in_library(&core, &saved));
+        // Removing it from the library keeps it for the feed.
+        core.remove_book(&saved).unwrap();
+        assert!(core.article(&saved).is_ok());
+    }
+
+    #[test]
+    fn an_items_shelf_moves_only_on_its_events() {
+        use ItemShelf::*;
+        use ShelfEvent::*;
+        let table = [
+            (Feed, Opened, Feed),
+            (Library, Opened, Library),
+            (Feed, Saved, Library),
+            (Library, Saved, Library),
+            (Library, Unsaved, Feed),
+            (Feed, Unsaved, Feed),
+        ];
+        for (from, event, to) in table {
+            assert_eq!(next_shelf(from, event), to, "{from:?} + {event:?}");
+        }
+    }
+}

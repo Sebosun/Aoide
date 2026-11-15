@@ -95,6 +95,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `feed.subscribe` | info | `feed` (its id), `outcome` | `core/feeds.rs` `subscribe_feed` |
 | `feed.unsubscribe` | info | `feed` | `core/feeds.rs` `unsubscribe` |
 | `feed.check` | info | `feed`, `outcome` (`ok`, `not_modified`, `failed`), `took_ms` | `core/feeds.rs` `check`: one per feed checked |
+| `item.shelf` | info | `book`, `from`, `to` (`library`, `feed`) | `core/feeds.rs` `move_shelf`: an entry saved, or removed from the library while its feed lists it |
 | `feed.stage` | info | `feed`, `from`, `to` (`idle`, `checking`, `failing`) | `core/feeds.rs` `check`: a feed starts or stops failing |
 | `article.cover` | info / warn | `book`, `outcome` (`ok`, `failed`), `error` | `core/articles.rs` `keep_cover`: the page's lead image stored as the cover |
 | `library.word_count` | warn | `book`, `error` | `core/shelf.rs` `load`, storing a parsed book's length |

@@ -127,6 +127,8 @@ fn contract() -> String {
         super::feeds::FeedSettings,
         super::feeds::FeedView,
         super::feeds::SubscribeResult,
+        super::feeds::EntryFilter,
+        super::feeds::EntryView,
         // Appearance
         aoide_config::Mode,
         aoide_config::ReaderMode,

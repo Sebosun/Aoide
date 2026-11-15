@@ -133,6 +133,113 @@ pub enum SubscribeResult {
     NotAFeed,
 }
 
+/// Where an item is kept: in the library, or on the feed shelf (opened from a feed, not
+/// saved; out of every library list).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ItemShelf {
+    Library,
+    Feed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShelfEvent {
+    /// Opened from a feed's entry (a new item starts on the feed shelf).
+    Opened,
+    Saved,
+    /// Removed from the library while its entry is still there.
+    Unsaved,
+}
+
+/// The one way an item moves between shelves.
+pub fn next_shelf(shelf: ItemShelf, event: ShelfEvent) -> ItemShelf {
+    match (shelf, event) {
+        (_, ShelfEvent::Saved) => ItemShelf::Library,
+        (_, ShelfEvent::Unsaved) => ItemShelf::Feed,
+        (shelf, ShelfEvent::Opened) => shelf,
+    }
+}
+
+impl ItemShelf {
+    fn stored(name: &str) -> Self {
+        match name {
+            "feed" => Self::Feed,
+            _ => Self::Library,
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Self::Library => "library",
+            Self::Feed => "feed",
+        }
+    }
+}
+
+/// Which entries the Feeds screen lists.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum EntryFilter {
+    #[default]
+    All,
+    Unread,
+    /// In the library.
+    Saved,
+}
+
+impl EntryFilter {
+    fn name(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Unread => "unread",
+            Self::Saved => "saved",
+        }
+    }
+}
+
+/// A page of entries: of one feed or all, newest first, after entry `before`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EntryQuery {
+    pub feed: Option<i64>,
+    pub filter: EntryFilter,
+    pub before: Option<i64>,
+    /// At most this many (50 when unset).
+    pub limit: Option<u32>,
+}
+
+/// An entry as the Feeds screen lists it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct EntryView {
+    pub id: i64,
+    pub feed_id: i64,
+    pub feed_title: Option<String>,
+    pub title: Option<String>,
+    /// Plain text.
+    pub summary: Option<String>,
+    pub url: Option<String>,
+    pub published_at: Option<i64>,
+    pub read: bool,
+    /// Of the text the feed carried, when it carried any.
+    pub words: Option<u32>,
+    /// The feed carried the whole text: it opens without fetching the page.
+    pub has_full_text: bool,
+    /// The item it was opened as.
+    pub book_id: Option<String>,
+    pub in_library: bool,
+}
+
+/// Words a feed's text must have to be read as the whole article.
+pub const FULL_TEXT_WORDS: u32 = 250;
+
+fn full_text(entry: &aoide_library::EntryRow) -> Option<&str> {
+    entry
+        .content_html
+        .as_deref()
+        .filter(|_| entry.words.is_some_and(|w| w >= FULL_TEXT_WORDS))
+}
+
 /// What the feeds need from the rest of the app.
 pub(super) trait FeedsHost: Send + Sync {
     fn now_ms(&self) -> i64;
@@ -213,6 +320,78 @@ impl Feeds {
             .into_iter()
             .find(|v| v.id == id)
             .ok_or_else(|| "No such feed.".into())
+    }
+
+    /// A page of entries.
+    pub fn entries(&self, query: &EntryQuery) -> Result<Vec<EntryView>, String> {
+        let rows = lock(&self.library)
+            .list_entries(
+                query.feed,
+                query.filter.name(),
+                query.before,
+                query.limit.unwrap_or(50).min(200),
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(rows
+            .into_iter()
+            .map(|listing| {
+                let e = listing.entry;
+                EntryView {
+                    has_full_text: full_text(&e).is_some(),
+                    id: e.id,
+                    feed_id: e.feed_id,
+                    feed_title: listing.feed_title,
+                    title: e.title,
+                    summary: e.summary,
+                    url: e.url,
+                    published_at: e.published_at,
+                    read: e.read_at.is_some(),
+                    words: e.words,
+                    book_id: e.book_id.map(|b| b.0),
+                    in_library: listing.in_library,
+                }
+            })
+            .collect())
+    }
+
+    pub fn entry(&self, id: i64) -> Result<aoide_library::EntryRow, String> {
+        lock(&self.library)
+            .entry(id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "No such entry.".into())
+    }
+
+    fn feed_row(&self, id: i64) -> Result<FeedRow, String> {
+        lock(&self.library)
+            .feed(id)
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| "No such feed.".into())
+    }
+
+    pub fn mark_read(&self, id: i64, read: bool, now: i64) -> Result<(), String> {
+        let library = lock(&self.library);
+        let entry = library.entry(id).map_err(|e| e.to_string())?;
+        let Some(entry) = entry else {
+            return Err("No such entry.".into());
+        };
+        if entry.read_at.is_some() != read {
+            library
+                .set_entry_read(id, read.then_some(now))
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    pub fn mark_all_read(&self, feed: Option<i64>, now: i64) -> Result<(), String> {
+        lock(&self.library)
+            .mark_all_read(feed, now)
+            .map_err(|e| e.to_string())
+    }
+
+    fn link(&self, entry: i64, item: &str) -> Result<(), String> {
+        lock(&self.library)
+            .link_entry(entry, &aoide_library::BookId(item.into()))
+            .map_err(|e| e.to_string())
     }
 
     /// Whether `url` is a subscribed feed's address.
@@ -427,7 +606,17 @@ impl Feeds {
                     let stored = library
                         .insert_entry(id, &new_entry(entry), now)
                         .map_err(|e| e.to_string())?;
-                    added += usize::from(stored.is_some());
+                    let Some(stored) = stored else { continue };
+                    added += 1;
+                    // An article already kept is the item this entry opens.
+                    let item = entry.url.as_ref().map(aoide_article::canonical_id);
+                    if let Some(item) = item.map(aoide_library::BookId) {
+                        if library.book(&item).is_ok_and(|b| b.is_some()) {
+                            library
+                                .link_entry(stored, &item)
+                                .map_err(|e| e.to_string())?;
+                        }
+                    }
                 }
                 if first {
                     library
@@ -569,5 +758,166 @@ impl super::Core {
     /// Checks every feed now ("Check now").
     pub async fn check_feeds(&self) {
         self.feeds.check_all(self).await;
+    }
+}
+
+/// The minimal page an entry's whole text is read from: its title, author and date, and the
+/// feed's name as the site's.
+fn entry_document(entry: &aoide_library::EntryRow, site: Option<&str>, html: &str) -> String {
+    let escape = |text: &str| {
+        text.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+    };
+    let title = escape(entry.title.as_deref().unwrap_or_default());
+    let mut head = format!("<meta charset=\"utf-8\"><title>{title}</title>");
+    if let Some(author) = &entry.author {
+        head.push_str(&format!(
+            "<meta name=\"author\" content=\"{}\">",
+            escape(author)
+        ));
+    }
+    if let Some(site) = site {
+        head.push_str(&format!(
+            "<meta property=\"og:site_name\" content=\"{}\">",
+            escape(site)
+        ));
+    }
+    if let Some(at) = entry
+        .published_at
+        .and_then(chrono::DateTime::from_timestamp_millis)
+    {
+        head.push_str(&format!(
+            "<meta property=\"article:published_time\" content=\"{}\">",
+            at.to_rfc3339()
+        ));
+    }
+    format!(
+        "<!doctype html><html><head>{head}</head><body><article><h1>{title}</h1>{html}</article></body></html>"
+    )
+}
+
+impl super::Core {
+    /// A page of entries.
+    pub fn feed_entries(&self, query: &EntryQuery) -> Result<Vec<EntryView>, String> {
+        self.feeds.entries(query)
+    }
+
+    /// Opens entry `id`: the item to read (made on the feed shelf when there is none yet,
+    /// from the feed's own text when it carried all of it, else fetched from its page). The
+    /// entry is marked read.
+    pub fn open_feed_entry(&self, id: i64) -> Result<String, String> {
+        let item = self.entry_item(id)?;
+        self.feeds.mark_read(id, true, super::now_ms())?;
+        self.emit(super::CoreEvent::FeedsChanged);
+        Ok(item)
+    }
+
+    /// Keeps entry `id` in the library; returns its item.
+    pub fn save_feed_entry(&self, id: i64) -> Result<String, String> {
+        let item = self.entry_item(id)?;
+        self.move_shelf(&item, ShelfEvent::Saved)?;
+        Ok(item)
+    }
+
+    /// Marks entry `id` read or unread.
+    pub fn mark_entry_read(&self, id: i64, read: bool) -> Result<(), String> {
+        self.feeds.mark_read(id, read, super::now_ms())?;
+        self.emit(super::CoreEvent::FeedsChanged);
+        Ok(())
+    }
+
+    /// Marks every entry read: of `feed`, or of all feeds.
+    pub fn mark_all_read(&self, feed: Option<i64>) -> Result<(), String> {
+        self.feeds.mark_all_read(feed, super::now_ms())?;
+        self.emit(super::CoreEvent::FeedsChanged);
+        Ok(())
+    }
+
+    /// Instead of deleting item `id` from the library, returns it to the feed shelf when an
+    /// entry still points at it; whether it did.
+    pub(super) fn unsave(&self, id: &str) -> Result<bool, String> {
+        let book = aoide_library::BookId(id.into());
+        let (shelf, entry) = {
+            let library = lock(&self.library);
+            let shelf = library
+                .book(&book)
+                .map_err(|e| e.to_string())?
+                .map(|b| ItemShelf::stored(&b.shelf));
+            (
+                shelf,
+                library.entry_for_book(&book).map_err(|e| e.to_string())?,
+            )
+        };
+        if shelf != Some(ItemShelf::Library) || entry.is_none() {
+            return Ok(false);
+        }
+        self.move_shelf(id, ShelfEvent::Unsaved)?;
+        Ok(true)
+    }
+
+    fn move_shelf(&self, id: &str, event: ShelfEvent) -> Result<(), String> {
+        let book = aoide_library::BookId(id.into());
+        let library = lock(&self.library);
+        let from = library
+            .book(&book)
+            .map_err(|e| e.to_string())?
+            .map(|b| ItemShelf::stored(&b.shelf))
+            .ok_or("The item was removed.")?;
+        let to = next_shelf(from, event);
+        if to != from {
+            library
+                .set_shelf(&book, to.name())
+                .map_err(|e| e.to_string())?;
+            drop(library);
+            tracing::info!(
+                event = "item.shelf",
+                book = crate::logging::book(id),
+                from = from.name(),
+                to = to.name(),
+                "Item moved shelves"
+            );
+            self.emit(super::CoreEvent::LibraryChanged);
+            self.emit(super::CoreEvent::FeedsChanged);
+        }
+        Ok(())
+    }
+
+    /// The item entry `id` opens as, made on the feed shelf when there is none.
+    fn entry_item(&self, id: i64) -> Result<String, String> {
+        let entry = self.feeds.entry(id)?;
+        if let Some(book) = &entry.book_id {
+            if self.articles.exists(&book.0) {
+                return Ok(book.0.clone());
+            }
+        }
+        let feed = self.feeds.feed_row(entry.feed_id)?;
+        // An entry with its whole text and no link is addressed within its feed.
+        let link = match (&entry.url, full_text(&entry)) {
+            (Some(url), _) => url.clone(),
+            (None, Some(_)) => format!("{}#{}", feed.url, entry.guid),
+            (None, None) => return Err("This entry has no link and no text to read.".into()),
+        };
+        let url = parse_link(&link)?;
+        let item = aoide_article::canonical_id(&url);
+        if !self.articles.exists(&item) {
+            let now = super::now_ms();
+            match full_text(&entry) {
+                Some(html) => {
+                    let page = entry_document(&entry, feed.title.as_deref(), html);
+                    self.articles.create_from_feed(&url, &link, page, now)?;
+                }
+                None => {
+                    self.articles.save(&link, now)?;
+                }
+            }
+            let shelf = next_shelf(ItemShelf::Feed, ShelfEvent::Opened);
+            lock(&self.library)
+                .set_shelf(&aoide_library::BookId(item.clone()), shelf.name())
+                .map_err(|e| e.to_string())?;
+        }
+        self.feeds.link(id, &item)?;
+        Ok(item)
     }
 }

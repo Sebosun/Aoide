@@ -58,6 +58,15 @@ pub struct EntryRow {
     pub book_id: Option<BookId>,
 }
 
+/// An entry as the Feeds screen lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntryListing {
+    pub entry: EntryRow,
+    pub feed_title: Option<String>,
+    /// Its item is in the library (saved).
+    pub in_library: bool,
+}
+
 fn read_feed(row: &Row<'_>) -> rusqlite::Result<FeedRow> {
     Ok(FeedRow {
         id: row.get("id")?,
@@ -221,6 +230,69 @@ impl Library {
         )?;
         let entries = stmt.query_map([feed], read_entry)?;
         Ok(entries.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Entries newest first (by published date, else when first seen): of `feed` or all
+    /// feeds; `filter` is `all`, `unread` or `saved` (its item is in the library); after entry
+    /// `before` in that order; at most `limit`.
+    pub fn list_entries(
+        &self,
+        feed: Option<i64>,
+        filter: &str,
+        before: Option<i64>,
+        limit: u32,
+    ) -> Result<Vec<EntryListing>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT e.*, f.title AS feed_title, b.shelf AS shelf
+             FROM feed_entries e JOIN feeds f ON f.id = e.feed_id
+             LEFT JOIN books b ON b.id = e.book_id
+             WHERE (?1 IS NULL OR e.feed_id = ?1)
+               AND (?2 = 'all' OR (?2 = 'unread' AND e.read_at IS NULL)
+                    OR (?2 = 'saved' AND b.shelf = 'library'))
+               AND (?3 IS NULL OR (COALESCE(e.published_at, e.seen_at), e.id) <
+                    (SELECT COALESCE(published_at, seen_at), id FROM feed_entries WHERE id = ?3))
+             ORDER BY COALESCE(e.published_at, e.seen_at) DESC, e.id DESC
+             LIMIT ?4",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![feed, filter, before, limit], |row| {
+            Ok(EntryListing {
+                entry: read_entry(row)?,
+                feed_title: row.get("feed_title")?,
+                in_library: row.get::<_, Option<String>>("shelf")?.as_deref() == Some("library"),
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// The entry item `book` was opened from, if any.
+    pub fn entry_for_book(&self, book: &BookId) -> Result<Option<EntryRow>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT * FROM feed_entries WHERE book_id = ?1 ORDER BY id LIMIT 1",
+                [&book.0],
+                read_entry,
+            )
+            .optional()?)
+    }
+
+    /// Marks entry `id` read at `now`, or unread when `now` is `None`.
+    pub fn set_entry_read(&self, id: i64, now: Option<i64>) -> Result<()> {
+        self.conn.execute(
+            "UPDATE feed_entries SET read_at = ?2 WHERE id = ?1",
+            rusqlite::params![id, now],
+        )?;
+        Ok(())
+    }
+
+    /// Marks every unread entry read at `now`: of `feed`, or of all feeds.
+    pub fn mark_all_read(&self, feed: Option<i64>, now: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE feed_entries SET read_at = ?2
+             WHERE read_at IS NULL AND (?1 IS NULL OR feed_id = ?1)",
+            rusqlite::params![feed, now],
+        )?;
+        Ok(())
     }
 
     /// Records the item entry `id` was opened as.

@@ -109,6 +109,8 @@ pub enum ArticleSource {
     Http,
     /// An archived copy of it.
     Archive,
+    /// The whole text a feed carried (fetching "from the feed" again fetches the page).
+    Feed,
 }
 
 impl ArticleSource {
@@ -116,6 +118,7 @@ impl ArticleSource {
         match self {
             ArticleSource::Http => "http",
             ArticleSource::Archive => "archive",
+            ArticleSource::Feed => "feed",
         }
     }
 
@@ -130,6 +133,7 @@ impl ArticleSource {
         match name {
             "http" => Some(ArticleSource::Http),
             "archive" => Some(ArticleSource::Archive),
+            "feed" => Some(ArticleSource::Feed),
             _ => None,
         }
     }
@@ -275,6 +279,16 @@ impl Articles {
             }
             return Ok((id.clone(), self.queue_fetch(&id, ArticleSource::Http)?));
         }
+        self.create(&url, link, now)?;
+        lock(&self.queue).push_back((id.clone(), ArticleSource::Http));
+        self.wake.notify_one();
+        Ok((id.clone(), self.view(&id).ok()))
+    }
+
+    /// Stores a new article item for `url` (given as `link`), queued but not yet fetched.
+    fn create(&self, url: &Url, link: &str, now: i64) -> Result<String, String> {
+        let id = aoide_article::canonical_id(url);
+        let book = BookId(id.clone());
         let host = url.host_str().unwrap_or_default().to_owned();
         let library = lock(&self.library);
         library
@@ -297,7 +311,7 @@ impl Articles {
             .save_article(&ArticleRow {
                 book_id: book,
                 url: link.trim().to_owned(),
-                canonical_url: aoide_article::normalise(&url).to_string(),
+                canonical_url: aoide_article::normalise(url).to_string(),
                 site_name: None,
                 byline: None,
                 published_at: None,
@@ -318,9 +332,45 @@ impl Articles {
             outcome = "ok",
             "Saved an article"
         );
-        lock(&self.queue).push_back((id.clone(), ArticleSource::Http));
-        self.wake.notify_one();
-        Ok((id.clone(), self.view(&id).ok()))
+        Ok(id)
+    }
+
+    /// Stores article `url` (given as `link`) from the whole text a feed carried: `html` is
+    /// read as the page, nothing is fetched. Returns its id.
+    pub fn create_from_feed(
+        &self,
+        url: &Url,
+        link: &str,
+        html: String,
+        now: i64,
+    ) -> Result<String, String> {
+        let id = self.create(url, link, now)?;
+        let book = BookId(id.clone());
+        let row = lock(&self.library)
+            .article(&book)
+            .map_err(|e| e.to_string())?
+            .ok_or("The article was removed.")?;
+        let snapshot = Snapshot {
+            requested: url.clone(),
+            final_url: url.clone(),
+            status: 200,
+            html,
+            fetched_at_ms: now,
+            via: Via::Http,
+        };
+        let extracted = extract(&snapshot.html, url);
+        let path = self.snapshot_path(&id);
+        self.keep(&id, &row, &snapshot, &extracted, &path, ArticleSource::Feed)?;
+        let to = next(Stage::Fetching, Event::Got(extracted.completeness));
+        self.store_stage(&book, &row.stage, to, None);
+        Ok(id)
+    }
+
+    /// Whether item `id` is an article.
+    pub fn exists(&self, id: &str) -> bool {
+        lock(&self.library)
+            .article(&BookId(id.into()))
+            .is_ok_and(|row| row.is_some())
     }
 
     /// Fetches article `id` again from `source`; returns its view when that queued it.
@@ -509,7 +559,8 @@ impl Articles {
                     }
                 };
                 if better {
-                    match self.keep(id, &row, &snapshot, &fresh, &path) {
+                    let source = ArticleSource::of(snapshot.via);
+                    match self.keep(id, &row, &snapshot, &fresh, &path, source) {
                         Ok(()) => {
                             if let Some(lead) = &fresh.meta.lead_image {
                                 self.keep_cover(id, lead).await;
@@ -555,7 +606,7 @@ impl Articles {
     /// The page at `url`, or the archive's copy of it.
     async fn get(&self, url: &Url, source: ArticleSource) -> Result<Snapshot, FetchError> {
         match source {
-            ArticleSource::Http => self.fetcher.page(url).await,
+            ArticleSource::Http | ArticleSource::Feed => self.fetcher.page(url).await,
             ArticleSource::Archive => {
                 let copy = self.fetcher.archived(url).await?.ok_or_else(|| {
                     FetchError::Refused("No archived copy of this page was found.".into())
@@ -630,6 +681,7 @@ impl Articles {
         snapshot: &Snapshot,
         extracted: &Extracted,
         path: &Path,
+        source: ArticleSource,
     ) -> Result<(), String> {
         let folder = path.parent().ok_or("no folder")?;
         std::fs::create_dir_all(folder).map_err(|e| e.to_string())?;
@@ -668,7 +720,7 @@ impl Articles {
                 site_name: meta.site_name.clone(),
                 byline: meta.byline.clone(),
                 published_at: meta.published.as_ref().and_then(|p| p.at_ms),
-                via: Some(ArticleSource::of(snapshot.via).name().into()),
+                via: Some(source.name().into()),
                 fetched_at: Some(snapshot.fetched_at_ms),
                 word_count: Some(meta.word_count as u64),
                 declared_words: meta.declared_words.map(|n| n as u64),
