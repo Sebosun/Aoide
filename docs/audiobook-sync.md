@@ -393,7 +393,7 @@ transcribes at a time, in the order they were added.
 | `crates/audio` | `seek_to`, streaming slots |
 | `crates/library` | Migration v6 and data access for the tables above |
 | `crates/config` / `core/extras.rs` | Recognition settings next to `AlignerSettings`: transcriber kind, model, threads, server URL, carry on at start-up |
-| `src-tauri/src/core/recordings.rs` (new) | The sync job (`Recordings`, behind a small `SyncHost` trait), the models, and the recording laid onto a book's entries |
+| `src-tauri/src/core/recordings/` (new) | The sync job (`Recordings`, behind a small `SyncHost` trait), the models, and the recording laid onto a book's entries |
 | `src-tauri/src/core/recording.rs` (new) | Settings and views, `RecordingPlan`, the commands as Core calls them, and the playback target |
 | `src-tauri/src/core/syncing.rs` (new) | The stage machine and its table tests |
 | `src-tauri/src/core/narration.rs` (new) | Each entry's explicit fate (clip, waits for the sync, speech, not recorded, silent), read by playback, the planner and the views |

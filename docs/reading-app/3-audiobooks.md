@@ -16,7 +16,7 @@ add the EPUB and get read-along without losing their place.
   `reader.rs` (decoding with seek).
 - `crates/library/src/recordings.rs`: `recordings` rows keyed by `book_id` (files, total_ms,
   stage, accepted), transcript blocks, sync maps.
-- `src-tauri/src/core/recordings.rs` (sync job), `core/recording.rs` (`Narration`,
+- `src-tauri/src/core/recordings/` (sync job), `core/recording.rs` (`Narration`,
   `attach_recording`, `play_recording_at`), `core/feeder.rs` (decodes a recording's clips on
   its own thread), `core/playback.rs` + `core/session.rs` (a session is a book's entries;
   the player is fed clips), `core/narration.rs` (one `Fate` per entry).

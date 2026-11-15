@@ -129,7 +129,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `audiobooks.scan` | info | `roots`, `only_added`, `dirs`, `files`, `audio`, `matches`, `unmatched` (whole searches), `took_ms`, `outcome` | `core/audiobooks.rs` |
 | `audiobooks.pair` | info, warn | `book`, `candidate`, `outcome` (`ok`, `failed`, `skipped`: another book has it), `error` | `core/audiobooks.rs` |
 | `match.stage` | info | `book`, `cause`, `from`, `to` | `core/audiobooks.rs`, each match transition |
-| **Sync** (`core/recordings.rs`) | | | |
+| **Sync** (`core/recordings/`) | | | |
 | `sync.stage` | info | `book`, `cause`, `from`, `to`, `took_ms` | `sync_event`, each transition |
 | `sync.work` | debug | `kind`, `book` | each piece of work the job picks |
 | `sync.transcriber` | info | `engine`, `model`, `gpu`, `threads`, `took_ms` | a transcriber loaded |

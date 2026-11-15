@@ -73,7 +73,7 @@ Checks for every slice:
 
 New code goes in new modules. `src-tauri/src/core.rs` is already 2,100 lines: add a
 `core/<feature>.rs` module that owns its state and exposes methods on `Core`, as
-`core/audiobooks.rs` and `core/recordings.rs` do.
+`core/audiobooks.rs` and `core/recordings/` do.
 
 ## The model
 

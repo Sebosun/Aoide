@@ -20,7 +20,7 @@ throughout.
 
 ## Component
 
-A **component** is the unit this refactor produces. `Recordings` (`core/recordings.rs`, with its
+A **component** is the unit this refactor produces. `Recordings` (`core/recordings/`, with its
 `SyncHost` trait) and `Playback` (`core/playback.rs`) are the models to copy.
 
 - It lives in its own module under `core/` with private fields. Sibling modules reach its state
