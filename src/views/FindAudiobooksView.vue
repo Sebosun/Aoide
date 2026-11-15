@@ -617,7 +617,7 @@ function openSettings() {
 }
 .find-audiobooks__footer {
   position: sticky;
-  bottom: 100px;
+  bottom: 16px;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;

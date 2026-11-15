@@ -7,7 +7,7 @@ import DropOverlay from "./components/shell/DropOverlay.vue";
 import HomeView from "./views/HomeView.vue";
 import LibraryView from "./views/LibraryView.vue";
 import ReaderView from "./views/ReaderView.vue";
-import StatsView from "./views/StatsView.vue";
+import ActivityView from "./views/ActivityView.vue";
 import FindBooksView from "./views/FindBooksView.vue";
 import FindAudiobooksView from "./views/FindAudiobooksView.vue";
 import ItemView from "./views/ItemView.vue";
@@ -152,7 +152,7 @@ function browserDrop(event: DragEvent) {
       <Transition name="app__view" mode="out-in" @enter="placeScroll">
         <HomeView v-if="navigation.view === 'home'" />
         <LibraryView v-else-if="navigation.view === 'library'" />
-        <StatsView v-else-if="navigation.view === 'activity'" />
+        <ActivityView v-else-if="navigation.view === 'activity'" />
         <FindBooksView v-else-if="navigation.view === 'find'" />
         <FindAudiobooksView v-else-if="navigation.view === 'audiobooks'" />
         <ItemView

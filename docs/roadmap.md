@@ -9,10 +9,11 @@
 - **Exact word timing** through the optional local aligner.
 - **Your own audiobook**: pair a DRM-free recording with its EPUB; local speech recognition (whisper.cpp, CPU or GPU) syncs it in the background and it plays with the same highlighting. Design, phases and measurements in [audiobook-sync.md](audiobook-sync.md).
 - **Interface**: custom dropdowns, dialogs and toasts, book details page, settings with tabs, storage tab, interface zoom, keyboard shortcuts.
+- **Reading app, phase 1 (the shell)**: a sidebar with Home, Library, Activity and collections; the reader takes the whole window; an item page with Read and Listen; one Add dialog; the engine shown only while it works or fails. See [reading-app/1-shell.md](reading-app/1-shell.md).
 
 ## Next
 
-- **A reading app, not only a player**: read without audio, audiobooks without an EPUB, articles by link, feeds, an optional browser for hard pages. Plan and phases in [reading-app/plan.md](reading-app/plan.md).
+- **A reading app, not only a player** (phase 1 done): read without audio, audiobooks without an EPUB, articles by link, feeds, an optional browser for hard pages. Plan and phases in [reading-app/plan.md](reading-app/plan.md).
 
 - More engine adapters.
 - Audiobook sync, phases 2 and 3 (see [audiobook-sync.md](audiobook-sync.md#phases)): listening while it syncs, an OpenAI-style transcription adapter, exact word timing for recordings, EPUB 3 Media Overlays export.

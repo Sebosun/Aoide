@@ -166,3 +166,30 @@ Small, so the views have nothing to derive.
   at 1280 px and at 700 px width.
 - The native app (`AOIDE_SMOKE_HOME`) imports a book, plays it, prepares it and pairs a
   recording exactly as before the phase.
+
+## Notes from implementation
+
+- **Back from the reader** returns to the screen the reader was opened from
+  (`navigation.readerFrom`, set by a watcher whenever the view becomes `reader`), so every
+  existing way into the reader works without being changed.
+- **`audio` and listening history.** Listening time is not stored per source, so "listening
+  history with a speech engine" is read as "has listening time and is not narrated by its
+  recording". The rule is `facets::audio_source`; the fixture writer applies it to the preview's
+  started book, so the mock serves the value the core made.
+- **Home in the mock** is `src/tests/fixtures/home.json`, made by `facets::home` from the same
+  fixture library. It does not change when the mock's state changes; tests that need another
+  Home call `setHomeForTest`.
+- **"In progress"** is now any item with saved progress below the end (as Home's Continue),
+  not fraction > 0.
+- **Card status line** no longer shows the size of the generated audio; Settings › Storage and
+  the delete-audio dialog still do.
+- **Continue card** has no Resume or chapter buttons: it opens the reader, which has both.
+- **Collections**: creating one from the sidebar does not open it. Rename and Delete are in a
+  per-collection menu that shows on hover or focus.
+- **Add dialog**: there were no import toasts to keep. Choosing books closes the dialog and opens
+  Library, where import problems are listed, as a drop does. "Choose files" is split into
+  Choose books / Choose an audiobook / Choose an audiobook folder, because the core has one
+  chooser per kind. Rescan library folder moved here from the old menu.
+- **Engine status**: `busy` counts as healthy (it is speaking), so neither the player nor the
+  item page shows it. The sidebar card also appears while recordings sync, so the sync queue
+  stays reachable.

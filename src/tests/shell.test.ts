@@ -35,7 +35,7 @@ it("opens on Home and shows each sidebar entry's screen, marking the current one
 
   for (const [label, screen] of [
     ["Library", ".library"],
-    ["Activity", ".stats"],
+    ["Activity", ".activity"],
     ["Home", ".home"],
   ]) {
     await nav(wrapper, label).trigger("click");

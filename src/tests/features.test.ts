@@ -4,7 +4,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "../api/mock";
 import { initialPlayer } from "../api/initial";
 import SettingsDialog from "../components/settings/SettingsDialog.vue";
-import StatsView from "../views/StatsView.vue";
+import ActivityView from "../views/ActivityView.vue";
 import BookToolsSheet from "../components/book/BookToolsSheet.vue";
 import BookVoice from "../components/book/BookVoice.vue";
 import UiHost from "../components/ui/UiHost.vue";
@@ -247,7 +247,7 @@ it("shows listening for a chosen range with a streak, a calendar, weekdays and b
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-11-11T12:00:00"));
   await useLibraryStore().start();
-  const wrapper = mount(StatsView, { attachTo: document.body });
+  const wrapper = mount(ActivityView, { attachTo: document.body });
   await flushPromises();
   const tile = (label: string) => wrapper.get(`[aria-label="${label}"]`).text();
   expect(tile("Listened")).toContain("1 h 50 min");

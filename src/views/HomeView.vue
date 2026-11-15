@@ -49,7 +49,7 @@ function added(at: number) {
     <p v-if="error" class="home__error" role="alert">{{ error }}</p>
     <section v-if="empty" class="home__welcome" aria-labelledby="home-welcome">
       <h1 id="home-welcome" class="home__title">Nothing to read yet</h1>
-      <p class="home__lead">Add EPUB books to start reading, or listen to them with a voice.</p>
+      <p class="home__lead">Add books to start reading, or listen to them with a voice.</p>
       <button type="button" class="home__add" aria-label="Add" @click="navigation.openAdd()">
         <Plus :size="16" aria-hidden="true" /> Add books
       </button>

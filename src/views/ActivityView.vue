@@ -128,16 +128,16 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 </script>
 
 <template>
-  <section class="stats" :aria-busy="!stats && !error">
-    <header class="stats__header">
-      <h1 class="stats__title">Listening</h1>
-      <div class="stats__ranges" role="group" aria-label="Range">
+  <section class="activity" :aria-busy="!stats && !error">
+    <header class="activity__header">
+      <h1 class="activity__title">Activity</h1>
+      <div class="activity__ranges" role="group" aria-label="Range">
         <button
           v-for="r in RANGES"
           :key="r.id"
           type="button"
-          class="stats__range"
-          :class="{ 'stats__range--on': range === r.id }"
+          class="activity__range"
+          :class="{ 'activity__range--on': range === r.id }"
           :aria-pressed="range === r.id"
           @click="range = r.id"
         >
@@ -145,87 +145,87 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
         </button>
       </div>
     </header>
-    <p v-if="error" class="stats__error" role="alert">{{ error }}</p>
+    <p v-if="error" class="activity__error" role="alert">{{ error }}</p>
 
     <template v-if="!stats && !error">
       <p class="visually-hidden" role="status" aria-label="Loading listening stats">Loading listening stats…</p>
-      <div class="stats__tiles" aria-hidden="true">
-        <UiSkeleton v-for="n in 4" :key="n" class="stats__ghost-tile" />
+      <div class="activity__tiles" aria-hidden="true">
+        <UiSkeleton v-for="n in 4" :key="n" class="activity__ghost-tile" />
       </div>
-      <UiSkeleton class="stats__ghost-card" />
-      <div class="stats__pair" aria-hidden="true">
-        <UiSkeleton class="stats__ghost-card" /><UiSkeleton class="stats__ghost-card" />
+      <UiSkeleton class="activity__ghost-card" />
+      <div class="activity__pair" aria-hidden="true">
+        <UiSkeleton class="activity__ghost-card" /><UiSkeleton class="activity__ghost-card" />
       </div>
     </template>
     <template v-if="stats">
-      <div class="stats__tiles">
-        <div class="stats__tile stats__tile--hero" role="group" aria-label="Listened">
+      <div class="activity__tiles">
+        <div class="activity__tile activity__tile--hero" role="group" aria-label="Listened">
           <Clock3 :size="18" /><span>Listened</span><strong>{{ time(totals.totalMs) }}</strong>
         </div>
-        <div class="stats__tile" role="group" aria-label="Daily average">
+        <div class="activity__tile" role="group" aria-label="Daily average">
           <Gauge :size="18" /><span>Daily average</span><strong>{{ time(totals.averageMs) }}</strong>
         </div>
-        <div class="stats__tile" role="group" aria-label="Streak">
+        <div class="activity__tile" role="group" aria-label="Streak">
           <Flame :size="18" /><span>Streak</span
           ><strong>{{ streak.current }} {{ streak.current === 1 ? "day" : "days" }}</strong
           ><small>best {{ streak.best }}</small>
         </div>
-        <div class="stats__tile" role="group" aria-label="Active days">
+        <div class="activity__tile" role="group" aria-label="Active days">
           <CalendarDays :size="18" /><span>Days listened</span><strong>{{ totals.activeDays }}</strong
           ><small>of {{ counted.length || series.length }}</small>
         </div>
       </div>
 
-      <p v-if="!stats.totalMs" class="stats__empty">Nothing yet. Listening time appears here as you play books.</p>
+      <p v-if="!stats.totalMs" class="activity__empty">Nothing yet. Listening time appears here as you play books.</p>
       <template v-else>
-        <section class="stats__card stats__chart">
+        <section class="activity__card activity__chart">
           <ol
-            class="stats__bars"
-            :class="{ 'stats__bars--dense': bars.length > 14 }"
+            class="activity__bars"
+            :class="{ 'activity__bars--dense': bars.length > 14 }"
             :aria-label="monthly ? 'Listening by month' : 'Listening by day'"
           >
             <li
               v-for="bar in bars"
               :key="bar.key"
-              class="stats__bar"
-              :class="{ 'stats__bar--now': bar.now }"
+              class="activity__bar"
+              :class="{ 'activity__bar--now': bar.now }"
               :title="`${bar.title}: ${time(bar.ms)}`"
               :aria-label="`${bar.title}: ${time(bar.ms)}`"
             >
               <span
-                class="stats__bar-fill"
+                class="activity__bar-fill"
                 :style="{ height: bar.ms ? `${Math.max(3, (bar.ms / barMax) * 100)}%` : '0' }"
               />
-              <span class="stats__bar-label" aria-hidden="true">{{ bar.label }}</span>
+              <span class="activity__bar-label" aria-hidden="true">{{ bar.label }}</span>
             </li>
           </ol>
         </section>
 
-        <div class="stats__pair">
-          <section class="stats__card">
-            <h2 class="stats__heading">Last 26 weeks</h2>
-            <div class="stats__calendar" role="img" aria-label="Last 26 weeks">
-              <div v-for="(column, w) in calendar" :key="w" class="stats__week">
+        <div class="activity__pair">
+          <section class="activity__card">
+            <h2 class="activity__heading">Last 26 weeks</h2>
+            <div class="activity__calendar" role="img" aria-label="Last 26 weeks">
+              <div v-for="(column, w) in calendar" :key="w" class="activity__week">
                 <span
                   v-for="(cell, d) in column"
                   :key="d"
-                  class="stats__cell"
-                  :class="[`stats__cell--${cell.level}`, { 'stats__cell--future': !cell.day }]"
+                  class="activity__cell"
+                  :class="[`activity__cell--${cell.level}`, { 'activity__cell--future': !cell.day }]"
                   :data-day="cell.day ?? undefined"
                   :title="cellTitle(cell)"
                 />
               </div>
             </div>
-            <div class="stats__scale" aria-hidden="true">
-              Less <i v-for="n in 5" :key="n" :class="`stats__cell stats__cell--${n - 1}`" /> More
+            <div class="activity__scale" aria-hidden="true">
+              Less <i v-for="n in 5" :key="n" :class="`activity__cell activity__cell--${n - 1}`" /> More
             </div>
           </section>
-          <section class="stats__card" aria-label="By weekday">
-            <h2 class="stats__heading">By weekday</h2>
-            <p v-if="favourite" class="stats__note">Most on {{ favourite }}</p>
-            <ul class="stats__weekdays">
+          <section class="activity__card" aria-label="By weekday">
+            <h2 class="activity__heading">By weekday</h2>
+            <p v-if="favourite" class="activity__note">Most on {{ favourite }}</p>
+            <ul class="activity__weekdays">
               <li v-for="w in week" :key="w.label" :title="time(w.ms)">
-                <span>{{ w.label }}</span><span class="stats__track"
+                <span>{{ w.label }}</span><span class="activity__track"
                   ><i :style="{ width: `${(w.ms / weekMax) * 100}%` }" /></span
                 ><b>{{ time(w.ms) }}</b>
               </li>
@@ -233,24 +233,24 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
           </section>
         </div>
 
-        <section class="stats__card">
-          <h2 class="stats__heading">By book <small>all time</small></h2>
-          <ul class="stats__books" aria-label="By book">
+        <section class="activity__card">
+          <h2 class="activity__heading">By book <small>all time</small></h2>
+          <ul class="activity__books" aria-label="By book">
             <li v-for="row in books" :key="row.bookId">
               <button
                 type="button"
-                class="stats__book"
+                class="activity__book"
                 :disabled="!row.book"
                 @click="row.book && navigation.openItem(row.bookId)"
               >
                 <CoverArt
-                  class="stats__thumb"
+                  class="activity__thumb"
                   :title="row.title"
                   :url="row.book?.coverUrl"
                   :label="false"
                   shape="square"
                 />
-                <span class="stats__book-text"
+                <span class="activity__book-text"
                   ><b>{{ row.title }}</b
                   ><small>{{
                     row.book
@@ -260,10 +260,10 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
                       : "Removed from the library"
                   }}</small></span
                 >
-                <span class="stats__track stats__track--book"
+                <span class="activity__track activity__track--book"
                   ><i :style="{ width: `${(row.ms / bookMax) * 100}%` }"
                 /></span>
-                <span class="stats__book-time">{{ time(row.ms) }}</span>
+                <span class="activity__book-time">{{ time(row.ms) }}</span>
               </button>
             </li>
           </ul>
@@ -274,53 +274,53 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
 </template>
 
 <style scoped>
-.stats {
+.activity {
   max-width: 1120px;
   margin: 0 auto;
   padding: 8px 28px 40px;
   display: grid;
   gap: 18px;
 }
-.stats__header {
+.activity__header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-.stats__title {
+.activity__title {
   font-size: 32px;
   font-weight: 800;
   letter-spacing: -0.03em;
 }
-.stats__ranges {
+.activity__ranges {
   display: flex;
   gap: 2px;
   padding: 4px;
   border-radius: 999px;
   background: var(--glass);
 }
-.stats__range {
+.activity__range {
   padding: 7px 14px;
   border-radius: 999px;
   font-weight: 600;
   font-size: 13px;
   color: var(--dim);
 }
-.stats__range--on {
+.activity__range--on {
   background: var(--ink);
   color: var(--ground);
 }
-.stats__error {
+.activity__error {
   color: var(--accent);
   font-weight: 600;
 }
-.stats__tiles {
+.activity__tiles {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
-.stats__tile {
+.activity__tile {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -332,7 +332,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   font-size: 12.5px;
   font-weight: 600;
 }
-.stats__tile strong {
+.activity__tile strong {
   grid-column: 1 / -1;
   font-size: 26px;
   font-weight: 800;
@@ -340,34 +340,34 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
-.stats__tile small {
+.activity__tile small {
   grid-column: 1 / -1;
   margin-top: -4px;
   font-size: 12px;
   color: var(--faint);
 }
-.stats__tile--hero {
+.activity__tile--hero {
   background: var(--hero);
 }
-.stats__tile--hero svg {
+.activity__tile--hero svg {
   color: var(--accent);
 }
-.stats__ghost-tile {
+.activity__ghost-tile {
   height: 96px;
   border-radius: 18px;
 }
-.stats__ghost-card {
+.activity__ghost-card {
   height: 240px;
   border-radius: 20px;
 }
-.stats__empty {
+.activity__empty {
   padding: 40px 20px;
   border-radius: 20px;
   background: var(--page);
   color: var(--dim);
   text-align: center;
 }
-.stats__card {
+.activity__card {
   display: grid;
   gap: 12px;
   align-content: start;
@@ -376,26 +376,26 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   background: var(--page);
   min-width: 0;
 }
-.stats__heading {
+.activity__heading {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--dim);
 }
-.stats__heading small {
+.activity__heading small {
   margin-left: 6px;
   font-weight: 600;
   color: var(--faint);
   text-transform: none;
   letter-spacing: 0;
 }
-.stats__note {
+.activity__note {
   margin-top: -6px;
   font-size: 13px;
   font-weight: 700;
 }
-.stats__bars {
+.activity__bars {
   display: flex;
   align-items: stretch;
   gap: 8px;
@@ -404,10 +404,10 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   margin: 0;
   list-style: none;
 }
-.stats__bars--dense {
+.activity__bars--dense {
   gap: 3px;
 }
-.stats__bar {
+.activity__bar {
   flex: 1;
   min-width: 0;
   display: grid;
@@ -416,76 +416,76 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   justify-items: center;
   gap: 6px;
 }
-.stats__bar-fill {
+.activity__bar-fill {
   width: 100%;
   max-width: 46px;
   border-radius: 6px 6px 3px 3px;
   background: var(--hero);
   transition: height var(--dur-2) var(--ease);
 }
-.stats__bar:hover .stats__bar-fill {
+.activity__bar:hover .activity__bar-fill {
   background: var(--faint);
 }
-.stats__bar--now .stats__bar-fill {
+.activity__bar--now .activity__bar-fill {
   background: var(--accent);
 }
-.stats__bar-label {
+.activity__bar-label {
   font-size: 11px;
   font-weight: 600;
   color: var(--dim);
   white-space: nowrap;
   overflow: visible;
 }
-.stats__pair {
+.activity__pair {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
   gap: 18px;
 }
-.stats__calendar {
+.activity__calendar {
   display: grid;
   grid-template-columns: repeat(26, minmax(0, 1fr));
   gap: 3px;
 }
-.stats__week {
+.activity__week {
   display: grid;
   grid-template-rows: repeat(7, auto);
   gap: 3px;
 }
-.stats__cell {
+.activity__cell {
   display: block;
   width: 100%;
   aspect-ratio: 1;
   border-radius: 3px;
   background: var(--wash);
 }
-.stats__cell--1 {
+.activity__cell--1 {
   background: color-mix(in srgb, var(--accent) 30%, var(--wash));
 }
-.stats__cell--2 {
+.activity__cell--2 {
   background: color-mix(in srgb, var(--accent) 55%, var(--wash));
 }
-.stats__cell--3 {
+.activity__cell--3 {
   background: color-mix(in srgb, var(--accent) 78%, var(--wash));
 }
-.stats__cell--4 {
+.activity__cell--4 {
   background: var(--accent);
 }
-.stats__cell--future {
+.activity__cell--future {
   background: none;
 }
-.stats__scale {
+.activity__scale {
   display: flex;
   align-items: center;
   gap: 3px;
   font-size: 11px;
   color: var(--dim);
 }
-.stats__scale i {
+.activity__scale i {
   width: 11px;
   height: 11px;
   aspect-ratio: auto;
 }
-.stats__weekdays {
+.activity__weekdays {
   display: grid;
   gap: 7px;
   padding: 0;
@@ -493,7 +493,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   list-style: none;
   font-size: 12.5px;
 }
-.stats__weekdays li {
+.activity__weekdays li {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) 76px;
   align-items: center;
@@ -501,32 +501,32 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   color: var(--dim);
   font-weight: 600;
 }
-.stats__weekdays b {
+.activity__weekdays b {
   text-align: right;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
-.stats__track {
+.activity__track {
   position: relative;
   height: 8px;
   border-radius: 4px;
   background: var(--wash);
   overflow: hidden;
 }
-.stats__track i {
+.activity__track i {
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: 4px;
   background: var(--ink);
 }
-.stats__books {
+.activity__books {
   display: grid;
   gap: 4px;
   padding: 0;
   margin: 0;
   list-style: none;
 }
-.stats__book {
+.activity__book {
   display: grid;
   grid-template-columns: 40px minmax(0, 1.2fr) minmax(0, 1fr) 90px;
   align-items: center;
@@ -536,54 +536,54 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   border-radius: 12px;
   text-align: left;
 }
-.stats__book:hover:not(:disabled) {
+.activity__book:hover:not(:disabled) {
   background: var(--wash);
 }
-.stats__book:disabled {
+.activity__book:disabled {
   opacity: 1;
   cursor: default;
 }
-.stats__thumb {
+.activity__thumb {
   border-radius: 8px;
   box-shadow: none;
 }
-.stats__book-text {
+.activity__book-text {
   display: grid;
   gap: 2px;
   min-width: 0;
 }
-.stats__book-text b {
+.activity__book-text b {
   font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.stats__book-text small {
+.activity__book-text small {
   color: var(--dim);
   font-weight: 500;
 }
-.stats__track--book i {
+.activity__track--book i {
   background: var(--accent);
 }
-.stats__book-time {
+.activity__book-time {
   text-align: right;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 @media (max-width: 860px) {
-  .stats {
+  .activity {
     padding: 8px 16px 32px;
   }
-  .stats__tiles {
+  .activity__tiles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .stats__pair {
+  .activity__pair {
     grid-template-columns: minmax(0, 1fr);
   }
-  .stats__book {
+  .activity__book {
     grid-template-columns: 40px minmax(0, 1fr) 76px;
   }
-  .stats__track--book {
+  .activity__track--book {
     display: none;
   }
 }

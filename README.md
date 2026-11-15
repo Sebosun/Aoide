@@ -28,22 +28,22 @@ Aoide reads your EPUB books aloud with a text-to-speech engine that runs on your
 - **A real player.** Gapless playback, 0.5× to 3× speed without the chipmunk effect, sleep timer, bookmarks with notes, chapter skipping, media keys and your desktop's now-playing controls. It remembers where you stopped.
 - **Footnotes done right.** Notes are left out of the narration and shown beside the text. You can have them read aloud after their paragraph instead.
 - **A tidy library.** Drop EPUBs on the window, or let Aoide find the ones already scattered around your computer. Covers, progress, collections and per-book details from Open Library if you want them.
-- **Listening stats.** Time per day and per book, streaks, and a heat map of the last six months.
+- **Home and activity.** Home picks up where you left off and shows what is next. Activity has your time per day and per book, streaks, and a heat map of the last six months.
 - **Bring your own audiobook.** Own the DRM-free audiobook of a book? Pair it with the EPUB and the narrator's recording plays with the same sentence and word highlighting. Aoide listens to it once on your computer to find where each sentence is.
 - **Take it with you.** Export any book as an M4B audiobook with chapters and cover, for your phone or another player. A book paired with its audiobook exports as a read-along EPUB instead (EPUB 3 Media Overlays), which highlights each sentence in other reading apps that support them.
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/images/library.png" alt="The library: a Continue listening card at the top, a weekly listening chart, and a grid of book covers with filters."><br><sub><b>Library.</b> Pick up where you left off.</sub></td>
+    <td width="50%"><img src="docs/images/library.png" alt="Home: a sidebar with Home, Library, Activity and collections; a Continue card for the book in progress, a list of books up next and a weekly chart."><br><sub><b>Home.</b> Pick up where you left off.</sub></td>
     <td width="50%"><img src="docs/images/lines.png" alt="The Lines view: one large passage with the words already read in dark ink and the rest faded."><br><sub><b>Lines view.</b> One passage at a time, large and calm.</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/images/book-details.png" alt="A book's page with cover, chapters, word count, listening time and a Prepare whole book button."><br><sub><b>Book page.</b> Contents, length and audio at a glance.</sub></td>
-    <td><img src="docs/images/speech-queue.png" alt="The speech queue panel opened from the top bar, listing two books being prepared with progress bars, pause and cancel buttons."><br><sub><b>Speech queue.</b> See what's being made, pause or cancel it.</sub></td>
+    <td><img src="docs/images/book-details.png" alt="A book's page with cover, Read and Listen buttons, a Text card with chapters and words, an Audio card offering a voice or an audiobook, and the contents."><br><sub><b>Book page.</b> Its text, what plays it, and its contents.</sub></td>
+    <td><img src="docs/images/speech-queue.png" alt="The speech queue panel opened from the sidebar's Narrating card, listing two books being prepared with progress bars, pause and cancel buttons."><br><sub><b>Speech queue.</b> See what's being made, pause or cancel it.</sub></td>
   </tr>
   <tr>
     <td><img src="docs/images/find-books.png" alt="Find books: a scan of the computer found two new EPUBs, one of them with two copies, ready to import."><br><sub><b>Find books.</b> Gathers the EPUBs already on your computer.</sub></td>
-    <td><img src="docs/images/stats.png" alt="Listening stats: total time, daily average, streak, a bar chart by day and a heat map of the last 26 weeks."><br><sub><b>Stats.</b> How much you've listened, and when.</sub></td>
+    <td><img src="docs/images/stats.png" alt="Activity: total time, daily average, streak, a bar chart by day and a heat map of the last 26 weeks."><br><sub><b>Activity.</b> How much you've listened, and when.</sub></td>
   </tr>
   <tr>
     <td><img src="docs/images/settings.png" alt="Settings, Speech engine tab: server address, voice picker with a Preview voice button, temperature and exaggeration sliders."><br><sub><b>Settings.</b> Choose an engine and voice, and hear it first.</sub></td>
@@ -185,23 +185,23 @@ The pill in the top right corner tells you whether Aoide can reach the server. W
 Any of these works:
 
 - Drag `.epub` files onto the window.
-- Click **Add → Choose EPUB files…** in the library.
-- Click **Find books** to scan your computer for EPUBs you haven't added yet.
+- Click **Add** in the sidebar (or press <kbd>Ctrl</kbd> <kbd>N</kbd>), then **Choose books…**.
+- Click **Add → Scan for books…** to find EPUBs on your computer you haven't added yet.
 - Copy files into `~/Documents/Aoide/Books` yourself. Aoide notices.
 
-Open a book and press play.
+Open a book and read, or press **Listen**.
 
 ## Using Aoide
 
 **Listening.** Press <kbd>Space</kbd> to play or pause and <kbd>←</kbd> <kbd>→</kbd> to move a sentence. Click any sentence to jump there. If you scroll away while listening, the page stops following you until you click *Back to playhead*.
 
-**Preparing ahead.** On a book's page, **Prepare whole book** makes all its audio in the background, so it plays instantly later, even with the speech server off. Click the engine pill in the top bar to see the queue, pause it or cancel. Unfinished books carry on next time you start Aoide (you can turn that off under **Settings → Library**).
+**Preparing ahead.** On a book's page, **Prepare whole book** makes all its audio in the background, so it plays instantly later, even with the speech server off. While books are being prepared, a **Narrating** card in the sidebar shows progress; click it to see the queue, pause it or cancel. Unfinished books carry on next time you start Aoide (you can turn that off under **Settings → Library**).
 
 **A voice per book.** In the reader, open the book tools (the sliders icon in the player) and go to **Narration**. Choose a voice, language and settings for just this book, and press **Preview voice** to hear a sample before saving. Changing the voice later lets you regenerate the book's audio.
 
 **Exporting.** **Export as M4B**, in a book's menu in the library or under **Narration** in the book tools, saves an audiobook file with chapter marks and cover to `~/Documents/Aoide/Exports`. This needs [`ffmpeg`](https://ffmpeg.org/) installed. A book whose own audiobook is synced offers **Export read-along EPUB** instead. It saves `<title> (read-along).epub` there: the text with the recording inside, which other reading apps with EPUB 3 Media Overlays play with sentence highlighting. MP3, M4B/M4A and Ogg Opus recordings go in unchanged. Other formats are converted with ffmpeg. Images and the book's own styling are not carried over.
 
-**Your own audiobook.** Drop the audiobook's files (M4B, M4A, MP3, FLAC, Ogg or WAV; one file or a folder of parts) on the window, or choose **Add audiobook…** in a book's menu, then pick the book it reads. Aoide first checks three short samples against the text, then listens to the whole recording in the background; the engine pill shows its progress and you can pause it. The first time, it asks you to download a speech-recognition model (about 140 MB) in **Settings → Recordings**. You don't have to wait: **Listen now** plays what is synced so far, and if you catch up with the sync, playback waits for it. When it's done, the book plays the recording instead of the speech engine, with the same highlighting and controls. **See the report** on the book's page shows how much of the text was found in each chapter and lists narration that isn't in the text, such as credits. Under **Narration** in the book tools you can switch a book back to the speech engine at any time, or turn on **Speak what the recording lacks**: chapters and passages the narrator skipped are then read by the speech engine in the book's voice instead of being passed over. Sentences that were read aloud but not recognised are left to the recording, so nothing is heard twice. **Find books** also looks beside each EPUB it finds for that book's audiobook: a file or folder with the book's title in its name, in the same folder or the one above. New books can be imported with their audiobooks paired, and a book already in the library gets a **Pair…** button that opens the same check. For books already in your library, **Add → Find audiobooks for your books** searches your home folder (or the folders you set there) and lists each book without a recording next to up to three audiobooks with close names: most of the title's words, a misspelling allowed. An audiobook with exactly the title's words is listed alone, and an audiobook is offered only to the book it fits best, so one audiobook is never paired with two books. Pick one per book and pair the ones you select, or all of them. Books you add later are looked up too, and the screen opens when audiobooks were found for them. If you'd rather not confirm each one, turn on **Settings → Recordings → Let Aoide verify audiobook matches**. Aoide then pairs each book's closest audiobook itself. If the quick check fails, it tries the next audiobook, and leaves the book unpaired if none pass. Your audio files are never changed or copied, and recordings protected by DRM (Audible AAX, for example) can't be used.
+**Your own audiobook.** Drop the audiobook's files (M4B, M4A, MP3, FLAC, Ogg or WAV; one file or a folder of parts) on the window, or choose **Add audiobook…** in a book's menu, then pick the book it reads. Aoide first checks three short samples against the text, then listens to the whole recording in the background; the sidebar shows its progress and you can pause it. The first time, it asks you to download a speech-recognition model (about 140 MB) in **Settings → Recordings**. You don't have to wait: **Listen now** plays what is synced so far, and if you catch up with the sync, playback waits for it. When it's done, the book plays the recording instead of the speech engine, with the same highlighting and controls. **See the report** on the book's page shows how much of the text was found in each chapter and lists narration that isn't in the text, such as credits. Under **Narration** in the book tools you can switch a book back to the speech engine at any time, or turn on **Speak what the recording lacks**: chapters and passages the narrator skipped are then read by the speech engine in the book's voice instead of being passed over. Sentences that were read aloud but not recognised are left to the recording, so nothing is heard twice. **Find books** also looks beside each EPUB it finds for that book's audiobook: a file or folder with the book's title in its name, in the same folder or the one above. New books can be imported with their audiobooks paired, and a book already in the library gets a **Pair…** button that opens the same check. For books already in your library, **Add → Find audiobooks…** searches your home folder (or the folders you set there) and lists each book without a recording next to up to three audiobooks with close names: most of the title's words, a misspelling allowed. An audiobook with exactly the title's words is listed alone, and an audiobook is offered only to the book it fits best, so one audiobook is never paired with two books. Pick one per book and pair the ones you select, or all of them. Books you add later are looked up too, and the screen opens when audiobooks were found for them. If you'd rather not confirm each one, turn on **Settings → Recordings → Let Aoide verify audiobook matches**. Aoide then pairs each book's closest audiobook itself. If the quick check fails, it tries the next audiobook, and leaves the book unpaired if none pass. Your audio files are never changed or copied, and recordings protected by DRM (Audible AAX, for example) can't be used.
 
 **Storage.** Generated audio is kept so nothing is made twice. Set a size limit in **Settings → Storage**; the oldest audio goes first, never the book you're listening to or preparing.
 
@@ -260,7 +260,7 @@ dim = "#575E88"          # secondary text
 faint = "#9298BC"        # hints and placeholders
 line = "#CBD1EA"         # borders and dividers
 glass = "rgba(255, 255, 255, .72)"  # translucent panels
-hero = "#C9D1F1"         # the Continue listening card
+hero = "#C9D1F1"         # the first Continue card on Home
 wash = "#DDE3F8"         # the sentence being read, hovers, soft fills
 accent = "#E0502F"       # buttons, current word, progress
 on-accent = "#FFFFFF"    # text on accent
@@ -295,7 +295,7 @@ Per-book settings, progress and bookmarks live in the library database, not in t
 
 ## Troubleshooting
 
-**The pill in the top bar says the engine is offline.** Aoide can't reach the speech server. Check that it's running and that the address in **Settings → Speech engine** matches the one the server prints when it starts. If the server is on another computer, tick *Allow addresses on my home network*.
+**The player or a book's page says the engine is offline.** Aoide can't reach the speech server. Check that it's running and that the address in **Settings → Speech engine** matches the one the server prints when it starts. If the server is on another computer, tick *Allow addresses on my home network*.
 
 **Play does nothing, or there's no sound.** Aoide plays through `pw-cat` (PipeWire), `paplay` (PulseAudio) or `aplay` (ALSA), whichever it finds first. Make sure one of them is installed; on most desktops `pw-cat` already is.
 

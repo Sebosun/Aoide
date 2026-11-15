@@ -4,7 +4,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "../api/mock";
 import LibraryView from "../views/LibraryView.vue";
 import ItemView from "../views/ItemView.vue";
-import StatsView from "../views/StatsView.vue";
+import ActivityView from "../views/ActivityView.vue";
 import { useLibraryStore } from "../stores/library";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
@@ -83,7 +83,7 @@ it("shows the book's title at once and placeholders for its details until they l
 
 it("shows placeholders while listening stats load, and the error if they fail", async () => {
   const release = hold("listeningStats");
-  const wrapper = mount(StatsView, { attachTo: document.body });
+  const wrapper = mount(ActivityView, { attachTo: document.body });
   await flushPromises();
   expect(placeholder(wrapper, "Loading listening stats").exists()).toBe(true);
   await release();
@@ -92,7 +92,7 @@ it("shows placeholders while listening stats load, and the error if they fail", 
   wrapper.unmount();
 
   vi.spyOn(mock, "listeningStats").mockRejectedValue(new Error("stats unavailable"));
-  const failed = mount(StatsView, { attachTo: document.body });
+  const failed = mount(ActivityView, { attachTo: document.body });
   await flushPromises();
   expect(placeholder(failed, "Loading listening stats").exists()).toBe(false);
   expect(failed.get('[role="alert"]').text()).toContain("stats unavailable");

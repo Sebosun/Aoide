@@ -539,7 +539,7 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 }
 .find__footer {
   position: sticky;
-  bottom: 100px;
+  bottom: 16px;
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;

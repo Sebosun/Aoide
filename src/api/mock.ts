@@ -562,7 +562,7 @@ export function createMockApi() {
       return paths.map((path) => ({
         path,
         bookId: null,
-        error: "Browser preview cannot read local paths. Add EPUBs in the desktop app.",
+        error: "Browser preview cannot read local paths. Add books in the desktop app.",
       }));
     },
     async rescanLibrary() {
