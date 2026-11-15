@@ -90,3 +90,31 @@ fn an_audiobook_and_its_places_on_the_timeline_round_trip() {
         [(2, Some(300_000), None), (6, Some(1_122_000), None)]
     );
 }
+
+#[test]
+fn a_rescan_of_the_library_folder_leaves_other_kinds_alone() {
+    use aoide_library::BookStatus;
+    let lib = Library::open_in_memory().unwrap();
+    let book = item(&lib, "book", ItemKind::Book);
+    let audio = item(&lib, "audio", ItemKind::Audiobook);
+    assert_eq!(
+        lib.mark_missing_except(&[]).unwrap(),
+        std::slice::from_ref(&book)
+    );
+    assert_eq!(
+        lib.book(&audio).unwrap().unwrap().status,
+        BookStatus::Present
+    );
+
+    assert!(lib.set_missing(&audio, true).unwrap());
+    assert!(!lib.set_missing(&audio, true).unwrap(), "already missing");
+    assert_eq!(
+        lib.book(&audio).unwrap().unwrap().status,
+        BookStatus::Missing
+    );
+    assert!(lib.set_missing(&audio, false).unwrap());
+    assert_eq!(
+        lib.book(&audio).unwrap().unwrap().status,
+        BookStatus::Present
+    );
+}

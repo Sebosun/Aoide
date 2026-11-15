@@ -227,6 +227,7 @@ name = "aoide-recording"
 version = "0.1.0"
 dependencies = [
  "mp4ameta",
+ "sha2",
  "symphonia",
  "tempfile",
  "thiserror 2.0.21",

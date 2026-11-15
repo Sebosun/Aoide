@@ -10,6 +10,7 @@ description = "Audiobook files for Aoide: inspection, DRM checks, and decoding a
 symphonia = { version = "0.6.1", features = ["aac", "alac", "isomp4", "mp3"] }
 mp4ameta = "0.13"
 thiserror = "2"
+sha2 = "0.10"
 
 [dev-dependencies]
 tempfile = "3"

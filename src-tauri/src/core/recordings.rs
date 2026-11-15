@@ -178,7 +178,8 @@ struct Live {
 impl Live {
     /// Synced, or syncing with part of it transcribed: what is synced can be listened to.
     fn listenable(&self) -> bool {
-        self.stage == SyncStage::Ready || (self.stage.listenable() && self.transcribed_ms > 0)
+        matches!(self.stage, SyncStage::Ready | SyncStage::Standalone)
+            || (self.stage.listenable() && self.transcribed_ms > 0)
     }
 }
 
@@ -929,20 +930,51 @@ impl Recordings {
         id: &str,
         found: aoide_recording::Inspection,
     ) -> Result<RecordingView, String> {
-        let book_id = BookId(id.into());
-        lock(&self.library)
-            .book(&book_id)
-            .map_err(|e| e.to_string())?
-            .ok_or("book not found")?;
+        self.store(host, id, found, SyncStage::Checking)
+    }
+
+    /// Keeps `found` as the recording of audiobook `id`, which has no text: it plays as it is
+    /// and is not synced (stage `Standalone`) until it is given an EPUB.
+    pub(super) fn add_standalone(
+        &self,
+        host: &dyn SyncHost,
+        id: &str,
+        found: aoide_recording::Inspection,
+    ) -> Result<RecordingView, String> {
+        self.store(host, id, found, SyncStage::Standalone)
+    }
+
+    /// Why `found` cannot be a recording, in the words the pairing uses: a file is protected,
+    /// unreadable or of an unknown kind, or there is no audio at all.
+    pub(super) fn refusal(found: &aoide_recording::Inspection) -> Option<String> {
         if let Some(problem) = found.problems.first() {
-            return Err(format!(
+            return Some(format!(
                 "{}: {}",
                 file_name(&problem.path),
                 problem_text(&problem.problem)
             ));
         }
-        if found.files.is_empty() {
-            return Err("No audio files were found there.".into());
+        found
+            .files
+            .is_empty()
+            .then(|| "No audio files were found there.".into())
+    }
+
+    /// Stores `found` as item `id`'s recording, in `stage`.
+    fn store(
+        &self,
+        host: &dyn SyncHost,
+        id: &str,
+        found: aoide_recording::Inspection,
+        stage: SyncStage,
+    ) -> Result<RecordingView, String> {
+        let book_id = BookId(id.into());
+        lock(&self.library)
+            .book(&book_id)
+            .map_err(|e| e.to_string())?
+            .ok_or("book not found")?;
+        if let Some(refusal) = Self::refusal(&found) {
+            return Err(refusal);
         }
         let mut files = Vec::with_capacity(found.files.len());
         for file in &found.files {
@@ -975,7 +1007,7 @@ impl Recordings {
                     book_id: book_id.clone(),
                     files: serde_json::to_string(&stored).map_err(|e| e.to_string())?,
                     total_ms: found.total_ms(),
-                    stage: SyncStage::Checking.name().into(),
+                    stage: stage.name().into(),
                     error: None,
                     accepted: false,
                     added_at: now,
@@ -985,7 +1017,7 @@ impl Recordings {
         lock(&self.state).live.insert(
             id.to_owned(),
             Live {
-                stage: SyncStage::Checking,
+                stage,
                 added_at: now,
                 total_ms: found.total_ms(),
                 transcribed_ms: 0,
@@ -997,7 +1029,9 @@ impl Recordings {
         );
         host.emit(CoreEvent::LibraryChanged);
         self.emit_recording(host, id);
-        self.wake_sync();
+        if stage != SyncStage::Standalone {
+            self.wake_sync();
+        }
         self.view(host, id)
             .ok_or_else(|| "the recording was not saved".into())
     }

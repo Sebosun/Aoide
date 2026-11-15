@@ -1,0 +1,56 @@
+{
+  "recording": {
+    "accepted": false,
+    "bookId": "book-5",
+    "chapters": 2,
+    "error": null,
+    "files": [
+      {
+        "codec": "mp3",
+        "durationMs": 1020,
+        "name": "b-first.mp3",
+        "path": "~/Audio/Winter_Radio (Unabridged)/b-first.mp3"
+      },
+      {
+        "codec": "mp3",
+        "durationMs": 524,
+        "name": "a-second.mp3",
+        "path": "~/Audio/Winter_Radio (Unabridged)/a-second.mp3"
+      }
+    ],
+    "listenable": true,
+    "modelId": "base.en",
+    "narrates": true,
+    "position": null,
+    "remainingMs": null,
+    "stage": "standalone",
+    "summary": null,
+    "totalMs": 1545,
+    "transcribedMs": 0
+  },
+  "summary": {
+    "addedAt": 200,
+    "audio": "recording",
+    "audioBytes": 0,
+    "authors": [
+      "Ines Morrow"
+    ],
+    "collections": [],
+    "coverPath": null,
+    "id": "book-5",
+    "kind": "audiobook",
+    "language": null,
+    "lastOpenedAt": null,
+    "mode": "listen",
+    "prepare": null,
+    "progress": null,
+    "readState": "unread",
+    "recording": "standalone",
+    "shape": "listen",
+    "status": {
+      "kind": "present"
+    },
+    "title": "Winter Radio",
+    "wordCount": null
+  }
+}

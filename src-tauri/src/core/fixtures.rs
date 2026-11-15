@@ -280,5 +280,34 @@ async fn fixtures_for_the_ui_mock() {
     .await;
     write("generation-playing", &core.generation_state(), &renames);
     core.stop();
+
+    // An audiobook added on its own, which the mock adds when asked.
+    let folder = super::audiobook::tests::tagged_set(dir.path());
+    let id = core
+        .add_audiobook(vec![folder.to_string_lossy().into()])
+        .book_id
+        .unwrap();
+    let mut renames = renames.clone();
+    renames.insert(0, (id.clone(), "book-5".into()));
+    // Its tags name a preview book; the preview tells them apart.
+    for (from, to) in [
+        ("The Lantern Keeper", "Winter Radio"),
+        ("Lantern_Keeper", "Winter_Radio"),
+        ("A. Writer", "Ines Morrow"),
+    ] {
+        renames.push((from.into(), to.into()));
+    }
+    let mut summary = core
+        .list_books()
+        .unwrap()
+        .into_iter()
+        .find(|b| b.id == id)
+        .unwrap();
+    summary.added_at = 200;
+    write(
+        "audiobook",
+        &serde_json::json!({ "summary": summary, "recording": core.recording(&id) }),
+        &renames,
+    );
     tokio::time::sleep(Duration::from_millis(50)).await;
 }

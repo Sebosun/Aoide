@@ -40,6 +40,7 @@ const LABELS: Record<SyncStage, string> = {
   paused: "Paused",
   missing: "Audio files missing",
   failed: "Sync failed",
+  standalone: "Audio only",
 };
 const ACTIONS: Record<SyncStage, RecordingAction[]> = {
   checking: ["remove"],
@@ -53,6 +54,7 @@ const ACTIONS: Record<SyncStage, RecordingAction[]> = {
   paused: ["resume", "remove"],
   missing: ["remove"],
   failed: ["retry", "remove"],
+  standalone: [],
 };
 export const RECORDING_ACTION_LABELS: Record<RecordingAction, string> = {
   listen: "Listen now",
@@ -112,9 +114,10 @@ export function recordingStatus(recording: RecordingView): RecordingStatus {
     paused: percent !== null ? `${percent}% synced` : null,
     missing: "The audio files were moved, renamed or changed. Put them back, or pair the book again.",
     failed: recording.error,
+    standalone: null,
   };
   // While it syncs, what is synced so far can be listened to (the core waits at the edge).
-  const listenEarly = listenable && stage !== "ready" && stage !== "matching";
+  const listenEarly = listenable && stage !== "ready" && stage !== "matching" && stage !== "standalone";
   return {
     stage,
     label: LABELS[stage],

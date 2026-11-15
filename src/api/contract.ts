@@ -590,7 +590,7 @@ export type ExportStage = "generating" | "encoding" | "done" | "error";
 
 export type ExportProgress = { bookId: string, stage: ExportStage, done: number, total: number, path: string | null, error: string | null, };
 
-export type SyncStage = "checking" | "waiting" | "needsModel" | "transcribing" | "matching" | "ready" | "sampleMismatch" | "poorMatch" | "paused" | "missing" | "failed";
+export type SyncStage = "checking" | "waiting" | "needsModel" | "transcribing" | "matching" | "ready" | "sampleMismatch" | "poorMatch" | "paused" | "missing" | "failed" | "standalone";
 
 export type Narration = "speech" | "recording";
 
@@ -711,6 +711,7 @@ export type Commands = {
   "app_info": { args: Record<string, never>; result: AppInfo };
   "list_books": { args: Record<string, never>; result: BookSummary[] };
   "home": { args: Record<string, never>; result: HomeView };
+  "add_audiobook": { args: { paths: string[] }; result: ImportResult };
   "import_files": { args: { paths: string[] }; result: ImportResult[] };
   "rescan_library": { args: Record<string, never>; result: void };
   "remove_book": { args: { bookId: string }; result: void };

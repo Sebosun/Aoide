@@ -19,6 +19,7 @@ use serde::Serialize;
 
 /// Spoken by voice previews: original text, long enough to hear the voice's pace and tone.
 mod align;
+mod audiobook;
 mod audiobooks;
 mod config;
 mod controls;

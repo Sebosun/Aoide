@@ -36,6 +36,7 @@ import fixturePlayer from "../tests/fixtures/player.json";
 import fixtureGenerationPlaying from "../tests/fixtures/generation-playing.json";
 import fixtureRecording from "../tests/fixtures/recording.json";
 import fixtureHome from "../tests/fixtures/home.json";
+import fixtureAudiobook from "../tests/fixtures/audiobook.json";
 
 /** The views the core made for the preview's books (see src-tauri/src/core/fixtures.rs), with
  *  covers as the window sees them. */
@@ -575,6 +576,24 @@ export function createMockApi() {
         bookId: null,
         error: "Browser preview cannot read local paths. Add books in the desktop app.",
       }));
+    },
+    /** As the core does for the preview's audiobook (`audiobook.json`): added once, then the
+     *  same item; a protected file is refused. */
+    async addAudiobook(paths) {
+      const path = paths[0] ?? "";
+      if (/\.(aax|aa)$/i.test(path))
+        return {
+          path,
+          bookId: null,
+          error: `${path.split("/").pop()}: Protected by Audible DRM. Aoide plays only audio files that play in any player.`,
+        };
+      const { coverPath, ...summary } = structuredClone(fixtureAudiobook.summary) as unknown as Wire.BookSummary;
+      if (!books.some((b) => b.id === summary.id)) {
+        books.push({ ...summary, coverUrl: coverPath, addedAt: Date.now() });
+        recordings.set(summary.id, structuredClone(fixtureAudiobook.recording) as unknown as RecordingView);
+        changed();
+      }
+      return { path, bookId: summary.id, error: null };
     },
     async rescanLibrary() {
       changed();

@@ -276,7 +276,9 @@ impl Library {
         let present: std::collections::HashSet<_> = present.iter().collect();
         let tx = self.conn.unchecked_transaction()?;
         let changed = {
-            let mut stmt = tx.prepare("SELECT id FROM books WHERE status = ?1 ORDER BY id")?;
+            // Only EPUBs live in the library folder; other items are checked where they are.
+            let mut stmt =
+                tx.prepare("SELECT id FROM books WHERE status = ?1 AND kind = 'book' ORDER BY id")?;
             let ids = stmt.query_map(["present"], |row| Ok(BookId(row.get(0)?)))?;
             let mut changed = Vec::new();
             for id in ids {
@@ -295,6 +297,20 @@ impl Library {
         }
         tx.commit()?;
         Ok(changed)
+    }
+
+    /// Marks an item missing, or present again; an item that could not be read stays so.
+    /// Returns whether its status changed.
+    pub fn set_missing(&self, id: &BookId, missing: bool) -> Result<bool> {
+        let (to, from) = if missing {
+            ("missing", "present")
+        } else {
+            ("present", "missing")
+        };
+        Ok(self.conn.execute(
+            "UPDATE books SET status = ?1 WHERE id = ?2 AND status = ?3",
+            rusqlite::params![to, id.0, from],
+        )? > 0)
     }
 
     pub fn set_last_opened(&self, id: &BookId, now: i64) -> Result<()> {

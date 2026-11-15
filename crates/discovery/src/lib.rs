@@ -250,5 +250,6 @@ pub fn hash_all(
 mod beside;
 mod names;
 pub use beside::{audiobook_beside, Neighbourhood};
+pub use names::title_from_name;
 mod folder;
 pub use folder::{AudiobookFolder, Suggestion};

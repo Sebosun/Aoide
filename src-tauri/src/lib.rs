@@ -42,6 +42,13 @@ async fn home(core: CoreState<'_>) -> Result<HomeView, CoreError> {
     blocking(move || core.home()).await
 }
 
+/// Adds an audiobook with no EPUB: an M4B, audio files, or a folder of them.
+#[tauri::command]
+async fn add_audiobook(core: CoreState<'_>, paths: Vec<String>) -> Result<ImportResult, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || Ok::<_, String>(core.add_audiobook(paths))).await
+}
+
 #[tauri::command]
 async fn import_files(
     core: CoreState<'_>,
@@ -790,6 +797,7 @@ pub fn run() {
             reading_activity,
             activity_stats,
             import_files,
+            add_audiobook,
             rescan_library,
             remove_book,
             show_in_folder,

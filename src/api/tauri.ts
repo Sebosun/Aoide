@@ -64,6 +64,7 @@ export const tauriApi: AoideApi = {
     })),
   home: () => call("home"),
   importFiles: (paths) => call("import_files", { paths }),
+  addAudiobook: (paths) => call("add_audiobook", { paths }),
   rescanLibrary: () => call("rescan_library"),
   removeBook: (bookId) => call("remove_book", { bookId }),
   showInFolder: (bookId) => call("show_in_folder", { bookId }),

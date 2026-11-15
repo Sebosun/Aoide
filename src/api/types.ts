@@ -114,6 +114,9 @@ export interface AoideApi {
   home(): Promise<HomeView>;
   /** Copies dropped EPUB files into the library folder and imports them. */
   importFiles(paths: string[]): Promise<ImportResult[]>;
+  /** Adds an audiobook with no EPUB (an M4B, audio files or a folder of them); the same
+   *  files again are the same item. Refusals (DRM, unreadable) come back as the error. */
+  addAudiobook(paths: string[]): Promise<ImportResult>;
   rescanLibrary(): Promise<void>;
   removeBook(bookId: string): Promise<void>;
   /** Opens the file manager on the book's folder with its EPUB selected. */

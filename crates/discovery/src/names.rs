@@ -60,6 +60,39 @@ pub(crate) fn stem(path: &Path) -> String {
         .map_or_else(String::new, |s| s.to_string_lossy().into_owned())
 }
 
+/// A title made from a file or folder name, for an audiobook with no title tag: its stem with
+/// `_` and `.` as spaces, bracketed notes ("(Unabridged)", "[MP3]") left out, and spaces
+/// collapsed. The name itself when nothing is left.
+pub fn title_from_name(path: &Path) -> String {
+    let stem = if path.is_dir() {
+        name(path)
+    } else {
+        stem(path)
+    };
+    let mut out = String::new();
+    let mut depth = 0usize;
+    for c in stem.chars() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth = depth.saturating_sub(1),
+            '_' | '.' if depth == 0 => out.push(' '),
+            c if depth == 0 => out.push(c),
+            _ => {}
+        }
+    }
+    let title = out
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim_matches(|c: char| c == '-' || c.is_whitespace())
+        .to_owned();
+    if title.is_empty() {
+        stem
+    } else {
+        title
+    }
+}
+
 pub(crate) fn name(path: &Path) -> String {
     path.file_name()
         .map_or_else(String::new, |s| s.to_string_lossy().into_owned())
@@ -117,4 +150,22 @@ pub(crate) fn is_audio(path: &Path) -> bool {
 pub(crate) fn is_epub(path: &Path) -> bool {
     path.extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("epub"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_title_from_a_file_name_drops_separators_and_notes() {
+        let cases = [
+            ("The_Lantern_Keeper (Unabridged).m4b", "The Lantern Keeper"),
+            ("Quiet.Places [MP3] - .mp3", "Quiet Places"),
+            ("  Harbour   Notes .flac", "Harbour Notes"),
+            ("(Unabridged).m4b", "(Unabridged)"),
+        ];
+        for (file, title) in cases {
+            assert_eq!(title_from_name(Path::new(file)), title, "{file}");
+        }
+    }
 }

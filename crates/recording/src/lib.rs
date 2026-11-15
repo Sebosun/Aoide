@@ -10,9 +10,11 @@ use std::path::{Path, PathBuf};
 
 mod decode;
 mod drm;
+mod fingerprint;
 mod inspect;
 mod reader;
 
+pub use fingerprint::fingerprint;
 pub use inspect::{inspect, inspect_as_listed};
 pub use reader::Reader;
 

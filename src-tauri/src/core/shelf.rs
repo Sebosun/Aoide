@@ -129,9 +129,20 @@ impl Shelf {
                 .upsert_book(&book, now_ms())
                 .map_err(|e| e.to_string())?;
         }
-        lock(&self.library)
-            .mark_missing_except(&present)
-            .map_err(|e| e.to_string())?;
+        {
+            let library = lock(&self.library);
+            library
+                .mark_missing_except(&present)
+                .map_err(|e| e.to_string())?;
+            // An audiobook is where it was added: missing while its file or folder is gone.
+            for record in library.books().map_err(|e| e.to_string())? {
+                if record.kind == aoide_library::ItemKind::Audiobook {
+                    library
+                        .set_missing(&record.id, !record.path.exists())
+                        .map_err(|e| e.to_string())?;
+                }
+            }
+        }
         tracing::info!(
             event = "library.scan",
             outcome = "ok",
@@ -398,7 +409,7 @@ impl Shelf {
             kind: record.kind,
             audio,
             mode,
-            shape: reading::shape(true, mode),
+            shape: reading::shape(record.kind != aoide_library::ItemKind::Audiobook, mode),
             read_state: reading::ReadState::stored(
                 record.finished_at.is_some(),
                 progress.is_some(),

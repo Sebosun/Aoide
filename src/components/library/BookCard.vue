@@ -50,6 +50,7 @@ const RECORDING: Record<SyncStage, string> = {
   paused: "recording paused",
   missing: "recording missing",
   failed: "recording sync failed",
+  standalone: "audio only",
 };
 /** What the book has, then how far along it is: "Text + voice · 38%", "Text · unread". While it
  *  is being prepared, or its recording syncs, that progress is shown instead. */

@@ -33,6 +33,9 @@ pub enum Stage {
     /// Its audio files are gone or changed.
     Missing,
     Failed,
+    /// An audiobook on its own: there is no text to sync with, and it plays as it is. Only
+    /// attaching text moves it on.
+    Standalone,
 }
 
 /// What Checking found.
@@ -71,6 +74,9 @@ pub enum Event {
     Retry,
     /// Transcribe and match again from scratch (the caller clears what is stored).
     Resync,
+    /// An audiobook on its own was given its text: it syncs like any recording from now on.
+    #[allow(dead_code)] // Sent by the merge with an EPUB (phase 3.8).
+    TextAttached,
 }
 
 /// The whole state machine. Events that do not apply leave the stage as it is.
@@ -78,6 +84,9 @@ pub fn next(stage: Stage, event: Event) -> Stage {
     use Event::*;
     use Stage::*;
     match (stage, event) {
+        (Standalone, TextAttached) => Checking,
+        // Its files going missing shows on the item itself, like a missing EPUB.
+        (Standalone, _) => Standalone,
         (_, FilesLost) => Missing,
         (Missing, FilesFound) => Checking,
         (Checking, Verified(Found::Untranscribed)) => Waiting,
@@ -118,6 +127,7 @@ impl Stage {
             Stage::Paused => "paused",
             Stage::Missing => "missing",
             Stage::Failed => "failed",
+            Stage::Standalone => "standalone",
         }
     }
 
@@ -131,6 +141,7 @@ impl Stage {
             "poorMatch" => Stage::PoorMatch,
             "paused" => Stage::Paused,
             "missing" => Stage::Missing,
+            "standalone" => Stage::Standalone,
             _ => Stage::Failed,
         }
     }
@@ -140,7 +151,12 @@ impl Stage {
     pub fn listenable(self) -> bool {
         matches!(
             self,
-            Stage::Ready | Stage::Waiting | Stage::Transcribing | Stage::Paused | Stage::Matching
+            Stage::Ready
+                | Stage::Waiting
+                | Stage::Transcribing
+                | Stage::Paused
+                | Stage::Matching
+                | Stage::Standalone
         )
     }
 }
@@ -151,7 +167,7 @@ mod tests {
     use super::Stage::*;
     use super::*;
 
-    const ALL: [Stage; 11] = [
+    const ALL: [Stage; 12] = [
         Checking,
         Waiting,
         NeedsModel,
@@ -163,6 +179,7 @@ mod tests {
         Paused,
         Missing,
         Failed,
+        Standalone,
     ];
 
     #[test]
@@ -201,6 +218,7 @@ mod tests {
             (SampleMismatch, Resync, Checking),
             (Failed, Resync, Checking),
             (Paused, Resync, Checking),
+            (Standalone, TextAttached, Checking),
         ];
         for (from, event, to) in table {
             assert_eq!(next(from, event), to, "{from:?} + {event:?}");
@@ -209,7 +227,7 @@ mod tests {
 
     #[test]
     fn losing_the_files_stops_anything() {
-        for stage in ALL {
+        for stage in ALL.into_iter().filter(|s| *s != Standalone) {
             assert_eq!(next(stage, FilesLost), Missing, "{stage:?}");
         }
     }
@@ -223,6 +241,36 @@ mod tests {
         }
         assert_eq!(next(Ready, Accept), Ready);
         assert_eq!(next(Transcribing, Resync), Transcribing);
+        for stage in ALL {
+            assert_eq!(
+                next(stage, TextAttached),
+                if stage == Standalone { Checking } else { stage }
+            );
+        }
+    }
+
+    #[test]
+    fn an_audiobook_on_its_own_stays_so_until_it_is_given_text() {
+        for event in [
+            Verified(Found::Untranscribed),
+            SampleFailed,
+            Promote,
+            ModelMissing,
+            ModelReady,
+            TranscriptDone,
+            Matched { review: false },
+            Accept,
+            Pause,
+            Resume,
+            TextChanged,
+            FilesLost,
+            FilesFound,
+            Fail,
+            Retry,
+            Resync,
+        ] {
+            assert_eq!(next(Standalone, event), Standalone, "{event:?}");
+        }
     }
 
     #[test]
@@ -234,6 +282,7 @@ mod tests {
             Paused,
             Missing,
             Failed,
+            Standalone,
         ] {
             assert_eq!(Stage::from_stored(stage.name()), stage);
         }
@@ -245,7 +294,10 @@ mod tests {
     #[test]
     fn a_recording_can_be_listened_to_once_synced_or_while_it_syncs() {
         for stage in ALL {
-            let listenable = matches!(stage, Ready | Waiting | Transcribing | Paused | Matching);
+            let listenable = matches!(
+                stage,
+                Ready | Waiting | Transcribing | Paused | Matching | Standalone
+            );
             assert_eq!(stage.listenable(), listenable, "{stage:?}");
         }
     }
