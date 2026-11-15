@@ -434,3 +434,44 @@ it("opens a book read silently at its saved place, and picking a chapter only sh
   expect(play).not.toHaveBeenCalled();
   wrapper.unmount();
 });
+
+it("counts reading time only while a silent book is read in a focused window", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
+  const focused = vi.spyOn(document, "hasFocus").mockReturnValue(true);
+  try {
+    const activity = vi.spyOn(mock, "readingActivity");
+    const wrapper = await openReader({ book: "book-1" });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(activity).not.toHaveBeenCalled(); // No input yet: nobody may be there.
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+    expect(activity).toHaveBeenCalledTimes(1);
+    expect(activity).toHaveBeenLastCalledWith("book-1");
+    window.dispatchEvent(new Event("scroll"));
+    expect(activity).toHaveBeenCalledTimes(1); // At most every 15 s.
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(activity).toHaveBeenCalledTimes(2);
+    // A minute without input: the reader stepped away.
+    await vi.advanceTimersByTimeAsync(60_000);
+    const away = activity.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(activity).toHaveBeenCalledTimes(away);
+
+    // Another window has focus.
+    focused.mockReturnValue(false);
+    window.dispatchEvent(new PointerEvent("pointerdown"));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(activity).toHaveBeenCalledTimes(away);
+
+    // Listening counts as listening only.
+    focused.mockReturnValue(true);
+    await useReaderStore().setMode("listen");
+    await flushPromises();
+    window.dispatchEvent(new PointerEvent("pointerdown"));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(activity).toHaveBeenCalledTimes(away);
+    wrapper.unmount();
+  } finally {
+    vi.useRealTimers();
+  }
+});

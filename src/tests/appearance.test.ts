@@ -6,6 +6,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "../api/mock";
 import { TOKENS, themeCss } from "../theme";
 import { usePreferencesStore } from "../stores/preferences";
+import { useLibraryStore } from "../stores/library";
 import SettingsDialog from "../components/settings/SettingsDialog.vue";
 
 import { choose } from "./helpers";
@@ -102,5 +103,20 @@ it("shows problems in settings.toml and theme files", async () => {
   await flushPromises();
   expect(wrapper.text()).toContain("line 3");
   expect(wrapper.text()).toContain("not a colour token");
+  wrapper.unmount();
+});
+
+it("saves the reading speed used for time left to read", async () => {
+  const save = vi.spyOn(mock, "updateAppSettings");
+  await useLibraryStore().start();
+  const wrapper = mount(SettingsDialog, { attachTo: document.body });
+  await flushPromises();
+  const speed = wrapper.get('[aria-label="Reading speed in words a minute"]');
+  expect((speed.element as HTMLInputElement).value).toBe("230");
+  await speed.setValue("300");
+  await speed.trigger("change");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ readingWpm: 300 });
+  expect(useLibraryStore().readingWpm).toBe(300);
   wrapper.unmount();
 });

@@ -7,6 +7,7 @@ import ReaderTools from "../components/reader/ReaderTools.vue";
 import ChapterMenu from "../components/reader/ChapterMenu.vue";
 import ListenButton from "../components/reader/ListenButton.vue";
 import { usePlayerControls } from "../composables/usePlayerControls";
+import { useReadingTime } from "../composables/useReadingTime";
 import { prepareChapter } from "../preparation";
 import { usePreferencesStore } from "../stores/preferences";
 import BookToolsSheet from "../components/book/BookToolsSheet.vue";
@@ -37,6 +38,7 @@ function openTools(tab: ToolsTab | undefined) {
   else navigation.openTools(tab);
 }
 onUnmounted(() => navigation.closeTools());
+useReadingTime();
 const backLabel = computed(() => VIEW_NAMES[navigation.readerFrom]);
 const { bookmark } = usePlayerControls();
 const playingHere = computed(() => player.state.bookId === reader.book?.id);

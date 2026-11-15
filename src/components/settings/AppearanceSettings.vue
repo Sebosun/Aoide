@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { Minus, Palette, Plus } from "@lucide/vue";
 import UiSelect from "../ui/UiSelect.vue";
 import type { AppearanceMode } from "../../api/types";
@@ -7,8 +7,22 @@ import { TEXT_SCALES } from "../../theme";
 import { ZOOM_STEPS, clampZoom, stepZoom, zoomLabel } from "../../zoom";
 import SettingsNote from "./SettingsNote.vue";
 import { usePreferencesStore } from "../../stores/preferences";
+import { useLibraryStore } from "../../stores/library";
 
-const preferences = usePreferencesStore();
+const preferences = usePreferencesStore(),
+  library = useLibraryStore();
+const wpmError = ref("");
+/** Reading speed, for the time left to read; the core keeps it within 100–600. */
+async function saveWpm(event: Event) {
+  const input = event.target as HTMLInputElement;
+  wpmError.value = "";
+  try {
+    await library.setReadingWpm(Number(input.value));
+  } catch (e) {
+    wpmError.value = String(e);
+    input.value = String(library.readingWpm);
+  }
+}
 onMounted(() => {
   void preferences.start();
 });
@@ -75,6 +89,23 @@ const themeOptions = computed(() => [
         @input="preferences.update({ textSize: Number(($event.target as HTMLInputElement).value) })"
       />
     </label>
+    <label class="appearance__row">
+      <span class="appearance__label">Reading speed</span>
+      <span class="appearance__wpm"
+        ><input
+          class="appearance__number"
+          type="number"
+          min="100"
+          max="600"
+          step="10"
+          :value="library.readingWpm"
+          aria-label="Reading speed in words a minute"
+          @change="saveWpm"
+        />
+        words a minute</span
+      >
+    </label>
+    <p v-if="wpmError" class="appearance__problems" role="alert">{{ wpmError }}</p>
     <div class="appearance__row">
       <span class="appearance__label">Interface size</span>
       <div class="appearance__zoom" role="group" aria-label="Interface size">
@@ -205,6 +236,16 @@ const themeOptions = computed(() => [
 .appearance__range {
   justify-self: start;
   width: min(260px, 100%);
+}
+.appearance__wpm {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dim);
+}
+.appearance__number {
+  width: 90px;
 }
 .appearance__problems {
   margin: 0;
