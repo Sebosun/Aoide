@@ -285,7 +285,7 @@ pub struct Core {
     controls: controls::Controls,
     extras: Mutex<listening::ExtrasState>,
     /// Exact word timings being asked for.
-    aligning: Mutex<align::Aligning>,
+    aligner: align::Aligner,
     settings: config::Settings,
     /// Recordings and their sync.
     recordings: recordings::Recordings,
@@ -386,6 +386,7 @@ impl Core {
         let bookmarks = bookmarks::Bookmarks::new(Arc::clone(&library));
         let listening = listening::Listening::new(Arc::clone(&library), reporter.clone());
         let storage = storage::Storage::new(Arc::clone(&library), &paths);
+        let aligner = align::Aligner::new(Arc::clone(&library), paths.audio_dir.clone());
         let exports = export::Exports::new(Arc::clone(&library), &paths, Arc::clone(&events));
         let metadata = metadata::Metadata::new(
             Arc::clone(&library),
@@ -411,7 +412,7 @@ impl Core {
             generation,
             controls: Default::default(),
             extras: Mutex::new(Default::default()),
-            aligning: Mutex::new(Default::default()),
+            aligner,
             settings: config::Settings::new(config),
             recordings,
             audiobooks: Mutex::new(Default::default()),
@@ -436,7 +437,8 @@ impl Core {
         tokio::spawn(Arc::clone(&core).worker_events(worker_events));
         tokio::spawn(Arc::clone(&core).tick_loop());
         tokio::spawn(Arc::clone(&core).engine_loop());
-        tokio::spawn(Arc::clone(&core).aligner_loop());
+        let aligning = Arc::clone(&core);
+        tokio::spawn(async move { aligning.aligner.run(&*aligning).await });
         let scanner = Arc::clone(&core);
         let runtime = tokio::runtime::Handle::current();
         tokio::task::spawn_blocking(move || {

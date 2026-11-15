@@ -80,11 +80,43 @@ fn words(segment: &aoide_text::Segment) -> Vec<String> {
         .collect()
 }
 
-impl Core {
+/// What aligning asks of the rest of the app.
+pub(super) trait AlignHost: Sync {
+    /// The aligner's settings; `None` when there is no aligner.
+    fn settings(&self) -> Option<AlignerSettings>;
+    fn book(&self, id: &str) -> Result<Arc<BookModel>, String>;
+    /// The recording playing for book `id`, if it is.
+    fn recording_of(&self, id: &str) -> Option<Arc<RecordingPlan>>;
+    /// Exact word times for entry `index` of `book`.
+    fn aligned(&self, book: &str, index: usize, timings: Vec<aoide_text::WordEstimate>);
+}
+
+/// Asks the aligner service for exact word times, one thing at a time.
+pub(super) struct Aligner {
+    library: Arc<Mutex<Library>>,
+    audio_dir: PathBuf,
+    aligning: Mutex<Aligning>,
+}
+
+impl Aligner {
+    pub fn new(library: Arc<Mutex<Library>>, audio_dir: PathBuf) -> Self {
+        Self {
+            library,
+            audio_dir,
+            aligning: Default::default(),
+        }
+    }
+
+    /// How many things wait to be aligned.
+    #[cfg(test)]
+    pub fn waiting(&self) -> usize {
+        lock(&self.aligning).queue.len()
+    }
+
     /// Asks for exact word times of what playback just gave the player: clips aligned earlier
     /// in this run get theirs at once, the rest wait for the aligner (when there is one).
-    pub(super) fn align(&self, wanted: Vec<Alignable>) {
-        let configured = self.app_settings().aligner.is_some();
+    pub fn want(&self, wanted: Vec<Alignable>, host: &dyn AlignHost) {
+        let configured = host.settings().is_some();
         // The playback and aligning locks are never held together.
         let mut known = Vec::new();
         {
@@ -111,62 +143,69 @@ impl Core {
             }
         }
         for (book, index, timings) in known {
-            self.playback.aligned(&book, index, timings);
+            host.aligned(&book, index, timings);
         }
     }
 
-    pub(super) async fn aligner_loop(self: Arc<Self>) {
+    /// Aligns what waits, one at a time, for as long as Aoide runs.
+    pub async fn run(&self, host: &dyn AlignHost) {
         let mut offline_until: Option<Instant> = None;
         loop {
             tokio::time::sleep(IDLE).await;
-            let Some(settings) = self.app_settings().aligner else {
-                lock(&self.aligning).queue.clear();
-                continue;
-            };
-            if offline_until.is_some_and(|t| Instant::now() < t) {
-                continue;
+            self.step(host, &mut offline_until).await;
+        }
+    }
+
+    /// Aligns the next thing waiting, unless the aligner was offline until after now.
+    pub async fn step(&self, host: &dyn AlignHost, offline_until: &mut Option<Instant>) {
+        let Some(settings) = host.settings() else {
+            lock(&self.aligning).queue.clear();
+            return;
+        };
+        if offline_until.is_some_and(|t| Instant::now() < t) {
+            return;
+        }
+        let Some((key, item)) = lock(&self.aligning).queue.pop_front() else {
+            return;
+        };
+        let aligner = match aoide_aligner::Aligner::new(aoide_aligner::Options {
+            base_url: settings.base_url.clone(),
+            network: settings.network,
+            ..Default::default()
+        }) {
+            Ok(aligner) => aligner,
+            Err(error) => {
+                tracing::warn!(event = "align.settings", %error, "Aligner settings are not usable");
+                return;
             }
-            let Some((key, item)) = lock(&self.aligning).queue.pop_front() else {
-                continue;
-            };
-            let aligner = match aoide_aligner::Aligner::new(aoide_aligner::Options {
-                base_url: settings.base_url.clone(),
-                network: settings.network,
-                ..Default::default()
-            }) {
-                Ok(aligner) => aligner,
-                Err(error) => {
-                    tracing::warn!(event = "align.settings", %error, "Aligner settings are not usable");
-                    continue;
+        };
+        let started = Instant::now();
+        let aligned = match &item {
+            Alignable::Speech { book, index, key } => {
+                self.align_speech(host, &aligner, book, *index, key).await
+            }
+            Alignable::Clip { book, index, plan } => {
+                self.align_clip(host, &aligner, book, *index, plan, &key)
+                    .await
+            }
+        };
+        match aligned {
+            Ok(()) => {
+                tracing::debug!(event = "align.request", %key, took_ms = crate::logging::took(started), outcome = "ok", "Aligned words");
+                lock(&self.aligning).done.insert(key);
+            }
+            Err(aoide_aligner::Error::Unavailable(_) | aoide_aligner::Error::Timeout) => {
+                tracing::info!(event = "align.offline", %key, "The aligner is not answering; trying again later");
+                // Try again later; start the service if Aoide may.
+                lock(&self.aligning).queue.push_front((key, item));
+                *offline_until = Some(Instant::now() + RETRY);
+                if let Some(launch) = &settings.launch {
+                    self.launch_aligner(launch);
                 }
-            };
-            let started = Instant::now();
-            let aligned = match &item {
-                Alignable::Speech { book, index, key } => {
-                    self.align_speech(&aligner, book, *index, key).await
-                }
-                Alignable::Clip { book, index, plan } => {
-                    self.align_clip(&aligner, book, *index, plan, &key).await
-                }
-            };
-            match aligned {
-                Ok(()) => {
-                    tracing::debug!(event = "align.request", %key, took_ms = crate::logging::took(started), outcome = "ok", "Aligned words");
-                    lock(&self.aligning).done.insert(key);
-                }
-                Err(aoide_aligner::Error::Unavailable(_) | aoide_aligner::Error::Timeout) => {
-                    tracing::info!(event = "align.offline", %key, "The aligner is not answering; trying again later");
-                    // Try again later; start the service if Aoide may.
-                    lock(&self.aligning).queue.push_front((key, item));
-                    offline_until = Some(Instant::now() + RETRY);
-                    if let Some(launch) = &settings.launch {
-                        self.launch_aligner(launch);
-                    }
-                }
-                Err(error) => {
-                    tracing::warn!(event = "align.error", %key, %error, "Alignment failed");
-                    lock(&self.aligning).done.insert(key);
-                }
+            }
+            Err(error) => {
+                tracing::warn!(event = "align.error", %key, %error, "Alignment failed");
+                lock(&self.aligning).done.insert(key);
             }
         }
     }
@@ -174,6 +213,7 @@ impl Core {
     /// Aligns made speech; its timings are stored with its audio.
     async fn align_speech(
         &self,
+        host: &dyn AlignHost,
         aligner: &aoide_aligner::Aligner,
         book_id: &str,
         index: usize,
@@ -183,7 +223,7 @@ impl Core {
         let Some(mut cached) = lock(&self.library).segment(key).ok().flatten() else {
             return Ok(()); // Evicted meanwhile.
         };
-        let book = self.load_book(book_id).map_err(other)?;
+        let book = host.book(book_id).map_err(other)?;
         let segment = book
             .segment(index)
             .ok_or_else(|| other("segment moved".into()))?;
@@ -194,8 +234,8 @@ impl Core {
         {
             return Ok(());
         }
-        let bytes = std::fs::read(self.paths.audio_dir.join(&cached.file))
-            .map_err(|e| other(e.to_string()))?;
+        let bytes =
+            std::fs::read(self.audio_dir.join(&cached.file)).map_err(|e| other(e.to_string()))?;
         let pcm = codec::decode(&bytes).map_err(|e| other(e.to_string()))?;
         let spans = aligner
             .align(&words(segment), &pcm.samples, pcm.sample_rate)
@@ -214,7 +254,7 @@ impl Core {
         lock(&self.library)
             .record_segment(&cached)
             .map_err(|e| other(e.to_string()))?;
-        self.playback.aligned(book_id, index, timings);
+        host.aligned(book_id, index, timings);
         Ok(())
     }
 
@@ -222,6 +262,7 @@ impl Core {
     /// from the audiobook. Kept for this run only.
     async fn align_clip(
         &self,
+        host: &dyn AlignHost,
         aligner: &aoide_aligner::Aligner,
         book_id: &str,
         index: usize,
@@ -230,7 +271,7 @@ impl Core {
     ) -> Result<(), aoide_aligner::Error> {
         let other = |m: String| aoide_aligner::Error::InvalidInput(m);
         // Listening moved on, or the sync map changed under it.
-        let current = self.playback.recording_of(book_id);
+        let current = host.recording_of(book_id);
         if current
             .and_then(|p| clip_key(book_id, index, &p))
             .as_deref()
@@ -240,7 +281,7 @@ impl Core {
         }
         let clip = &plan.clips[index];
         let text = clip.text.clone().ok_or_else(|| other("no text".into()))?;
-        let book = self.load_book(book_id).map_err(other)?;
+        let book = host.book(book_id).map_err(other)?;
         let segment = book
             .segment(index)
             .ok_or_else(|| other("segment moved".into()))?;
@@ -269,7 +310,7 @@ impl Core {
         lock(&self.aligning)
             .clips
             .insert(key.to_owned(), timings.clone());
-        self.playback.aligned(book_id, index, timings);
+        host.aligned(book_id, index, timings);
         Ok(())
     }
 
@@ -305,11 +346,41 @@ impl Core {
     }
 
     /// Stops an aligner Aoide started.
-    pub(super) fn stop_aligner(&self) {
+    pub fn stop(&self) {
         if let Some(mut child) = lock(&self.aligning).child.take() {
             let _ = child.kill();
             let _ = child.wait();
         }
+    }
+}
+
+impl Core {
+    /// Asks for exact word times of what playback just gave the player.
+    pub(super) fn align(&self, wanted: Vec<Alignable>) {
+        self.aligner.want(wanted, self)
+    }
+
+    /// Stops an aligner Aoide started.
+    pub(super) fn stop_aligner(&self) {
+        self.aligner.stop()
+    }
+}
+
+impl AlignHost for Core {
+    fn settings(&self) -> Option<AlignerSettings> {
+        self.app_settings().aligner
+    }
+
+    fn book(&self, id: &str) -> Result<Arc<BookModel>, String> {
+        self.load_book(id)
+    }
+
+    fn recording_of(&self, id: &str) -> Option<Arc<RecordingPlan>> {
+        self.playback.recording_of(id)
+    }
+
+    fn aligned(&self, book: &str, index: usize, timings: Vec<aoide_text::WordEstimate>) {
+        self.playback.aligned(book, index, timings);
     }
 }
 
@@ -351,5 +422,64 @@ mod tests {
             key: "cache-key".into(),
         };
         assert_eq!(speech.key().as_deref(), Some("cache-key"));
+    }
+
+    struct Host {
+        settings: Option<AlignerSettings>,
+    }
+
+    impl AlignHost for Host {
+        fn settings(&self) -> Option<AlignerSettings> {
+            self.settings.clone()
+        }
+        fn book(&self, _: &str) -> Result<Arc<BookModel>, String> {
+            Err("no books here".into())
+        }
+        fn recording_of(&self, _: &str) -> Option<Arc<RecordingPlan>> {
+            None
+        }
+        fn aligned(&self, _: &str, _: usize, _: Vec<aoide_text::WordEstimate>) {
+            panic!("nothing is aligned in these tests");
+        }
+    }
+
+    fn speech(key: &str) -> Alignable {
+        Alignable::Speech {
+            book: "b".into(),
+            index: 0,
+            key: key.into(),
+        }
+    }
+
+    fn set_up() -> Option<AlignerSettings> {
+        Some(AlignerSettings {
+            base_url: "http://127.0.0.1:9".into(),
+            network: Default::default(),
+            launch: None,
+        })
+    }
+
+    #[test]
+    fn work_waits_only_when_an_aligner_is_set_up_and_only_once() {
+        let aligner = Aligner::new(super::super::tests::library_with(&["b"]), "/nowhere".into());
+        aligner.want(vec![speech("k")], &Host { settings: None });
+        assert_eq!(aligner.waiting(), 0);
+
+        let host = Host { settings: set_up() };
+        aligner.want(vec![speech("k"), speech("k")], &host);
+        aligner.want(vec![speech("k")], &host);
+        assert_eq!(aligner.waiting(), 1);
+    }
+
+    #[tokio::test]
+    async fn speech_whose_audio_is_gone_is_not_asked_for_again() {
+        let aligner = Aligner::new(super::super::tests::library_with(&["b"]), "/nowhere".into());
+        let host = Host { settings: set_up() };
+        aligner.want(vec![speech("evicted")], &host);
+
+        aligner.step(&host, &mut None).await;
+        aligner.want(vec![speech("evicted")], &host);
+
+        assert_eq!(aligner.waiting(), 0);
     }
 }
