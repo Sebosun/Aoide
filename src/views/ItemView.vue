@@ -5,11 +5,13 @@ import {
   BookOpen,
   Check,
   CircleCheck,
+  ExternalLink,
   FolderPlus,
   Headphones,
   Library,
   Mic,
   Plus,
+  RefreshCw,
   RotateCcw,
   Settings2,
   Sparkles,
@@ -26,6 +28,8 @@ import BookListening from "../components/book/BookListening.vue";
 import BookNarration from "../components/book/BookNarration.vue";
 import { useCollections } from "../composables/useCollections";
 import { useRecordingsStore } from "../stores/recordings";
+import { useArticlesStore } from "../stores/articles";
+import { fetching, NEEDS, siteOf } from "../articles";
 import { formatBytes } from "../bytes";
 import { formatClock, formatDuration, readingMs, speechMs } from "../estimate";
 import { useLibraryStore } from "../stores/library";
@@ -49,6 +53,7 @@ const library = useLibraryStore(),
   player = usePlayerStore(),
   reader = useReaderStore(),
   recordings = useRecordingsStore(),
+  articles = useArticlesStore(),
   shelves = useCollections();
 const overview = ref<BookView | null>(null),
   details = ref<BookDetails | null>(null),
@@ -57,8 +62,10 @@ const overview = ref<BookView | null>(null),
   error = ref("");
 const expanded = ref(false),
   notesOpen = ref(false);
-const loading = computed(() => !overview.value && !error.value);
-onMounted(async () => {
+/** An article with no copy yet: it has no text, and its fetch says why. */
+const unfetched = ref(false);
+const loading = computed(() => !overview.value && !error.value && !unfetched.value);
+async function load() {
   try {
     const [view, info, days, book] = await Promise.all([
       api.bookOverview(props.bookId),
@@ -70,19 +77,73 @@ onMounted(async () => {
     details.value = info;
     listening.value = days;
     settings.value = book;
+    unfetched.value = false;
   } catch (e) {
-    error.value = String(e);
+    const article = await articles.load(props.bookId).then(
+      () => true,
+      () => false,
+    );
+    if (article) unfetched.value = true;
+    else error.value = String(e);
   }
-});
+}
+onMounted(load);
 
 const summary = computed(() => library.books.find((b) => b.id === props.bookId) ?? null);
 const title = computed(() => summary.value?.title ?? overview.value?.title ?? "");
+/** An article without a byline names no one. */
 const authors = computed(
-  () => (summary.value?.authors ?? overview.value?.authors ?? []).join(", ") || "Unknown author",
+  () =>
+    (summary.value?.authors ?? overview.value?.authors ?? []).join(", ") ||
+    (summary.value?.kind === "article" ? "" : "Unknown author"),
 );
 const progress = computed(() => summary.value?.progress ?? overview.value?.progress ?? null);
 /** An audiobook on its own: no text, so Listen is its only way in and its parts its contents. */
 const audiobook = computed(() => summary.value?.kind === "audiobook" || overview.value?.shape === "listen");
+/** An article: from the web, in one chapter; its fetch decides what there is to read. */
+const article = computed(() => articles.byId[props.bookId] ?? null);
+const isArticle = computed(() => summary.value?.kind === "article" || Boolean(article.value));
+watch(
+  isArticle,
+  (yes) => {
+    if (yes) articles.load(props.bookId).catch((e) => (error.value = String(e)));
+  },
+  { immediate: true },
+);
+// A new copy was stored: the page shows its text.
+watch(
+  () => article.value?.fetchedAt,
+  (now, before) => {
+    if (before !== undefined && now !== before) void load();
+  },
+);
+const busy = computed(() => Boolean(article.value && fetching(article.value.stage)));
+const articleLead = computed(() => {
+  const view = article.value;
+  if (view && fetching(view.stage)) return "Fetching…";
+  if (overview.value) return `About ${formatDuration(readingMs(words.value, library.readingWpm))} to read`;
+  return view?.stage.kind === "failed" ? "Could not be fetched" : "Not fetched yet";
+});
+const articleFacts = computed(() => {
+  const view = article.value;
+  if (!view) return [];
+  const list = [siteOf(view)];
+  if (overview.value) {
+    if (view.capturedWords) list.push(`${view.capturedWords.toLocaleString()} words`);
+    if (view.fetchedAt)
+      list.push(
+        `Fetched ${new Date(view.fetchedAt).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}`,
+      );
+    if (view.via === "archive") list.push("from an archived copy");
+  }
+  return list;
+});
+async function openOriginal() {
+  await articles.openOriginal(props.bookId).catch((e) => (error.value = String(e)));
+}
+async function refetch() {
+  await articles.refetch(props.bookId, "http").catch((e) => (error.value = String(e)));
+}
 /** Its recording's files, as the sync state lists them. */
 const recordingFiles = computed(() => recordings.byBook[props.bookId]?.files ?? []);
 const audiobookLength = computed(
@@ -246,15 +307,17 @@ const collectionItems = computed<MenuEntry[]>(() => {
         :shape="audiobook ? 'square' : 'portrait'"
       />
       <div class="item-page__intro">
-        <span class="item-page__kind">{{ audiobook ? "Audiobook" : "Book" }} · {{ state }}</span>
+        <span class="item-page__kind"
+          >{{ audiobook ? "Audiobook" : isArticle ? "Article" : "Book" }} · {{ state }}</span
+        >
         <template v-if="title"
           ><h1 class="item-page__title">{{ title }}</h1>
-          <p class="item-page__authors">{{ authors }}</p></template
+          <p v-if="authors" class="item-page__authors">{{ authors }}</p></template
         >
         <UiSkeleton v-else-if="loading" class="item-page__ghost-title" />
         <div class="item-page__actions">
           <button
-            v-if="!audiobook"
+            v-if="!audiobook && !unfetched"
             type="button"
             :class="listened ? 'item-page__secondary' : 'item-page__primary'"
             aria-label="Read"
@@ -263,6 +326,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
             <BookOpen :size="18" aria-hidden="true" /> Read
           </button>
           <button
+            v-if="!unfetched"
             type="button"
             :class="listened || audiobook ? 'item-page__primary' : 'item-page__secondary'"
             aria-label="Listen"
@@ -281,6 +345,20 @@ const collectionItems = computed<MenuEntry[]>(() => {
               <Library :size="17" aria-hidden="true" /> Add to collection
             </button>
           </UiMenu>
+          <template v-if="isArticle">
+            <button type="button" class="item-page__secondary" aria-label="Open original" @click="openOriginal">
+              <ExternalLink :size="17" aria-hidden="true" /> Open original
+            </button>
+            <button
+              type="button"
+              class="item-page__secondary"
+              aria-label="Fetch again"
+              :disabled="busy"
+              @click="refetch"
+            >
+              <RefreshCw :size="17" aria-hidden="true" /> Fetch again
+            </button>
+          </template>
           <button v-if="summary" type="button" class="item-page__secondary" @click="markRead">
             <component :is="finished ? RotateCcw : CircleCheck" :size="17" aria-hidden="true" />
             {{ finished ? "Mark as unread" : "Mark as finished" }}
@@ -315,8 +393,41 @@ const collectionItems = computed<MenuEntry[]>(() => {
       </div>
     </div>
 
-    <div v-if="overview" class="item-page__cards">
-      <section v-if="audiobook" class="item-page__card" aria-labelledby="item-text">
+    <div v-if="overview || unfetched" class="item-page__cards">
+      <section v-if="isArticle" class="item-page__card" aria-labelledby="item-text">
+        <div class="item-page__card-head">
+          <h2 id="item-text" class="item-page__heading">Text</h2>
+          <span class="item-page__badge" :class="{ 'item-page__badge--ok': overview }"
+            ><i v-if="overview" aria-hidden="true" />Web page</span
+          >
+        </div>
+        <b class="item-page__lead">{{ articleLead }}</b>
+        <span class="item-page__facts">{{ articleFacts.join(" · ") }}</span>
+        <p v-if="article?.stage.kind === 'needsYou'" class="item-page__problem" role="status">
+          <TriangleAlert :size="15" aria-hidden="true" /> Needs you · {{ NEEDS[article.stage.reason] }}
+        </p>
+        <p v-else-if="article?.stage.kind === 'failed' && article.error" class="item-page__problem" role="alert">
+          <TriangleAlert :size="15" aria-hidden="true" /> {{ article.error }}
+        </p>
+        <button
+          v-if="notes"
+          type="button"
+          class="item-page__notes-link"
+          :aria-expanded="notesOpen"
+          aria-controls="item-notes"
+          @click="notesOpen = !notesOpen"
+        >
+          <TriangleAlert :size="15" aria-hidden="true" /> {{ notes }} extraction
+          {{ notes === 1 ? "note" : "notes" }}
+        </button>
+        <div v-if="notes && notesOpen" id="item-notes" class="item-page__notes">
+          <p v-for="section in overview?.excluded ?? []" :key="section.title">
+            <strong>{{ section.title }}</strong> left out: {{ section.reason }}
+          </p>
+          <p v-for="warning in overview?.warnings ?? []" :key="warning">{{ warning }}</p>
+        </div>
+      </section>
+      <section v-else-if="audiobook" class="item-page__card" aria-labelledby="item-text">
         <div class="item-page__card-head">
           <h2 id="item-text" class="item-page__heading">Text</h2>
           <span class="item-page__badge">None</span>
@@ -353,14 +464,14 @@ const collectionItems = computed<MenuEntry[]>(() => {
           {{ notes === 1 ? "note" : "notes" }}
         </button>
         <div v-if="notes && notesOpen" id="item-notes" class="item-page__notes">
-          <p v-for="section in overview.excluded" :key="section.title">
+          <p v-for="section in overview?.excluded ?? []" :key="section.title">
             <strong>{{ section.title }}</strong> left out: {{ section.reason }}
           </p>
-          <p v-for="warning in overview.warnings" :key="warning">{{ warning }}</p>
+          <p v-for="warning in overview?.warnings ?? []" :key="warning">{{ warning }}</p>
         </div>
       </section>
 
-      <section class="item-page__card" aria-labelledby="item-audio" :data-audio="audio">
+      <section v-if="overview" class="item-page__card" aria-labelledby="item-audio" :data-audio="audio">
         <div class="item-page__card-head">
           <h2 id="item-audio" class="item-page__heading">Audio</h2>
           <span class="item-page__badge">{{
@@ -370,7 +481,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
         <template v-if="audiobook">
           <b class="item-page__lead">{{ formatDuration(audiobookLength) }}</b>
           <span class="item-page__facts">{{ audiobookFacts }}</span>
-          <p v-for="warning in overview.warnings" :key="warning" class="item-page__problem" role="alert">
+          <p v-for="warning in overview?.warnings ?? []" :key="warning" class="item-page__problem" role="alert">
             <TriangleAlert :size="15" aria-hidden="true" /> {{ warning }}
           </p>
           <ul v-if="recordingFiles.length" class="item-page__files" aria-label="Audio files">
@@ -382,14 +493,20 @@ const collectionItems = computed<MenuEntry[]>(() => {
           </ul>
         </template>
         <template v-else-if="audio === 'none'">
-          <b class="item-page__lead">Listen to this book</b>
+          <b class="item-page__lead">Listen to this {{ isArticle ? "article" : "book" }}</b>
           <button type="button" class="item-page__option" aria-label="Narrate with a voice" @click="listen">
             <Mic :size="20" aria-hidden="true" />
             <span
               ><b>Narrate with a voice</b><small>{{ engineLine }}</small></span
             >
           </button>
-          <button type="button" class="item-page__option" aria-label="Pair an audiobook" @click="pair">
+          <button
+            v-if="!isArticle"
+            type="button"
+            class="item-page__option"
+            aria-label="Pair an audiobook"
+            @click="pair"
+          >
             <AudioLines :size="20" aria-hidden="true" />
             <span
               ><b>Pair an audiobook</b><small>M4B, MP3, FLAC or Ogg · plays with read-along highlighting</small></span
@@ -420,7 +537,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
               <Settings2 :size="15" aria-hidden="true" /> Voice settings
             </button>
           </div>
-          <button type="button" class="item-page__link" aria-label="Pair an audiobook" @click="pair">
+          <button v-if="!isArticle" type="button" class="item-page__link" aria-label="Pair an audiobook" @click="pair">
             Pair an audiobook instead
           </button>
         </template>
@@ -431,7 +548,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
           v-if="listening.length"
           class="item-page__listening"
           :days="listening"
-          :word-count="overview.wordCount"
+          :word-count="overview!.wordCount"
           :duration-ms="summary?.durationMs ?? null"
           :fraction="progress?.fraction ?? 0"
           :speed="player.state.speed"
@@ -442,7 +559,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
       <UiSkeleton class="item-page__ghost-card" /><UiSkeleton class="item-page__ghost-card" />
     </div>
 
-    <section v-if="overview" class="item-page__card" aria-labelledby="item-contents">
+    <section v-if="overview && !isArticle" class="item-page__card" aria-labelledby="item-contents">
       <h2 id="item-contents" class="item-page__heading">Contents</h2>
       <ol class="item-page__chapters" aria-label="Contents">
         <li v-for="(c, i) in overview.chapters" :key="c.index">
@@ -482,7 +599,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
       </ol>
     </section>
 
-    <section v-if="overview && !audiobook" class="item-page__card" aria-labelledby="item-online">
+    <section v-if="overview && !audiobook && !isArticle" class="item-page__card" aria-labelledby="item-online">
       <h2 id="item-online" class="item-page__heading">Details online</h2>
       <MetadataLookup :book-id="bookId" :matched="Boolean(details?.openLibraryKey)" @applied="details = $event" />
     </section>

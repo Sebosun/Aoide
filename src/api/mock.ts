@@ -540,6 +540,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     setArticle(id, {
       stage,
       error: stage.kind === "failed" ? "The site answered with status 503." : null,
+      fetchedAt: fetched.has(id) ? Date.now() : null,
       declaredWords: stage.kind === "needsYou" && stage.reason === "cutShort" ? 1200 : null,
     });
     return id;

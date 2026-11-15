@@ -217,3 +217,60 @@ it("shows an audiobook's page: Listen only, no text, its length, parts and files
   await mock.pause();
   wrapper.unmount();
 });
+
+/** The app on the item page of the preview's article (book-6), saved in `stage`. */
+async function articlePage(stage: string) {
+  mock.dispose();
+  mock = createMockApi(`?article=${stage}`);
+  backend.api = mock;
+  useNavigationStore().openItem("book-6");
+  const wrapper = await app();
+  // Its title is its site's address until a copy is fetched.
+  return { wrapper, about: () => wrapper.get(".item-page") };
+}
+
+it("shows an article's page: its site and fetch, narration only, the original and fetching again", async () => {
+  const { wrapper, about } = await articlePage("needsyou-cutshort");
+  const open = vi.spyOn(mock, "openOriginal"),
+    refetch = vi.spyOn(mock, "refetchArticle");
+  expect(about().get(".item-page__kind").text()).toBe("Article · unread");
+  expect(about().find('[aria-label="Read"]').exists()).toBe(true);
+  const text = about().get('[aria-labelledby="item-text"]');
+  expect(text.text()).toContain("Quay Weekly");
+  expect(text.text()).toContain("93 words");
+  expect(text.text()).toContain("Needs you · only part of it was saved");
+  const audio = about().get('[aria-labelledby="item-audio"]');
+  expect(audio.find('[aria-label="Narrate with a voice"]').exists()).toBe(true);
+  expect(audio.find('[aria-label="Pair an audiobook"]').exists(), "no pairing").toBe(false);
+  expect(about().find('[aria-labelledby="item-contents"]').exists(), "one chapter: no contents").toBe(false);
+  expect(about().find('[aria-labelledby="item-online"]').exists(), "no details online").toBe(false);
+
+  await about().get('[aria-label="Open original"]').trigger("click");
+  expect(open).toHaveBeenCalledWith("book-6");
+  await about().get('[aria-label="Fetch again"]').trigger("click");
+  await flushPromises();
+  expect(refetch).toHaveBeenCalledWith("book-6", "http");
+  expect(about().get('[aria-labelledby="item-text"]').text()).toContain("Fetching…");
+  expect(about().get('[aria-label="Fetch again"]').attributes("disabled")).toBeDefined();
+  wrapper.unmount();
+});
+
+it("shows why an article could not be fetched, and fetches it again", async () => {
+  const { wrapper, about } = await articlePage("failed");
+  expect(wrapper.find(".item-page__error").exists(), "not an error loading the page").toBe(false);
+  const text = about().get('[aria-labelledby="item-text"]');
+  expect(text.text()).toContain("Could not be fetched");
+  expect(text.text()).toContain("The site answered with status 503.");
+  expect(about().find('[aria-label="Read"]').exists(), "nothing to read").toBe(false);
+  expect(about().find('[aria-labelledby="item-audio"]').exists(), "nothing to narrate").toBe(false);
+
+  // A fuller fetch arrives: the page shows the text it got.
+  vi.useFakeTimers();
+  await about().get('[aria-label="Fetch again"]').trigger("click");
+  await vi.advanceTimersByTimeAsync(1500);
+  vi.useRealTimers();
+  await flushPromises();
+  expect(about().find('[aria-label="Read"]').exists()).toBe(true);
+  expect(about().get('[aria-labelledby="item-text"]').text()).toContain("93 words");
+  wrapper.unmount();
+});
