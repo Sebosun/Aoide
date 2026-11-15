@@ -8,7 +8,7 @@ import { useLibraryStore, type BuiltInFilter } from "../stores/library";
 import { usePlayerStore } from "../stores/player";
 import { useReaderStore } from "../stores/reader";
 import { useNavigationStore } from "../stores/navigation";
-import type { BookSummary, LibrarySort } from "../api/types";
+import type { BookSummary, ItemKind, LibrarySort } from "../api/types";
 
 const library = useLibraryStore(),
   reader = useReaderStore(),
@@ -25,6 +25,23 @@ const FILTERS: { value: BuiltInFilter; label: string }[] = [
 /** Preparing is offered only while something is being prepared (or it is the filter). */
 const filters = computed(() =>
   FILTERS.filter((f) => f.value !== "preparing" || library.counts.preparing > 0 || library.filter === "preparing"),
+);
+const KINDS: { value: ItemKind; label: string }[] = [
+  { value: "book", label: "Books" },
+  { value: "article", label: "Articles" },
+  { value: "audiobook", label: "Audiobooks" },
+];
+/** The kind switch: All and each kind the library holds, once it holds two. */
+const kinds = computed(() =>
+  library.kinds.length < 2
+    ? []
+    : [
+        { value: "all" as const, label: "All", count: library.counts.all },
+        ...KINDS.filter((k) => library.kinds.includes(k.value)).map((k) => ({
+          ...k,
+          count: library.kindCounts[k.value],
+        })),
+      ],
 );
 const plural = (n: number) => `${n} ${n === 1 ? "book" : "books"}`;
 const importErrors = computed(() => library.imports.filter((r) => r.error));
@@ -99,24 +116,39 @@ const SORTS: { value: LibrarySort; label: string }[] = [
         />
       </template>
     </div>
-    <div
-      v-if="library.books.length && !library.collection"
-      class="library__chips"
-      role="group"
-      aria-label="Filter books"
-    >
-      <button
-        v-for="f in filters"
-        :key="f.value"
-        type="button"
-        class="library__chip"
-        :class="{ 'library__chip--on': library.filter === f.value }"
-        :aria-label="f.label"
-        :aria-pressed="library.filter === f.value"
-        @click="library.filter = f.value"
+    <div class="library__bar">
+      <div v-if="kinds.length" class="library__kinds" role="group" aria-label="Kind">
+        <button
+          v-for="k in kinds"
+          :key="k.value"
+          type="button"
+          class="library__kind"
+          :class="{ 'library__kind--on': library.kind === k.value }"
+          :aria-pressed="library.kind === k.value"
+          @click="library.kind = k.value"
+        >
+          {{ k.label }}<span class="library__count">{{ k.count }}</span>
+        </button>
+      </div>
+      <div
+        v-if="library.books.length && !library.collection"
+        class="library__chips"
+        role="group"
+        aria-label="Filter books"
       >
-        {{ f.label }}<span v-if="f.value === 'all'" class="library__count">{{ library.counts.all }}</span>
-      </button>
+        <button
+          v-for="f in filters"
+          :key="f.value"
+          type="button"
+          class="library__chip"
+          :class="{ 'library__chip--on': library.filter === f.value }"
+          :aria-label="f.label"
+          :aria-pressed="library.filter === f.value"
+          @click="library.filter = f.value"
+        >
+          {{ f.label }}<span v-if="f.value === 'all'" class="library__count">{{ library.counts.all }}</span>
+        </button>
+      </div>
     </div>
     <ul v-if="!library.ready" class="library__grid" aria-hidden="true">
       <li v-for="n in 12" :key="n" class="library__ghost">
@@ -235,11 +267,41 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   font-weight: 700;
   letter-spacing: -0.01em;
 }
+.library__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: -8px;
+}
+.library__bar:empty {
+  display: none;
+}
+.library__kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 24px;
+  background: var(--wash);
+}
+.library__kind {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 20px;
+  background: transparent;
+  font-weight: 600;
+  color: var(--dim);
+}
+.library__kind--on {
+  background: var(--ink);
+  color: var(--ground);
+}
 .library__chips {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: -8px;
 }
 .library__chip {
   height: 40px;

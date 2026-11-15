@@ -405,7 +405,12 @@ impl Shelf {
         let audio = facets::audio_source(facts);
         let mode = reading::mode_for(host.chosen_mode(&record.id.0), &facts);
         let progress = self.progress(&record.id);
+        let duration_ms = (record.kind == aoide_library::ItemKind::Audiobook)
+            .then(|| lock(&self.library).recording(&record.id).ok().flatten())
+            .flatten()
+            .map(|row| row.total_ms);
         BookSummary {
+            duration_ms,
             prepare,
             kind: record.kind,
             audio,
@@ -472,7 +477,8 @@ impl Shelf {
             .book(&BookId(id.into()))
             .map_err(|e| e.to_string())?
             .ok_or("no such book")?;
-        if !record.path.is_file() {
+        // An audiobook's path may be its folder.
+        if !record.path.exists() {
             return Err(format!(
                 "the book's file is missing: {}",
                 record.path.display()

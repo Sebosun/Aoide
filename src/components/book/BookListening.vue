@@ -5,7 +5,14 @@ import { formatDuration, speechMs } from "../../estimate";
 
 /** Time spent with one book: the total, the days it was listened on (a bar each, the latest
  *  fourteen), when that began and last happened, and roughly how much is left. */
-const props = defineProps<{ days: DayListening[]; wordCount: number; fraction: number; speed: number }>();
+const props = defineProps<{
+  days: DayListening[];
+  wordCount: number;
+  fraction: number;
+  speed: number;
+  /** An audiobook's length, which it goes by instead of words. */
+  durationMs?: number | null;
+}>();
 
 const date = (day: string) => new Date(`${day}T12:00:00`);
 const dayKey = (d: Date) =>
@@ -36,6 +43,8 @@ const first = computed(() => props.days[0]?.day ?? null),
   last = computed(() => props.days.at(-1)?.day ?? null);
 const left = computed(() => {
   if (props.fraction >= 1) return "Finished";
+  if (props.durationMs)
+    return `About ${formatDuration((props.durationMs * (1 - props.fraction)) / Math.max(0.1, props.speed))} left at ${props.speed}×`;
   if (!props.wordCount) return "";
   return `About ${formatDuration(speechMs(props.wordCount * (1 - props.fraction), props.speed))} left at ${props.speed}×`;
 });

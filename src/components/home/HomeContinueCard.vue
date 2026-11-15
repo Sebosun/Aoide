@@ -14,13 +14,19 @@ const player = usePlayerStore(),
   library = useLibraryStore(),
   reader = useReaderStore(),
   navigation = useNavigationStore();
-const kind = computed(() => (props.book.audio === "recording" ? "Book · read-along" : "Book"));
+const audiobook = computed(() => props.book.kind === "audiobook");
+const kind = computed(() =>
+  audiobook.value ? "Audiobook" : props.book.audio === "recording" ? "Book · read-along" : "Book",
+);
 const chapter = computed(() =>
   player.state.bookId === props.book.id ? player.state.chapter : (props.book.progress?.chapter ?? 0),
 );
 const fraction = computed(() => props.book.progress?.fraction ?? 0);
 const details = computed(() => {
-  const parts = [`Chapter ${chapter.value + 1}`, `${Math.round(fraction.value * 100)}%`];
+  const parts = [
+    `${audiobook.value ? "Part" : "Chapter"} ${chapter.value + 1}`,
+    `${Math.round(fraction.value * 100)}%`,
+  ];
   const left = timeLeft(props.book, library.readingWpm, player.state.speed);
   if (left) parts.push(left);
   return parts.join(" · ");
@@ -39,7 +45,14 @@ async function open() {
     :aria-label="`Continue ${book.title}`"
     @click="open"
   >
-    <CoverArt class="continue-card__cover" :title="book.title" :url="book.coverUrl" :label="false" />
+    <CoverArt
+      class="continue-card__cover"
+      :class="{ 'continue-card__cover--square': audiobook }"
+      :title="book.title"
+      :url="book.coverUrl"
+      :label="false"
+      :shape="audiobook ? 'square' : 'portrait'"
+    />
     <span class="continue-card__body">
       <span class="continue-card__kind">{{ kind }}</span>
       <b class="continue-card__title">{{ book.title }}</b>

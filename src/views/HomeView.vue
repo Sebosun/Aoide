@@ -76,7 +76,8 @@ function added(at: number) {
               >
                 <b class="home__row-title">{{ book.title }}</b>
                 <span class="home__row-meta"
-                  >Book<template v-if="book.authors.length"> · {{ book.authors.join(", ") }}</template> · added
+                  >{{ book.kind === "audiobook" ? "Audiobook" : "Book"
+                  }}<template v-if="book.authors.length"> · {{ book.authors.join(", ") }}</template> · added
                   {{ added(book.addedAt) }}</span
                 >
               </button>
@@ -95,11 +96,15 @@ function added(at: number) {
             <button
               type="button"
               class="home__cover"
-              :aria-label="`${book.title}, book`"
+              :aria-label="`${book.title}, ${book.kind === 'audiobook' ? 'audiobook' : 'book'}`"
               :title="book.title"
               @click="navigation.openItem(book.id)"
             >
-              <CoverArt :title="book.title" :url="book.coverUrl" />
+              <CoverArt
+                :title="book.title"
+                :url="book.coverUrl"
+                :shape="book.kind === 'audiobook' ? 'square' : 'portrait'"
+              />
             </button>
           </li>
         </ul>

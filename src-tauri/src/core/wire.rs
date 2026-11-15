@@ -38,6 +38,8 @@ pub struct BookSummary {
     pub read_state: super::ReadState,
     /// Its length in words, once it has been opened.
     pub word_count: Option<u32>,
+    /// An audiobook's length (it has no words).
+    pub duration_ms: Option<u64>,
     /// Whole-book preparation status, if queued, running or finished.
     pub prepare: Option<PrepareView>,
     pub added_at: i64,

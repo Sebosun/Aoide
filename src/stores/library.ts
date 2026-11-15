@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api } from "../api";
 import { useNavigationStore } from "./navigation";
-import type { BookProgress, BookSummary, Collection, ImportResult, LibrarySort } from "../api/types";
+import type { BookProgress, BookSummary, Collection, ImportResult, ItemKind, LibrarySort } from "../api/types";
 
 export type BuiltInFilter = "all" | "unread" | "progress" | "finished" | "listen" | "preparing";
 /** A built-in filter, or one collection. */
@@ -28,6 +28,8 @@ export const useLibraryStore = defineStore("library", () => {
   const query = ref(""),
     sort = ref<LibrarySort>("recent"),
     filter = ref<LibraryFilter>("all");
+  /** Which kind of item the library shows; "all" for every kind. */
+  const kind = ref<ItemKind | "all">("all");
   const collections = ref<Collection[]>([]);
   /** Reading speed for time estimates, in words a minute (an app setting). */
   const readingWpm = ref(230);
@@ -40,6 +42,14 @@ export const useLibraryStore = defineStore("library", () => {
         Object.entries(filters).map(([key, test]) => [key, usable.value.filter(test).length]),
       ) as Record<BuiltInFilter, number>,
   );
+  /** How many items of each kind there are. */
+  const kindCounts = computed(() => {
+    const c: Record<ItemKind, number> = { book: 0, audiobook: 0, article: 0 };
+    for (const book of usable.value) c[book.kind]++;
+    return c;
+  });
+  /** The kind switch is offered once the library holds two kinds. */
+  const kinds = computed(() => (Object.keys(kindCounts.value) as ItemKind[]).filter((k) => kindCounts.value[k] > 0));
   /** The collection the library is filtered by, if any. */
   const collection = computed(() =>
     filter.value.startsWith("collection:")
@@ -54,7 +64,9 @@ export const useLibraryStore = defineStore("library", () => {
   };
   const visible = computed(() => {
     const q = query.value.trim().toLowerCase();
-    const shown = usable.value.filter(matchesFilter);
+    const shown = usable.value.filter(
+      (b) => matchesFilter(b) && (kind.value === "all" || kinds.value.length < 2 || b.kind === kind.value),
+    );
     const matches = q
       ? shown.filter((b) => b.title.toLowerCase().includes(q) || b.authors.some((a) => a.toLowerCase().includes(q)))
       : shown;
@@ -191,6 +203,9 @@ export const useLibraryStore = defineStore("library", () => {
     setSort,
     filter,
     counts,
+    kind,
+    kinds,
+    kindCounts,
     collections,
     collection,
     readingWpm,

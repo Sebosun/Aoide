@@ -15,8 +15,11 @@ export const useRecordingsStore = defineStore("recordings", () => {
   const pairing = ref<{ paths: string[]; bookId: string | null } | null>(null);
   /** The book whose sync report is open. */
   const report = ref<string | null>(null);
-  /** Recordings still being synced or needing attention, oldest first. */
-  const syncing = computed(() => Object.values(byBook.value).filter((r) => r.stage !== "ready"));
+  /** Recordings still being synced or needing attention, oldest first (an audiobook on its own
+   *  has nothing to sync with). */
+  const syncing = computed(() =>
+    Object.values(byBook.value).filter((r) => r.stage !== "ready" && r.stage !== "standalone"),
+  );
   let startup: Promise<void> | undefined, unlisten: (() => void) | undefined;
   const put = (recording: RecordingView) => {
     const before = byBook.value[recording.bookId]?.stage;

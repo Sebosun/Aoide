@@ -55,8 +55,12 @@ const RECORDING: Record<SyncStage, string> = {
 /** What the book has, then how far along it is: "Text + voice · 38%", "Text · unread". While it
  *  is being prepared, or its recording syncs, that progress is shown instead. */
 const HAS = { none: "Text", speech: "Text + voice", recording: "Text + recording" } as const;
+/** An audiobook on its own: square cover, no text to prepare, export or pair audio with. */
+const audiobook = computed(() => props.book.kind === "audiobook");
 const status = computed(() => {
   const { prepare, progress, recording, audio } = props.book;
+  if (audiobook.value)
+    return `Audio only · ${props.book.readState === "finished" ? "finished" : progress ? `${percent.value}%` : "unplayed"}`;
   const along = props.book.readState === "finished" ? "finished" : progress ? `${percent.value}%` : "unread";
   if (prepare && prepare.state !== "done") return describePreparation(preparationStatus(prepare));
   if (recording && recording !== "ready")
@@ -108,11 +112,37 @@ async function deleteAudio() {
 async function remove() {
   const ok = await ui.confirm({
     title: `Remove ${props.book.title} from the library?`,
-    body: "The EPUB file stays where it is. Aoide forgets the book and deletes its generated audio and bookmarks.",
+    body: audiobook.value
+      ? "Its audio files stay where they are. Aoide forgets the audiobook and its bookmarks."
+      : "The EPUB file stays where it is. Aoide forgets the book and deletes its generated audio and bookmarks.",
     confirmLabel: "Remove",
     danger: true,
   });
   if (ok) emit("remove");
+}
+/** What only a book with text offers: preparing its speech, pairing audio, exports. */
+function textActions(book: BookSummary): MenuEntry[] {
+  const list: MenuEntry[] = preparation.value.actions.map((action) => ({
+    id: action,
+    label: ACTION_LABELS[action],
+    icon: ACTION_ICONS[action],
+    action: () => runPrepareAction(book.id, action),
+  }));
+  list.push({
+    id: "audiobook",
+    label: book.recording ? "Replace audiobook…" : "Add audiobook…",
+    icon: Headphones,
+    action: () => act(addAudiobook),
+  });
+  if (book.recording === "ready")
+    list.push({
+      id: "export-read-along",
+      label: "Export read-along EPUB",
+      icon: BookDown,
+      action: () => act(exportReadAlong),
+    });
+  else list.push({ id: "export", label: "Export as M4B", icon: Download, action: () => act(exportBook) });
+  return list;
 }
 const items = computed<MenuEntry[]>(() => {
   const book = props.book,
@@ -139,27 +169,7 @@ const items = computed<MenuEntry[]>(() => {
       icon: FolderOpen,
       action: () => act(() => api.showInFolder(book.id)),
     });
-    for (const action of preparation.value.actions)
-      list.push({
-        id: action,
-        label: ACTION_LABELS[action],
-        icon: ACTION_ICONS[action],
-        action: () => runPrepareAction(book.id, action),
-      });
-    list.push({
-      id: "audiobook",
-      label: book.recording ? "Replace audiobook…" : "Add audiobook…",
-      icon: Headphones,
-      action: () => act(addAudiobook),
-    });
-    if (book.recording === "ready")
-      list.push({
-        id: "export-read-along",
-        label: "Export read-along EPUB",
-        icon: BookDown,
-        action: () => act(exportReadAlong),
-      });
-    else list.push({ id: "export", label: "Export as M4B", icon: Download, action: () => act(exportBook) });
+    if (!audiobook.value) list.push(...textActions(book));
     if (book.audioBytes)
       list.push({ id: "audio", label: "Delete generated audio", icon: Eraser, action: () => act(deleteAudio) });
     list.push({ kind: "separator" }, { kind: "heading", label: "Collections" });
@@ -202,7 +212,13 @@ const items = computed<MenuEntry[]>(() => {
       :disabled="unavailable || busy"
       @click="emit('open')"
     >
-      <CoverArt class="book-card__cover" :title="book.title" :url="book.coverUrl" />
+      <CoverArt
+        class="book-card__cover"
+        :class="{ 'book-card__cover--square': audiobook }"
+        :title="book.title"
+        :url="book.coverUrl"
+        :shape="audiobook ? 'square' : 'portrait'"
+      />
     </button>
     <h3 class="book-card__title" :title="book.title">{{ book.title }}</h3>
     <span class="book-card__line">{{ book.authors.join(", ") || "Unknown author" }}</span>
@@ -249,6 +265,12 @@ const items = computed<MenuEntry[]>(() => {
 .book-card__open {
   display: block;
   border-radius: 12px;
+}
+/* A square cover sits at the foot of a portrait frame, so the titles below line up. */
+.book-card__open:has(.book-card__cover--square) {
+  aspect-ratio: 2 / 3;
+  display: flex;
+  align-items: flex-end;
 }
 .book-card__open:disabled {
   opacity: 1;

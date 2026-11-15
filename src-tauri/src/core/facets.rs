@@ -179,6 +179,7 @@ mod tests {
                 crate::core::ReadState::Unread
             },
             word_count: None,
+            duration_ms: None,
             prepare: None,
             added_at,
             last_opened_at: opened,

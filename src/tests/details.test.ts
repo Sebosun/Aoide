@@ -191,3 +191,29 @@ it("leads with Read for a book read silently and with Listen for one listened to
   expect(useReaderStore().shape).toBe("read");
   wrapper.unmount();
 });
+
+it("shows an audiobook's page: Listen only, no text, its length, parts and files", async () => {
+  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  const play = vi.spyOn(mock, "play");
+  useNavigationStore().openItem("book-5");
+  const wrapper = await app();
+  const about = wrapper.get('[aria-label="About Winter Radio"]');
+  expect(about.get(".item-page__kind").text()).toBe("Audiobook · unplayed");
+  expect(about.find('[aria-label="Read"]').exists()).toBe(false);
+  expect(about.get('[aria-label="Listen"]').classes()).toContain("item-page__primary");
+  expect(about.get('[aria-labelledby="item-text"]').text()).toContain("No text");
+  const audio = about.get('[aria-labelledby="item-audio"]');
+  expect(audio.text()).toContain("2 parts · 2 files");
+  expect(audio.findAll('[aria-label="Audio files"] li')).toHaveLength(2);
+  const contents = about.get('[aria-labelledby="item-contents"]');
+  expect(contents.text()).toContain("Part One");
+  expect(contents.text()).toContain("0:01");
+  expect(about.find('[aria-labelledby="item-online"]').exists(), "no details online").toBe(false);
+
+  await contents.get('[aria-label="Play part 2: Part Two"]').trigger("click");
+  await flushPromises();
+  expect(play).toHaveBeenCalledWith("book-5", 1, null);
+  expect(useNavigationStore().view).toBe("reader");
+  await mock.pause();
+  wrapper.unmount();
+});

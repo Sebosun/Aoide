@@ -49,6 +49,10 @@ shape: Shape, readState: ReadState,
  */
 wordCount: number | null, 
 /**
+ * An audiobook's length (it has no words).
+ */
+durationMs: number | null, 
+/**
  * Whole-book preparation status, if queued, running or finished.
  */
 prepare: PrepareView | null, addedAt: number, lastOpenedAt: number | null, 

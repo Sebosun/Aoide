@@ -407,3 +407,38 @@ it("marks a book finished and unread again from its card menu", async () => {
   expect(line()).toBe("Text + voice · unread");
   wrapper.unmount();
 });
+
+it("switches between kinds once there are two, and shows an audiobook square with its audio", async () => {
+  const wrapper = await library();
+  expect(wrapper.find('[role="group"][aria-label="Kind"]').exists(), "books only").toBe(false);
+  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  await flushPromises();
+  const kinds = wrapper.get('[role="group"][aria-label="Kind"]');
+  expect(kinds.findAll("button").map((b) => b.text())).toEqual(["All5", "Books4", "Audiobooks1"]);
+  const card = wrapper.findAll(".book-card").find((c) => c.text().includes("Winter Radio"))!;
+  expect(card.find(".cover-art--square").exists()).toBe(true);
+  expect(card.get(".book-card__status").text()).toBe("Audio only · unplayed");
+
+  await kinds.findAll("button")[2].trigger("click");
+  expect(titles(wrapper)).toEqual(["Winter Radio"]);
+  expect(kinds.findAll("button")[2].attributes("aria-pressed")).toBe("true");
+  await kinds.findAll("button")[1].trigger("click");
+  expect(titles(wrapper)).not.toContain("Winter Radio");
+  expect(titles(wrapper)).toHaveLength(4);
+  wrapper.unmount();
+});
+
+it("offers no text actions on an audiobook's card", async () => {
+  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  const wrapper = await library();
+  await wrapper.get('[aria-label="More for Winter Radio"]').trigger("click");
+  await flushPromises();
+  const labels = menuItems().map((item) => item.textContent?.trim() ?? "");
+  expect(labels).toContain("Details");
+  for (const text of ["Add audiobook…", "Export as M4B", "Prepare for listening"])
+    expect(
+      labels.some((l) => l.includes(text)),
+      text,
+    ).toBe(false);
+  wrapper.unmount();
+});

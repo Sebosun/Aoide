@@ -26,7 +26,7 @@ import BookNarration from "../components/book/BookNarration.vue";
 import { useCollections } from "../composables/useCollections";
 import { useRecordingsStore } from "../stores/recordings";
 import { formatBytes } from "../bytes";
-import { formatDuration, readingMs, speechMs } from "../estimate";
+import { formatClock, formatDuration, readingMs, speechMs } from "../estimate";
 import { useLibraryStore } from "../stores/library";
 import { useNavigationStore } from "../stores/navigation";
 import { usePlayerStore } from "../stores/player";
@@ -80,9 +80,25 @@ const authors = computed(
   () => (summary.value?.authors ?? overview.value?.authors ?? []).join(", ") || "Unknown author",
 );
 const progress = computed(() => summary.value?.progress ?? overview.value?.progress ?? null);
+/** An audiobook on its own: no text, so Listen is its only way in and its parts its contents. */
+const audiobook = computed(() => summary.value?.kind === "audiobook" || overview.value?.shape === "listen");
+/** Its recording's files, as the sync state lists them. */
+const recordingFiles = computed(() => recordings.byBook[props.bookId]?.files ?? []);
+const audiobookLength = computed(
+  () => summary.value?.durationMs ?? overview.value?.chapters.reduce((sum, c) => sum + (c.durationMs ?? 0), 0) ?? 0,
+);
+const audiobookFacts = computed(() => {
+  const parts = overview.value?.chapters.length ?? 0,
+    files = recordingFiles.value.length;
+  return [`${parts} ${parts === 1 ? "part" : "parts"}`, files ? `${files} ${files === 1 ? "file" : "files"}` : null]
+    .filter(Boolean)
+    .join(" · ");
+});
 const percent = computed(() => Math.round((progress.value?.fraction ?? 0) * 100));
 const finished = computed(() => summary.value?.readState === "finished");
-const state = computed(() => (finished.value ? "finished" : progress.value ? `${percent.value}%` : "unread"));
+const state = computed(() =>
+  finished.value ? "finished" : progress.value ? `${percent.value}%` : audiobook.value ? "unplayed" : "unread",
+);
 async function markRead() {
   try {
     await library.markRead(props.bookId, finished.value ? "unread" : "finished");
@@ -222,9 +238,14 @@ const collectionItems = computed<MenuEntry[]>(() => {
   <article class="item-page" :aria-label="`About ${title}`" :aria-busy="loading">
     <p v-if="error" class="item-page__error" role="alert">{{ error }}</p>
     <div class="item-page__hero">
-      <CoverArt class="item-page__cover" :title="title" :url="summary?.coverUrl" />
+      <CoverArt
+        class="item-page__cover"
+        :title="title"
+        :url="summary?.coverUrl"
+        :shape="audiobook ? 'square' : 'portrait'"
+      />
       <div class="item-page__intro">
-        <span class="item-page__kind">Book · {{ state }}</span>
+        <span class="item-page__kind">{{ audiobook ? "Audiobook" : "Book" }} · {{ state }}</span>
         <template v-if="title"
           ><h1 class="item-page__title">{{ title }}</h1>
           <p class="item-page__authors">{{ authors }}</p></template
@@ -232,6 +253,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
         <UiSkeleton v-else-if="loading" class="item-page__ghost-title" />
         <div class="item-page__actions">
           <button
+            v-if="!audiobook"
             type="button"
             :class="listened ? 'item-page__secondary' : 'item-page__primary'"
             aria-label="Read"
@@ -241,7 +263,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
           </button>
           <button
             type="button"
-            :class="listened ? 'item-page__primary' : 'item-page__secondary'"
+            :class="listened || audiobook ? 'item-page__primary' : 'item-page__secondary'"
             aria-label="Listen"
             @click="listen"
           >
@@ -293,7 +315,18 @@ const collectionItems = computed<MenuEntry[]>(() => {
     </div>
 
     <div v-if="overview" class="item-page__cards">
-      <section class="item-page__card" aria-labelledby="item-text">
+      <section v-if="audiobook" class="item-page__card" aria-labelledby="item-text">
+        <div class="item-page__card-head">
+          <h2 id="item-text" class="item-page__heading">Text</h2>
+          <span class="item-page__badge">None</span>
+        </div>
+        <b class="item-page__lead">No text</b>
+        <span class="item-page__facts"
+          >Add the EPUB of this book to read it, or to see the words highlighted as they are spoken. Your place in the
+          recording is kept.</span
+        >
+      </section>
+      <section v-else class="item-page__card" aria-labelledby="item-text">
         <div class="item-page__card-head">
           <h2 id="item-text" class="item-page__heading">Text</h2>
           <span class="item-page__badge item-page__badge--ok"><i aria-hidden="true" />EPUB</span>
@@ -328,7 +361,21 @@ const collectionItems = computed<MenuEntry[]>(() => {
             audio === "recording" ? "Recording" : audio === "speech" ? "Voice" : "None yet"
           }}</span>
         </div>
-        <template v-if="audio === 'none'">
+        <template v-if="audiobook">
+          <b class="item-page__lead">{{ formatDuration(audiobookLength) }}</b>
+          <span class="item-page__facts">{{ audiobookFacts }}</span>
+          <p v-for="warning in overview.warnings" :key="warning" class="item-page__problem" role="alert">
+            <TriangleAlert :size="15" aria-hidden="true" /> {{ warning }}
+          </p>
+          <ul v-if="recordingFiles.length" class="item-page__files" aria-label="Audio files">
+            <li v-for="file in recordingFiles" :key="file.path" :title="file.path">
+              <span class="item-page__file-name">{{ file.name }}</span><span class="item-page__file-length">{{
+                formatClock(file.durationMs)
+              }}</span>
+            </li>
+          </ul>
+        </template>
+        <template v-else-if="audio === 'none'">
           <b class="item-page__lead">Listen to this book</b>
           <button type="button" class="item-page__option" aria-label="Narrate with a voice" @click="listen">
             <Mic :size="20" aria-hidden="true" />
@@ -379,6 +426,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
           class="item-page__listening"
           :days="listening"
           :word-count="overview.wordCount"
+          :duration-ms="summary?.durationMs ?? null"
           :fraction="progress?.fraction ?? 0"
           :speed="player.state.speed"
         />
@@ -396,12 +444,13 @@ const collectionItems = computed<MenuEntry[]>(() => {
             type="button"
             class="item-page__chapter"
             :class="{ 'item-page__chapter--current': progress?.chapter === c.index }"
-            :aria-label="`Open chapter ${i + 1}: ${c.title}`"
+            :aria-label="`${audiobook ? 'Play part' : 'Open chapter'} ${i + 1}: ${c.title}`"
             @click="chapter(c.index)"
           >
             <span class="item-page__number">{{ i + 1 }}</span><span class="item-page__chapter-title">{{ c.title }}</span
             ><AudioLines v-if="progress?.chapter === c.index" :size="15" class="item-page__here" aria-hidden="true" />
           </button>
+          <span v-if="c.durationMs !== null" class="item-page__chapter-audio">{{ formatClock(c.durationMs) }}</span>
           <template v-if="!recorded">
             <span
               v-if="chapterState(c.index).kind === 'ready'"
@@ -427,7 +476,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
       </ol>
     </section>
 
-    <section v-if="overview" class="item-page__card" aria-labelledby="item-online">
+    <section v-if="overview && !audiobook" class="item-page__card" aria-labelledby="item-online">
       <h2 id="item-online" class="item-page__heading">Details online</h2>
       <MetadataLookup :book-id="bookId" :matched="Boolean(details?.openLibraryKey)" @applied="details = $event" />
     </section>
@@ -569,6 +618,38 @@ const collectionItems = computed<MenuEntry[]>(() => {
   padding: 20px;
   border-radius: 20px;
   background: var(--page);
+}
+.item-page__problem {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--warn);
+}
+.item-page__files {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--dim);
+}
+.item-page__files li {
+  display: flex;
+  gap: 12px;
+}
+.item-page__file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-page__file-length {
+  font-variant-numeric: tabular-nums;
 }
 .item-page__card-head {
   display: flex;
