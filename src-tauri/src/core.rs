@@ -30,7 +30,7 @@ mod engine;
 mod environment;
 mod output;
 use environment::{default_profile, OUTPUT_RATE};
-pub use environment::{Environment, Events, Paths, ShowInFolder};
+pub use environment::{Environment, Events, OpenLink, Paths, ShowInFolder};
 mod error;
 mod facets;
 mod fetching;
@@ -149,6 +149,7 @@ pub struct Core {
     /// Tells the user about failures Aoide carried on from.
     reporter: error::Reporter,
     show_in_folder: ShowInFolder,
+    open_link: OpenLink,
     pub paths: Paths,
     library: Arc<Mutex<Library>>,
     shelf: Arc<shelf::Shelf>,
@@ -187,6 +188,7 @@ impl Core {
             audio,
             background,
             show_in_folder,
+            open_link,
             transcribers,
             fetcher,
         } = environment;
@@ -267,6 +269,7 @@ impl Core {
             events,
             reporter,
             show_in_folder,
+            open_link,
             paths,
             library,
             shelf: Arc::new(shelf),

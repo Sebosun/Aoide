@@ -774,6 +774,7 @@ export type Commands = {
   "rescan_library": { args: Record<string, never>; result: void };
   "remove_book": { args: { bookId: string }; result: void };
   "show_in_folder": { args: { bookId: string }; result: void };
+  "open_original": { args: { bookId: string }; result: void };
   "open_book": { args: { bookId: string }; result: BookView };
   "book_overview": { args: { bookId: string }; result: BookView };
   "mark_finished": { args: { bookId: string }; result: void };

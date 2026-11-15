@@ -135,6 +135,7 @@ export const tauriApi: AoideApi = {
   mergeAudiobook: (audiobookId, bookId) => call("merge_audiobook", { audiobookId, bookId }),
   saveArticle: (url) => call("save_article", { url }),
   refetchArticle: (bookId, source) => call("refetch_article", { bookId, source }),
+  openOriginal: (bookId) => call("open_original", { bookId }),
   article: (bookId) => call("article", { bookId }),
   cancelAudiobookScan: () => call("cancel_audiobook_scan"),
   lookForAudiobooks: (ids) => call("look_for_audiobooks", { ids }),

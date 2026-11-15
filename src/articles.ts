@@ -24,3 +24,13 @@ export const NEEDS: Record<FetchReason, string> = {
 
 /** Whether the fetch is still under way. */
 export const fetching = (stage: FetchStage) => stage.kind === "queued" || stage.kind === "fetching";
+
+/** The article's site: its name, else the host of its page. */
+export function siteOf(article: { siteName: string | null; canonicalUrl: string }): string {
+  if (article.siteName) return article.siteName;
+  try {
+    return new URL(article.canonicalUrl).hostname;
+  } catch {
+    return article.canonicalUrl;
+  }
+}

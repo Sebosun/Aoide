@@ -202,6 +202,7 @@ pub(super) async fn start(
         audio: Environment::silent_audio(),
         background: false,
         show_in_folder: Arc::new(|_| Ok(())),
+        open_link: Arc::new(|_| Ok(())),
         transcribers: Arc::new(|_| Err("no speech recognition in this test".into())),
         fetcher: super::articles::offline(),
     };

@@ -5,6 +5,8 @@ import ReaderSheet from "../components/reader/ReaderSheet.vue";
 import ReaderLines from "../components/reader/ReaderLines.vue";
 import ReaderTools from "../components/reader/ReaderTools.vue";
 import ChapterMenu from "../components/reader/ChapterMenu.vue";
+import ArticleOutline from "../components/article/ArticleOutline.vue";
+import { useOpenArticle } from "../composables/useOpenArticle";
 import ListenButton from "../components/reader/ListenButton.vue";
 import AudioReader from "../components/reader/AudioReader.vue";
 import { usePlayerControls } from "../composables/usePlayerControls";
@@ -48,6 +50,8 @@ const playingHere = computed(() => player.state.bookId === reader.book?.id);
 const lines = computed(() => reader.shape === "readAlong" && preferences.appearance.readerMode === "lines");
 /** An audiobook on its own: no text, so no chapter menu, Listen button or text tools. */
 const audio = computed(() => reader.shape === "listen");
+/** An article has one chapter: its headings stand in for the chapter menu. */
+const { isArticle } = useOpenArticle();
 </script>
 
 <template>
@@ -56,8 +60,9 @@ const audio = computed(() => reader.shape === "listen");
       <button type="button" class="reader__back" :aria-label="`Back to ${backLabel}`" @click="navigation.leaveReader()">
         <ArrowLeft :size="16" aria-hidden="true" />{{ backLabel }}
       </button>
+      <ArticleOutline v-if="isArticle" class="reader__outline" :title="reader.book.title" :chapter="reader.chapter" />
       <ChapterMenu
-        v-if="!audio"
+        v-else-if="!audio"
         class="reader__chapters"
         variant="title"
         prepare
@@ -134,7 +139,8 @@ const audio = computed(() => reader.shape === "listen");
   background: var(--glass);
   font-weight: 600;
 }
-.reader__chapters {
+.reader__chapters,
+.reader__outline {
   justify-self: center;
 }
 .reader__actions {
@@ -160,7 +166,8 @@ const audio = computed(() => reader.shape === "listen");
   .reader__header {
     grid-template-columns: auto minmax(0, 1fr);
   }
-  .reader__chapters {
+  .reader__chapters,
+  .reader__outline {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-self: start;

@@ -1463,6 +1463,10 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (!view) throw new Error("Not an article.");
       return structuredClone(view);
     },
+    /** The preview opens nothing. */
+    async openOriginal(id) {
+      if (!articles.has(id)) throw new Error("Not an article.");
+    },
     async mergeAudiobook(audiobookId, bookId) {
       if (!isAudiobook(audiobookId)) throw new Error("That is not an audiobook on its own.");
       const book = getBook(bookId),

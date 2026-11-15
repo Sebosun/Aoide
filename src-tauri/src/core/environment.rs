@@ -49,6 +49,8 @@ impl Events for AppHandle {
 /// What Core needs from the world outside the library folder.
 /// Opens the file manager on a file's folder with the file selected.
 pub type ShowInFolder = Arc<dyn Fn(&Path) -> Result<(), String> + Send + Sync>;
+/// Opens a web address in the system's browser.
+pub type OpenLink = Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
 
 pub struct Environment {
     pub events: Arc<dyn Events>,
@@ -59,6 +61,8 @@ pub struct Environment {
     pub background: bool,
     /// Opens the file manager on a file's folder with the file selected.
     pub show_in_folder: ShowInFolder,
+    /// Opens an article's page in the system's browser.
+    pub open_link: OpenLink,
     /// Speech recognition for syncing recordings.
     pub transcribers: TranscriberFactory,
     /// Gets articles' pages from the web.
@@ -75,6 +79,9 @@ impl Environment {
             background: true,
             show_in_folder: Arc::new(|path| {
                 tauri_plugin_opener::reveal_item_in_dir(path).map_err(|e| e.to_string())
+            }),
+            open_link: Arc::new(|url| {
+                tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| e.to_string())
             }),
             transcribers: app_transcribers(),
             fetcher: super::articles::web_fetcher(),

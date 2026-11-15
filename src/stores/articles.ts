@@ -40,10 +40,12 @@ export const useArticlesStore = defineStore("articles", () => {
     await start();
     await api.refetchArticle(id, source);
   }
+  /** Opens the article's page in the system's browser. */
+  const openOriginal = (id: string) => api.openOriginal(id);
   function dispose() {
     unlisten?.();
     unlisten = undefined;
     startup = undefined;
   }
-  return { byId, start, load, save, refetch, dispose };
+  return { byId, start, load, save, refetch, openOriginal, dispose };
 });

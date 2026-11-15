@@ -691,4 +691,15 @@ impl super::Core {
     pub fn article(&self, id: &str) -> Result<ArticleView, String> {
         self.articles.view(id)
     }
+
+    /// Opens article `id`'s page, as it was kept, in the system's browser. Only web addresses
+    /// are opened.
+    pub fn open_original(&self, id: &str) -> Result<(), String> {
+        let view = self.articles.view(id)?;
+        let url = Url::parse(&view.canonical_url).map_err(|e| e.to_string())?;
+        if !matches!(url.scheme(), "http" | "https") {
+            return Err("That is not a web address.".into());
+        }
+        (self.open_link)(url.as_str())
+    }
 }

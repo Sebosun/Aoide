@@ -14,6 +14,8 @@ const props = defineProps<{
   chapter: number;
   playingChapter: number | null;
   timeLeft: string;
+  /** An article: one chapter, so no chapter menu. */
+  article?: boolean;
 }>();
 const emit = defineEmits<{ chapter: [index: number]; details: []; voice: []; about: []; prepare: [index: number] }>();
 const notes = computed(() => props.book.warnings.length + props.book.excluded.length);
@@ -34,6 +36,7 @@ const notes = computed(() => props.book.warnings.length + props.book.excluded.le
     </button>
     <hr class="book-margin__rule" />
     <ChapterMenu
+      v-if="!article"
       :chapters="book.chapters"
       :current="chapter"
       :playing="playingChapter"
@@ -41,7 +44,7 @@ const notes = computed(() => props.book.warnings.length + props.book.excluded.le
       @pick="emit('chapter', $event)"
       @prepare="emit('prepare', $event)"
     />
-    <span v-if="timeLeft" class="book-margin__time">{{ timeLeft }} in chapter</span>
+    <span v-if="timeLeft" class="book-margin__time">{{ timeLeft }}{{ article ? "" : " in chapter" }}</span>
     <button
       v-if="book.languageWarning || notes"
       type="button"

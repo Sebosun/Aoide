@@ -254,6 +254,8 @@ export interface AoideApi {
   refetchArticle(bookId: string, source: ArticleSource): Promise<void>;
   /** An article's source and where its fetch stands. */
   article(bookId: string): Promise<ArticleView>;
+  /** Opens an article's page, as it was kept, in the system's browser. */
+  openOriginal(bookId: string): Promise<void>;
   cancelAudiobookScan(): Promise<void>;
   /** After books were added: how many have audiobooks waiting for the user (0 when looking on
    *  adding is off or Aoide verifies them). */

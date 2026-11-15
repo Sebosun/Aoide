@@ -13,7 +13,7 @@ import { usePlayerStore } from "../stores/player";
 import { useLibraryStore } from "../stores/library";
 import { usePreferencesStore } from "../stores/preferences";
 
-import { choose, pickMenuItem } from "./helpers";
+import { choose, openMenu, pickMenuItem } from "./helpers";
 import { useUiStore } from "../stores/ui";
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("../api", () => ({
@@ -556,4 +556,72 @@ it("bookmarks a moment of an audiobook and plays from it", async () => {
   expect(play).toHaveBeenCalledWith("book-5", null, null);
   await mock.pause();
   wrapper.unmount();
+});
+
+/** The reader on the preview's article (book-6), saved in `stage`. */
+async function openArticle(stage: string) {
+  mock.dispose();
+  setActivePinia(createPinia());
+  mock = createMockApi(`?article=${stage}`);
+  backend.api = mock;
+  return openReader({ book: "book-6", attach: true });
+}
+
+it("heads an article with its site, reading time and original, and outlines its headings", async () => {
+  Element.prototype.scrollIntoView ??= () => {};
+  const wrapper = await openArticle("ready");
+  const open = vi.spyOn(mock, "openOriginal");
+  const head = wrapper.get('[aria-label="About this article"]');
+  expect(head.get("h1").text()).toBe("The Quay Lights");
+  expect(head.text()).toContain("Quay Weekly");
+  expect(head.text()).toContain("Ada Brightwater");
+  expect(head.text()).toMatch(/\d+ min read/);
+  await head
+    .findAll("button")
+    .find((b) => b.text() === "Open original")!
+    .trigger("click");
+  expect(open).toHaveBeenCalledWith("book-6");
+  expect(wrapper.find('[aria-label="This article needs you"]').exists()).toBe(false);
+
+  // An article has one chapter: the header offers its headings instead of chapters.
+  expect(wrapper.find(".reader__chapters").exists()).toBe(false);
+  const scrolled = vi.spyOn(Element.prototype, "scrollIntoView");
+  await wrapper.get('[aria-label="Outline"]').trigger("click");
+  await flushPromises();
+  expect(openMenu()?.textContent).toContain("Why by hand");
+  await pickMenuItem("Why by hand");
+  expect(scrolled).toHaveBeenCalled();
+  expect((scrolled.mock.contexts[0] as HTMLElement).textContent?.trim()).toBe("Why by hand");
+  wrapper.unmount();
+});
+
+it("says what an article that needs you is missing, and fetches it again", async () => {
+  for (const [stage, heading] of [
+    ["needsyou-signin", "The site asked for a sign-in"],
+    ["needsyou-cutshort", "The article looks cut short"],
+  ]) {
+    for (const [action, source] of [
+      ["Fetch again", "http"],
+      ["Try an archived copy", "archive"],
+    ]) {
+      const wrapper = await openArticle(stage);
+      const refetch = vi.spyOn(mock, "refetchArticle");
+      const notice = () => wrapper.get('[aria-label="This article needs you"]');
+      expect(notice().get("h2").text(), stage).toBe(heading);
+      expect(notice().text()).toContain("Kept so far: 93 words.");
+      if (stage === "needsyou-cutshort") expect(notice().text()).toContain("about 1,200 words");
+      const button = (text: string) =>
+        notice()
+          .findAll("button")
+          .find((b) => b.text() === text)!;
+      expect(button("Open original").exists()).toBe(true);
+      await button(action).trigger("click");
+      await flushPromises();
+      expect(refetch).toHaveBeenLastCalledWith("book-6", source);
+      // The notice stays while the fetch runs, its actions waiting for it.
+      expect(notice().text()).toContain("Fetching again…");
+      expect(button("Fetch again").attributes("disabled")).toBeDefined();
+      wrapper.unmount();
+    }
+  }
 });

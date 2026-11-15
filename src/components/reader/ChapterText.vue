@@ -5,7 +5,8 @@ import type { BlockView, ChapterView, NoteMarker, SegmentView } from "../../api/
 /** A chapter set as a page: headings and paragraphs, the spoken sentence washed and the
  *  current word underlined (nothing changes size, so lines never reflow). When `playable`,
  *  clicking a sentence plays from it. Footnotes sit in the margin beside their paragraph
- *  (`marginNotes`) or open as popovers on their marker. */
+ *  (`marginNotes`) or open as popovers on their marker. Slots `before` and `after` put
+ *  something in the text column above and below it (an article's header and notice). */
 const props = withDefaults(
   defineProps<{
     chapter: ChapterView;
@@ -61,6 +62,7 @@ const chapterMissing = computed(
       <strong>Speak what the recording lacks</strong> under Narration in the book tools, or choose
       <strong>Speech engine</strong> there.
     </p>
+    <slot name="before" />
     <div v-for="(block, index) in chapter.blocks" :key="`${chapter.index}:${index}`" class="chapter-text__row">
       <component :is="tag(block)" class="chapter-text__block" :class="`chapter-text__block--${block.kind}`">
         <span
@@ -119,6 +121,7 @@ const chapterMissing = computed(
         </p>
       </aside>
     </div>
+    <slot name="after" />
   </article>
 </template>
 

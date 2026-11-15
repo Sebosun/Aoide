@@ -509,3 +509,27 @@ async fn a_lead_image_becomes_the_cover_and_a_missing_one_changes_nothing() {
         .unwrap();
     assert_eq!(item.cover_path, None);
 }
+
+#[tokio::test]
+async fn open_original_opens_the_articles_page_and_nothing_else() {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let (core, events) = start_fetching(
+        dir.path(),
+        &FakeEngine::new(),
+        Pages::with(&[(LIGHTS_URL, LIGHTS)]),
+    );
+    let id = core
+        .save_article("https://quay.example/lights?utm_source=feed")
+        .unwrap();
+    core.open_original(&id).unwrap();
+    // The page as it was kept (without the tracking query), in the system's browser.
+    assert_eq!(
+        events.payloads("test://opened-link"),
+        [serde_json::json!(LIGHTS_URL)]
+    );
+    assert_eq!(
+        core.open_original("not-an-item"),
+        Err("Not an article.".to_string())
+    );
+}

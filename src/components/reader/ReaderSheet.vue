@@ -4,12 +4,16 @@ import { ArrowRight, LocateFixed } from "@lucide/vue";
 import ChapterText from "./ChapterText.vue";
 import BookMargin from "./BookMargin.vue";
 import PlayerDock from "../player/PlayerDock.vue";
+import ArticleHeader from "../article/ArticleHeader.vue";
+import NeedsYouNotice from "../article/NeedsYouNotice.vue";
 import { useFollow } from "../../composables/useFollow";
+import { useOpenArticle } from "../../composables/useOpenArticle";
+import { useArticlesStore } from "../../stores/articles";
 import { useReadingPlace } from "../../composables/useReadingPlace";
 import { useMediaQuery } from "../../composables/useMediaQuery";
 import { usePlayerControls } from "../../composables/usePlayerControls";
 import { formatDuration, readingMs, speechMs, wordsLeft } from "../../estimate";
-import type { Shape } from "../../api/types";
+import type { FetchReason, Shape } from "../../api/types";
 import { useLibraryStore } from "../../stores/library";
 import { useReaderStore } from "../../stores/reader";
 import { useNavigationStore } from "../../stores/navigation";
@@ -27,6 +31,20 @@ const reader = useReaderStore(),
 const { player, timeLeftMs } = usePlayerControls();
 const wide = useMediaQuery("(min-width: 1000px)");
 const scroller = ref<HTMLElement>();
+const { article, openOriginal } = useOpenArticle();
+const articles = useArticlesStore();
+/** Why the article needs the user, kept through a fetch again until one gets all of it. */
+const needs = ref<FetchReason | null>(null);
+watch(
+  () => article.value?.stage,
+  (stage) => {
+    if (!stage || stage.kind === "ready") needs.value = null;
+    else if (stage.kind === "needsYou") needs.value = stage.reason;
+  },
+  { immediate: true },
+);
+const refetch = (source: "http" | "archive") =>
+  article.value && articles.refetch(article.value.id, source).catch((e) => (reader.error = String(e)));
 
 const along = computed(() => props.shape === "readAlong");
 const playingHere = computed(() => along.value && Boolean(reader.book) && player.state.bookId === reader.book?.id);
@@ -107,6 +125,7 @@ const next = computed(() => {
           :chapter="reader.currentChapter"
           :playing-chapter="playingHere ? player.state.chapter : null"
           :time-left="chapterLeft"
+          :article="Boolean(article)"
           @chapter="jump"
           @details="emit('tools', 'details')"
           @voice="emit('tools', 'voice')"
@@ -124,7 +143,27 @@ const next = computed(() => {
           :margin-notes="wide"
           :playable="along"
           @play="play"
-        />
+        >
+          <template v-if="article" #before>
+            <ArticleHeader
+              :article="article"
+              :title="reader.book.title"
+              :authors="reader.book.authors"
+              :words="reader.book.wordCount"
+              :wpm="library.readingWpm"
+              @original="openOriginal"
+            />
+          </template>
+          <template v-if="article && needs" #after>
+            <NeedsYouNotice
+              :article="article"
+              :reason="needs"
+              @fetch="refetch('http')"
+              @archive="refetch('archive')"
+              @original="openOriginal"
+            />
+          </template>
+        </ChapterText>
         <button v-if="next && reader.chapter" type="button" class="sheet__next" @click="jump(next.index)">
           Next: {{ next.title }}<ArrowRight :size="16" aria-hidden="true" />
         </button>

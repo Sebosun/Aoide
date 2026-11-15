@@ -160,6 +160,7 @@ fn start_full(
     let mut engines = aoide_tts::Registry::new();
     engine.register(&mut engines);
     let shown = Arc::clone(&events);
+    let opened = Arc::clone(&events);
     let environment = Environment {
         events: Arc::clone(&events) as Arc<dyn Events>,
         engines,
@@ -168,6 +169,10 @@ fn start_full(
         // Recorded as an event instead of opening a real file manager.
         show_in_folder: Arc::new(move |path| {
             shown.emit("test://shown-in-folder", serde_json::json!(path));
+            Ok(())
+        }),
+        open_link: Arc::new(move |url| {
+            opened.emit("test://opened-link", serde_json::json!(url));
             Ok(())
         }),
         transcribers,
