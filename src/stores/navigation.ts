@@ -1,8 +1,9 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
-/** "reader" is the Now Playing screen; "book" is a book's details page (`bookId`). */
-export type View = "library" | "reader" | "stats" | "find" | "book";
+/** "reader" is the Now Playing screen; "book" is a book's details page (`bookId`); "find" and
+ *  "audiobooks" find books and audiobooks on this computer. */
+export type View = "library" | "reader" | "stats" | "find" | "audiobooks" | "book";
 export type ToolsTab = "bookmarks" | "search" | "voice" | "details";
 export type SettingsTab = "appearance" | "engine" | "recordings" | "library" | "highlighting" | "storage" | "about";
 export const useNavigationStore = defineStore("navigation", () => {

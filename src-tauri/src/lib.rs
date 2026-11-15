@@ -394,6 +394,40 @@ async fn discovered_books(core: CoreState<'_>) -> Result<Vec<crate::core::Candid
 }
 
 #[tauri::command]
+async fn scan_for_audiobooks(
+    core: CoreState<'_>,
+) -> Result<Vec<crate::core::AudiobookMatch>, String> {
+    let core = Arc::clone(&core);
+    core.scan_for_audiobooks().await
+}
+
+#[tauri::command]
+fn audiobook_matches(core: CoreState<'_>) -> Vec<crate::core::AudiobookMatch> {
+    core.audiobook_matches()
+}
+
+#[tauri::command]
+fn cancel_audiobook_scan(core: CoreState<'_>) {
+    core.cancel_audiobook_scan();
+}
+
+/// After books were added: how many of them have audiobooks waiting for the user.
+#[tauri::command]
+async fn look_for_audiobooks(core: CoreState<'_>, ids: Vec<String>) -> Result<usize, String> {
+    let core = Arc::clone(&core);
+    core.look_for_audiobooks(ids).await
+}
+
+#[tauri::command]
+async fn pair_audiobooks(
+    core: CoreState<'_>,
+    choices: Vec<crate::core::AudiobookChoice>,
+) -> Result<Vec<crate::core::PairOutcome>, String> {
+    let core = Arc::clone(&core);
+    blocking(move || Ok(core.pair_audiobooks(choices))).await
+}
+
+#[tauri::command]
 async fn fetch_discovered_details(core: CoreState<'_>, ids: Vec<String>) -> Result<(), String> {
     let core = Arc::clone(&core);
     core.fetch_discovered_details(ids).await
@@ -500,6 +534,21 @@ async fn download_model(core: CoreState<'_>, model_id: String) -> Result<(), Str
 async fn play_recording_at(core: CoreState<'_>, book_id: String, at_ms: u64) -> Result<(), String> {
     let core = Arc::clone(&core);
     core.play_recording_at(&book_id, at_ms).await
+}
+
+/// The system's file chooser for EPUB files to add. `None` when cancelled.
+#[tauri::command]
+async fn choose_books(app: tauri::AppHandle) -> Option<Vec<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("Choose EPUB files to add")
+        .add_filter("EPUB books", &["epub"])
+        .pick_files(move |picked| {
+            let _ = tx.send(picked.map(|files| files.iter().map(|p| p.to_string()).collect()));
+        });
+    rx.await.ok().flatten()
 }
 
 /// The system's file chooser for audiobook files, or a folder of them. `None` when cancelled.
@@ -670,6 +719,12 @@ pub fn run() {
             recognition_options,
             download_model,
             choose_audio,
+            choose_books,
+            scan_for_audiobooks,
+            audiobook_matches,
+            cancel_audiobook_scan,
+            look_for_audiobooks,
+            pair_audiobooks,
             play_recording_at,
             lookup_metadata,
             scan_for_books,

@@ -8,6 +8,7 @@ import LibraryView from "./views/LibraryView.vue";
 import ReaderView from "./views/ReaderView.vue";
 import StatsView from "./views/StatsView.vue";
 import FindBooksView from "./views/FindBooksView.vue";
+import FindAudiobooksView from "./views/FindAudiobooksView.vue";
 import BookDetailsView from "./views/BookDetailsView.vue";
 import MiniPlayer from "./components/player/MiniPlayer.vue";
 import UiHost from "./components/ui/UiHost.vue";
@@ -84,6 +85,7 @@ function browserDrop(event: DragEvent) {
         <LibraryView v-if="navigation.view === 'library'" />
         <StatsView v-else-if="navigation.view === 'stats'" />
         <FindBooksView v-else-if="navigation.view === 'find'" />
+        <FindAudiobooksView v-else-if="navigation.view === 'audiobooks'" />
         <BookDetailsView v-else-if="navigation.view === 'book' && navigation.bookId" :key="navigation.bookId" :book-id="navigation.bookId" />
         <ReaderView v-else />
       </Transition>

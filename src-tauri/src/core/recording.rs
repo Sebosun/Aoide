@@ -449,6 +449,10 @@ impl SyncHost for Core {
         }
         self.follow_sync(id, ready);
     }
+
+    fn checked(&self, id: &str, passed: bool) {
+        self.audiobook_checked(id, passed);
+    }
 }
 
 /// The sync job's commands, with Core as its host.
@@ -585,6 +589,7 @@ impl Core {
         lock(&self.library)
             .remove_recording(&BookId(id.into()))
             .map_err(|e| e.to_string())?;
+        self.audiobook_unpaired(id);
         let mut settings = self.book_settings(id);
         if settings.narration.is_some() {
             settings.narration = None;

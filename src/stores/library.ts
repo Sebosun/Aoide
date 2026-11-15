@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api } from "../api";
+import { useNavigationStore } from "./navigation";
 import type { BookSummary, Collection, ImportResult, LibrarySort } from "../api/types";
 
 export type BuiltInFilter = "all" | "progress" | "offline" | "preparing";
@@ -65,7 +66,21 @@ export const useLibraryStore = defineStore("library", () => {
   async function setBookCollections(bookId: string, ids: number[]) { await api.setBookCollections(bookId, ids); await refresh(); }
   async function perform(action: () => Promise<unknown>) { error.value = ""; try { await action(); await refresh(); } catch (e) { error.value = String(e); } }
   function start() { return startup ??= (async () => { try { unlisten = await api.onLibraryChanged(() => { void refresh(); }); folder.value = (await api.appInfo()).libraryFolder; sort.value = (await api.appSettings()).librarySort ?? "recent"; await refresh(); } catch (e) { error.value = String(e); } finally { ready.value = true; } })(); }
-  async function importFiles(paths: string[]) { await perform(async () => { imports.value = await api.importFiles(paths); }); }
+  async function importFiles(paths: string[]) {
+    await perform(async () => { imports.value = await api.importFiles(paths); });
+    await lookForAudiobooks(imports.value.flatMap(r => r.bookId ? [r.bookId] : []));
+  }
+  /** After books were added: the core looks for their audiobooks (if the user wants that), and
+   *  when some wait for the user, Find audiobooks opens on them. */
+  async function lookForAudiobooks(ids: string[]) {
+    if (!ids.length) return;
+    try { if (await api.lookForAudiobooks(ids) > 0) useNavigationStore().view = "audiobooks"; } catch (e) { error.value = String(e); }
+  }
+  /** Asks for EPUB files with the system's chooser and adds them. */
+  async function chooseFiles() {
+    error.value = "";
+    try { const paths = await api.chooseBooks(); if (paths?.length) await importFiles(paths); } catch (e) { error.value = String(e); }
+  }
   function dispose() { unlisten?.(); startup = undefined; }
-  return { books, failed, ready, visible, query, sort, setSort, filter, counts, collections, collection, createCollection, renameCollection, deleteCollection, setBookCollections, loading, folder, error, imports, start, refresh, importFiles, rescan: () => perform(() => api.rescanLibrary()), remove: (id: string) => perform(() => api.removeBook(id)), dispose };
+  return { books, failed, ready, visible, query, sort, setSort, filter, counts, collections, collection, createCollection, renameCollection, deleteCollection, setBookCollections, loading, folder, error, imports, start, refresh, importFiles, chooseFiles, lookForAudiobooks, rescan: () => perform(() => api.rescanLibrary()), remove: (id: string) => perform(() => api.removeBook(id)), dispose };
 });

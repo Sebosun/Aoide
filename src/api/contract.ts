@@ -300,7 +300,16 @@ resumePrepare: boolean,
 /**
  * Speech recognition for syncing recordings.
  */
-recognition: RecognitionSettings, };
+recognition: RecognitionSettings, 
+/**
+ * Where "Find audiobooks" looks.
+ */
+audiobooks: AudiobookSearchSettings, 
+/**
+ * Pair found audiobooks without asking: each book's closest audiobooks are tried in turn
+ * until one passes the quick check.
+ */
+verifyAudiobooks: boolean, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -380,6 +389,54 @@ export type ScanProgress = { stage: ScanStage, dirs: number, files: number, foun
 read: number, toRead: number, error: string | null, };
 
 export type DiscoveryImportProgress = { done: number, total: number, current: string | null, };
+
+export type AudiobookSearchSettings = { roots: Array<string>, exclude: Array<string>, 
+/**
+ * Hidden folders to search anyway.
+ */
+includeHidden: Array<string>, 
+/**
+ * Look for the audiobooks of books as they are added.
+ */
+onAdd: boolean, };
+
+export type AudiobookSuggestion = { 
+/**
+ * What to pair: audio files, or one folder.
+ */
+paths: Array<string>, 
+/**
+ * Its name has exactly the book's words.
+ */
+exact: boolean, 
+/**
+ * `paths` is one folder (rather than audio files).
+ */
+folder: boolean, 
+/**
+ * Every audio file it holds (in a folder: all of them, discs included), sorted.
+ */
+files: Array<string>, 
+/**
+ * Their size together.
+ */
+bytes: number, };
+
+export type MatchStage = { "kind": "found" } | { "kind": "verifying", candidate: number, } | { "kind": "paired", candidate: number, } | { "kind": "noneVerified" };
+
+export type AudiobookMatch = { bookId: string, 
+/**
+ * Closest first.
+ */
+candidates: Array<AudiobookSuggestion>, stage: MatchStage, };
+
+export type AudiobookChoice = { bookId: string, 
+/**
+ * Index into the match's candidates.
+ */
+candidate: number, };
+
+export type PairOutcome = { bookId: string, error: string | null, };
 
 export type AppearanceMode = "auto" | "light" | "dark";
 
@@ -533,6 +590,8 @@ export type CoreEvents = {
   "export://progress": ExportProgress,
   "sync://state": RecordingView,
   "model://download": ModelDownloadView,
+  "audiobooks://progress": ScanProgress,
+  "audiobooks://matches": Array<AudiobookMatch>,
 };
 
 /** Every command Core answers, by name, with its arguments and result. */
@@ -593,6 +652,11 @@ export type Commands = {
   "scan_for_books": { args: Record<string, never>; result: Candidate[] };
   "cancel_scan": { args: Record<string, never>; result: void };
   "discovered_books": { args: Record<string, never>; result: Candidate[] };
+  "scan_for_audiobooks": { args: Record<string, never>; result: AudiobookMatch[] };
+  "audiobook_matches": { args: Record<string, never>; result: AudiobookMatch[] };
+  "cancel_audiobook_scan": { args: Record<string, never>; result: void };
+  "look_for_audiobooks": { args: { ids: string[] }; result: number };
+  "pair_audiobooks": { args: { choices: AudiobookChoice[] }; result: PairOutcome[] };
   "fetch_discovered_details": { args: { ids: string[] }; result: void };
   "import_discovered": { args: { choices: ImportChoice[] }; result: ImportResult[] };
   "inspect_recording": { args: { paths: string[] }; result: InspectionView };
@@ -606,5 +670,6 @@ export type Commands = {
   "recognition_options": { args: Record<string, never>; result: RecognitionOptions };
   "download_model": { args: { modelId: string }; result: void };
   "play_recording_at": { args: { bookId: string; atMs: number }; result: void };
+  "choose_books": { args: Record<string, never>; result: string[] | null };
   "choose_audio": { args: { folder: boolean }; result: string[] | null };
 };

@@ -9,12 +9,14 @@ import SettingsNote from "./SettingsNote.vue";
 import SettingsActions from "./SettingsActions.vue";
 import UiSelect from "../ui/UiSelect.vue";
 import { useAppSettings } from "../../composables/useAppSettings";
+import { useNavigationStore } from "../../stores/navigation";
 import { formatBytes } from "../../bytes";
 
 /** Speech recognition for syncing recordings: built in (the model, where it runs, and the models
  *  on this computer, downloaded only when asked and checked against fixed checksums), or a
  *  recognition server with the OpenAI transcription API. */
 const { settings, error, message, save } = useAppSettings();
+const navigation = useNavigationStore();
 const options = ref<RecognitionOptions | null>(null), form = ref<RecognitionSettings | null>(null);
 const downloads = ref<Record<string, ModelDownloadView>>({}), downloadError = ref("");
 let unlisten: (() => void) | undefined, disposed = false;
@@ -49,6 +51,7 @@ async function download(id: string) {
   try { await api.downloadModel(id); await load(); }
   catch (e) { downloadError.value = String(e); }
 }
+function findAudiobooks() { navigation.closeSettings(); navigation.view = "audiobooks"; }
 function submit() { if (form.value) void save({ recognition: { ...form.value, threads: Math.max(0, Math.round(Number(form.value.threads) || 0)) } }); }
 </script>
 
@@ -73,6 +76,12 @@ function submit() { if (form.value) void save({ recognition: { ...form.value, th
     </SettingsSection>
     <SettingsActions :message="message" :error="error" />
 
+    <SettingsSection title="Finding audiobooks">
+      <label v-if="settings" class="recording-settings__check"><input :checked="settings.verifyAudiobooks" type="checkbox" aria-label="Let Aoide verify audiobook matches" @change="save({ verifyAudiobooks: ($event.target as HTMLInputElement).checked })" /> Let Aoide verify audiobook matches</label>
+      <SettingsNote>Find audiobooks matches audiobooks on this computer to your books by name. With this on, Aoide pairs each book's closest audiobook without asking and checks a few samples against the text; if they don't match, it tries the next one, and leaves the book unpaired if none do.</SettingsNote>
+      <div><button type="button" class="recording-settings__find" @click="findAudiobooks"><Headphones :size="15" /> Find audiobooks…</button></div>
+    </SettingsSection>
+
     <SettingsSection v-if="builtIn" title="Models on this computer">
       <ul class="recording-settings__models" aria-label="Speech-recognition models">
         <li v-for="model in models" :key="model.id" class="recording-settings__model">
@@ -93,6 +102,7 @@ function submit() { if (form.value) void save({ recognition: { ...form.value, th
 <style scoped>
 .recording-settings { display: grid; gap: 22px; }
 .recording-settings__check { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.recording-settings__find { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 16px; border-radius: 999px; background: var(--ground); font-weight: 700; font-size: 13px; }
 .recording-settings__models { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .recording-settings__model { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
 .recording-settings__name { display: grid; font-weight: 700; }

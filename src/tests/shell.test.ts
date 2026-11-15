@@ -74,11 +74,11 @@ it("shows every engine state in the top bar pill, with the detail as its title",
   wrapper.unmount();
 });
 
-it("reaches Find books and rescan from the Add EPUB menu, which closes on Escape", async () => {
+it("reaches Find books and rescan from the Add menu, which closes on Escape", async () => {
   const rescan = vi.spyOn(mock, "rescanLibrary");
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
-  const add = wrapper.get('[aria-label="Add EPUB"]');
+  const add = wrapper.get('[aria-label="Add books"]');
   await add.trigger("click");
   expect(add.attributes("aria-expanded")).toBe("true");
   expect(openMenu()!.textContent).toContain("drop EPUB files anywhere on this window");

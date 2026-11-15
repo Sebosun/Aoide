@@ -225,6 +225,8 @@ impl SyncHost for TestHost {
     fn synced(&self, _: &str, ready: bool) {
         self.synced.lock().unwrap().push(ready);
     }
+
+    fn checked(&self, _: &str, _: bool) {}
 }
 
 #[test]
@@ -1184,4 +1186,263 @@ async fn find_books_offers_audiobooks_kept_beside_epubs_and_pairs_them_on_import
     let paired = f.core.recording(&harbour_id).expect("paired on import");
     assert_eq!(paired.files.len(), 1);
     assert_eq!(paired.total_ms, 3_000);
+}
+
+// ------------------------------------------------------------ finding audiobooks
+
+/// Two audiobooks named like the test book in `Audiobooks`, tried in this order: the first reads
+/// another book where the quick check listens, the second reads this one when `second_reads` is
+/// set (else it too reads another book).
+fn two_audiobooks(f: &Fixture, second_reads: bool) -> (PathBuf, PathBuf) {
+    let other = "The orchard behind the mill had not been pruned in years, and the pears that \
+                 fell there were left for the wasps and the badgers, who quarrelled at dusk.";
+    let mut script = if second_reads {
+        read(&texts(&f.core, &f.id), 0)
+    } else {
+        read(&[other.to_owned()], 0)
+    };
+    let book_end = script.last().unwrap().1 + 500;
+    for at in [40_000, 100_000, 160_000] {
+        script.extend(read(&[other.to_owned()], at));
+    }
+    *f.script.lock().unwrap() = script;
+    let (first, second) = (
+        f.root.join("Audiobooks/A Quay Lights"),
+        f.root.join("Audiobooks/Quay Lights"),
+    );
+    std::fs::create_dir_all(&first).unwrap();
+    std::fs::create_dir_all(&second).unwrap();
+    write_recording(&first.join("part.wav"), 200_000);
+    write_recording(&second.join("part.wav"), book_end);
+    (first, second)
+}
+
+fn search(f: &Fixture, verify: bool) {
+    let mut settings = f.core.app_settings();
+    settings.audiobooks.roots = vec![f.root.join("Audiobooks").to_string_lossy().into_owned()];
+    settings.verify_audiobooks = verify;
+    f.core.save_app_settings(settings).unwrap();
+}
+
+fn match_stage(core: &Core, id: &str) -> Option<super::audiobooks::MatchStage> {
+    core.audiobook_matches()
+        .into_iter()
+        .find(|m| m.book_id == id)
+        .map(|m| m.stage)
+}
+
+fn paired_files(core: &Core, id: &str) -> Vec<String> {
+    core.recording(id)
+        .map(|r| r.files.into_iter().map(|f| f.path).collect())
+        .unwrap_or_default()
+}
+
+#[tokio::test]
+async fn found_audiobooks_wait_for_the_user_who_pairs_the_one_they_pick() {
+    use super::audiobooks::{AudiobookChoice, MatchStage};
+    let f = fixture().await;
+    put_model(&f.root);
+    let (first, second) = two_audiobooks(&f, true);
+    search(&f, false);
+
+    let found = f.core.scan_for_audiobooks().await.unwrap();
+
+    assert_eq!(found.len(), 1);
+    let paths: Vec<Vec<String>> = found[0]
+        .candidates
+        .iter()
+        .map(|c| c.paths.clone())
+        .collect();
+    let path = |p: &PathBuf| p.to_string_lossy().into_owned();
+    assert_eq!(paths, vec![vec![path(&first)], vec![path(&second)]]);
+    let second_found = &found[0].candidates[1];
+    assert!(second_found.folder);
+    assert_eq!(second_found.files, vec![path(&second.join("part.wav"))]);
+    assert_eq!(
+        second_found.bytes,
+        std::fs::metadata(second.join("part.wav")).unwrap().len()
+    );
+    assert_eq!(found[0].stage, MatchStage::Found);
+    assert!(
+        f.core.recording(&f.id).is_none(),
+        "nothing paired before the user says so"
+    );
+
+    let outcome = f.core.pair_audiobooks(vec![AudiobookChoice {
+        book_id: f.id.clone(),
+        candidate: 1,
+    }]);
+    assert!(outcome.iter().all(|o| o.error.is_none()), "{outcome:?}");
+    assert_eq!(
+        match_stage(&f.core, &f.id),
+        Some(MatchStage::Paired { candidate: 1 })
+    );
+    assert_eq!(
+        paired_files(&f.core, &f.id),
+        vec![path(&second.join("part.wav"))]
+    );
+    f.core.stop();
+}
+
+#[tokio::test]
+async fn with_verifying_on_the_next_audiobook_is_tried_when_the_quick_check_fails() {
+    use super::audiobooks::MatchStage;
+    let f = fixture().await;
+    put_model(&f.root);
+    let (first, second) = two_audiobooks(&f, true);
+    search(&f, true);
+
+    f.core.scan_for_audiobooks().await.unwrap();
+    assert_eq!(
+        match_stage(&f.core, &f.id),
+        Some(MatchStage::Verifying { candidate: 0 })
+    );
+    let path = |p: PathBuf| p.to_string_lossy().into_owned();
+    assert_eq!(
+        paired_files(&f.core, &f.id),
+        vec![path(first.join("part.wav"))]
+    );
+
+    sync(&f.core);
+
+    assert_eq!(
+        match_stage(&f.core, &f.id),
+        Some(MatchStage::Paired { candidate: 1 })
+    );
+    assert_eq!(
+        paired_files(&f.core, &f.id),
+        vec![path(second.join("part.wav"))]
+    );
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Ready));
+    f.core.stop();
+}
+
+#[tokio::test]
+async fn with_verifying_on_a_book_none_of_whose_audiobooks_pass_is_left_unpaired() {
+    use super::audiobooks::MatchStage;
+    let f = fixture().await;
+    put_model(&f.root);
+    two_audiobooks(&f, false);
+    search(&f, true);
+
+    f.core.scan_for_audiobooks().await.unwrap();
+    sync(&f.core);
+
+    assert_eq!(match_stage(&f.core, &f.id), Some(MatchStage::NoneVerified));
+    assert!(f.core.recording(&f.id).is_none());
+    f.core.stop();
+}
+
+#[tokio::test]
+async fn added_books_with_audiobooks_waiting_are_counted_unless_looking_is_off_or_aoide_verifies() {
+    use super::audiobooks::MatchStage;
+    let f = fixture().await;
+    put_model(&f.root);
+    two_audiobooks(&f, true);
+    let ids = vec![f.id.clone()];
+
+    search(&f, false);
+    let mut settings = f.core.app_settings();
+    settings.audiobooks.on_add = false;
+    f.core.save_app_settings(settings.clone()).unwrap();
+    assert_eq!(f.core.look_for_audiobooks(ids.clone()).await, Ok(0));
+    assert!(f.core.audiobook_matches().is_empty(), "not looked for");
+
+    settings.audiobooks.on_add = true;
+    f.core.save_app_settings(settings.clone()).unwrap();
+    assert_eq!(f.core.look_for_audiobooks(ids.clone()).await, Ok(1));
+
+    settings.verify_audiobooks = true;
+    f.core.save_app_settings(settings).unwrap();
+    assert_eq!(
+        match_stage(&f.core, &f.id),
+        Some(MatchStage::Verifying { candidate: 0 }),
+        "turning verifying on starts on what waits"
+    );
+    f.core.stop();
+}
+
+// ------------------------------------------------------------ the line of recordings
+
+/// A second book in the fixture's library, read aloud by its own recording, and both paired:
+/// the test book's first, so it is first in line. Returns the second book's id.
+async fn two_in_line(f: &Fixture) -> String {
+    let chapter = |title: &str, body: &str| {
+        format!(
+            r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>{title}</h1><p>{body}</p></body></html>"#
+        )
+    };
+    let bytes = epub_with(
+        chapter(
+            "The Mill",
+            "The wheel turned all night. Flour drifted on the stair.",
+        ),
+        chapter(
+            "The Pond",
+            "Ducks slept by the reeds. A heron watched them.",
+        ),
+    );
+    std::fs::write(f.root.join("Books/mill.epub"), &bytes).unwrap();
+    let other = aoide_library::content_hash(&bytes).0;
+    f.core.rescan().unwrap();
+    until("the second book", || {
+        f.core.list_books().is_ok_and(|b| b.len() == 2)
+    })
+    .await;
+    // Both recordings hear the same script: the test book's text, then the other's.
+    let mut script = read(&texts(&f.core, &f.id), 0);
+    let first_end = script.last().unwrap().1 + 500;
+    script.extend(read(&texts(&f.core, &other), 0));
+    *f.script.lock().unwrap() = script;
+    write_recording(&f.audio, first_end);
+    let second = f.root.join("Audio/mill.wav");
+    write_recording(&second, first_end);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    f.core
+        .attach_recording(&other, vec![second.to_string_lossy().into()])
+        .unwrap();
+    other
+}
+
+/// Runs the sync job until book `id`'s recording is being transcribed.
+fn until_transcribing(core: &Core, id: &str) {
+    for _ in 0..20 {
+        if stage(core, id) == Some(Stage::Transcribing) {
+            return;
+        }
+        core.sync_step();
+    }
+    panic!("{id} never started: {:?}", stage(core, id));
+}
+
+#[tokio::test]
+async fn pausing_the_recording_being_synced_starts_the_next_in_line() {
+    let f = fixture().await;
+    put_model(&f.root);
+    let other = two_in_line(&f).await;
+    until_transcribing(&f.core, &f.id);
+    assert_eq!(stage(&f.core, &other), Some(Stage::Waiting));
+
+    f.core.sync_action(&f.id, super::SyncAction::Pause).unwrap();
+    until_transcribing(&f.core, &other);
+    sync(&f.core);
+
+    assert_eq!(stage(&f.core, &f.id), Some(Stage::Paused));
+    assert_ne!(stage(&f.core, &other), Some(Stage::Waiting));
+    f.core.stop();
+}
+
+#[tokio::test]
+async fn removing_the_recording_being_synced_starts_the_next_in_line() {
+    let f = fixture().await;
+    put_model(&f.root);
+    let other = two_in_line(&f).await;
+    until_transcribing(&f.core, &f.id);
+
+    f.core.remove_recording(&f.id).await.unwrap();
+    until_transcribing(&f.core, &other);
+    f.core.stop();
 }

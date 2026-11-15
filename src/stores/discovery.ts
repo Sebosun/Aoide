@@ -53,6 +53,7 @@ export const useDiscoveryStore = defineStore("discovery", () => {
       candidates.value = await api.discoveredBooks();
       selected.value = new Set([...selected.value].filter(id => !ids.includes(id)));
       await useLibraryStore().refresh();
+      await useLibraryStore().lookForAudiobooks(results.flatMap(r => r.bookId && !r.error ? [r.bookId] : []));
     } catch (e) { error.value = String(e); } finally { importing.value = null; }
   }
   function toggle(id: string, on: boolean) { const next = new Set(selected.value); if (on) next.add(id); else next.delete(id); selected.value = next; }

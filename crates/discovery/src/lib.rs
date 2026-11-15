@@ -96,6 +96,19 @@ pub fn find_epubs(
     cancel: &AtomicBool,
     progress: &(dyn Fn(Progress) + Sync),
 ) -> Vec<Found> {
+    find_files(options, cancel, progress, &|path| {
+        path.extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("epub"))
+    })
+}
+
+/// Files under the roots that `wanted` picks, as [`find_epubs`] finds EPUBs.
+fn find_files(
+    options: &ScanOptions,
+    cancel: &AtomicBool,
+    progress: &(dyn Fn(Progress) + Sync),
+    wanted: &(dyn Fn(&Path) -> bool + Sync),
+) -> Vec<Found> {
     if cancel.load(Ordering::Relaxed) || options.roots.is_empty() {
         return Vec::new();
     }
@@ -148,11 +161,7 @@ pub fn find_epubs(
                 return WalkState::Continue; // Symlinks and special files.
             }
             let seen = files.fetch_add(1, Ordering::Relaxed) + 1;
-            let is_epub = entry
-                .path()
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("epub"));
-            if is_epub {
+            if wanted(entry.path()) {
                 if let Ok(meta) = entry.metadata() {
                     let modified_ns = meta
                         .modified()
@@ -239,4 +248,7 @@ pub fn hash_all(
 }
 
 mod beside;
+mod names;
 pub use beside::{audiobook_beside, Neighbourhood};
+mod folder;
+pub use folder::{AudiobookFolder, Suggestion};

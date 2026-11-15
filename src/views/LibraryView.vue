@@ -89,7 +89,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [{ value: "recent", label
     <div v-else-if="!library.books.length" class="library__empty">
       <BookOpen :size="36" :stroke-width="1.4" />
       <b>Your library is empty</b>
-      <span>Drop EPUB files on this window, or use Add EPUB to find books on this computer.</span>
+      <span>Drop EPUB files on this window, or use Add to find books on this computer.</span>
     </div>
     <p v-else-if="library.query.trim() && !library.visible.length" class="library__note">No books match “{{ library.query }}”.</p>
     <p v-else-if="library.books.length && !library.visible.length" class="library__note">No books here yet.</p>

@@ -28,10 +28,12 @@ use tauri::{AppHandle, Emitter};
 const PREVIEW_TEXT: &str =
     "The lantern swung gently as the little boat drifted home across the quiet harbour.";
 mod align;
+mod audiobooks;
 mod config;
 pub use config::PreferencesView;
 mod discovery;
 mod storage;
+pub use audiobooks::{AudiobookChoice, AudiobookMatch, PairOutcome};
 pub use discovery::{Candidate, CandidateStatus, ImportChoice};
 pub use storage::{CleanResult, StorageReport};
 mod export;
@@ -351,6 +353,10 @@ pub enum CoreEvent {
     /// A book's recording changed stage or made progress.
     SyncState(recording::RecordingView),
     ModelDownload(recording::ModelDownloadView),
+    /// Where a search for audiobooks is.
+    AudiobookScan(discovery::ScanProgress),
+    /// The audiobook matches changed.
+    AudiobookMatches(Vec<audiobooks::AudiobookMatch>),
 }
 
 impl CoreEvent {
@@ -365,6 +371,8 @@ impl CoreEvent {
     pub const EXPORT_PROGRESS: &'static str = "export://progress";
     pub const SYNC_STATE: &'static str = "sync://state";
     pub const MODEL_DOWNLOAD: &'static str = "model://download";
+    pub const AUDIOBOOK_SCAN: &'static str = "audiobooks://progress";
+    pub const AUDIOBOOK_MATCHES: &'static str = "audiobooks://matches";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -379,6 +387,8 @@ impl CoreEvent {
             Self::ExportProgress(_) => Self::EXPORT_PROGRESS,
             Self::SyncState(_) => Self::SYNC_STATE,
             Self::ModelDownload(_) => Self::MODEL_DOWNLOAD,
+            Self::AudiobookScan(_) => Self::AUDIOBOOK_SCAN,
+            Self::AudiobookMatches(_) => Self::AUDIOBOOK_MATCHES,
         }
     }
 
@@ -395,6 +405,8 @@ impl CoreEvent {
             Self::ExportProgress(p) => serde_json::to_value(p),
             Self::SyncState(p) => serde_json::to_value(p),
             Self::ModelDownload(p) => serde_json::to_value(p),
+            Self::AudiobookScan(p) => serde_json::to_value(p),
+            Self::AudiobookMatches(p) => serde_json::to_value(p),
         }
     }
 }
@@ -479,6 +491,8 @@ pub struct Core {
     config: Mutex<config::Config>,
     /// Recordings and their sync.
     recordings: recordings::Recordings,
+    /// What "Find audiobooks" found.
+    audiobooks: Mutex<audiobooks::Matches>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -661,6 +675,7 @@ impl Core {
             aligning: Mutex::new(Default::default()),
             config: Mutex::new(config),
             recordings,
+            audiobooks: Mutex::new(Default::default()),
         });
         core.recordings
             .load_recordings(core.app_settings().recognition.resume_on_start);

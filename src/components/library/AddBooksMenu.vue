@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Plus, FolderSearch, RefreshCw, Upload } from "@lucide/vue";
+import { Plus, FilePlus, FolderSearch, Headphones, RefreshCw, Upload } from "@lucide/vue";
 import UiMenu from "../ui/UiMenu.vue";
 import type { MenuEntry } from "../ui/types";
 import { useLibraryStore } from "../../stores/library";
@@ -8,7 +8,9 @@ import { useNavigationStore } from "../../stores/navigation";
 
 const library = useLibraryStore(), navigation = useNavigationStore();
 const items = computed<MenuEntry[]>(() => [
+  { id: "choose", label: "Choose EPUB files…", ariaLabel: "Choose EPUB files…", icon: FilePlus, action: () => { void library.chooseFiles(); } },
   { id: "find", label: "Find books on this computer", ariaLabel: "Find books on this computer", icon: FolderSearch, action: () => { navigation.view = "find"; } },
+  { id: "audiobooks", label: "Find audiobooks for your books", ariaLabel: "Find audiobooks for your books", icon: Headphones, action: () => { navigation.view = "audiobooks"; } },
   { id: "rescan", label: "Rescan library folder", ariaLabel: "Rescan library folder", icon: RefreshCw, disabled: library.loading, action: () => { void library.rescan(); } },
   { kind: "separator" },
   { kind: "note", label: "Or drop EPUB files anywhere on this window.", icon: Upload },
@@ -16,8 +18,8 @@ const items = computed<MenuEntry[]>(() => [
 </script>
 
 <template>
-  <UiMenu v-slot="{ toggle, trigger }" label="Add books" :items="items" align="end" :width="280">
-    <button type="button" class="add-books__button" aria-label="Add EPUB" v-bind="trigger" @click="toggle"><Plus :size="16" /> Add EPUB</button>
+  <UiMenu v-slot="{ toggle, trigger }" label="Add books" :items="items" align="end" :width="300">
+    <button type="button" class="add-books__button" aria-label="Add books" v-bind="trigger" @click="toggle"><Plus :size="16" /> Add</button>
   </UiMenu>
 </template>
 

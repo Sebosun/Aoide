@@ -7,6 +7,7 @@ import type { AppSettings, CandidateStatus } from "../api/types";
 import { formatBytes } from "../bytes";
 import { useDiscoveryStore } from "../stores/discovery";
 import { useRecordingsStore } from "../stores/recordings";
+import { audiobookName } from "../recording";
 const discovery = useDiscoveryStore(), navigation = useNavigationStore(), recordings = useRecordingsStore();
 const settings = ref<AppSettings | null>(null), roots = ref(""), exclude = ref(""), includeHidden = ref(""), onStartup = ref(false), foldersMessage = ref("");
 onMounted(async () => {
@@ -39,8 +40,6 @@ const status = computed(() => {
   return "";
 });
 const where = (path: string) => path.split("/").slice(0, -1).join("/") || "/";
-/** The audiobook found beside a book: its file or folder name, and how many files. */
-const audiobookName = (paths: string[]) => (paths[0].split("/").pop() ?? paths[0]) + (paths.length > 1 ? ` · ${paths.length} files` : "");
 const anyAudiobook = computed(() => discovery.visible.some(c => c.audiobook.length));
 </script>
 

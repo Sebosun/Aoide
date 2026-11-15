@@ -12,6 +12,8 @@
 
 ## Next
 
+- **A reading app, not only a player**: read without audio, audiobooks without an EPUB, articles by link, feeds, an optional browser for hard pages. Plan and phases in [reading-app/plan.md](reading-app/plan.md).
+
 - More engine adapters.
 - Audiobook sync, phases 2 and 3 (see [audiobook-sync.md](audiobook-sync.md#phases)): listening while it syncs, an OpenAI-style transcription adapter, exact word timing for recordings, EPUB 3 Media Overlays export.
 - Release builds (AppImage, RPM, DEB) instead of build-from-source only.

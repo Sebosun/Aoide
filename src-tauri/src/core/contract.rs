@@ -94,6 +94,13 @@ fn contract() -> String {
         super::discovery::ScanStage,
         super::discovery::ScanProgress,
         super::discovery::ImportProgress,
+        // Finding audiobooks
+        super::audiobooks::AudiobookSearchSettings,
+        super::audiobooks::AudiobookSuggestion,
+        super::audiobooks::MatchStage,
+        super::audiobooks::AudiobookMatch,
+        super::audiobooks::AudiobookChoice,
+        super::audiobooks::PairOutcome,
         // Appearance
         aoide_config::Mode,
         aoide_config::ReaderMode,
@@ -166,6 +173,14 @@ fn contract() -> String {
         (
             CoreEvent::MODEL_DOWNLOAD,
             name::<super::recording::ModelDownloadView>(&config),
+        ),
+        (
+            CoreEvent::AUDIOBOOK_SCAN,
+            name::<super::discovery::ScanProgress>(&config),
+        ),
+        (
+            CoreEvent::AUDIOBOOK_MATCHES,
+            name::<Vec<super::audiobooks::AudiobookMatch>>(&config),
         ),
     ];
     out.push_str(

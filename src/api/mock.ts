@@ -1,4 +1,4 @@
-import type { RecordingView, SyncStage, InspectionView, ModelDownloadView, SyncReportView, PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
+import type { AudiobookMatch, RecordingView, SyncStage, InspectionView, ModelDownloadView, SyncReportView, PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
 
 export const initialPlayer = (): PlayerState => ({ bookId: null, status: "stopped", chapter: 0, segmentId: null, wordIndex: null, speed: 1, volume: 1, chapterFraction: 0, error: null, sleep: null, source: "speech", offText: false, chapterLeftMs: null, waitingForSync: false });
 export const initialGeneration = (): GenerationState => ({ bookId: null, generatingSegmentId: null, bufferedAheadMs: 0, pending: 0, error: null, preparing: null });
@@ -60,7 +60,7 @@ export function createMockApi() {
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
   const listened = new Map<string, number>([["book-0", 5_400_000], ["book-1", 1_200_000]]);
-  let appSettings: AppSettings = { metadataLookup: true, cacheLimitBytes: null, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { engine: "builtIn", server: { baseUrl: "http://127.0.0.1:8000", model: "", network: "loopback" }, modelSize: "base", device: "auto", threads: 0, resumeOnStart: true } };
+  let appSettings: AppSettings = { metadataLookup: true, cacheLimitBytes: null, aligner: null, librarySort: "recent", scan: { roots: [], exclude: [], includeHidden: [], onStartup: false }, resumePrepare: true, recognition: { engine: "builtIn", server: { baseUrl: "http://127.0.0.1:8000", model: "", network: "loopback" }, modelSize: "base", device: "auto", threads: 0, resumeOnStart: true }, audiobooks: { roots: [], exclude: [], includeHidden: [], onAdd: true }, verifyAudiobooks: false };
   const found: Candidate[] = [
     { id: "h-tide", status: "new", title: "Notes on the Tide", authors: ["Ines Morrow"], language: "en", isbn: "9780000000101", coverUrl: null, paths: ["~/Downloads/notes-on-the-tide.epub", "~/Documents/Books/tide.epub"], size: 2_400_000, error: null, suggestion: null, audiobook: ["~/Downloads/Notes on the Tide (Unabridged).m4b"] },
     { id: "h-glass", status: "new", title: "The Glass Meridian", authors: ["Oren Vale"], language: "en", isbn: null, coverUrl: null, paths: ["~/Downloads/glass-meridian.epub"], size: 1_100_000, error: null, suggestion: null, audiobook: [] },
@@ -146,6 +146,20 @@ export function createMockApi() {
   const scanHandlers = new Set<(p: ScanProgress) => void>();
   const detailHandlers = new Set<(id: string) => void>();
   const importHandlers = new Set<(p: DiscoveryImportProgress) => void>();
+  /** Find audiobooks: what a search of ~/Audiobooks finds for the books without a recording.
+   *  Verifying itself (the quick check) is the core's; here a verified match only starts. */
+  const audiobookScanHandlers = new Set<(p: ScanProgress) => void>();
+  const matchHandlers = new Set<(m: AudiobookMatch[]) => void>();
+  let audiobookMatches: AudiobookMatch[] = [];
+  const kept: Record<string, AudiobookMatch["candidates"]> = {
+    "book-1": [
+      { paths: ["~/Audiobooks/Ellis Reed - A Map of Quiet Places"], exact: true, folder: true, bytes: 1_288_490_189,
+        files: Array.from({ length: 15 }, (_, i) => `~/Audiobooks/Ellis Reed - A Map of Quiet Places/${String(i + 1).padStart(2, "0")} - A Map of Quiet Places.m4b`) },
+      { paths: ["~/Audiobooks/A Map of Quiet Places (Unabridged).m4b"], exact: true, folder: false, bytes: 625_999_872, files: ["~/Audiobooks/A Map of Quiet Places (Unabridged).m4b"] },
+    ],
+    "book-3": [{ paths: ["~/Audiobooks/Unfinished Atlas 1.mp3", "~/Audiobooks/Unfinished Atlas 2.mp3"], exact: false, folder: false, bytes: 429_916_160, files: ["~/Audiobooks/Unfinished Atlas 1.mp3", "~/Audiobooks/Unfinished Atlas 2.mp3"] }],
+  };
+  const emitMatches = () => matchHandlers.forEach(h => h(structuredClone(audiobookMatches)));
   const details = new Map<string, BookDetails>();
   const exportHandlers = new Set<(p: ExportProgress) => void>();
   const playerHandlers = new Set<(s: PlayerState) => void>();
@@ -404,6 +418,44 @@ export function createMockApi() {
       return results;
     },
     onScanProgress: h => subscribe(scanHandlers, h),
+    async scanForAudiobooks() {
+      audiobookScanHandlers.forEach(h => h({ stage: "walking", dirs: 800, files: 21000, found: 40, read: 0, toRead: 0, error: null }));
+      const verify = appSettings.verifyAudiobooks;
+      const under = new Map(audiobookMatches.map(m => [m.bookId, m]));
+      audiobookMatches = Object.entries(kept).flatMap(([bookId, candidates]): AudiobookMatch[] => {
+        const before = under.get(bookId);
+        if (before && before.stage.kind !== "found") return [before];
+        if (recordings.has(bookId)) return [];
+        return [{ bookId, candidates, stage: verify ? { kind: "verifying", candidate: 0 } : { kind: "found" } }];
+      });
+      for (const m of audiobookMatches) if (m.stage.kind === "verifying" && !recordings.has(m.bookId)) await api.attachRecording(m.bookId, m.candidates[0].paths);
+      audiobookScanHandlers.forEach(h => h({ stage: "done", dirs: 0, files: 0, found: 0, read: 0, toRead: 0, error: null }));
+      emitMatches();
+      return structuredClone(audiobookMatches);
+    },
+    async audiobookMatches() { return structuredClone(audiobookMatches); },
+    async cancelAudiobookScan() {},
+    async lookForAudiobooks(ids) {
+      if (!appSettings.audiobooks.onAdd) return 0;
+      await api.scanForAudiobooks();
+      return audiobookMatches.filter(m => ids.includes(m.bookId) && m.stage.kind === "found").length;
+    },
+    async pairAudiobooks(choices) {
+      const outcomes = [];
+      for (const { bookId, candidate } of choices) {
+        const match = audiobookMatches.find(m => m.bookId === bookId);
+        try {
+          if (!match?.candidates[candidate]) throw new Error("no such audiobook match");
+          await api.attachRecording(bookId, match.candidates[candidate].paths);
+          match.stage = { kind: "paired", candidate };
+          outcomes.push({ bookId, error: null });
+        } catch (e) { outcomes.push({ bookId, error: e instanceof Error ? e.message : String(e) }); }
+      }
+      emitMatches();
+      return outcomes;
+    },
+    onAudiobookScan: h => subscribe(audiobookScanHandlers, h),
+    onAudiobookMatches: h => subscribe(matchHandlers, h),
     onDiscoveryDetails: h => subscribe(detailHandlers, h),
     onDiscoveryImport: h => subscribe(importHandlers, h),
     onExportProgress: h => subscribe(exportHandlers, h),
@@ -490,6 +542,7 @@ export function createMockApi() {
       downloadHandlers.forEach(h => h({ id: modelId, stage: "done", doneBytes: total, totalBytes: total, error: null }));
       for (const r of recordings.values()) if (r.stage === "needsModel") { emitSync({ ...r, stage: "transcribing" }); simulateSync(r.bookId); }
     },
+    async chooseBooks() { return ["~/Downloads/the-lantern-keeper.epub"]; },
     async chooseAudio(folder) { return folder ? ["~/Audiobooks/The Lantern Keeper"] : ["~/Audiobooks/the-lantern-keeper.m4b"]; },
     async playRecordingAt(bookId, atMs) {
       if (!recordings.get(bookId)?.narrates) throw new Error("choose the recording as the book's narration to listen to it");

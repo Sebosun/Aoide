@@ -10,8 +10,9 @@ import { usePlayerStore } from "../stores/player";
 import { useReaderStore } from "../stores/reader";
 import { useNavigationStore } from "../stores/navigation";
 import { useUiStore } from "../stores/ui";
+import { useRecordingsStore } from "../stores/recordings";
 
-import { choose, pickMenuItem } from "./helpers";
+import { choose, openMenu, pickMenuItem } from "./helpers";
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("../api", () => ({ get api() { return backend.api; } }));
 let mock: ReturnType<typeof createMockApi>;
@@ -353,3 +354,4 @@ it("only opens a started book when nothing is playing", async () => {
   expect(play).not.toHaveBeenCalled();
   wrapper.unmount();
 });
+

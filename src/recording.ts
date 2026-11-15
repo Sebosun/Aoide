@@ -3,6 +3,9 @@ import { BookDown, Check, Download, FileText, Headphones, Pause, Play, RotateCcw
 import type { RecordingView, SyncStage } from "./api/types";
 import { formatDuration } from "./estimate";
 
+/** An audiobook to pair, by name: its file or folder name, and how many files. */
+export const audiobookName = (paths: string[]) => (paths[0].split("/").pop() ?? paths[0]) + (paths.length > 1 ? ` · ${paths.length} files` : "");
+
 /** What a person can do about a book's recording. */
 export type RecordingAction = "listen" | "pause" | "resume" | "retry" | "accept" | "resync" | "download" | "report" | "export" | "remove";
 

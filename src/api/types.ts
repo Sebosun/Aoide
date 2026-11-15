@@ -39,6 +39,12 @@ import type {
   ExportStage,
   GenerationState,
   ImportResult,
+  AudiobookSuggestion,
+  AudiobookMatch,
+  AudiobookChoice,
+  AudiobookSearchSettings,
+  MatchStage,
+  PairOutcome,
   LaunchCommand,
   LibrarySort,
   ListeningStats,
@@ -193,6 +199,19 @@ export interface AoideApi {
   /** `pairAudiobook` pairs the audiobook found beside a book once it is imported. */
   importDiscovered(choices: { id: string; applySuggestion: boolean; pairAudiobook: boolean }[]): Promise<ImportResult[]>;
   onScanProgress(handler: (progress: ScanProgress) => void): Promise<() => void>;
+  /** Searches the audiobook folders for every book without a recording; with verifying on,
+   *  Aoide starts pairing them itself. "audiobooks://progress" reports the search. */
+  scanForAudiobooks(): Promise<AudiobookMatch[]>;
+  /** The matches the last searches found, and where each stands. */
+  audiobookMatches(): Promise<AudiobookMatch[]>;
+  cancelAudiobookScan(): Promise<void>;
+  /** After books were added: how many have audiobooks waiting for the user (0 when looking on
+   *  adding is off or Aoide verifies them). */
+  lookForAudiobooks(ids: string[]): Promise<number>;
+  /** Pairs each chosen candidate; each succeeds or fails on its own. */
+  pairAudiobooks(choices: AudiobookChoice[]): Promise<PairOutcome[]>;
+  onAudiobookScan(handler: (progress: ScanProgress) => void): Promise<() => void>;
+  onAudiobookMatches(handler: (matches: AudiobookMatch[]) => void): Promise<() => void>;
   onDiscoveryDetails(handler: (id: string) => void): Promise<() => void>;
   onDiscoveryImport(handler: (progress: DiscoveryImportProgress) => void): Promise<() => void>;
   onPlayerState(handler: (state: PlayerState) => void): Promise<() => void>;
@@ -219,6 +238,8 @@ export interface AoideApi {
   recognitionOptions(): Promise<RecognitionOptions>;
   /** Downloads a speech-recognition model (progress on "model://download"). */
   downloadModel(modelId: string): Promise<void>;
+  /** The system's file chooser for EPUB files to add; null when cancelled. */
+  chooseBooks(): Promise<string[] | null>;
   /** The system's file chooser for audiobook files (or a folder); null when cancelled. */
   chooseAudio(folder: boolean): Promise<string[] | null>;
   /** Plays the book's recording from a time on its timeline (needs the recording narration). */

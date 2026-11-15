@@ -306,6 +306,8 @@ pub(super) trait SyncHost: Sync {
     fn narration(&self, id: &str) -> Option<Narration>;
     /// More of book `id`'s recording is synced; `ready` once all of it is.
     fn synced(&self, id: &str, ready: bool);
+    /// Whether book `id`'s recording passed the quick check; false too when it failed before.
+    fn checked(&self, id: &str, passed: bool);
 }
 
 /// Every recording paired with a book, its sync and the transcriber it uses.
@@ -400,7 +402,9 @@ impl Recordings {
         if let Err(error) = result {
             eprintln!("aoide: syncing {id}: {error}");
             lock(&self.state).reader = None;
-            self.sync_event(host, &id, SyncEvent::Fail, Some(&error));
+            if self.sync_event(host, &id, SyncEvent::Fail, Some(&error)) == SyncStage::Failed {
+                host.checked(&id, false);
+            }
         }
         true
     }
@@ -620,11 +624,13 @@ impl Recordings {
             }
             if found < 2 {
                 self.sync_event(host, id, SyncEvent::SampleFailed, None);
+                host.checked(id, false);
                 return Ok(());
             }
             if let Some(live) = lock(&self.state).live.get_mut(id) {
                 live.sample_checked = true;
             }
+            host.checked(id, true);
         }
 
         let target = (done + BLOCK_MS).min(total);
@@ -905,6 +911,15 @@ impl Recordings {
         self.wake_sync();
         self.view(host, id)
             .ok_or_else(|| "the recording was not saved".into())
+    }
+
+    /// Every audio file paired with a book.
+    pub(super) fn paired_files(&self) -> Vec<PathBuf> {
+        let rows = lock(&self.library).recordings().unwrap_or_default();
+        rows.iter()
+            .filter_map(|row| serde_json::from_str::<StoredRecording>(&row.files).ok())
+            .flat_map(|stored| stored.files.into_iter().map(|f| f.path))
+            .collect()
     }
 
     /// Stops any work on a book's recording and forgets it in memory.
