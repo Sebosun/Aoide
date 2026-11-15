@@ -29,6 +29,8 @@ const ARTICLE_TYPES: &[&str] = &[
 #[derive(Default)]
 struct Level {
     title: Option<String>,
+    /// JSON-LD's `name`, the title when its `headline` is not.
+    other_title: Option<String>,
     byline: Option<String>,
     site_name: Option<String>,
     published: Option<String>,
@@ -70,7 +72,7 @@ pub(crate) fn read(page: &Html, url: &Url, found_title: Option<String>) -> Read 
     });
     Read {
         meta: ArticleMeta {
-            title: pick(|l| &l.title),
+            title: title(&levels),
             byline: pick(|l| &l.byline),
             site_name: pick(|l| &l.site_name),
             published,
@@ -83,6 +85,33 @@ pub(crate) fn read(page: &Html, url: &Url, found_title: Option<String>) -> Read 
         description: pick(|l| &l.description),
         declared,
     }
+}
+
+/// JSON-LD's `headline`, else its `name`, when it agrees with the page's own titles (some
+/// sites put a description of the subject in `headline`); else the first page title.
+fn title(levels: &[Level; 3]) -> Option<String> {
+    let [json, rest @ ..] = levels;
+    let page: Vec<&str> = rest.iter().filter_map(|l| l.title.as_deref()).collect();
+    let agrees = |title: &str| page.is_empty() || page.iter().any(|p| alike(title, p));
+    [&json.title, &json.other_title]
+        .into_iter()
+        .flatten()
+        .find(|t| agrees(t))
+        .cloned()
+        .or_else(|| rest.iter().find_map(|l| l.title.clone()))
+}
+
+/// Whether two titles share at least half the words of the shorter.
+fn alike(a: &str, b: &str) -> bool {
+    let words = |text: &str| -> Vec<String> {
+        text.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .map(str::to_lowercase)
+            .collect()
+    };
+    let (a, b) = (words(a), words(b));
+    let shared = a.iter().filter(|w| b.contains(w)).count();
+    shared > 0 && shared * 2 >= a.len().min(b.len())
 }
 
 fn selector(css: &str) -> Selector {
@@ -119,6 +148,7 @@ fn json_ld(page: &Html) -> (Level, Declared) {
     let string = |key: &str| node.get(key).and_then(Value::as_str).and_then(clean);
     let level = Level {
         title: string("headline").or_else(|| string("name")),
+        other_title: string("headline").and(string("name")),
         byline: node.get("author").and_then(names),
         site_name: node
             .get("publisher")
@@ -254,6 +284,7 @@ fn open_graph(page: &Html) -> Level {
         canonical: get("og:url"),
         image: get("og:image").or_else(|| get("og:image:url")),
         description: get("og:description"),
+        other_title: None,
     }
 }
 
@@ -288,6 +319,7 @@ fn plain(page: &Html, found_title: Option<String>) -> Level {
         canonical,
         image: None,
         description: meta_content(page, "description"),
+        other_title: None,
     }
 }
 

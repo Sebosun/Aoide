@@ -193,3 +193,31 @@ fn feeds_the_page_links_to_are_found() {
         ]
     );
 }
+
+#[test]
+fn a_json_ld_headline_that_is_not_the_pages_title_gives_way_to_its_name() {
+    // An encyclopedia's JSON-LD: `headline` holds a one-line description of the subject.
+    let head = r#"<title>Lighthouse - Open Encyclopedia</title>
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "Article", "name": "Lighthouse",
+ "headline": "structure designed to emit light to aid navigation"}
+</script>"#;
+    let meta = extract(&page(head), &url(), &ExtractOptions::default()).meta;
+    assert_eq!(meta.title.as_deref(), Some("Lighthouse"));
+
+    // Neither agrees with the page: its own title is used.
+    let head = r#"<title>Harbour lights - Open Encyclopedia</title>
+<script type="application/ld+json">
+{"@context": "https://schema.org", "@type": "Article", "name": "Q1234",
+ "headline": "structure designed to emit light to aid navigation"}
+</script>"#;
+    let meta = extract(&page(head), &url(), &ExtractOptions::default()).meta;
+    assert_ne!(
+        meta.title.as_deref(),
+        Some("structure designed to emit light to aid navigation")
+    );
+    assert!(meta
+        .title
+        .as_deref()
+        .is_some_and(|t| t.starts_with("Harbour lights")));
+}

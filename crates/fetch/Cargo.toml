@@ -15,4 +15,5 @@ tokio = { version = "1", features = ["net", "time"] }
 url = "2"
 
 [dev-dependencies]
+aoide-article = { path = "../article" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util", "time", "sync"] }
