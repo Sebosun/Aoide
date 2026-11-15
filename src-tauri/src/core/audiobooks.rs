@@ -177,20 +177,35 @@ impl Core {
         }
     }
 
-    /// Pairs the chosen candidates. Each book's pairing succeeds or fails on its own.
+    /// Pairs the chosen candidates, in order. Each book's pairing succeeds or fails on its own;
+    /// an audiobook another book has already is not paired again. A paired audiobook is offered
+    /// to no other book.
     pub fn pair_audiobooks(&self, choices: Vec<AudiobookChoice>) -> Vec<PairOutcome> {
-        let outcomes = choices
+        // The candidates as they were chosen, before pairing drops any.
+        let chosen: Vec<(AudiobookChoice, Option<Vec<String>>)> = {
+            let matches = lock(&self.audiobooks);
+            choices
+                .into_iter()
+                .map(|choice| {
+                    let paths = matches
+                        .list
+                        .iter()
+                        .find(|m| m.book_id == choice.book_id)
+                        .and_then(|m| m.candidates.get(choice.candidate))
+                        .map(|c| c.paths.clone());
+                    (choice, paths)
+                })
+                .collect()
+        };
+        let outcomes = chosen
             .into_iter()
-            .map(|choice| {
-                let paths = lock(&self.audiobooks)
-                    .list
-                    .iter()
-                    .find(|m| m.book_id == choice.book_id)
-                    .and_then(|m| m.candidates.get(choice.candidate))
-                    .map(|c| c.paths.clone());
+            .map(|(choice, paths)| {
                 let book = crate::logging::book(&choice.book_id).to_owned();
                 let error = match paths {
                     None => Some("no such audiobook match".to_owned()),
+                    Some(paths) if self.taken(&choice.book_id, &paths) => {
+                        Some("This audiobook is paired with another book".to_owned())
+                    }
                     Some(paths) => match self.attach_recording(&choice.book_id, paths) {
                         Ok(_) => {
                             self.match_event(&choice.book_id, MatchEvent::Pair(choice.candidate));
@@ -209,8 +224,40 @@ impl Core {
                 }
             })
             .collect();
+        self.drop_taken();
         self.emit_matches();
         outcomes
+    }
+
+    /// Whether `paths` (an audiobook's files, or its folder) hold audio paired with a book
+    /// other than `id`.
+    fn taken(&self, id: &str, paths: &[String]) -> bool {
+        let paired = self.recordings.paired_files(Some(id));
+        paths
+            .iter()
+            .any(|p| paired.iter().any(|f| f.starts_with(p)))
+    }
+
+    /// Takes audiobooks paired with a book out of the matches waiting for the user (or left
+    /// unverified), and the matches left with none out of the list. Matches under way keep
+    /// their candidates, which their stages count.
+    fn drop_taken(&self) {
+        let paired = self.recordings.paired_files(None);
+        let taken = |c: &AudiobookSuggestion| {
+            c.paths
+                .iter()
+                .any(|p| paired.iter().any(|f| f.starts_with(p)))
+        };
+        let mut matches = lock(&self.audiobooks);
+        for m in &mut matches.list {
+            if matches!(m.stage, MatchStage::Found | MatchStage::NoneVerified) {
+                m.candidates.retain(|c| !taken(c));
+            }
+        }
+        matches.list.retain(|m| {
+            !m.candidates.is_empty()
+                || !matches!(m.stage, MatchStage::Found | MatchStage::NoneVerified)
+        });
     }
 
     /// The sync job's word on a recording: whether its quick check passed (false too when it
@@ -223,6 +270,9 @@ impl Core {
         };
         if self.match_event(id, event) {
             self.follow_match(id);
+            if passed {
+                self.drop_taken();
+            }
             self.emit_matches();
         }
     }
@@ -298,6 +348,15 @@ impl Core {
                     let _ = lock(&self.library).remove_recording(&BookId(id.into()));
                     self.emit(CoreEvent::LibraryChanged);
                     return;
+                }
+                Then::Attach(paths) if self.taken(id, &paths) => {
+                    tracing::info!(
+                        event = "audiobooks.pair",
+                        book = crate::logging::book(id),
+                        outcome = "skipped",
+                        "Another book has this audiobook; trying the next"
+                    );
+                    self.match_event(id, MatchEvent::CheckFailed);
                 }
                 Then::Attach(paths) => match self.attach_recording(id, paths) {
                     Ok(_) => return,
@@ -407,7 +466,7 @@ impl Core {
             return Err("cancelled".into());
         }
         // Audio already paired with a book is not offered again.
-        let paired = self.recordings.paired_files();
+        let paired = self.recordings.paired_files(None);
         let taken = |path: &Path| paired.iter().any(|f| f.starts_with(path));
         let books: Vec<aoide_library::BookRecord> = {
             let library = lock(&self.library);
@@ -426,11 +485,17 @@ impl Core {
                 .filter(|b| ids.as_ref().map_or(true, |ids| ids.contains(&b.id.0)))
                 .collect()
         };
+        // Each audiobook goes to the books it comes closest to.
+        let suggested = folder.suggest_each(
+            books
+                .iter()
+                .map(|b| (b.path.as_path(), b.title.as_deref(), b.authors.as_slice())),
+        );
         let mut found: Vec<(String, AudiobookMatch)> = books
             .into_iter()
-            .filter_map(|book| {
-                let candidates: Vec<AudiobookSuggestion> = folder
-                    .suggest(&book.path, book.title.as_deref(), &book.authors)
+            .zip(suggested)
+            .filter_map(|(book, suggested)| {
+                let candidates: Vec<AudiobookSuggestion> = suggested
                     .into_iter()
                     .filter(|s| !s.paths.iter().any(|p| taken(p)))
                     .map(|s| AudiobookSuggestion {

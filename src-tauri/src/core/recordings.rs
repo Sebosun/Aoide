@@ -1002,10 +1002,11 @@ impl Recordings {
             .ok_or_else(|| "the recording was not saved".into())
     }
 
-    /// Every audio file paired with a book.
-    pub(super) fn paired_files(&self) -> Vec<PathBuf> {
+    /// Every audio file paired with a book (other than book `except`).
+    pub(super) fn paired_files(&self, except: Option<&str>) -> Vec<PathBuf> {
         let rows = lock(&self.library).recordings().unwrap_or_default();
         rows.iter()
+            .filter(|row| except != Some(row.book_id.0.as_str()))
             .filter_map(|row| serde_json::from_str::<StoredRecording>(&row.files).ok())
             .flat_map(|stored| stored.files.into_iter().map(|f| f.path))
             .collect()

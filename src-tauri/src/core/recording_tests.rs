@@ -1362,6 +1362,92 @@ async fn added_books_with_audiobooks_waiting_are_counted_unless_looking_is_off_o
     f.core.stop();
 }
 
+/// Another edition of the test book, so both come equally close to the same audiobooks.
+/// Returns its id.
+async fn second_edition(f: &Fixture) -> String {
+    let html = |text: &str| {
+        format!(r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><p>{text}</p></body></html>"#)
+    };
+    let edition = epub_with(html("Gulls argued over the nets."), html("Boats slept."));
+    std::fs::write(f.root.join("Books/quay-lights-2.epub"), &edition).unwrap();
+    f.core.rescan().unwrap();
+    until("the second edition", || {
+        f.core.list_books().is_ok_and(|b| b.len() == 2)
+    })
+    .await;
+    aoide_library::content_hash(&edition).0
+}
+
+#[tokio::test]
+async fn an_audiobook_is_paired_with_one_book_and_leaves_the_other_matches() {
+    use super::audiobooks::AudiobookChoice;
+    let f = fixture().await;
+    put_model(&f.root);
+    let (first, second) = two_audiobooks(&f, true);
+    let other = second_edition(&f).await;
+    search(&f, false);
+    let found = f.core.scan_for_audiobooks().await.unwrap();
+    assert_eq!(found.len(), 2);
+    assert!(found.iter().all(|m| m.candidates.len() == 2));
+    let path = |p: &PathBuf| p.to_string_lossy().into_owned();
+
+    // "Pair all": each book's closest, the same audiobook for both.
+    let outcome = f.core.pair_audiobooks(vec![
+        AudiobookChoice {
+            book_id: f.id.clone(),
+            candidate: 1,
+        },
+        AudiobookChoice {
+            book_id: other.clone(),
+            candidate: 1,
+        },
+    ]);
+
+    assert_eq!(outcome[0].error, None);
+    assert!(outcome[1].error.is_some(), "{outcome:?}");
+    assert_eq!(
+        paired_files(&f.core, &f.id),
+        vec![path(&second.join("part.wav"))]
+    );
+    assert!(f.core.recording(&other).is_none());
+    let left: Vec<Vec<String>> = f
+        .core
+        .audiobook_matches()
+        .into_iter()
+        .find(|m| m.book_id == other)
+        .map(|m| m.candidates.into_iter().map(|c| c.paths).collect())
+        .unwrap();
+    assert_eq!(
+        left,
+        vec![vec![path(&first)]],
+        "the paired audiobook is offered no more"
+    );
+    f.core.stop();
+}
+
+#[tokio::test]
+async fn with_verifying_on_a_book_skips_the_audiobook_another_is_being_checked_with() {
+    use super::audiobooks::MatchStage;
+    let f = fixture().await;
+    put_model(&f.root);
+    two_audiobooks(&f, true);
+    let other = second_edition(&f).await;
+    search(&f, false);
+    f.core.scan_for_audiobooks().await.unwrap();
+
+    let mut settings = f.core.app_settings();
+    settings.verify_audiobooks = true;
+    f.core.save_app_settings(settings).unwrap();
+
+    let stages = [match_stage(&f.core, &f.id), match_stage(&f.core, &other)];
+    assert!(
+        stages.contains(&Some(MatchStage::Verifying { candidate: 0 }))
+            && stages.contains(&Some(MatchStage::Verifying { candidate: 1 })),
+        "{stages:?}"
+    );
+    f.core.stop();
+}
+
 // ------------------------------------------------------------ the line of recordings
 
 /// A second book in the fixture's library, read aloud by its own recording, and both paired:

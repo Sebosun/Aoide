@@ -242,3 +242,65 @@ fn a_suggestion_holds_every_audio_file_of_its_audiobook_and_their_size() {
     );
     assert_eq!(found[0].bytes, 12);
 }
+
+#[test]
+fn among_several_books_an_audiobook_goes_only_to_the_books_it_comes_closest_to() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "The Salt Road.m4b");
+    touch(root, "Glass Harbour/01.mp3");
+    let authors: Vec<String> = Vec::new();
+    let books = [
+        (
+            Path::new("/books/a.epub"),
+            Some("The Salt Road"),
+            &authors[..],
+        ),
+        (
+            Path::new("/books/b.epub"),
+            Some("The Salt Road Home"),
+            &authors[..],
+        ),
+        (
+            Path::new("/books/c.epub"),
+            Some("The Salt Road"),
+            &authors[..],
+        ),
+        (
+            Path::new("/books/d.epub"),
+            Some("Glass Harbour"),
+            &authors[..],
+        ),
+    ];
+    let names: Vec<Vec<String>> = AudiobookFolder::read(root)
+        .suggest_each(books)
+        .iter()
+        .map(|found| {
+            found
+                .iter()
+                .map(|s| {
+                    s.paths[0]
+                        .strip_prefix(root)
+                        .unwrap()
+                        .to_string_lossy()
+                        .into_owned()
+                })
+                .collect()
+        })
+        .collect();
+    assert_eq!(
+        names,
+        vec![
+            vec!["The Salt Road.m4b".to_owned()],
+            vec![],
+            vec!["The Salt Road.m4b".to_owned()],
+            vec!["Glass Harbour".to_owned()],
+        ],
+        "a closer book takes it from a merely close one; equally close books both keep it"
+    );
+    assert_eq!(
+        suggested(root, "/books/b.epub", Some("The Salt Road Home"), &[]),
+        vec![vec!["The Salt Road.m4b".to_owned()]],
+        "alone, the close book is offered it"
+    );
+}

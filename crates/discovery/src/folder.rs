@@ -109,44 +109,87 @@ impl AudiobookFolder {
     /// The audiobooks whose names come close to the book's (from its file name or its title),
     /// closest first; only those with exactly its words when there are any.
     pub fn suggest(&self, epub: &Path, title: Option<&str>, authors: &[String]) -> Vec<Suggestion> {
-        let book = Book::new(epub, title, authors);
+        self.suggest_each([(epub, title, authors)])
+            .pop()
+            .unwrap_or_default()
+    }
+
+    /// [`Self::suggest`] for several books at once (as `(epub, title, authors)`), except that an
+    /// audiobook goes only to the books it comes closest to: "The Salt Road.m4b" is left out
+    /// for *The Salt Road Home* when *The Salt Road* is among them too. Books it comes equally
+    /// close to all keep it.
+    pub fn suggest_each<'a>(
+        &self,
+        books: impl IntoIterator<Item = (&'a Path, Option<&'a str>, &'a [String])>,
+    ) -> Vec<Vec<Suggestion>> {
+        let ranked: Vec<Vec<(Closeness, bool, usize)>> = books
+            .into_iter()
+            .map(|(epub, title, authors)| {
+                let found = self.ranked(&Book::new(epub, title, authors));
+                // A name with exactly the book's words leaves no doubt: the close ones are
+                // left out.
+                let exact = found.iter().any(|(c, _, _)| c.exact);
+                found
+                    .into_iter()
+                    .filter(|(c, _, _)| c.exact || !exact)
+                    .collect()
+            })
+            .collect();
+        // Each audiobook's best closeness to any of the books.
+        let mut best: Vec<Option<Closeness>> = vec![None; self.audiobooks.len()];
+        for &(closeness, _, at) in ranked.iter().flatten() {
+            best[at] = best[at].max(Some(closeness));
+        }
+        ranked
+            .into_iter()
+            .map(|found| {
+                found
+                    .into_iter()
+                    .filter(|&(closeness, _, at)| best[at] == Some(closeness))
+                    .take(MAX_SUGGESTIONS)
+                    .map(|(closeness, _, at)| {
+                        let audiobook = &self.audiobooks[at];
+                        Suggestion {
+                            paths: audiobook.paths.clone(),
+                            exact: closeness.exact,
+                            files: audiobook.files.clone(),
+                            bytes: audiobook.bytes,
+                        }
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Every audiobook that comes close to `book` (by its index), closest first: by closeness,
+    /// then those in a folder named for the book's author, then by path.
+    fn ranked(&self, book: &Book) -> Vec<(Closeness, bool, usize)> {
         if book.keys.is_empty() {
             return Vec::new();
         }
-        let mut found: Vec<(Closeness, bool, &Audiobook)> = self
+        let mut found: Vec<(Closeness, bool, usize)> = self
             .audiobooks
             .iter()
-            .filter_map(|audiobook| {
+            .enumerate()
+            .filter_map(|(at, audiobook)| {
                 let closeness = audiobook
                     .names
                     .iter()
-                    .filter_map(|n| closeness(&book, n))
+                    .filter_map(|n| closeness(book, n))
                     .max()?;
                 let by_author = audiobook
                     .place
                     .iter()
                     .any(|w| book.author_words.contains(w));
-                Some((closeness, by_author, audiobook))
+                Some((closeness, by_author, at))
             })
             .collect();
         found.sort_by(|a, b| {
             (b.0, b.1)
                 .cmp(&(a.0, a.1))
-                .then_with(|| a.2.paths.cmp(&b.2.paths))
+                .then_with(|| self.audiobooks[a.2].paths.cmp(&self.audiobooks[b.2].paths))
         });
-        // A name with exactly the book's words leaves no doubt: the close ones are left out.
-        let exact = found.iter().any(|(c, _, _)| c.exact);
         found
-            .into_iter()
-            .filter(|(c, _, _)| c.exact || !exact)
-            .take(MAX_SUGGESTIONS)
-            .map(|(closeness, _, audiobook)| Suggestion {
-                paths: audiobook.paths.clone(),
-                exact: closeness.exact,
-                files: audiobook.files.clone(),
-                bytes: audiobook.bytes,
-            })
-            .collect()
     }
 
     /// The audiobooks among one folder's audio files.
