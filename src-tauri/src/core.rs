@@ -11,8 +11,7 @@ use aoide_audio::output::{OutputCommand, PipeOutput};
 use aoide_audio::{codec, PlayerCore};
 use aoide_generation::{estimate_ms, Job, PlanItem, WorkerEvent};
 use aoide_library::{
-    content_hash, scan_folder, BookId, BookKey, BookRecord, BookStatus, CachedSegment, GlobalKey,
-    Library, NewBook, Progress,
+    content_hash, BookId, BookKey, BookStatus, CachedSegment, Library, NewBook, Progress,
 };
 use aoide_tts::{
     cache_key, EngineProfile, LaunchCommand, NetworkScope, Params, Registry, SpeechEngine,
@@ -29,6 +28,7 @@ mod discovery;
 mod engine;
 mod error;
 mod generation;
+mod shelf;
 use generation::PlanEvent;
 mod storage;
 pub use audiobooks::{AudiobookChoice, AudiobookMatch, PairOutcome};
@@ -56,6 +56,26 @@ mod session;
 mod voicing;
 mod wire;
 pub use wire::*;
+
+impl shelf::ShelfHost for Core {
+    fn reads_notes(&self, id: &str) -> bool {
+        let settings = self.book_settings(id);
+        // A recording is laid onto the book's own text, without footnotes read in between.
+        settings.read_notes && !self.plays_recording(id, &settings)
+    }
+
+    fn playing(&self) -> Option<String> {
+        self.playback.book().map(|book| book.id.clone())
+    }
+
+    fn prepare_of(&self, id: &str) -> Option<PrepareView> {
+        self.prepare_view(id)
+    }
+
+    fn recording_of(&self, id: &str) -> Option<SyncStage> {
+        self.recording_stage(id)
+    }
+}
 
 impl generation::GenerationHost for Core {
     fn with_listening(&self, f: &mut dyn FnMut(Option<generation::Listened<'_>>)) {
@@ -215,7 +235,7 @@ pub struct Core {
     show_in_folder: ShowInFolder,
     pub paths: Paths,
     library: Arc<Mutex<Library>>,
-    books: Mutex<HashMap<String, Arc<BookModel>>>,
+    shelf: shelf::Shelf,
     playback: playback::Playback,
     output: Mutex<Option<PipeOutput>>,
     /// The speech engine in use.
@@ -323,6 +343,13 @@ impl Core {
         );
         let engine_component =
             engine::Engine::new(registry, profile, Arc::clone(&engine), Arc::clone(&events));
+        let shelf = shelf::Shelf::new(
+            Arc::clone(&library),
+            paths.library_dir.clone(),
+            paths.covers_dir.clone(),
+            reporter.clone(),
+            Arc::clone(&events),
+        );
         let core = Arc::new(Self {
             events,
             reporter,
@@ -330,7 +357,7 @@ impl Core {
             show_in_folder,
             paths,
             library,
-            books: Mutex::new(HashMap::new()),
+            shelf,
             playback: playback::Playback::new(player),
             output: Mutex::new(None),
             engine: engine_component,
@@ -381,7 +408,7 @@ impl Core {
                 });
             }
             if background {
-                scanner.watch_library();
+                scanner.shelf.watch();
             }
         });
         if background {
@@ -415,242 +442,13 @@ impl Core {
 
     // ------------------------------------------------------------ library
 
-    fn ignored(&self) -> HashSet<String> {
-        let stored = lock(&self.library).value(GlobalKey::IgnoredBooks);
-        stored
-            .unwrap_or_else(|error| {
-                self.report("library.read", "Could not read the books left out", error);
-                None
-            })
-            .unwrap_or_default()
-    }
-
-    fn set_ignored(&self, ignored: &HashSet<String>) {
-        if let Err(error) = lock(&self.library).set_value(GlobalKey::IgnoredBooks, ignored) {
-            self.report("library.save", "Could not save the books left out", error);
-        }
-    }
-
     /// Scans the library folder, importing new books and marking vanished ones missing.
     pub fn rescan(&self) -> Result<(), String> {
-        let started = Instant::now();
-        let files = scan_folder(&self.paths.library_dir).map_err(|e| e.to_string())?;
-        let (mut new, mut read) = (0usize, 0usize);
-        let ignored = self.ignored();
-        let mut present = Vec::new();
-        for file in files {
-            if ignored.contains(&file.id.0) {
-                continue;
-            }
-            present.push(file.id.clone());
-            let existing = lock(&self.library)
-                .book(&file.id)
-                .map_err(|e| e.to_string())?;
-            let book = match existing {
-                Some(record) if !matches!(record.status, BookStatus::Error(_)) => NewBook {
-                    id: record.id,
-                    path: file.path.clone(),
-                    title: record.title,
-                    authors: record.authors,
-                    language: record.language,
-                    cover_path: record.cover_path,
-                    error: None,
-                },
-                existing => {
-                    if existing.is_none() {
-                        new += 1;
-                    }
-                    read += 1;
-                    self.describe(&file.path, &file.id)
-                }
-            };
-            lock(&self.library)
-                .upsert_book(&book, now_ms())
-                .map_err(|e| e.to_string())?;
-        }
-        lock(&self.library)
-            .mark_missing_except(&present)
-            .map_err(|e| e.to_string())?;
-        tracing::info!(
-            event = "library.scan",
-            outcome = "ok",
-            books = present.len(),
-            new,
-            read,
-            took_ms = crate::logging::took(started),
-            "Scanned the library folder"
-        );
-        self.emit(CoreEvent::LibraryChanged);
-        Ok(())
-    }
-
-    /// Parses a new book's metadata and extracts its cover.
-    fn describe(&self, path: &Path, id: &BookId) -> NewBook {
-        let fallback_title = path.file_stem().map(|s| s.to_string_lossy().into_owned());
-        let parsed = std::fs::read(path)
-            .map_err(|e| e.to_string())
-            .and_then(|bytes| {
-                aoide_epub::parse_epub(&bytes, &aoide_epub::ParseOptions::default())
-                    .map_err(|e| e.to_string())
-            })
-            .and_then(|book: aoide_epub::ParsedBook| {
-                // Parsing can succeed with nothing to read (every section empty or left out).
-                if book.chapters.iter().any(|c| !c.text.trim().is_empty()) {
-                    Ok(book)
-                } else {
-                    Err("no readable text was found in this EPUB".into())
-                }
-            });
-        match parsed {
-            Ok(book) => {
-                let cover_path = book.cover.as_ref().and_then(|cover| {
-                    let ext = match cover.media_type.as_str() {
-                        "image/png" => "png",
-                        "image/gif" => "gif",
-                        "image/webp" => "webp",
-                        "image/svg+xml" => "svg",
-                        _ => "jpg",
-                    };
-                    let target = self.paths.covers_dir.join(format!("{}.{ext}", id.0));
-                    std::fs::write(&target, &cover.bytes).ok().map(|_| target)
-                });
-                NewBook {
-                    id: id.clone(),
-                    path: path.to_path_buf(),
-                    title: book.title.or(fallback_title),
-                    authors: book.authors,
-                    language: book.language,
-                    cover_path,
-                    error: None,
-                }
-            }
-            Err(error) => NewBook {
-                id: id.clone(),
-                path: path.to_path_buf(),
-                title: fallback_title,
-                authors: vec![],
-                language: None,
-                cover_path: None,
-                error: Some(error),
-            },
-        }
-    }
-
-    fn watch_library(self: Arc<Self>) {
-        use notify::{RecursiveMode, Watcher};
-        let (tx, rx) = std::sync::mpsc::channel();
-        let mut watcher = match notify::recommended_watcher(tx) {
-            Ok(w) => w,
-            Err(error) => {
-                tracing::warn!(event = "library.watch", %error, "Cannot watch the library folder");
-                return;
-            }
-        };
-        if let Err(error) = watcher.watch(&self.paths.library_dir, RecursiveMode::Recursive) {
-            tracing::warn!(event = "library.watch", %error, "Cannot watch the library folder");
-            return;
-        }
-        while rx.recv().is_ok() {
-            // Debounce bursts (copies emit many events).
-            while rx.recv_timeout(Duration::from_millis(1200)).is_ok() {}
-            if let Err(error) = self.rescan() {
-                tracing::warn!(event = "library.scan", outcome = "failed", %error, "Library rescan failed");
-            }
-        }
-        drop(watcher);
+        self.shelf.rescan()
     }
 
     pub fn import_files(&self, paths: Vec<String>) -> Vec<ImportResult> {
-        let mut ignored = self.ignored();
-        let results: Vec<ImportResult> = paths
-            .into_iter()
-            .map(|path| {
-                let source = PathBuf::from(&path);
-                let outcome = (|| -> Result<String, String> {
-                    if !source
-                        .extension()
-                        .is_some_and(|e| e.eq_ignore_ascii_case("epub"))
-                    {
-                        return Err("not an .epub file".into());
-                    }
-                    let bytes = std::fs::read(&source).map_err(|e| e.to_string())?;
-                    let id = content_hash(&bytes);
-                    ignored.remove(&id.0);
-                    if !source.starts_with(&self.paths.library_dir) {
-                        let name = source.file_name().ok_or("file has no name")?;
-                        let mut target = self.paths.library_dir.join(name);
-                        let mut n = 1;
-                        while target.exists() {
-                            if std::fs::read(&target).is_ok_and(|b| content_hash(&b) == id) {
-                                break;
-                            }
-                            let stem = source.file_stem().unwrap_or_default().to_string_lossy();
-                            target = self.paths.library_dir.join(format!("{stem} ({n}).epub"));
-                            n += 1;
-                        }
-                        if !target.exists() {
-                            std::fs::write(&target, &bytes).map_err(|e| e.to_string())?;
-                        }
-                    }
-                    Ok(id.0)
-                })();
-                match outcome {
-                    Ok(id) => ImportResult {
-                        path,
-                        book_id: Some(id),
-                        error: None,
-                    },
-                    Err(error) => ImportResult {
-                        path,
-                        book_id: None,
-                        error: Some(error),
-                    },
-                }
-            })
-            .collect();
-        self.set_ignored(&ignored);
-        if let Err(error) = self.rescan() {
-            tracing::warn!(event = "library.scan", outcome = "failed", %error, "Library rescan after an import failed");
-        }
-        // A copied file the parser could not read is a failed import, not a book.
-        let library = lock(&self.library);
-        let results: Vec<ImportResult> = results
-            .into_iter()
-            .map(|result| {
-                let failed = result.book_id.as_ref().and_then(|id| {
-                    match library.book(&BookId(id.clone())).ok().flatten()?.status {
-                        BookStatus::Error(message) => Some(message),
-                        _ => None,
-                    }
-                });
-                match failed {
-                    Some(message) => ImportResult {
-                        path: result.path,
-                        book_id: None,
-                        error: Some(format!("could not import: {message}")),
-                    },
-                    None => result,
-                }
-            })
-            .collect();
-        drop(library);
-        let failed = results.iter().filter(|r| r.error.is_some()).count();
-        tracing::info!(
-            event = "library.import",
-            ok = results.len() - failed,
-            failed,
-            "Added EPUB files"
-        );
-        for result in results.iter().filter(|r| r.error.is_some()) {
-            tracing::warn!(
-                event = "library.import",
-                file = %crate::logging::file(Path::new(&result.path)),
-                outcome = "failed",
-                error = result.error.as_deref().unwrap_or_default(),
-                "Could not add an EPUB file"
-            );
-        }
-        results
+        self.shelf.import_files(paths)
     }
 
     /// Opens the file manager on the book's folder with its EPUB selected.
@@ -672,76 +470,18 @@ impl Core {
         if self.playback.is_book(id) {
             self.stop();
         }
-        self.forget_recording(id);
         self.plan(PlanEvent::BookForgotten(id.into()));
-        let files = lock(&self.library)
-            .remove_book(&BookId(id.into()))
-            .map_err(|e| e.to_string())?;
-        for file in files {
+        self.forget_recording(id);
+        for file in self.shelf.remove(id)? {
             let _ = std::fs::remove_file(self.paths.audio_dir.join(file));
         }
         let _ = std::fs::remove_dir(self.paths.audio_dir.join(id));
-        let mut ignored = self.ignored();
-        ignored.insert(id.into());
-        self.set_ignored(&ignored);
-        lock(&self.books).remove(id);
         self.emit(CoreEvent::LibraryChanged);
         Ok(())
     }
 
-    fn progress_view(&self, id: &BookId) -> Option<BookProgressView> {
-        let library = lock(&self.library);
-        let progress = library.progress(id).ok().flatten()?;
-        let fraction = library
-            .book_value::<f64>(id, BookKey::ProgressFraction)
-            .ok()
-            .flatten()
-            .unwrap_or(0.0);
-        Some(BookProgressView {
-            chapter: progress.chapter,
-            segment_id: progress.segment_id,
-            fraction,
-        })
-    }
-
     pub fn list_books(&self) -> Result<Vec<BookSummary>, String> {
-        let (records, mut shelves) = {
-            let library = lock(&self.library);
-            (
-                library.books().map_err(|e| e.to_string())?,
-                library.book_collections().map_err(|e| e.to_string())?,
-            )
-        };
-        let ignored = self.ignored();
-        Ok(records
-            .into_iter()
-            .filter(|r| !ignored.contains(&r.id.0))
-            .map(|record| {
-                let collections = shelves.remove(&record.id).unwrap_or_default();
-                self.summary(record, collections)
-            })
-            .collect())
-    }
-
-    fn summary(&self, record: BookRecord, collections: Vec<i64>) -> BookSummary {
-        let audio_bytes = lock(&self.library)
-            .book_audio_bytes(&record.id)
-            .unwrap_or(0);
-        BookSummary {
-            prepare: self.prepare_view(&record.id.0),
-            recording: self.recording_stage(&record.id.0),
-            progress: self.progress_view(&record.id),
-            id: record.id.0,
-            title: record.title.unwrap_or_else(|| "Untitled".into()),
-            authors: record.authors,
-            language: record.language,
-            status: record.status,
-            cover_path: record.cover_path.map(|p| p.to_string_lossy().into_owned()),
-            audio_bytes,
-            added_at: record.added_at,
-            last_opened_at: record.last_opened_at,
-            collections,
-        }
+        self.shelf.list(self)
     }
 
     // ------------------------------------------------------------ collections
@@ -779,30 +519,7 @@ impl Core {
     // ------------------------------------------------------------ books
 
     pub fn load_book(&self, id: &str) -> Result<Arc<BookModel>, String> {
-        if let Some(book) = lock(&self.books).get(id) {
-            return Ok(Arc::clone(book));
-        }
-        let record = lock(&self.library)
-            .book(&BookId(id.into()))
-            .map_err(|e| e.to_string())?
-            .ok_or("book not found")?;
-        match record.status {
-            BookStatus::Present => {}
-            BookStatus::Missing => return Err("the book file is missing".into()),
-            BookStatus::Error(message) => return Err(message),
-        }
-        let bytes = std::fs::read(&record.path).map_err(|e| e.to_string())?;
-        let settings = self.book_settings(id);
-        // A recording is laid onto the book's own text, without footnotes read in between.
-        let read_notes = settings.read_notes && !self.plays_recording(id, &settings);
-        let book = Arc::new(BookModel::parse(id, &bytes, read_notes)?);
-        let mut books = lock(&self.books);
-        if books.len() >= 3 {
-            let playing = self.playback.book().map(|b| b.id.clone());
-            books.retain(|k, _| Some(k) == playing.as_ref());
-        }
-        books.insert(id.into(), Arc::clone(&book));
-        Ok(book)
+        self.shelf.load(id, self)
     }
 
     fn language_warning(&self, language: Option<&str>) -> Option<String> {
@@ -838,7 +555,7 @@ impl Core {
             excluded: book.excluded.clone(),
             language_warning: self.language_warning(book.language.as_deref()),
             voice_warning: self.voice_warning(&book),
-            progress: self.progress_view(&BookId(id.into())),
+            progress: self.shelf.progress(&BookId(id.into())),
             word_count: book.word_count(),
         })
     }
@@ -973,7 +690,7 @@ impl Core {
             .set_book_value(&BookId(id.into()), BookKey::Settings, &settings)
             .map_err(|e| e.to_string())?;
         // Footnote narration changes segmentation: reparse.
-        lock(&self.books).remove(id);
+        self.shelf.unload(id);
         // Whether its recording narrates it may have changed.
         self.emit_recording(id);
         if self.playback.is_book(id) {

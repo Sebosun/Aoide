@@ -591,7 +591,7 @@ impl Core {
                 error,
             );
         }
-        lock(&self.books).remove(id);
+        self.shelf.unload(id);
         self.emit_recording(id);
     }
 

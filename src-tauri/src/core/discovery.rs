@@ -399,7 +399,7 @@ impl Core {
         let files = lock(&self.library)
             .discovered_files()
             .map_err(|e| e.to_string())?;
-        let removed = self.ignored();
+        let removed = self.shelf.ignored();
         let in_library: HashSet<String> = lock(&self.library)
             .books()
             .map_err(|e| e.to_string())?
@@ -507,11 +507,8 @@ impl Core {
             }
         }
         // Re-imported books are no longer "removed".
-        let mut ignored = self.ignored();
-        for (candidate, _) in &imported {
-            ignored.remove(&candidate.id);
-        }
-        self.set_ignored(&ignored);
+        self.shelf
+            .restore(imported.iter().map(|(candidate, _)| candidate.id.as_str()));
         let core = Arc::clone(self);
         tokio::task::spawn_blocking(move || core.rescan())
             .await

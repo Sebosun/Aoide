@@ -199,7 +199,7 @@ persists a `Place`. The periodic save in the tick loop stays.
 **Done when:** `save_progress(true)` appears only inside that one method and `shutdown`; a test
 shows pause, stop and seek each persisting the place.
 
-### - [ ] 10. Extract the `Shelf` component
+### - [x] 10. Extract the `Shelf` component
 
 Moves off `Core`: field `books`, the ignored list (`ignored`, `set_ignored`), `describe`,
 `rescan`, `watch_library`, `import_files`, `load_book`, `summary`, `list_books`, and the library
