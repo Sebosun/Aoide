@@ -106,3 +106,26 @@ it("sums the last 7 days of reading and listening with one stacked bar per day",
   wrapper.unmount();
   vi.useRealTimers();
 });
+
+it("shows an article to continue, next and recently added by its site and headline", async () => {
+  mock.dispose();
+  mock = createMockApi("?article=ready");
+  backend.api = mock;
+  mock.setHomeForTest({ continueIds: ["book-6"], upNextIds: ["book-6"], recentIds: ["book-6"] });
+  const wrapper = mount(App);
+  await flushPromises();
+  const card = wrapper.get('[aria-labelledby="home-continue"] .continue-card');
+  expect(card.get(".continue-card__kind").text()).toBe("Article · Quay Weekly");
+  expect(card.find(".continue-card__cover").exists(), "no cover: the headline leads").toBe(false);
+  expect(card.get(".continue-card__details").text()).toMatch(/^0% · .+ left/);
+
+  const row = wrapper.get('[aria-labelledby="home-next"] .home__row');
+  expect(row.get(".home__row-meta").text()).toBe("Quay Weekly · saved today");
+  expect(row.get(".home__row-time").text()).toMatch(/min$/);
+
+  const tile = wrapper.get('[aria-labelledby="home-recent"] button');
+  expect(tile.attributes("aria-label")).toBe("The Quay Lights, article");
+  expect(tile.text()).toContain("Quay Weekly");
+  expect(tile.text()).toContain("The Quay Lights");
+  wrapper.unmount();
+});

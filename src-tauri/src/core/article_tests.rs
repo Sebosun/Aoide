@@ -130,6 +130,12 @@ async fn a_saved_link_is_fetched_and_read_like_a_book() {
     let item = books.iter().find(|b| b.id == id).unwrap();
     assert_eq!(item.title, "The Quay Lights");
     assert_eq!(item.authors, ["Ada Brightwater"]);
+    // Its length is known before it is opened, for reading times in lists.
+    assert!(
+        item.word_count.is_some_and(|n| n > 60),
+        "{:?}",
+        item.word_count
+    );
     let summary = item.article.as_ref().unwrap();
     assert_eq!(summary.site_name.as_deref(), Some("Quay Weekly"));
     assert!(summary

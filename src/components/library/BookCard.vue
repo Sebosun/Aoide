@@ -22,6 +22,7 @@ import { useLibraryStore } from "../../stores/library";
 import { api } from "../../api";
 import type { BookSummary } from "../../api/types";
 import CoverArt from "../CoverArt.vue";
+import ArticleTile from "../article/ArticleTile.vue";
 import UiMenu from "../ui/UiMenu.vue";
 import type { MenuEntry } from "../ui/types";
 import { useUiStore } from "../../stores/ui";
@@ -226,14 +227,15 @@ const items = computed<MenuEntry[]>(() => {
       :disabled="unavailable || busy"
       @click="emit('open')"
     >
-      <span v-if="article" class="book-card__tile" :class="{ 'book-card__tile--loading': loading }">
-        <template v-if="loading"><i /><i /><i /></template>
-        <template v-else>
-          <span class="book-card__site">{{ article.siteName ?? book.title }}</span>
-          <span class="book-card__headline">{{ book.title }}</span>
-          <span v-if="article.lead" class="book-card__lead">{{ article.lead }}</span>
-        </template>
-      </span>
+      <ArticleTile
+        v-if="article"
+        class="book-card__tile"
+        :class="{ 'book-card__tile--loading': loading }"
+        :site="article.siteName ?? book.title"
+        :title="book.title"
+        :lead="article.lead"
+        :loading="loading"
+      />
       <CoverArt
         v-else
         class="book-card__cover"
@@ -312,77 +314,12 @@ const items = computed<MenuEntry[]>(() => {
 }
 .book-card__tile {
   aspect-ratio: 2 / 3;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  overflow: hidden;
-  border-radius: 12px;
-  background: var(--page);
-  text-align: left;
   transition: box-shadow var(--dur-2) var(--ease);
 }
 .book-card__open:not(:disabled):hover .book-card__tile {
   box-shadow:
     0 22px 44px -16px var(--shadow),
     0 0 0 2px var(--line);
-}
-.book-card__site {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.book-card__headline {
-  font-family: var(--font-read);
-  font-size: 20px;
-  line-height: 1.18;
-  font-weight: 500;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.book-card__lead {
-  font-family: var(--font-read);
-  font-size: 13.5px;
-  line-height: 1.4;
-  color: var(--dim);
-  display: -webkit-box;
-  -webkit-line-clamp: 5;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.book-card__tile--loading i {
-  display: block;
-  height: 12px;
-  border-radius: 6px;
-  background: var(--line);
-  animation: book-card-pulse 1.4s ease-in-out infinite;
-}
-.book-card__tile--loading i:first-child {
-  width: 40%;
-}
-.book-card__tile--loading i:nth-child(2) {
-  height: 22px;
-  width: 85%;
-}
-.book-card__tile--loading i:nth-child(3) {
-  width: 70%;
-}
-@keyframes book-card-pulse {
-  50% {
-    opacity: 0.45;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .book-card__tile--loading i {
-    animation: none;
-  }
 }
 .book-card__cover {
   font-size: 13px;

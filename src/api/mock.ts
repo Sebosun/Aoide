@@ -536,6 +536,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     const id = summary.id;
     if (stage.kind === "ready" || stage.kind === "needsYou") fetched.add(id);
     books.push({ ...summary, coverUrl: coverPath, addedAt: Date.now() });
+    // New and unread, as the core's Home has it: first in Up next and Recently added.
+    home.upNextIds = [id, ...home.upNextIds.filter((other) => other !== id)];
+    home.recentIds = [id, ...home.recentIds.filter((other) => other !== id)];
     articles.set(id, { ...(structuredClone(fixtureArticle.article) as unknown as ArticleView), url, stage });
     setArticle(id, {
       stage,

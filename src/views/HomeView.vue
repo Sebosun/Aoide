@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from "vue";
 import { api } from "../api";
 import type { BookSummary, HomeView } from "../api/types";
 import CoverArt from "../components/CoverArt.vue";
+import ArticleTile from "../components/article/ArticleTile.vue";
+import { formatDuration, readingMs } from "../estimate";
 import { Plus } from "@lucide/vue";
 import WeekCard from "../components/library/WeekCard.vue";
 import HomeContinueCard from "../components/home/HomeContinueCard.vue";
@@ -74,12 +76,22 @@ function added(at: number) {
                 :aria-label="`About ${book.title}`"
                 @click="navigation.openItem(book.id)"
               >
-                <b class="home__row-title">{{ book.title }}</b>
-                <span class="home__row-meta"
-                  >{{ book.kind === "audiobook" ? "Audiobook" : "Book"
-                  }}<template v-if="book.authors.length"> · {{ book.authors.join(", ") }}</template> · added
-                  {{ added(book.addedAt) }}</span
-                >
+                <span class="home__row-text">
+                  <b class="home__row-title" :class="{ 'home__row-title--article': book.kind === 'article' }">{{
+                    book.title
+                  }}</b>
+                  <span v-if="book.kind === 'article'" class="home__row-meta"
+                    >{{ book.article?.siteName ?? book.title }} · saved {{ added(book.addedAt) }}</span
+                  >
+                  <span v-else class="home__row-meta"
+                    >{{ book.kind === "audiobook" ? "Audiobook" : "Book"
+                    }}<template v-if="book.authors.length"> · {{ book.authors.join(", ") }}</template> · added
+                    {{ added(book.addedAt) }}</span
+                  >
+                </span>
+                <span v-if="book.kind === 'article' && book.wordCount" class="home__row-time">{{
+                  formatDuration(readingMs(book.wordCount, library.readingWpm))
+                }}</span>
               </button>
             </li>
           </ul>
@@ -96,11 +108,21 @@ function added(at: number) {
             <button
               type="button"
               class="home__cover"
-              :aria-label="`${book.title}, ${book.kind === 'audiobook' ? 'audiobook' : 'book'}`"
+              :class="{ 'home__cover--article': book.kind === 'article' }"
+              :aria-label="`${book.title}, ${book.kind}`"
               :title="book.title"
               @click="navigation.openItem(book.id)"
             >
+              <ArticleTile
+                v-if="book.kind === 'article'"
+                small
+                class="home__tile"
+                :site="book.article?.siteName ?? book.title"
+                :title="book.title"
+                :lead="book.article?.lead ?? null"
+              />
               <CoverArt
+                v-else
                 :title="book.title"
                 :url="book.coverUrl"
                 :shape="book.kind === 'audiobook' ? 'square' : 'portrait'"
@@ -172,10 +194,28 @@ function added(at: number) {
 .home__row {
   width: 100%;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 14px;
   padding: 14px 0;
   text-align: left;
+}
+.home__row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.home__row-title--article {
+  font-family: var(--font-read);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+.home__row-time {
+  font-size: 13px;
+  color: var(--dim);
+  white-space: nowrap;
 }
 .home__row-title {
   font-size: 16px;
@@ -206,6 +246,12 @@ function added(at: number) {
 }
 .home__cover:hover {
   transform: translateY(-2px);
+}
+.home__cover--article {
+  width: 200px;
+}
+.home__tile {
+  height: 144px;
 }
 .home__welcome {
   display: grid;

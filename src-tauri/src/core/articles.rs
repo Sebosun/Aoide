@@ -617,6 +617,11 @@ impl Articles {
                 snapshot.fetched_at_ms,
             )
             .map_err(|e| e.to_string())?;
+        // Its length for lists' reading times; opening it stores the exact count.
+        let words = u32::try_from(meta.word_count).unwrap_or(u32::MAX);
+        library
+            .set_word_count(&BookId(id.into()), words)
+            .map_err(|e| e.to_string())?;
         library
             .save_article(&ArticleRow {
                 site_name: meta.site_name.clone(),

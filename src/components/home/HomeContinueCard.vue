@@ -15,18 +15,24 @@ const player = usePlayerStore(),
   reader = useReaderStore(),
   navigation = useNavigationStore();
 const audiobook = computed(() => props.book.kind === "audiobook");
+/** An article: no cover, its headline leads, and it is one chapter. */
+const article = computed(() => props.book.kind === "article");
 const kind = computed(() =>
-  audiobook.value ? "Audiobook" : props.book.audio === "recording" ? "Book · read-along" : "Book",
+  audiobook.value
+    ? "Audiobook"
+    : article.value
+      ? `Article · ${props.book.article?.siteName ?? props.book.title}`
+      : props.book.audio === "recording"
+        ? "Book · read-along"
+        : "Book",
 );
 const chapter = computed(() =>
   player.state.bookId === props.book.id ? player.state.chapter : (props.book.progress?.chapter ?? 0),
 );
 const fraction = computed(() => props.book.progress?.fraction ?? 0);
 const details = computed(() => {
-  const parts = [
-    `${audiobook.value ? "Part" : "Chapter"} ${chapter.value + 1}`,
-    `${Math.round(fraction.value * 100)}%`,
-  ];
+  const parts = [`${Math.round(fraction.value * 100)}%`];
+  if (!article.value) parts.unshift(`${audiobook.value ? "Part" : "Chapter"} ${chapter.value + 1}`);
   const left = timeLeft(props.book, library.readingWpm, player.state.speed);
   if (left) parts.push(left);
   return parts.join(" · ");
@@ -46,6 +52,7 @@ async function open() {
     @click="open"
   >
     <CoverArt
+      v-if="!article"
       class="continue-card__cover"
       :class="{ 'continue-card__cover--square': audiobook }"
       :title="book.title"
@@ -55,8 +62,10 @@ async function open() {
     />
     <span class="continue-card__body">
       <span class="continue-card__kind">{{ kind }}</span>
-      <b class="continue-card__title">{{ book.title }}</b>
-      <span class="continue-card__authors">{{ book.authors.join(", ") || "Unknown author" }}</span>
+      <b class="continue-card__title" :class="{ 'continue-card__title--article': article }">{{ book.title }}</b>
+      <span v-if="book.authors.length || !article" class="continue-card__authors">{{
+        book.authors.join(", ") || "Unknown author"
+      }}</span>
       <span class="continue-card__progress">
         <span class="continue-card__track"><i :style="{ width: `${fraction * 100}%` }" /></span>
         <span class="continue-card__details">{{ details }}</span>
@@ -109,6 +118,12 @@ async function open() {
 .continue-card__title {
   font-size: 19px;
   line-height: 1.2;
+}
+.continue-card__title--article {
+  font-family: var(--font-read);
+  font-size: 24px;
+  line-height: 1.18;
+  font-weight: 500;
 }
 .continue-card__authors {
   color: var(--dim);
