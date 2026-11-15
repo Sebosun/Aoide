@@ -56,6 +56,8 @@ pub enum Via {
     Http,
     /// Through an archived copy of the page.
     Archive,
+    /// Rendered in a browser.
+    Browser,
 }
 
 /// An image as it was fetched.
@@ -331,37 +333,7 @@ impl HttpFetcher {
 
     /// Refuses addresses this fetcher may not reach.
     async fn allow(&self, url: &Url) -> Result<(), FetchError> {
-        if !matches!(url.scheme(), "http" | "https") {
-            return Err(FetchError::Refused(format!(
-                "Only web addresses can be fetched, not {}:.",
-                url.scheme()
-            )));
-        }
-        if self.options.reach == Reach::AnyAddress {
-            return Ok(());
-        }
-        let local =
-            || FetchError::Refused("The address is on this computer or its local network.".into());
-        let port = url.port_or_known_default().unwrap_or(80);
-        let addresses: Vec<IpAddr> = match url.host() {
-            Some(Host::Ipv4(ip)) => vec![IpAddr::V4(ip)],
-            Some(Host::Ipv6(ip)) => vec![IpAddr::V6(ip)],
-            Some(Host::Domain(name)) => {
-                let name = name.trim_end_matches('.').to_ascii_lowercase();
-                if name == "localhost" || name.ends_with(".localhost") {
-                    return Err(local());
-                }
-                let found = tokio::net::lookup_host((name.as_str(), port))
-                    .await
-                    .map_err(|e| FetchError::Transport(e.to_string()))?;
-                found.map(|a| a.ip()).collect()
-            }
-            None => return Err(FetchError::Refused("The address has no host.".into())),
-        };
-        if addresses.is_empty() || !addresses.iter().all(|ip| public(*ip)) {
-            return Err(local());
-        }
-        Ok(())
+        check_reach(url, self.options.reach).await
     }
 
     async fn body(&self, response: reqwest::Response, max: usize) -> Result<Vec<u8>, FetchError> {
@@ -404,6 +376,42 @@ impl HttpFetcher {
         }
         Ok(Some(body))
     }
+}
+
+/// Refuses `url` unless it is a web address that `reach` allows: under [`Reach::Public`], its
+/// name must resolve to public addresses only.
+pub async fn check_reach(url: &Url, reach: Reach) -> Result<(), FetchError> {
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(FetchError::Refused(format!(
+            "Only web addresses can be fetched, not {}:.",
+            url.scheme()
+        )));
+    }
+    if reach == Reach::AnyAddress {
+        return Ok(());
+    }
+    let local =
+        || FetchError::Refused("The address is on this computer or its local network.".into());
+    let port = url.port_or_known_default().unwrap_or(80);
+    let addresses: Vec<IpAddr> = match url.host() {
+        Some(Host::Ipv4(ip)) => vec![IpAddr::V4(ip)],
+        Some(Host::Ipv6(ip)) => vec![IpAddr::V6(ip)],
+        Some(Host::Domain(name)) => {
+            let name = name.trim_end_matches('.').to_ascii_lowercase();
+            if name == "localhost" || name.ends_with(".localhost") {
+                return Err(local());
+            }
+            let found = tokio::net::lookup_host((name.as_str(), port))
+                .await
+                .map_err(|e| FetchError::Transport(e.to_string()))?;
+            found.map(|a| a.ip()).collect()
+        }
+        None => return Err(FetchError::Refused("The address has no host.".into())),
+    };
+    if addresses.is_empty() || !addresses.iter().all(|ip| public(*ip)) {
+        return Err(local());
+    }
+    Ok(())
 }
 
 fn content_type(response: &reqwest::Response) -> String {

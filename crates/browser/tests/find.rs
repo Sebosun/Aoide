@@ -67,7 +67,10 @@ fn chromium_derivatives_are_used_only_when_configured() {
     let brave = fake(&bin, "brave-browser", true);
     fake(&bin, "microsoft-edge", true);
     fake(&bin, "google-chrome", false);
-    assert_eq!(find_binary(None, std::slice::from_ref(&bin), &downloaded), None);
+    assert_eq!(
+        find_binary(None, std::slice::from_ref(&bin), &downloaded),
+        None
+    );
     assert_eq!(
         find_binary(Some(&brave), &[bin], &downloaded),
         found(&brave, false)
