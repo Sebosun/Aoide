@@ -33,6 +33,8 @@ pub struct StorageReport {
     /// Generated audio in the index.
     pub audio_bytes: u64,
     pub covers_bytes: u64,
+    /// Saved articles' pages and covers.
+    pub articles_bytes: u64,
     /// EPUB copies in the library folder.
     pub books_bytes: u64,
     /// The library database, without the recordings' sync data.
@@ -41,7 +43,7 @@ pub struct StorageReport {
     pub sync_bytes: u64,
     /// Speech-recognition models.
     pub models_bytes: u64,
-    /// Files nothing refers to: unindexed audio and covers of removed books.
+    /// Files nothing refers to: unindexed audio, and covers and article pages of removed items.
     pub unused_files: u64,
     pub unused_bytes: u64,
     /// Books with generated audio, largest first.
@@ -94,11 +96,13 @@ fn tree_bytes(dir: &Path) -> u64 {
 }
 
 /// Opus files in the audio cache's book folders that the index does not list, book folders
-/// left empty, and covers (directly in `covers_dir`) of books no longer in the library. Only
-/// files modified before `before` count, so audio being written right now is left alone.
+/// left empty, covers (directly in `covers_dir`) of books no longer in the library, and the
+/// folders of articles no longer in it. Only files modified before `before` count, so audio
+/// being written right now is left alone.
 pub(super) fn find_unused(
     audio_dir: &Path,
     covers_dir: &Path,
+    articles_dir: &Path,
     indexed: &HashSet<PathBuf>,
     books: &HashSet<String>,
     before: SystemTime,
@@ -133,6 +137,26 @@ pub(super) fn find_unused(
             unused.files.push(cover);
         }
     }
+    for folder in entries(articles_dir).into_iter().filter(|p| p.is_dir()) {
+        let name = folder
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default();
+        if books.contains(name) {
+            continue;
+        }
+        let files: Vec<PathBuf> = entries(&folder)
+            .into_iter()
+            .filter(|p| p.is_file())
+            .collect();
+        if files.iter().all(|f| older_than(f, before)) {
+            for file in files {
+                unused.bytes += file_len(&file);
+                unused.files.push(file);
+            }
+            unused.dirs.push(folder);
+        }
+    }
     unused
 }
 
@@ -156,6 +180,7 @@ pub(super) struct Storage {
     library: Arc<Mutex<Library>>,
     audio_dir: PathBuf,
     covers_dir: PathBuf,
+    articles_dir: PathBuf,
     library_dir: PathBuf,
     models_dir: PathBuf,
     db_path: PathBuf,
@@ -169,6 +194,7 @@ impl Storage {
             library,
             audio_dir: paths.audio_dir.clone(),
             covers_dir: paths.covers_dir.clone(),
+            articles_dir: paths.articles_dir.clone(),
             library_dir: paths.library_dir.clone(),
             models_dir: paths.models_dir.clone(),
             db_path: paths.db_path.clone(),
@@ -189,6 +215,7 @@ impl Storage {
         Ok(find_unused(
             &self.audio_dir,
             &self.covers_dir,
+            &self.articles_dir,
             &indexed,
             &books,
             before,
@@ -217,6 +244,7 @@ impl Storage {
         Ok(StorageReport {
             audio_bytes,
             covers_bytes: tree_bytes(&self.covers_dir),
+            articles_bytes: tree_bytes(&self.articles_dir),
             books_bytes: tree_bytes(&self.library_dir),
             database_bytes: database_bytes.saturating_sub(sync_bytes),
             sync_bytes,
@@ -417,6 +445,10 @@ mod tests {
     fn finds_unindexed_audio_empty_book_folders_and_covers_of_removed_books() {
         let root = tempfile::tempdir().unwrap();
         let (audio, covers) = (root.path().join("audio"), root.path().join("covers"));
+        let articles = root.path().join("articles");
+        write(&articles.join("a/snapshot.html"), 9);
+        write(&articles.join("gone/snapshot.html"), 8);
+        write(&articles.join("gone/cover.jpg"), 1);
         write(&audio.join("a/kept.opus"), 10);
         write(&audio.join("a/stray.opus"), 7);
         write(&audio.join("a/notes.txt"), 3);
@@ -429,21 +461,37 @@ mod tests {
         let books: HashSet<String> = ["a".to_string()].into();
         let later = SystemTime::now() + Duration::from_secs(5);
 
-        let mut unused = find_unused(&audio, &covers, &indexed, &books, later);
+        let mut unused = find_unused(&audio, &covers, &articles, &indexed, &books, later);
         unused.files.sort();
         unused.dirs.sort();
         assert_eq!(
             unused.files,
             vec![
+                articles.join("gone/cover.jpg"),
+                articles.join("gone/snapshot.html"),
                 audio.join("a/stray.opus"),
                 audio.join("gone/old.opus"),
-                covers.join("gone.png")
+                covers.join("gone.png"),
             ]
         );
-        assert_eq!(unused.dirs, vec![audio.join("empty"), audio.join("gone")]);
-        assert_eq!(unused.bytes, 7 + 5 + 6);
+        assert_eq!(
+            unused.dirs,
+            vec![
+                articles.join("gone"),
+                audio.join("empty"),
+                audio.join("gone")
+            ]
+        );
+        assert_eq!(unused.bytes, 7 + 5 + 6 + 8 + 1);
 
-        let fresh = find_unused(&audio, &covers, &indexed, &books, SystemTime::UNIX_EPOCH);
+        let fresh = find_unused(
+            &audio,
+            &covers,
+            &articles,
+            &indexed,
+            &books,
+            SystemTime::UNIX_EPOCH,
+        );
         assert!(
             fresh.files.is_empty(),
             "files written just now are left alone"

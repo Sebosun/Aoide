@@ -950,6 +950,7 @@ export function createMockApi() {
       return {
         audioBytes: audio.reduce((n, b) => n + b.audioBytes, 0),
         coversBytes: 1_400_000,
+        articlesBytes: 240_000,
         booksBytes: 3_600_000,
         databaseBytes: 240_000,
         syncBytes: recordings.size * 1_900_000,

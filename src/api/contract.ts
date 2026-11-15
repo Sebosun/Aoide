@@ -458,6 +458,10 @@ export type StorageReport = {
  */
 audioBytes: number, coversBytes: number, 
 /**
+ * Saved articles' pages and covers.
+ */
+articlesBytes: number, 
+/**
  * EPUB copies in the library folder.
  */
 booksBytes: number, 
@@ -474,7 +478,7 @@ syncBytes: number,
  */
 modelsBytes: number, 
 /**
- * Files nothing refers to: unindexed audio and covers of removed books.
+ * Files nothing refers to: unindexed audio, and covers and article pages of removed items.
  */
 unusedFiles: number, unusedBytes: number, 
 /**

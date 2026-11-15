@@ -40,8 +40,9 @@ const parts = computed(() => {
     { key: "books", label: "Books", bytes: r.booksBytes },
     { key: "covers", label: "Covers", bytes: r.coversBytes },
     { key: "database", label: "Database", bytes: r.databaseBytes },
-    // Only once audiobooks are used.
+    // Only once articles or audiobooks are used.
     ...[
+      { key: "articles", label: "Articles", bytes: r.articlesBytes },
       { key: "sync", label: "Audiobook sync", bytes: r.syncBytes },
       { key: "models", label: "Speech recognition", bytes: r.modelsBytes },
     ].filter((part) => part.bytes > 0),
@@ -305,6 +306,10 @@ function submit() {
 .storage__bar-part--database,
 .storage__dot--database {
   background: var(--faint);
+}
+.storage__bar-part--articles,
+.storage__dot--articles {
+  background: color-mix(in srgb, var(--accent) 50%, var(--ink));
 }
 .storage__bar-part--sync,
 .storage__dot--sync {

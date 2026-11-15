@@ -8,8 +8,8 @@ use aoide_library::{ArticleRow, BookId, ItemKind, Library, NewBook};
 use aoide_tts::testing::FakeEngine;
 use url::Url;
 
-use super::articles::{Fetcher, Fetching};
-use super::fetching::Stage;
+use super::articles::{ArticleSource, Fetcher, Fetching};
+use super::fetching::{Reason, Stage};
 use super::tests::{library_folder, start_fetching, until};
 use super::Core;
 
@@ -199,4 +199,134 @@ async fn an_unfinished_fetch_is_queued_again_after_a_restart() {
     .await;
     assert_eq!(pages.asks(), 1);
     assert!(core.open_book(&id).is_ok());
+}
+
+/// `LIGHTS` declaring far more words than it has.
+fn cut_short() -> String {
+    LIGHTS.replace(
+        "</head>",
+        r#"<script type="application/ld+json">{"@type":"NewsArticle","headline":"The Quay Lights","wordCount":2000}</script></head>"#,
+    )
+}
+
+/// `LIGHTS` with more paragraphs.
+fn longer() -> String {
+    let more = "<p>In the spring the lamps are cleaned and their glass replaced where the winter storms cracked it, a job that takes the whole of one week.</p>";
+    LIGHTS.replace("</article>", &format!("{more}{more}</article>"))
+}
+
+async fn saved(pages: &Arc<Pages>) -> (tempfile::TempDir, Arc<Core>, String) {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let (core, _) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+    let id = core.save_article(LIGHTS_URL).unwrap();
+    (dir, core, id)
+}
+
+async fn settled(core: &Core, id: &str) -> Stage {
+    until("the fetch settles", || {
+        !matches!(
+            stage(core, id),
+            Some(Stage::Queued | Stage::Fetching) | None
+        )
+    })
+    .await;
+    stage(core, id).unwrap()
+}
+
+fn snapshot(dir: &tempfile::TempDir, id: &str) -> std::path::PathBuf {
+    dir.path().join(format!("data/articles/{id}/snapshot.html"))
+}
+
+#[tokio::test]
+async fn a_cut_short_page_needs_the_user_and_its_text_is_readable() {
+    let pages = Pages::with(&[(LIGHTS_URL, &cut_short())]);
+    let (_dir, core, id) = saved(&pages).await;
+    assert_eq!(settled(&core, &id).await, Stage::NeedsYou(Reason::CutShort));
+    let view = core.article(&id).unwrap();
+    assert_eq!(view.declared_words, Some(2000));
+    assert!(view.captured_words > 0);
+    let chapter = core.chapter(&id, 0).unwrap();
+    assert!(!chapter.blocks.is_empty());
+}
+
+#[tokio::test]
+async fn a_failed_fetch_stores_nothing_and_says_why() {
+    let pages = Pages::with(&[]);
+    pages.set(LIGHTS_URL, Err(FetchError::Status(503)));
+    let (dir, core, id) = saved(&pages).await;
+    assert_eq!(settled(&core, &id).await, Stage::Failed);
+    let view = core.article(&id).unwrap();
+    assert_eq!(
+        view.error.as_deref(),
+        Some("The site answered with status 503.")
+    );
+    assert!(!snapshot(&dir, &id).exists());
+    let summary = core
+        .list_books()
+        .unwrap()
+        .into_iter()
+        .find(|b| b.id == id)
+        .unwrap();
+    assert_eq!(summary.article.unwrap().stage, Stage::Failed);
+    assert!(core.open_book(&id).is_err());
+
+    // Fetching again once the site is back.
+    pages.set(LIGHTS_URL, Ok(LIGHTS.into()));
+    core.refetch_article(&id, ArticleSource::Http).unwrap();
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    assert_eq!(core.article(&id).unwrap().error, None);
+    assert!(snapshot(&dir, &id).exists());
+}
+
+#[tokio::test]
+async fn a_refetch_keeps_whichever_copy_has_more() {
+    let pages = Pages::with(&[(LIGHTS_URL, LIGHTS)]);
+    let (dir, core, id) = saved(&pages).await;
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    let first = core.article(&id).unwrap().captured_words;
+
+    // More text: the new copy replaces the stored one, and the text read changes with it.
+    pages.set(LIGHTS_URL, Ok(longer()));
+    core.refetch_article(&id, ArticleSource::Http).unwrap();
+    until("the longer copy is kept", || {
+        core.article(&id).unwrap().captured_words > first
+    })
+    .await;
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    let more = core.article(&id).unwrap().captured_words;
+    assert!(std::fs::read_to_string(snapshot(&dir, &id))
+        .unwrap()
+        .contains("lamps are cleaned"));
+    assert_eq!(core.chapter(&id, 0).unwrap().blocks.len(), 6);
+
+    // Less text, then a failure: the better copy stays, readable.
+    pages.set(LIGHTS_URL, Ok(cut_short()));
+    core.refetch_article(&id, ArticleSource::Http).unwrap();
+    until("the shorter fetch is done", || pages.asks() == 3).await;
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    assert_eq!(core.article(&id).unwrap().captured_words, more);
+
+    pages.set(LIGHTS_URL, Err(FetchError::Timeout));
+    core.refetch_article(&id, ArticleSource::Http).unwrap();
+    until("the failed fetch is done", || pages.asks() == 4).await;
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    let view = core.article(&id).unwrap();
+    assert_eq!(view.captured_words, more);
+    assert!(view.error.unwrap().starts_with("Could not fetch it again."));
+    assert_eq!(core.chapter(&id, 0).unwrap().blocks.len(), 6);
+}
+
+#[tokio::test]
+async fn removing_an_article_deletes_its_folder_and_it_can_be_saved_again() {
+    let pages = Pages::with(&[(LIGHTS_URL, LIGHTS)]);
+    let (dir, core, id) = saved(&pages).await;
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    core.remove_book(&id).unwrap();
+    assert!(!snapshot(&dir, &id).parent().unwrap().exists());
+    assert!(core.article(&id).is_err());
+
+    assert_eq!(core.save_article(LIGHTS_URL).unwrap(), id);
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    assert!(core.list_books().unwrap().iter().any(|b| b.id == id));
 }
