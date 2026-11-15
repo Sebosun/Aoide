@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aoide add dialog</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;border:0;cursor:pointer}
+a{color:#121638}a:hover{color:#C9431F}
+</style>
+</helmet>
+<div style="width: 560px; height: 640px; background: #FFFFFF; color: #121638; font-family: Manrope, system-ui, sans-serif; font-size: 14px; padding: 28px; display: flex; flex-direction: column; gap: 22px">
+
+<div style="display: flex; align-items: center; justify-content: space-between">
+<h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em">Add to your library</h1>
+<button aria-label="Close" style="width: 44px; height: 44px; border-radius: 50%; background: #E9ECF7; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></button>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<label for="add-link" style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #575E88">A link to an article or a feed</label>
+<div style="display: flex; gap: 8px">
+<input id="add-link" type="url" value="https://fieldnotes.example/night-train" style="flex: 1; min-width: 0; height: 48px; padding: 0 16px; border-radius: 24px; border: 1px solid #CBD1EA; background: #FFFFFF; font: inherit; color: #121638">
+<button style="height: 48px; padding: 0 22px; border-radius: 24px; background: #C9431F; color: #FFFFFF; font-weight: 700">Save article</button>
+</div>
+<div style="font-size: 13px; color: #575E88; line-height: 1.45">An article is opened once in a headless browser on this computer, and the readable text is kept. A feed address is offered as a subscription instead.</div>
+<div style="background: #E9ECF7; border-radius: 14px; padding: 10px 10px 10px 14px; display: flex; align-items: center; gap: 12px">
+<svg aria-hidden="true" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 9a5 5 0 015 5M4 4a10 10 0 0110 10"/><circle cx="4.500" cy="13.500" r="1" fill="currentColor"/></svg>
+<span style="flex: 1; min-width: 0"><span style="display: block; font-weight: 700">This site has a feed: Field Notes</span><span style="display: block; font-size: 12px; color: #575E88">About 2 new articles a week</span></span>
+<button style="height: 44px; padding: 0 16px; border-radius: 22px; background: #121638; color: #FFFFFF; font-weight: 600">Subscribe</button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; flex: 1">
+<div style="font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #575E88">Files on this computer</div>
+<div style="flex: 1; border: 1.5px dashed #9298BC; border-radius: 18px; background: #F4F6FC; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; text-align: center">
+<div style="font-size: 16px; font-weight: 700">Drop books, audiobooks or folders here</div>
+<div style="font-size: 13px; color: #575E88; max-width: 380px; line-height: 1.45">EPUB for text. M4B, MP3, FLAC or Ogg for audio. An audiobook that matches a book you already have is offered for pairing; otherwise it is added on its own.</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; justify-content: center">
+<button style="height: 44px; padding: 0 18px; border-radius: 22px; background: #121638; color: #FFFFFF; font-weight: 600">Choose files…</button>
+<button style="height: 44px; padding: 0 18px; border-radius: 22px; background: #DDE3F8; font-weight: 600">Choose a folder…</button>
+<button style="height: 44px; padding: 0 18px; border-radius: 22px; background: #DDE3F8; font-weight: 600">Scan for books…</button>
+</div>
+</div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":560,"height":640}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

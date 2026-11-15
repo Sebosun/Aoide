@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Aoide sign-in dialog</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;border:0;cursor:pointer}
+a{color:#121638}a:hover{color:#C9431F}
+</style>
+</helmet>
+<div style="width: 560px; height: 600px; background: #FFFFFF; color: #121638; font-family: Manrope, system-ui, sans-serif; font-size: 14px; padding: 28px; display: flex; flex-direction: column; gap: 20px">
+
+<div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px">
+<div>
+<h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em">Sign in to tidewatch.example</h1>
+<div style="font-size: 13px; color: #575E88; margin-top: 4px">For “How lighthouses kept their own time”</div>
+</div>
+<button aria-label="Close" style="width: 44px; height: 44px; border-radius: 50%; background: #E9ECF7; flex: none; display: flex; align-items: center; justify-content: center"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 2l10 10M12 2L2 12"/></svg></button>
+</div>
+
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px">
+<li style="display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px; border-radius: 14px">
+<span aria-hidden="true" style="width: 26px; height: 26px; border-radius: 50%; background: #17754A; color: #FFFFFF; flex: none; display: flex; align-items: center; justify-content: center"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.500 6.500l2.500 2.500 4.500-5.500"/></svg></span>
+<span><span style="display: block; font-weight: 700">A browser window is open</span><span style="display: block; font-size: 13px; color: #575E88">Done</span></span>
+</li>
+<li aria-current="step" style="display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; background: #E9ECF7">
+<span aria-hidden="true" style="width: 26px; height: 26px; border-radius: 50%; border: 3px solid #121638; flex: none"></span>
+<span><span style="display: block; font-weight: 700">Sign in there, or complete the site’s check</span><span style="display: block; font-size: 13px; color: #3C4270; line-height: 1.45">Aoide is watching that window and carries on when the article appears.</span></span>
+</li>
+<li style="display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px; border-radius: 14px">
+<span aria-hidden="true" style="width: 26px; height: 26px; border-radius: 50%; border: 2px solid #9298BC; flex: none"></span>
+<span><span style="display: block; font-weight: 700; color: #575E88">The article is fetched again</span><span style="display: block; font-size: 13px; color: #575E88">The window closes by itself</span></span>
+</li>
+</ol>
+
+<label style="display: flex; gap: 12px; align-items: flex-start; min-height: 44px; padding: 4px 0">
+<input type="checkbox" checked style="width: 20px; height: 20px; margin: 2px 0 0; accent-color: #121638">
+<span><span style="display: block; font-weight: 600">Stay signed in to this site</span><span style="display: block; font-size: 13px; color: #575E88; line-height: 1.45">Later articles and feed entries from tidewatch.example are fetched with this sign-in.</span></span>
+</label>
+
+<div style="font-size: 13px; color: #575E88; line-height: 1.5; background: #F4F6FC; border-radius: 14px; padding: 12px 14px">The window uses Aoide’s own browser profile. Your sign-in is stored there, on this computer, apart from your everyday browser. Manage it in Settings, under Sites.</div>
+
+<div style="margin-top: auto; display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end">
+<button style="height: 48px; padding: 0 20px; border-radius: 24px; background: #E9ECF7; font-weight: 600">Cancel</button>
+<button style="height: 48px; padding: 0 20px; border-radius: 24px; background: #E9ECF7; font-weight: 600">Show the window</button>
+<button style="height: 48px; padding: 0 22px; border-radius: 24px; background: #C9431F; color: #FFFFFF; font-weight: 700">I’m signed in, fetch again</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":560,"height":600}}'>
+class Component extends DCLogic {
+renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
