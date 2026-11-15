@@ -553,6 +553,30 @@ async fn a_stretch_of_the_recording_plays_from_its_time() {
 }
 
 #[tokio::test]
+async fn the_word_being_heard_moves_on_as_the_recording_plays() {
+    let f = fixture().await;
+    put_model(&f.root);
+    let words = read(&texts(&f.core, &f.id), 0);
+    let total = words.last().unwrap().1 + 500;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    sync(&f.core);
+
+    // The second chapter: its two-word heading, then its paragraph, 400 ms a word.
+    f.core.play(&f.id, Some(1), None).await.unwrap();
+    until("the third word of the paragraph", || {
+        let state = f.core.player_state();
+        state.segment_id.as_deref() == Some("1:1:0")
+            && state.word_index.is_some_and(|word| word >= 2)
+    })
+    .await;
+    f.core.stop();
+}
+
+#[tokio::test]
 async fn a_long_recording_is_heard_block_after_block_without_gaps_or_overlaps() {
     let f = fixture().await;
     put_model(&f.root);
