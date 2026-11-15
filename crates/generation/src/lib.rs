@@ -139,8 +139,16 @@ pub struct WorkItem {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WorkerEvent {
     Started(Job),
-    Finished { job: Job, duration_ms: u32 },
-    Failed { job: Job, error: String },
+    Finished {
+        job: Job,
+        duration_ms: u32,
+    },
+    Failed {
+        job: Job,
+        error: String,
+    },
+    /// The job's key was forgotten while it was being made: the result was dropped unstored.
+    Discarded(Job),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -229,6 +237,25 @@ pub struct Worker {
     debounce: Duration,
     /// Keys whose audio was deleted since they were made; the worker makes them again if asked.
     forgotten: Arc<std::sync::Mutex<HashSet<String>>>,
+    /// Whether a result is being stored.
+    storing: watch::Receiver<bool>,
+}
+
+/// Returned by [`Worker::forget`]; awaiting it waits until no result is being stored, so
+/// audio deleted after it stays deleted.
+pub struct Forgotten(watch::Receiver<bool>);
+
+impl std::future::IntoFuture for Forgotten {
+    type Output = ();
+    type IntoFuture = BoxFuture<'static, ()>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        let mut storing = self.0;
+        Box::pin(async move {
+            // An error means the worker stopped, so nothing is being stored.
+            let _ = storing.wait_for(|storing| !storing).await;
+        })
+    }
 }
 
 impl Worker {
@@ -245,9 +272,11 @@ impl Worker {
             resets: 0,
         });
         let forgotten = Arc::default();
+        let (storing_tx, storing) = watch::channel(false);
         tokio::spawn(run(
             receiver,
             Arc::clone(&forgotten),
+            storing_tx,
             engine,
             store,
             options,
@@ -257,6 +286,7 @@ impl Worker {
             plan,
             debounce: options.debounce,
             forgotten,
+            storing,
         }
     }
 
@@ -277,17 +307,21 @@ impl Worker {
         self.plan.send_modify(|plan| plan.items = items);
     }
 
-    /// The audio for these keys was deleted: make them again when a plan asks for them. Without
-    /// this the worker skips keys it made earlier in this run.
-    pub fn forget(&self, keys: impl IntoIterator<Item = String>) {
+    /// The audio for these keys is being deleted: make them again when a plan asks for them.
+    /// Without this the worker skips keys it made earlier in this run. A key being made now is
+    /// dropped when it is done; to delete its audio, await the result first, since a result
+    /// already being stored would land after the deletion.
+    pub fn forget(&self, keys: impl IntoIterator<Item = String>) -> Forgotten {
         self.forgotten.lock().expect("forgotten lock").extend(keys);
         self.plan.send_modify(|_| {}); // Wake the worker.
+        Forgotten(self.storing.clone())
     }
 }
 
 async fn run(
     mut plan: watch::Receiver<Plan>,
     forgotten: Arc<std::sync::Mutex<HashSet<String>>>,
+    storing: watch::Sender<bool>,
     engine: Arc<dyn SpeechEngine>,
     store: Arc<dyn SegmentStore>,
     options: WorkerOptions,
@@ -335,10 +369,29 @@ async fn run(
         let item = next.expect("checked above");
         let _ = events.send(WorkerEvent::Started(item.job.clone()));
         let started = Instant::now();
-        let outcome = match engine.synthesize(&item.request).await {
+        let synthesis = engine.synthesize(&item.request).await;
+        if synthesis.is_ok() {
+            // Checked and marked under one lock, so `forget` either drops this result or waits
+            // for it to be stored.
+            let forgotten = forgotten.lock().expect("forgotten lock");
+            if forgotten.contains(&item.job.key) {
+                drop(forgotten);
+                tracing::debug!(
+                    event = "gen.discarded",
+                    book = item.job.book.get(..12).unwrap_or(&item.job.book),
+                    index = item.job.index,
+                    "Dropped audio deleted while it was being made"
+                );
+                let _ = events.send(WorkerEvent::Discarded(item.job));
+                continue;
+            }
+            storing.send_replace(true);
+        }
+        let outcome = match synthesis {
             Ok(synthesis) => store.store(&item.job, synthesis).await,
             Err(error) => Err(error.to_string()),
         };
+        storing.send_replace(false);
         let took_ms = started.elapsed().as_millis() as u64;
         let book = item.job.book.get(..12).unwrap_or(&item.job.book);
         match &outcome {

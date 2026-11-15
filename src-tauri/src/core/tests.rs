@@ -153,7 +153,7 @@ pub(super) fn start_with(
 
 /// Waits (up to a few seconds) for `check` to hold, letting Core's tasks run.
 pub(super) async fn until(what: &str, check: impl Fn() -> bool) {
-    for _ in 0..200 {
+    for _ in 0..400 {
         if check() {
             return;
         }

@@ -212,7 +212,7 @@ async fn a_failure_pauses_all_work_and_the_failed_segment_waits_longest() {
             WorkerEvent::Finished { job, .. } => {
                 seen.push(format!("ok:{}@{}s", job.key, started.elapsed().as_secs()))
             }
-            WorkerEvent::Started(_) => {}
+            WorkerEvent::Started(_) | WorkerEvent::Discarded(_) => {}
         }
     }
     // The pause holds up "good"; its success ends the pause, so "next" follows at once.
@@ -341,4 +341,67 @@ fn backoff_doubles_while_failing_caps_at_the_maximum_and_resets() {
         Backoff::Working.next(BackoffEvent::Succeeded, &options()),
         Backoff::Working
     );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_key_forgotten_while_it_is_being_made_is_not_stored_and_is_made_again() {
+    let engine = FakeEngine::new(2_000);
+    let store = Arc::new(Store::default());
+    let (tx, mut events) = mpsc::unbounded_channel();
+    let worker = Worker::spawn(engine.clone(), store.clone(), options(), tx);
+    worker.set_plan(work(&["a"]));
+    assert!(matches!(next(&mut events).await, WorkerEvent::Started(_)));
+
+    // The audio was deleted (say, to be made with new settings) while "a" was being made.
+    worker.forget(["a".to_string()]);
+    let job = work(&["a"])[0].job.clone();
+    assert_eq!(next(&mut events).await, WorkerEvent::Discarded(job.clone()));
+    assert_eq!(next(&mut events).await, WorkerEvent::Started(job));
+    assert!(matches!(
+        next(&mut events).await,
+        WorkerEvent::Finished { .. }
+    ));
+    assert_eq!(
+        *store.0.lock().unwrap(),
+        ["a"],
+        "only the second result is stored"
+    );
+}
+
+/// A store that takes a second to write.
+#[derive(Default)]
+struct SlowStore {
+    begun: Mutex<Vec<String>>,
+    written: Mutex<Vec<String>>,
+}
+
+impl SegmentStore for SlowStore {
+    fn store<'a>(
+        &'a self,
+        job: &'a Job,
+        synthesis: Synthesis,
+    ) -> BoxFuture<'a, Result<u32, String>> {
+        Box::pin(async move {
+            self.begun.lock().unwrap().push(job.key.clone());
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            self.written.lock().unwrap().push(job.key.clone());
+            Ok(synthesis.duration_ms() as u32)
+        })
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn forgetting_waits_for_a_result_already_being_stored() {
+    let engine = FakeEngine::new(10);
+    let store = Arc::new(SlowStore::default());
+    let (tx, _events) = mpsc::unbounded_channel();
+    let worker = Worker::spawn(engine.clone(), store.clone(), options(), tx);
+    worker.set_plan(work(&["a"]));
+    while store.begun.lock().unwrap().is_empty() {
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+
+    // Deleting "a" now would race the write: the caller waits for it, then deletes.
+    worker.forget(["a".to_string()]).await;
+    assert_eq!(*store.written.lock().unwrap(), ["a"]);
 }

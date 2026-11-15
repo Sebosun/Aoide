@@ -61,11 +61,9 @@ pub(super) enum PlanEvent {
         books: HashSet<String>,
         keys: HashSet<String>,
     },
-    /// A book's audio (under `keys`, its plan's) was deleted to be made again.
-    BookAudioDeleted {
-        book: String,
-        keys: Vec<String>,
-    },
+    /// A book's audio was deleted to be made again (its keys forgotten first, see
+    /// [`Generation::forget`]).
+    BookAudioDeleted(String),
     /// The worker started on a segment (of the book being listened to, `segment_id`).
     WorkStarted {
         segment_id: Option<String>,
@@ -77,6 +75,8 @@ pub(super) enum PlanEvent {
     WorkFailed {
         error: String,
     },
+    /// The worker dropped what it made: its audio was deleted meanwhile.
+    WorkDiscarded,
 }
 
 /// What is being listened to.
@@ -193,6 +193,13 @@ impl Generation {
         Plan { items, requests }
     }
 
+    /// The audio under `keys` is about to be deleted: the worker makes them again when asked
+    /// (it skips keys it made in this run otherwise). Await the result before deleting, so a
+    /// segment being stored now is not written after the deletion.
+    pub fn forget(&self, keys: Vec<String>) -> aoide_generation::Forgotten {
+        lock(&self.worker).forget(keys)
+    }
+
     /// Makes the change `event` stands for, plans the work again and sends the view if it
     /// changed. The one way generation changes.
     pub fn apply(&self, event: PlanEvent, host: &dyn GenerationHost) {
@@ -288,9 +295,7 @@ impl Generation {
                 preparation.audio_lost(&lock(&self.library), &books, &keys);
                 Some(false)
             }
-            PlanEvent::BookAudioDeleted { book, keys } => {
-                // The worker skips keys it made in this run unless told they are gone.
-                lock(&self.worker).forget(keys);
+            PlanEvent::BookAudioDeleted(book) => {
                 let mut preparation = lock(&self.preparation);
                 preparation.audio_lost(
                     &lock(&self.library),
@@ -317,6 +322,10 @@ impl Generation {
                 state.generating_segment_id = None;
                 state.error = None;
                 Some(false)
+            }
+            PlanEvent::WorkDiscarded => {
+                lock(&self.state).generating_segment_id = None;
+                None
             }
             PlanEvent::WorkFailed { error } => {
                 let mut state = lock(&self.state);

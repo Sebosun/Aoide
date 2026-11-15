@@ -110,6 +110,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `prep.save` | warn | `kind`, `error`, `repeat` (reported) | `core/preparation.rs`, the queue or a book's done mark |
 | `gen.request` | debug, warn | `book`, `index`, `reason`, `chars`, `audio_ms`, `took_ms`, `outcome`, `error` | `crates/generation` `run`, each synthesis |
 | `gen.backoff` | info | `to`, `streak`, `wait_ms` | `crates/generation`, backing off or recovering |
+| `gen.discarded` | debug | `book`, `index` | `crates/generation` `run`, a result whose audio was deleted while it was made |
 | `gen.failed` | warn | `key`, `error` | `core.rs` |
 | `engine.state` | info | `engine`, `from`, `to`, `detail` | `core.rs` `emit_engine_status` |
 | `engine.voice` | warn | `engine`, `voice`, `error` | `core.rs`, a voice the engine lacks |

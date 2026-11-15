@@ -450,6 +450,7 @@ impl Core {
                     tracing::warn!(event = "gen.failed", key = %job.key, %error, "Making audio failed");
                     self.plan(PlanEvent::WorkFailed { error });
                 }
+                WorkerEvent::Discarded(_) => self.plan(PlanEvent::WorkDiscarded),
             }
         }
     }

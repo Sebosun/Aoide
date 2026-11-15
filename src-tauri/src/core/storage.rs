@@ -392,11 +392,9 @@ impl super::Core {
             .and_then(|book| self.speech_plan(&book))
             .map(|plan| plan.items.into_iter().map(|item| item.key).collect())
             .unwrap_or_default();
+        self.generation.forget(keys).await;
         self.storage.delete_book_audio(id)?;
-        self.plan(super::PlanEvent::BookAudioDeleted {
-            book: id.into(),
-            keys,
-        });
+        self.plan(super::PlanEvent::BookAudioDeleted(id.into()));
         if self.playback.is_book(id) {
             self.restart_session().await?;
         }
