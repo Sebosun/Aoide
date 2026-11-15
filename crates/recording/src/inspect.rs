@@ -2,10 +2,12 @@ use std::cmp::Ordering;
 use std::path::{Path, PathBuf};
 
 use symphonia::core::errors::Error;
-use symphonia::core::meta::{ChapterGroup, ChapterGroupItem, StandardTag, Tag};
+use symphonia::core::meta::{
+    ChapterGroup, ChapterGroupItem, StandardTag, StandardVisualKey, Tag, Visual,
+};
 
 use crate::decode::{codec_name, Source};
-use crate::{drm, AudioFile, FileProblem, Inspection, Problem, RecordingChapter, Tags};
+use crate::{drm, AudioFile, Cover, FileProblem, Inspection, Problem, RecordingChapter, Tags};
 
 const AUDIO_EXTENSIONS: &[&str] = &[
     "mp3", "m4a", "m4b", "mp4", "aac", "flac", "ogg", "oga", "opus", "wav", "wma", "aa", "aax",
@@ -68,7 +70,9 @@ fn lay_out(files: Vec<Probed>, problems: Vec<FileProblem>) -> Inspection {
         .first()
         .map(|f| f.file.tags.clone())
         .unwrap_or_default();
+    let cover = files.first().and_then(|f| f.cover.clone());
     Inspection {
+        cover,
         files: files.into_iter().map(|f| f.file).collect(),
         problems,
         chapters,
@@ -118,6 +122,22 @@ struct Probed {
     file: AudioFile,
     /// Chapters within the file.
     chapters: Vec<RecordingChapter>,
+    cover: Option<Cover>,
+}
+
+/// The front cover among `visuals`, else the first.
+fn cover_of<'a>(visuals: impl Iterator<Item = &'a Visual> + Clone) -> Option<Cover> {
+    let front = visuals
+        .clone()
+        .find(|v| v.usage == Some(StandardVisualKey::FrontCover));
+    let visual = front.or_else(|| visuals.clone().next())?;
+    Some(Cover {
+        media_type: visual
+            .media_type
+            .clone()
+            .unwrap_or_else(|| "image/jpeg".into()),
+        data: visual.data.to_vec(),
+    })
 }
 
 fn probe(path: &Path) -> Result<Probed, Problem> {
@@ -130,6 +150,7 @@ fn probe(path: &Path) -> Result<Probed, Problem> {
     let mut source = Source::open(path)?;
     let mut decoder = source.decoder()?;
     let mut tags = Tags::default();
+    let mut cover = None;
     let mut chapters = source
         .format
         .chapters()
@@ -143,6 +164,8 @@ fn probe(path: &Path) -> Result<Probed, Problem> {
                 for tag in revision.media.tags.iter().chain(per_track) {
                     apply(&mut tags, tag);
                 }
+                let per_track = revision.per_track.iter().flat_map(|t| &t.metadata.visuals);
+                cover = cover.or_else(|| cover_of(revision.media.visuals.iter().chain(per_track)));
             }
             if metadata.is_latest() {
                 break;
@@ -189,7 +212,7 @@ fn probe(path: &Path) -> Result<Probed, Problem> {
         .and_then(|e| e.to_str())
         .is_some_and(|e| MP4_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()));
     if mp4 {
-        mp4_details(path, &mut tags, &mut chapters);
+        mp4_details(path, &mut tags, &mut chapters, &mut cover);
     }
     Ok(Probed {
         file: AudioFile {
@@ -202,6 +225,7 @@ fn probe(path: &Path) -> Result<Probed, Problem> {
             tags,
         },
         chapters,
+        cover,
     })
 }
 
@@ -250,9 +274,15 @@ fn flatten_chapters(group: &ChapterGroup) -> Vec<RecordingChapter> {
 
 /// MP4 chapters (a QuickTime chapter track or a Nero chapter list), which symphonia does not
 /// read, and tags it may have missed.
-fn mp4_details(path: &Path, tags: &mut Tags, chapters: &mut Vec<RecordingChapter>) {
+fn mp4_details(
+    path: &Path,
+    tags: &mut Tags,
+    chapters: &mut Vec<RecordingChapter>,
+    cover: &mut Option<Cover>,
+) {
     let config = mp4ameta::ReadConfig {
         read_meta_items: true,
+        read_image_data: cover.is_none(),
         read_chapter_list: true,
         read_chapter_track: true,
         ..mp4ameta::ReadConfig::NONE
@@ -285,6 +315,17 @@ fn mp4_details(path: &Path, tags: &mut Tags, chapters: &mut Vec<RecordingChapter
     tags.album_artist = tags.album_artist.take().or(text(tag.album_artist()));
     tags.track = tags.track.or(tag.track_number().map(u64::from));
     tags.disc = tags.disc.or(tag.disc_number().map(u64::from));
+    if cover.is_none() {
+        *cover = tag.artwork().map(|art| Cover {
+            media_type: match art.fmt {
+                mp4ameta::ImgFmt::Png => "image/png",
+                mp4ameta::ImgFmt::Bmp => "image/bmp",
+                mp4ameta::ImgFmt::Jpeg => "image/jpeg",
+            }
+            .into(),
+            data: art.data.to_vec(),
+        });
+    }
 }
 
 /// By (disc, track) when every file has a track number and no two share one; otherwise by

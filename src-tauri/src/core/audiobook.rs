@@ -24,6 +24,20 @@ fn item_path(chosen: &[PathBuf], files: &[PathBuf]) -> PathBuf {
 /// What a text-only operation says about an audiobook.
 pub(super) const NO_TEXT: &str = "Not available for an audiobook: it has no text.";
 
+/// Keeps audiobook `id`'s embedded `cover` in `dir` as `<id>.<ext>`, as an EPUB's cover is
+/// kept; `None` when it cannot be written.
+fn save_cover(dir: &Path, id: &str, cover: &aoide_recording::Cover) -> Option<PathBuf> {
+    let ext = match cover.media_type.as_str() {
+        "image/png" => "png",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/bmp" => "bmp",
+        _ => "jpg",
+    };
+    let target = dir.join(format!("{id}.{ext}"));
+    std::fs::write(&target, &cover.data).ok().map(|()| target)
+}
+
 impl Core {
     /// Refuses item `id` when it is an audiobook, which has no text.
     pub(super) fn require_text(&self, id: &str) -> Result<(), String> {
@@ -170,7 +184,10 @@ impl Core {
                     title: Some(title),
                     authors: found.author.clone().into_iter().collect(),
                     language: None,
-                    cover_path: None,
+                    cover_path: found
+                        .cover
+                        .as_ref()
+                        .and_then(|cover| save_cover(&self.paths.covers_dir, &id, cover)),
                     error: None,
                 },
                 now_ms(),
@@ -307,6 +324,20 @@ pub(super) mod tests {
             .error
             .is_some());
         assert_eq!(core.list_books().unwrap().len(), 2, "the book and the FLAC");
+    }
+
+    #[test]
+    fn an_embedded_cover_is_kept_beside_the_epubs_covers() {
+        let dir = tempfile::tempdir().unwrap();
+        let cover = aoide_recording::Cover {
+            media_type: "image/png".into(),
+            data: b"png bytes".to_vec(),
+        };
+        let path = super::save_cover(dir.path(), "abc", &cover).unwrap();
+        assert_eq!(path, dir.path().join("abc.png"));
+        assert_eq!(std::fs::read(path).unwrap(), b"png bytes");
+        let gone = dir.path().join("gone");
+        assert_eq!(super::save_cover(&gone, "abc", &cover), None);
     }
 
     #[tokio::test]

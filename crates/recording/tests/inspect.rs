@@ -190,3 +190,53 @@ fn only_audio_files_are_taken_from_a_folder() {
     assert_eq!(found.files.len(), 2);
     assert!(found.problems.is_empty());
 }
+
+/// `mp3` with its ID3 tag replaced by an ID3v2.3 tag holding an album and a front cover.
+fn with_cover(mp3: &[u8], picture: &[u8]) -> Vec<u8> {
+    let audio = if mp3.starts_with(b"ID3") {
+        let size = mp3[6..10]
+            .iter()
+            .fold(0usize, |n, b| (n << 7) | usize::from(*b));
+        &mp3[10 + size..]
+    } else {
+        mp3
+    };
+    let frame = |id: &[u8], body: &[u8]| {
+        let mut f = id.to_vec();
+        f.extend_from_slice(&(body.len() as u32).to_be_bytes());
+        f.extend_from_slice(&[0, 0]);
+        f.extend_from_slice(body);
+        f
+    };
+    let mut apic = vec![0];
+    apic.extend_from_slice(b"image/png\0");
+    apic.push(3); // front cover
+    apic.push(0); // no description
+    apic.extend_from_slice(picture);
+    let mut frames = frame(b"TALB", b"\0Harbour Notes");
+    frames.extend(frame(b"APIC", &apic));
+    let size = frames.len();
+    let mut tag = b"ID3\x03\x00\x00".to_vec();
+    tag.extend((0..4).rev().map(|i| ((size >> (7 * i)) & 0x7f) as u8));
+    tag.extend(frames);
+    tag.extend_from_slice(audio);
+    tag
+}
+
+#[test]
+fn an_embedded_front_cover_is_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let mp3 = std::fs::read(fixture("set/b-first.mp3")).unwrap();
+    let picture = b"\x89PNG\r\n\x1a\nnot really a picture";
+    let path = dir.path().join("notes.mp3");
+    std::fs::write(&path, with_cover(&mp3, picture)).unwrap();
+    let found = inspect(&[path]);
+    assert!(found.problems.is_empty(), "{:?}", found.problems);
+    assert_eq!(found.title.as_deref(), Some("Harbour Notes"));
+    let cover = found.cover.expect("the cover");
+    assert_eq!(
+        (cover.media_type.as_str(), cover.data.as_slice()),
+        ("image/png", &picture[..])
+    );
+    assert_eq!(inspect(&[fixture("tone.flac")]).cover, None);
+}

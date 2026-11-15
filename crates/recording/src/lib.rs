@@ -31,6 +31,16 @@ pub struct Inspection {
     pub title: Option<String>,
     /// The album artist or artist tag of the first file.
     pub author: Option<String>,
+    /// The first file's embedded picture: its front cover, else the first one.
+    pub cover: Option<Cover>,
+}
+
+/// A picture embedded in an audio file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Cover {
+    /// Its media type ("image/jpeg"), as the file gives it.
+    pub media_type: String,
+    pub data: Vec<u8>,
 }
 
 impl Inspection {
