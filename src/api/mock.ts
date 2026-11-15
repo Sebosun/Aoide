@@ -1,7 +1,6 @@
 import type { AudiobookMatch, RecordingView, SyncStage, InspectionView, ModelDownloadView, SyncReportView, PrepareState, Preferences, Candidate, ScanProgress, DiscoveryImportProgress, AoideApi, BookSummary, BookView, ChapterView, PlayerState, EngineStatusView, GenerationState, EngineDescriptor, EngineProfile, BookSettings, Bookmark, AppSettings, BookDetails, MetadataMatch, ExportProgress, SearchHit } from "./types";
+import { initialPlayer, initialGeneration } from "./initial";
 
-export const initialPlayer = (): PlayerState => ({ bookId: null, status: "stopped", chapter: 0, segmentId: null, wordIndex: null, speed: 1, volume: 1, chapterFraction: 0, error: null, sleep: null, source: "speech", offText: false, chapterLeftMs: null, waitingForSync: false });
-export const initialGeneration = (): GenerationState => ({ bookId: null, generatingSegmentId: null, bufferedAheadMs: 0, pending: 0, error: null, preparing: null });
 
 /** The same API with every request (not the event subscriptions) taking `ms` longer. */
 export function slowed<T extends AoideApi>(api: T, ms: number): T {

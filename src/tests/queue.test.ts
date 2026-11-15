@@ -1,7 +1,8 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi, initialGeneration } from "../api/mock";
+import { createMockApi } from "../api/mock";
+import { initialGeneration } from "../api/initial";
 import App from "../App.vue";
 import { useNavigationStore } from "../stores/navigation";
 

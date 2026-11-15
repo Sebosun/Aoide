@@ -45,7 +45,7 @@ A **component** is the unit this refactor produces. `Recordings` (`core/recordin
 **Done when:** a `test:core` script runs `cargo test -p aoide`; `check` formats and lints the
 whole workspace including `aoide` with `-D warnings`; both pass.
 
-### - [ ] 2. Move initial UI state out of the mock
+### - [x] 2. Move initial UI state out of the mock
 
 `src/stores/player.ts` imports `initialPlayer` and `initialGeneration` from `src/api/mock.ts`.
 
@@ -109,6 +109,9 @@ The `settings` key-value table holds per-book values under formatted keys
 **Ask the user first:** should a book that is removed and added again keep its voice settings
 and progress? The answer decides which keys cascade. Record the answer as a comment on the
 table's migration.
+
+*Answered 2026-11-15:* keep both. Voice settings and progress stay in `settings` and survive
+removal; the prepare and narration values move to `book_values` and cascade.
 
 - Migration v7 in `crates/library/src/store.rs`: table
   `book_values(book_id REFERENCES books ON DELETE CASCADE, key, value, PRIMARY KEY(book_id, key))`;
@@ -236,5 +239,7 @@ No formatter is configured and the stores, composables and API files have many l
 characters. This is a taste call: ask whether the dense style is deliberate before doing
 anything. If the user wants it: Prettier at `printWidth: 120`, one formatting-only commit, a
 format check added to `check`.
+
+*Answered 2026-11-15:* add Prettier at 120.
 
 **Done when:** the user has declined, or the format check passes.

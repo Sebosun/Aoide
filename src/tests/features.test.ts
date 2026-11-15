@@ -1,7 +1,8 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
-import { createMockApi, initialPlayer } from "../api/mock";
+import { createMockApi } from "../api/mock";
+import { initialPlayer } from "../api/initial";
 import SettingsDialog from "../components/settings/SettingsDialog.vue";
 import StatsView from "../views/StatsView.vue";
 import BookToolsSheet from "../components/book/BookToolsSheet.vue";
