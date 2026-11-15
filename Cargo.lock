@@ -126,6 +126,8 @@ dependencies = [
  "ego-tree",
  "html-escape",
  "scraper",
+ "serde_json",
+ "sha2",
  "url",
 ]
 
