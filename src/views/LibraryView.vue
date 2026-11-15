@@ -6,8 +6,6 @@ import UiSelect from "../components/ui/UiSelect.vue";
 import UiSkeleton from "../components/ui/UiSkeleton.vue";
 import AddBooksMenu from "../components/library/AddBooksMenu.vue";
 import BookCard from "../components/library/BookCard.vue";
-import ContinueCard from "../components/library/ContinueCard.vue";
-import WeekCard from "../components/library/WeekCard.vue";
 import { useLibraryStore, type LibraryFilter } from "../stores/library";
 import { usePlayerStore } from "../stores/player";
 import { useReaderStore } from "../stores/reader";
@@ -24,17 +22,6 @@ const filters: { value: LibraryFilter; label: string }[] = [
   { value: "offline", label: "Ready offline" },
   { value: "preparing", label: "Preparing" },
 ];
-/** The playing book, else the most recently opened book that is started and not finished. */
-const continued = computed(() => {
-  const present = library.books.filter((b) => b.status.kind === "present");
-  const playing = present.find((b) => b.id === player.state.bookId);
-  if (playing) return playing;
-  return (
-    present
-      .filter((b) => (b.progress?.fraction ?? 0) > 0 && (b.progress?.fraction ?? 0) < 1)
-      .sort((a, b) => (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0))[0] ?? null
-  );
-});
 const shelves = useCollections();
 const plural = (n: number) => `${n} ${n === 1 ? "book" : "books"}`;
 const importErrors = computed(() => library.imports.filter((r) => r.error));
@@ -60,19 +47,9 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 
 <template>
   <section class="library" :aria-busy="!library.ready">
-    <template v-if="!library.ready">
-      <p class="visually-hidden" role="status" aria-label="Loading your library">Loading your library…</p>
-      <div class="library__top" aria-hidden="true">
-        <UiSkeleton class="library__ghost-hero" /><UiSkeleton class="library__ghost-hero" />
-      </div>
-    </template>
-    <div v-else-if="library.books.length" class="library__top">
-      <ContinueCard v-if="continued" :book="continued" />
-      <div v-else class="library__welcome">
-        <b>Pick a book to start listening</b><span>Aoide reads it aloud and follows along in the text.</span>
-      </div>
-      <WeekCard />
-    </div>
+    <p v-if="!library.ready" class="visually-hidden" role="status" aria-label="Loading your library">
+      Loading your library…
+    </p>
     <p v-if="library.error || reader.error" class="library__alert" role="alert">{{ library.error || reader.error }}</p>
     <ul v-if="importErrors.length" class="library__alert" role="alert">
       <li v-for="result in importErrors" :key="result.path">{{ result.path }}: {{ result.error }}</li>
@@ -218,27 +195,6 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   max-width: 1400px;
   margin: 0 auto;
   padding: 8px 28px 0;
-}
-.library__top {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 18px;
-}
-.library__welcome {
-  display: grid;
-  gap: 6px;
-  align-content: center;
-  padding: 22px;
-  border-radius: 22px;
-  background: var(--hero);
-}
-.library__welcome b {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-.library__welcome span {
-  color: var(--dim);
 }
 .library__alert {
   margin: 0;
@@ -441,10 +397,6 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   color: var(--ink);
   font-size: 18px;
 }
-.library__ghost-hero {
-  min-height: 220px;
-  border-radius: 22px;
-}
 .library__ghost {
   display: grid;
   gap: 8px;
@@ -476,9 +428,6 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   }
 }
 @media (max-width: 999px) {
-  .library__top {
-    grid-template-columns: minmax(0, 1fr) 240px;
-  }
   .library__grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -486,9 +435,6 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 @media (max-width: 760px) {
   .library {
     padding: 8px 16px 0;
-  }
-  .library__top {
-    grid-template-columns: 1fr;
   }
   .library__grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

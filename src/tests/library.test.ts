@@ -39,43 +39,6 @@ async function library() {
 }
 const titles = (wrapper: ReturnType<typeof mount>) => wrapper.findAll(".book-card__title").map((h) => h.text());
 
-it("leads with the book to continue: chapter, progress, time left and Resume", async () => {
-  const play = vi.spyOn(mock, "play");
-  const wrapper = await library();
-  const hero = wrapper.get('[aria-label="Continue listening"]');
-  expect(hero.text()).toContain("The Lantern Keeper");
-  expect(hero.text()).toContain("Mira Vale · The small light");
-  expect(hero.text()).toContain("12%");
-  expect(hero.text()).toMatch(/about .*min left at 1×/);
-  await hero.get('[aria-label="Resume"]').trigger("click");
-  expect(play).toHaveBeenCalledWith("book-0", null, null);
-  wrapper.unmount();
-});
-
-it("opens a chapter of the continued book from the hero", async () => {
-  const play = vi.spyOn(mock, "play");
-  const wrapper = await library();
-  await wrapper.get('[aria-label="Continue listening"] [aria-haspopup="menu"]').trigger("click");
-  await pickMenuItem("Chapter 2: Across the water");
-  await flushPromises();
-  expect(play).toHaveBeenCalledWith("book-0", 1, "1:0:0");
-  expect(useNavigationStore().view).toBe("reader");
-  expect(useReaderStore().book?.id).toBe("book-0");
-  // The reader has the full transport, so the card steps aside.
-  expect(wrapper.find('[aria-label="Now playing"]').exists()).toBe(false);
-  wrapper.unmount();
-});
-
-it("sums the last 7 days of listening with one bar per day", async () => {
-  vi.useFakeTimers({ toFake: ["Date"] });
-  vi.setSystemTime(new Date("2026-11-11T12:00:00"));
-  const wrapper = await library();
-  const week = wrapper.get('[aria-label="Last 7 days"]');
-  expect(week.text()).toContain("1 h 50 min");
-  expect(week.findAll(".week-card__bar")).toHaveLength(7);
-  wrapper.unmount();
-});
-
 it("keeps missing books greyed in the grid and lists books that failed to import apart", async () => {
   const wrapper = await library();
   expect(titles(wrapper)).not.toContain("The Torn Ledger");

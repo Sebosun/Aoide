@@ -13,7 +13,13 @@ books: number, };
 
 export type BookProgress = { chapter: number, segmentId: string | null, fraction: number, };
 
+export type AudioSource = "none" | "speech" | "recording";
+
 export type BookSummary = { id: string, title: string, authors: Array<string>, language: string | null, status: BookStatus, coverPath: string | null, progress: BookProgress | null, audioBytes: number, 
+/**
+ * What plays if the user listens.
+ */
+audio: AudioSource, 
 /**
  * Whole-book preparation status, if queued, running or finished.
  */
@@ -26,6 +32,20 @@ collections: Array<number>,
  * The sync stage of the book's recording, if it has one.
  */
 recording: SyncStage | null, };
+
+export type HomeView = { 
+/**
+ * Up to 3 started, unfinished items, most recently opened first.
+ */
+continueIds: Array<string>, 
+/**
+ * Up to 5 items never started, newest added first.
+ */
+upNextIds: Array<string>, 
+/**
+ * Up to 8 items, newest added first, leaving out the ones listed above.
+ */
+recentIds: Array<string>, };
 
 export type ImportResult = { path: string, bookId: string | null, error: string | null, };
 
@@ -626,6 +646,7 @@ export type Commands = {
   "log_ui": { args: { entry: UiLog }; result: void };
   "app_info": { args: Record<string, never>; result: AppInfo };
   "list_books": { args: Record<string, never>; result: BookSummary[] };
+  "home": { args: Record<string, never>; result: HomeView };
   "import_files": { args: { paths: string[] }; result: ImportResult[] };
   "rescan_library": { args: Record<string, never>; result: void };
   "remove_book": { args: { bookId: string }; result: void };

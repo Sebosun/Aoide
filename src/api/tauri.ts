@@ -62,6 +62,7 @@ export const tauriApi: AoideApi = {
       ...book,
       coverUrl: coverPath ? convertFileSrc(coverPath) : null,
     })),
+  home: () => call("home"),
   importFiles: (paths) => call("import_files", { paths }),
   rescanLibrary: () => call("rescan_library"),
   removeBook: (bookId) => call("remove_book", { bookId }),

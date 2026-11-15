@@ -27,6 +27,7 @@ import type {
   MetadataMatch,
   ExportProgress,
   SearchHit,
+  HomeView,
 } from "./types";
 import type * as Wire from "./contract";
 import fixtureLibrary from "../tests/fixtures/library.json";
@@ -34,6 +35,7 @@ import fixtureViews from "../tests/fixtures/book-views.json";
 import fixturePlayer from "../tests/fixtures/player.json";
 import fixtureGenerationPlaying from "../tests/fixtures/generation-playing.json";
 import fixtureRecording from "../tests/fixtures/recording.json";
+import fixtureHome from "../tests/fixtures/home.json";
 
 /** The views the core made for the preview's books (see src-tauri/src/core/fixtures.rs), with
  *  covers as the window sees them. */
@@ -68,12 +70,8 @@ export function createMockApi() {
     detail: "Browser preview · simulated audio",
   };
   const books = coreBooks();
-  // The reader has started the first book, and some of its audio is made.
-  Object.assign(books[0], {
-    progress: { chapter: 0, segmentId: "0:1:0", fraction: 0.12 },
-    audioBytes: 2457600,
-    lastOpenedAt: 500,
-  });
+  /** Home as the core made it for these books; `setHome` replaces it (an empty library). */
+  let home: HomeView = structuredClone(fixtureHome);
   const shelves: { id: number; name: string; createdAt: number }[] = [];
   const shelfName = (name: string, except?: number) => {
     const trimmed = name.trim();
@@ -372,7 +370,10 @@ export function createMockApi() {
     } as Record<string, SyncStage>
   )[query.get("recording") ?? ""];
   if (previewStage) {
-    if (previewStage === "ready") settings.set("book-0", { ...settingsOf("book-0"), narration: "recording" });
+    if (previewStage === "ready") {
+      settings.set("book-0", { ...settingsOf("book-0"), narration: "recording" });
+      books[0].audio = "recording";
+    }
     recordings.set("book-0", decide(recordingIn("book-0", previewStage)));
     books[0].recording = previewStage;
   }
@@ -553,6 +554,9 @@ export function createMockApi() {
     },
     async listBooks() {
       return structuredClone(books);
+    },
+    async home() {
+      return structuredClone(home);
     },
     async importFiles(paths) {
       return paths.map((path) => ({
@@ -1289,7 +1293,19 @@ export function createMockApi() {
     emitSync(recordingIn(id, stage));
     changed();
   };
+  /** Home as the core would make it for another library (an empty one, say). */
+  const setHomeForTest = (view: HomeView) => {
+    home = structuredClone(view);
+    changed();
+  };
+  /** What a book would play with, as the core would report it. */
+  const setAudioSourceForTest = (id: string, audio: BookSummary["audio"]) => {
+    getBook(id).audio = audio;
+    changed();
+  };
   return Object.assign(api, {
+    setHomeForTest,
+    setAudioSourceForTest,
     setRecordingForTest,
     setProgressForTest,
     setAudioForTest,

@@ -30,6 +30,8 @@ mod output;
 use environment::{default_profile, OUTPUT_RATE};
 pub use environment::{Environment, Events, Paths, ShowInFolder};
 mod error;
+mod facets;
+pub use facets::HomeView;
 mod generation;
 mod shelf;
 use generation::PlanEvent;

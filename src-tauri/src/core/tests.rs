@@ -613,6 +613,40 @@ async fn moving_the_playhead_saves_the_new_place() {
     core.stop();
 }
 
+// ------------------------------------------------------------ what screens show
+
+#[tokio::test]
+async fn a_book_listened_to_has_speech_and_moves_from_up_next_to_continue() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = super::engine_tests::Scripted::new(
+        "main",
+        aoide_tts::EngineStatus::Ready(None),
+        &["A.wav"],
+        false,
+    );
+    let (core, _events, id) =
+        super::engine_tests::start(dir.path(), &[&engine], "voiceId = \"A.wav\"").await;
+    let audio = |core: &Core| core.list_books().unwrap()[0].audio;
+    assert_eq!(audio(&core), super::facets::AudioSource::None);
+    let home = core.home().unwrap();
+    assert_eq!(
+        (home.continue_ids, home.up_next_ids),
+        (vec![], vec![id.clone()])
+    );
+
+    core.play(&id, Some(1), None).await.unwrap();
+    core.pause();
+    let home = core.home().unwrap();
+    assert_eq!(
+        (home.continue_ids, home.up_next_ids),
+        (vec![id.clone()], vec![])
+    );
+    until("speech audio for the book", || {
+        audio(&core) == super::facets::AudioSource::Speech
+    })
+    .await;
+}
+
 #[test]
 fn the_first_poisoned_lock_is_reported_once() {
     let events = Arc::new(Recorder::default());

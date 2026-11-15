@@ -13,7 +13,8 @@ use tauri::{Manager, State};
 use crate::book::ChapterView;
 use crate::core::{
     AppInfo, AppSettings, AppSettingsPatch, BookSettings, BookSummary, BookView, Core, CoreError,
-    EngineOptions, EngineStatusView, ImportResult, ListeningStatsView, Paths, PreferencesView,
+    EngineOptions, EngineStatusView, HomeView, ImportResult, ListeningStatsView, Paths,
+    PreferencesView,
 };
 
 type CoreState<'a> = State<'a, Arc<Core>>;
@@ -33,6 +34,12 @@ fn app_info(core: CoreState<'_>) -> AppInfo {
 async fn list_books(core: CoreState<'_>) -> Result<Vec<BookSummary>, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.list_books()).await
+}
+
+#[tauri::command]
+async fn home(core: CoreState<'_>) -> Result<HomeView, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.home()).await
 }
 
 #[tauri::command]
@@ -727,6 +734,7 @@ pub fn run() {
             log_ui,
             app_info,
             list_books,
+            home,
             import_files,
             rescan_library,
             remove_book,

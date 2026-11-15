@@ -224,12 +224,25 @@ async fn fixtures_for_the_ui_mock() {
     // The library as first scanned, in the preview's order, added one after another.
     let mut books = core.list_books().unwrap();
     books.sort_by_key(|book| preview(&book.id));
-    let mut library = serde_json::to_value(&books).unwrap();
-    for (index, book) in library.as_array_mut().unwrap().iter_mut().enumerate() {
-        book["addedAt"] = Value::from(100 + index as i64);
-        book["lastOpenedAt"] = Value::Null;
+    for (index, book) in books.iter_mut().enumerate() {
+        book.added_at = 100 + index as i64;
+        book.last_opened_at = None;
     }
-    write("library", &library, &renames);
+    // The reader has started the first book, and some of its audio is made.
+    let started = &mut books[0];
+    started.progress = Some(super::BookProgressView {
+        chapter: 0,
+        segment_id: Some("0:1:0".into()),
+        fraction: 0.12,
+    });
+    started.audio_bytes = 2_457_600;
+    started.last_opened_at = Some(500);
+    started.audio = super::facets::audio_source(super::facets::AudioFacts {
+        cached_speech: true,
+        ..Default::default()
+    });
+    write("library", &books, &renames);
+    write("home", &super::facets::home(&books), &renames);
 
     let views: serde_json::Map<String, Value> = books
         .iter()

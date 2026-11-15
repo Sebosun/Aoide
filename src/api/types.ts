@@ -39,6 +39,7 @@ import type {
   ExportProgress,
   ExportStage,
   GenerationState,
+  HomeView,
   ImportResult,
   AudiobookSuggestion,
   AudiobookMatch,
@@ -109,6 +110,8 @@ export interface AoideApi {
   logUi(entry: UiLog): Promise<void>;
   appInfo(): Promise<AppInfo>;
   listBooks(): Promise<BookSummary[]>;
+  /** Home's lists, as ids of library items. */
+  home(): Promise<HomeView>;
   /** Copies dropped EPUB files into the library folder and imports them. */
   importFiles(paths: string[]): Promise<ImportResult[]>;
   rescanLibrary(): Promise<void>;

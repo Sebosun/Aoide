@@ -25,6 +25,8 @@ pub struct BookSummary {
     pub cover_path: Option<String>,
     pub progress: Option<BookProgressView>,
     pub audio_bytes: u64,
+    /// What plays if the user listens.
+    pub audio: super::facets::AudioSource,
     /// Whole-book preparation status, if queued, running or finished.
     pub prepare: Option<PrepareView>,
     pub added_at: i64,

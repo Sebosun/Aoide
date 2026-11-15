@@ -1,96 +1,105 @@
 [
   {
-    "addedAt": 100,
-    "audioBytes": 0,
+    "id": "book-0",
+    "title": "The Lantern Keeper",
     "authors": [
       "Mira Vale"
     ],
-    "collections": [],
-    "coverPath": null,
-    "id": "book-0",
     "language": "en",
-    "lastOpenedAt": null,
-    "prepare": null,
-    "progress": null,
-    "recording": null,
     "status": {
       "kind": "present"
     },
-    "title": "The Lantern Keeper"
+    "coverPath": null,
+    "progress": {
+      "chapter": 0,
+      "segmentId": "0:1:0",
+      "fraction": 0.12
+    },
+    "audioBytes": 2457600,
+    "audio": "speech",
+    "prepare": null,
+    "addedAt": 100,
+    "lastOpenedAt": 500,
+    "collections": [],
+    "recording": null
   },
   {
-    "addedAt": 101,
-    "audioBytes": 0,
-    "authors": [
-      "Ellis Reed"
-    ],
-    "collections": [],
-    "coverPath": null,
     "id": "book-1",
-    "language": "en",
-    "lastOpenedAt": null,
-    "prepare": null,
-    "progress": null,
-    "recording": null,
-    "status": {
-      "kind": "present"
-    },
-    "title": "A Map of Quiet Places"
-  },
-  {
-    "addedAt": 102,
-    "audioBytes": 0,
+    "title": "A Map of Quiet Places",
     "authors": [
       "Ellis Reed"
     ],
-    "collections": [],
-    "coverPath": null,
-    "id": "book-2",
     "language": "en",
-    "lastOpenedAt": null,
-    "prepare": null,
+    "status": {
+      "kind": "present"
+    },
+    "coverPath": null,
     "progress": null,
-    "recording": null,
+    "audioBytes": 0,
+    "audio": "none",
+    "prepare": null,
+    "addedAt": 101,
+    "lastOpenedAt": null,
+    "collections": [],
+    "recording": null
+  },
+  {
+    "id": "book-2",
+    "title": "The Absent Orchard",
+    "authors": [
+      "Ellis Reed"
+    ],
+    "language": "en",
     "status": {
       "kind": "missing"
     },
-    "title": "The Absent Orchard"
+    "coverPath": null,
+    "progress": null,
+    "audioBytes": 0,
+    "audio": "none",
+    "prepare": null,
+    "addedAt": 102,
+    "lastOpenedAt": null,
+    "collections": [],
+    "recording": null
   },
   {
-    "addedAt": 103,
-    "audioBytes": 0,
+    "id": "book-3",
+    "title": "An Unfinished Atlas",
     "authors": [
       "Ellis Reed"
     ],
-    "collections": [],
-    "coverPath": null,
-    "id": "book-3",
     "language": "en",
-    "lastOpenedAt": null,
-    "prepare": null,
-    "progress": null,
-    "recording": null,
     "status": {
       "kind": "present"
     },
-    "title": "An Unfinished Atlas"
+    "coverPath": null,
+    "progress": null,
+    "audioBytes": 0,
+    "audio": "none",
+    "prepare": null,
+    "addedAt": 103,
+    "lastOpenedAt": null,
+    "collections": [],
+    "recording": null
   },
   {
-    "addedAt": 104,
-    "audioBytes": 0,
-    "authors": [],
-    "collections": [],
-    "coverPath": null,
     "id": "book-4",
+    "title": "The Torn Ledger",
+    "authors": [],
     "language": null,
-    "lastOpenedAt": null,
-    "prepare": null,
-    "progress": null,
-    "recording": null,
     "status": {
       "kind": "error",
       "message": "invalid EPUB: invalid Zip archive: Could not find EOCD"
     },
-    "title": "The Torn Ledger"
+    "coverPath": null,
+    "progress": null,
+    "audioBytes": 0,
+    "audio": "none",
+    "prepare": null,
+    "addedAt": 104,
+    "lastOpenedAt": null,
+    "collections": [],
+    "recording": null
   }
 ]

@@ -35,7 +35,9 @@ fn contract() -> String {
         aoide_library::BookStatus,
         aoide_library::Collection,
         super::BookProgressView,
+        super::facets::AudioSource,
         super::BookSummary,
+        super::facets::HomeView,
         super::ImportResult,
         super::AppInfo,
         // Errors

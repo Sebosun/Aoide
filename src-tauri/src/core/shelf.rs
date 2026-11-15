@@ -11,6 +11,7 @@ use aoide_library::{
 };
 
 use super::error::Reporter;
+use super::facets::{self, AudioFacts};
 use super::syncing::Stage as SyncStage;
 use super::{
     lock, now_ms, BookProgressView, BookSummary, CoreEvent, Events, ImportResult, PrepareView,
@@ -27,6 +28,8 @@ pub(super) trait ShelfHost {
     fn prepare_of(&self, id: &str) -> Option<PrepareView>;
     /// Book `id`'s recording, as its summary shows it.
     fn recording_of(&self, id: &str) -> Option<SyncStage>;
+    /// Whether book `id` is narrated by its recording, and the recording can be listened to.
+    fn narrates_recording(&self, id: &str) -> bool;
 }
 
 pub(super) struct Shelf {
@@ -337,11 +340,19 @@ impl Shelf {
     }
 
     pub fn list(&self, host: &dyn ShelfHost) -> Result<Vec<BookSummary>, String> {
-        let (records, mut shelves) = {
+        let (records, mut shelves, listened) = {
             let library = lock(&self.library);
             (
                 library.books().map_err(|e| e.to_string())?,
                 library.book_collections().map_err(|e| e.to_string())?,
+                library
+                    .listening_stats()
+                    .map_err(|e| e.to_string())?
+                    .by_book
+                    .into_iter()
+                    .filter(|b| b.ms > 0)
+                    .map(|b| b.book_id)
+                    .collect::<HashSet<BookId>>(),
             )
         };
         let ignored = self.ignored();
@@ -350,7 +361,8 @@ impl Shelf {
             .filter(|r| !ignored.contains(&r.id.0))
             .map(|record| {
                 let collections = shelves.remove(&record.id).unwrap_or_default();
-                self.summary(record, collections, host)
+                let listened = listened.contains(&record.id);
+                self.summary(record, collections, listened, host)
             })
             .collect())
     }
@@ -359,13 +371,22 @@ impl Shelf {
         &self,
         record: BookRecord,
         collections: Vec<i64>,
+        listened: bool,
         host: &dyn ShelfHost,
     ) -> BookSummary {
         let audio_bytes = lock(&self.library)
             .book_audio_bytes(&record.id)
             .unwrap_or(0);
+        let prepare = host.prepare_of(&record.id.0);
+        let audio = facets::audio_source(AudioFacts {
+            narrates_recording: host.narrates_recording(&record.id.0),
+            cached_speech: audio_bytes > 0,
+            prepared: prepare.is_some(),
+            listened,
+        });
         BookSummary {
-            prepare: host.prepare_of(&record.id.0),
+            prepare,
+            audio,
             recording: host.recording_of(&record.id.0),
             progress: self.progress(&record.id),
             id: record.id.0,
@@ -538,6 +559,10 @@ impl ShelfHost for super::Core {
     fn recording_of(&self, id: &str) -> Option<SyncStage> {
         self.recording_stage(id)
     }
+
+    fn narrates_recording(&self, id: &str) -> bool {
+        self.plays_recording(id, &self.book_settings(id))
+    }
 }
 
 impl super::Core {
@@ -686,6 +711,9 @@ mod tests {
         }
         fn recording_of(&self, _: &str) -> Option<SyncStage> {
             None
+        }
+        fn narrates_recording(&self, _: &str) -> bool {
+            false
         }
     }
 
