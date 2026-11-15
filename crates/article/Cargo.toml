@@ -1,0 +1,16 @@
+[package]
+name = "aoide-article"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Deterministic readable-text extraction from a stored web page"
+publish = false
+
+[dependencies]
+aoide-document = { path = "../document" }
+# 0.18 is the last line within the workspace's Rust 1.77.2.
+dom_smoothie = "0.18.2"
+scraper = "0.24"
+ego-tree = "0.10"
+html-escape = "0.2"
+url = "2"

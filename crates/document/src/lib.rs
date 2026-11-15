@@ -72,6 +72,24 @@ pub enum Warning {
     UnreferencedNote {
         id: String,
     },
+    /// Parts of an article's page the text does not carry, by kind.
+    LeftOut {
+        what: LeftOut,
+        count: usize,
+    },
+    /// The page's own markup carried less text than its metadata, so the body was built from
+    /// the metadata's copy of it.
+    BodyFromMetadata,
+}
+
+/// What an article's page shows that its text leaves out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum LeftOut {
+    Image,
+    Figure,
+    Table,
+    Embed,
+    Form,
 }
 
 #[derive(Debug, PartialEq, Eq)]

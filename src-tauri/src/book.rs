@@ -449,6 +449,24 @@ fn describe_warning(warning: &Warning) -> String {
         Warning::UnreferencedNote { id } => {
             format!("A note is not referenced from the text ({id}); it is listed with the notes.")
         }
+        Warning::LeftOut { what, count } => {
+            use aoide_epub::LeftOut;
+            let (one, many) = match what {
+                LeftOut::Image => ("image", "images"),
+                LeftOut::Figure => ("figure", "figures"),
+                LeftOut::Table => ("table", "tables"),
+                LeftOut::Embed => ("embedded item", "embedded items"),
+                LeftOut::Form => ("form", "forms"),
+            };
+            match count {
+                1 => format!("1 {one} was left out."),
+                n => format!("{n} {many} were left out."),
+            }
+        }
+        Warning::BodyFromMetadata => {
+            "The page showed less text than it declared; the text comes from the page's metadata."
+                .into()
+        }
     }
 }
 

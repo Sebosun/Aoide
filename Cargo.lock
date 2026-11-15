@@ -118,6 +118,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "aoide-article"
+version = "0.1.0"
+dependencies = [
+ "aoide-document",
+ "dom_smoothie",
+ "ego-tree",
+ "html-escape",
+ "scraper",
+ "url",
+]
+
+[[package]]
 name = "aoide-audio"
 version = "0.1.0"
 dependencies = [
@@ -836,7 +848,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6fac387a98bb7c37292057cffc56d62ecb629900026402633ae9160df93a8766"
 dependencies = [
- "nom",
+ "nom 7.1.3",
 ]
 
 [[package]]
@@ -1493,6 +1505,7 @@ dependencies = [
  "cssparser 0.37.0",
  "foldhash",
  "html5ever 0.39.0",
+ "nom 8.0.0",
  "precomputed-hash",
  "selectors 0.38.0",
  "tendril 0.5.1",
@@ -1511,6 +1524,24 @@ dependencies = [
  "precomputed-hash",
  "selectors 0.41.0",
  "tendril 0.5.1",
+]
+
+[[package]]
+name = "dom_smoothie"
+version = "0.18.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1afbed996f0bcb119c068504c7c504d625700d58c8bd862d6f66abd7ae7d3859"
+dependencies = [
+ "dom_query 0.28.0",
+ "flagset",
+ "foldhash",
+ "gjson",
+ "html-escape",
+ "once_cell",
+ "phf 0.13.1",
+ "tendril 0.5.1",
+ "thiserror 2.0.21",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -1729,6 +1760,12 @@ name = "find-msvc-tools"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c66915cc5391097de7a2b0b972e8505aa33c0df401fd3a6811dbdb32881ba48"
+
+[[package]]
+name = "flagset"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7ac824320a75a52197e8f2d787f6a38b6718bb6897a35142d749af3c0e8f4fe"
 
 [[package]]
 name = "flate2"
@@ -2119,6 +2156,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "gjson"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43503cc176394dd30a6525f5f36e838339b8b5619be33ed9a7783841580a97b6"
+
+[[package]]
 name = "glib"
 version = "0.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2312,6 +2355,12 @@ name = "hound"
 version = "3.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62adaabb884c94955b19907d60019f4e145d091c75345379e70d1ee696f7854f"
+
+[[package]]
+name = "html-escape"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9356095b4b41197bba32173600e1582792cda618f65d12f68e2e77d273413c5"
 
 [[package]]
 name = "html5ever"
@@ -3265,6 +3314,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nom"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df9761775871bdef83bee530e60050f7e54b1105350d6884eb0fb4f46c2f9405"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "notify"
 version = "8.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3298,7 +3356,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
