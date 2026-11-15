@@ -18,20 +18,19 @@ use aoide_library::{
     Library, NewBook, Progress,
 };
 use aoide_tts::{
-    cache_key, encode_wav, resolve_params, supports_language, BoxFuture, EngineProfile,
-    EngineStatus, LaunchCommand, NetworkScope, Params, Registry, SpeechEngine, Synthesis,
+    cache_key, BoxFuture, EngineProfile, LaunchCommand, NetworkScope, Params, Registry,
+    SpeechEngine, Synthesis,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 /// Spoken by voice previews: original text, long enough to hear the voice's pace and tone.
-const PREVIEW_TEXT: &str =
-    "The lantern swung gently as the little boat drifted home across the quiet harbour.";
 mod align;
 mod audiobooks;
 mod config;
 pub use config::PreferencesView;
 mod discovery;
+mod engine;
 mod error;
 mod storage;
 pub use audiobooks::{AudiobookChoice, AudiobookMatch, PairOutcome};
@@ -58,10 +57,11 @@ pub use syncing::Stage as SyncStage;
 mod session;
 mod voicing;
 mod wire;
-use voicing::{fallback_voice, Voicing};
 pub use wire::*;
 #[cfg(test)]
 mod contract;
+#[cfg(test)]
+mod engine_tests;
 #[cfg(test)]
 mod recording_tests;
 #[cfg(test)]
@@ -118,36 +118,6 @@ pub struct Paths {
 struct Target {
     book: Arc<BookModel>,
     narration: narration::NarrationPlan,
-}
-
-/// The engine in use and what Core knows about it.
-struct ActiveEngine {
-    profile: EngineProfile,
-    engine: Arc<dyn SpeechEngine>,
-    model: Option<String>,
-    /// The voice for books that do not choose one.
-    voice: Option<String>,
-    voices: VoiceList,
-    launched: Option<std::process::Child>,
-}
-
-/// What the active engine has said about its voices.
-#[derive(Debug, Clone, PartialEq)]
-enum VoiceList {
-    /// Not asked yet, or it could not be reached when asked.
-    Unchecked,
-    Known(Vec<aoide_tts::Voice>),
-    /// It was ready but listed none; saved voice names are used as they are.
-    Unlisted,
-}
-
-impl VoiceList {
-    fn offered(&self) -> Option<&[aoide_tts::Voice]> {
-        match self {
-            VoiceList::Known(voices) => Some(voices),
-            VoiceList::Unchecked | VoiceList::Unlisted => None,
-        }
-    }
 }
 
 /// Where Core's events go: Tauri's app handle in the app, a recorder in tests.
@@ -214,16 +184,15 @@ pub struct Core {
     books: Mutex<HashMap<String, Arc<BookModel>>>,
     playback: playback::Playback,
     output: Mutex<Option<PipeOutput>>,
-    engine: Mutex<ActiveEngine>,
+    /// The speech engine in use.
+    engine: engine::Engine,
     worker: Mutex<Worker>,
     worker_events: tokio::sync::mpsc::UnboundedSender<WorkerEvent>,
     store: Arc<Store>,
-    registry: Registry,
     /// Whole-book preparation. Lock before `library` when both are needed.
     preparation: Mutex<Preparation>,
     generation: Mutex<GenerationStateView>,
     last_player_state: Mutex<Option<PlayerStateView>>,
-    last_engine_status: Mutex<Option<EngineStatusView>>,
     sleep: Mutex<Option<SleepTimer>>,
     media: Mutex<Option<std::sync::mpsc::Sender<crate::media::MediaUpdate>>>,
     extras: Mutex<listening::ExtrasState>,
@@ -377,6 +346,8 @@ impl Core {
             transcribers,
             paths.models_dir.clone(),
         );
+        let engine_component =
+            engine::Engine::new(registry, profile, Arc::clone(&engine), Arc::clone(&events));
         let core = Arc::new(Self {
             events,
             reporter,
@@ -387,22 +358,13 @@ impl Core {
             books: Mutex::new(HashMap::new()),
             playback: playback::Playback::new(player),
             output: Mutex::new(None),
-            engine: Mutex::new(ActiveEngine {
-                voice: profile.voice_id.clone(),
-                voices: VoiceList::Unchecked,
-                profile,
-                engine,
-                model: None,
-                launched: None,
-            }),
+            engine: engine_component,
             worker: Mutex::new(worker),
             worker_events: events_tx,
             store,
-            registry,
             preparation: Mutex::new(preparation),
             generation: Mutex::new(GenerationStateView::default()),
             last_player_state: Mutex::new(None),
-            last_engine_status: Mutex::new(None),
             sleep: Mutex::new(None),
             media: Mutex::new(None),
             extras: Mutex::new(Default::default()),
@@ -878,44 +840,11 @@ impl Core {
     }
 
     fn language_warning(&self, language: Option<&str>) -> Option<String> {
-        let language = language?;
-        let engine = lock(&self.engine);
-        let descriptor = engine.engine.descriptor();
-        (!supports_language(descriptor, language)).then(|| {
-            format!(
-                "{} does not list the book's language ({language}); narration may sound wrong.",
-                engine.profile.name
-            )
-        })
+        self.engine.language_warning(language)
     }
 
     fn voice_warning(&self, book: &BookModel) -> Option<String> {
-        let settings = self.book_settings(&book.id);
-        let engine = lock(&self.engine);
-        let voices = engine.voices.offered()?;
-        let voicing = Voicing::resolve(
-            engine.engine.descriptor(),
-            &engine.profile.params,
-            engine.voice.as_deref(),
-            &settings,
-            None,
-            fallback_voice(voices).as_deref(),
-            Some(voices),
-        )
-        .ok()?;
-        let missing = voicing.missing_voice?;
-        let name = |id: &str| {
-            voices.iter().find(|v| v.id == id).map_or_else(
-                || id.trim_end_matches(".wav").to_owned(),
-                |v| v.display_name.clone(),
-            )
-        };
-        Some(format!(
-            "{} is not one of {}'s voices, so {} reads this book. Choose a voice in the book's settings.",
-            name(&missing),
-            engine.profile.name,
-            name(&voicing.voice_id)
-        ))
+        self.engine.voice_warning(&self.book_settings(&book.id))
     }
 
     pub fn open_book(&self, id: &str) -> Result<BookView, String> {
@@ -959,72 +888,16 @@ impl Core {
 
     // ------------------------------------------------------------ playback
 
-    /// Learns the engine's voices and settles the default voice before anything is planned.
     async fn ensure_voice(&self) -> Result<String, String> {
-        let checked = self.check_voices(false).await;
-        if let Some(voice) = lock(&self.engine).voice.clone() {
-            return Ok(voice);
-        }
-        checked?;
-        Err("the speech engine has no voices".into())
+        self.engine.ensure_voice().await
     }
 
-    /// Asks the engine for its voices once. The default voice becomes the profile's if the
-    /// engine offers it, otherwise the engine's own. `ready`: the engine just reported ready,
-    /// so a failed listing means it cannot list voices rather than that it is down.
     async fn check_voices(&self, ready: bool) -> Result<(), String> {
-        let engine = {
-            let state = lock(&self.engine);
-            if state.voices != VoiceList::Unchecked {
-                return Ok(());
-            }
-            Arc::clone(&state.engine)
-        };
-        let listed = engine.voices().await;
-        let mut state = lock(&self.engine);
-        if !Arc::ptr_eq(&state.engine, &engine) {
-            return Ok(()); // Switched meanwhile; the new engine is asked on its own.
-        }
-        match listed {
-            Ok(voices) if voices.is_empty() => state.voices = VoiceList::Unlisted,
-            Ok(voices) => {
-                let named = state
-                    .profile
-                    .voice_id
-                    .clone()
-                    .filter(|v| !v.trim().is_empty());
-                let offered = named.clone().filter(|v| voices.iter().any(|o| &o.id == v));
-                if let (Some(voice), None) = (&named, &offered) {
-                    tracing::warn!(
-                        event = "engine.voice",
-                        engine = %state.profile.name,
-                        %voice,
-                        "The engine has no such voice; using its default"
-                    );
-                }
-                state.voice = offered.or_else(|| fallback_voice(&voices));
-                state.voices = VoiceList::Known(voices);
-            }
-            Err(error) => {
-                if ready {
-                    state.voices = VoiceList::Unlisted;
-                }
-                return Err(error.to_string());
-            }
-        }
-        Ok(())
+        self.engine.check_voices(ready).await
     }
 
     async fn ensure_model(&self) {
-        if lock(&self.engine).model.is_some() {
-            return;
-        }
-        let engine = Arc::clone(&lock(&self.engine).engine);
-        if let Ok(EngineStatus::Ready(model)) =
-            tokio::time::timeout(Duration::from_secs(3), engine.status()).await
-        {
-            lock(&self.engine).model = model;
-        }
+        self.engine.ensure_model().await
     }
 
     fn ensure_output(&self) -> Result<(), String> {
@@ -1129,11 +1002,7 @@ impl Core {
     }
 
     pub async fn save_book_settings(&self, id: &str, settings: BookSettings) -> Result<(), String> {
-        {
-            let engine = lock(&self.engine);
-            resolve_params(engine.engine.descriptor(), &settings.params)
-                .map_err(|e| e.to_string())?;
-        }
+        self.engine.check_params(&settings.params)?;
         lock(&self.library)
             .set_book_value(&BookId(id.into()), BookKey::Settings, &settings)
             .map_err(|e| e.to_string())?;
@@ -1150,20 +1019,14 @@ impl Core {
     }
 
     pub fn engine_options(&self) -> EngineOptions {
-        EngineOptions {
-            descriptors: self.registry.descriptors(),
-            profile: lock(&self.engine).profile.clone(),
-        }
+        self.engine.options()
     }
 
     pub async fn engine_voices(&self) -> Result<Vec<aoide_tts::Voice>, String> {
-        let engine = Arc::clone(&lock(&self.engine).engine);
-        engine.voices().await.map_err(|e| e.to_string())
+        self.engine.voices().await
     }
 
-    /// Speaks a short sample sentence with a profile that may not be saved yet (the settings
-    /// form) or with a book's voice overrides, and returns it as a WAV file. The engine is built
-    /// through the registry, so the profile's network rules apply as for generation.
+    /// Speaks a short sample sentence; see [`engine::Engine::preview`].
     pub async fn preview_voice(
         &self,
         profile: EngineProfile,
@@ -1171,44 +1034,14 @@ impl Core {
         params: Params,
         language: Option<String>,
     ) -> Result<Vec<u8>, String> {
-        let engine = self.registry.create(&profile).map_err(|e| e.to_string())?;
-        let descriptor = engine.descriptor().clone();
-        let book = BookSettings {
-            voice_id: voice_id.filter(|v| !v.trim().is_empty()),
-            params,
-            ..BookSettings::default()
-        };
-        let named = profile
-            .voice_id
-            .as_deref()
-            .is_some_and(|v| !v.trim().is_empty());
-        let fallback = if book.voice_id.is_none() && !named {
-            fallback_voice(&engine.voices().await.map_err(|e| e.to_string())?)
-        } else {
-            None
-        };
-        // The preview is told the book's language (it may not be the open book).
-        let request = Voicing::resolve(
-            &descriptor,
-            &profile.params,
-            profile.voice_id.as_deref(),
-            &book,
-            language.as_deref(),
-            fallback.as_deref(),
-            None, // The settings form previews exactly the voice it names.
-        )?
-        .request(PREVIEW_TEXT.into());
-        let audio = engine
-            .synthesize(&request)
+        self.engine
+            .preview(profile, voice_id, params, language)
             .await
-            .map_err(|e| e.to_string())?;
-        encode_wav(&audio).map_err(|e| e.to_string())
     }
 
     /// Validates, persists and activates a new engine profile. Must run inside the runtime.
     pub async fn save_engine_profile(&self, profile: EngineProfile) -> Result<(), String> {
-        let engine = self.registry.create(&profile).map_err(|e| e.to_string())?;
-        resolve_params(engine.descriptor(), &profile.params).map_err(|e| e.to_string())?;
+        let engine = self.engine.create(&profile)?;
         lock(&self.config).update(|file| file.set_section(config::ENGINE, &profile))?;
         self.activate_profile(profile, engine).await
     }
@@ -1227,15 +1060,7 @@ impl Core {
         );
         // The old worker finishes any in-flight request and then stops.
         *lock(&self.worker) = worker;
-        {
-            let mut state = lock(&self.engine);
-            state.voice = profile.voice_id.clone();
-            state.voices = VoiceList::Unchecked;
-            state.profile = profile;
-            state.engine = engine;
-            state.model = None;
-        }
-        *lock(&self.last_engine_status) = None;
+        self.engine.switch(profile, engine);
         lock(&self.generation).generating_segment_id = None;
         if self.playback.book().is_some() {
             self.restart_session().await?;
@@ -1346,7 +1171,7 @@ impl Core {
         let waiting = lock(&self.preparation).unplanned();
         let mut changed = false;
         for id in waiting {
-            if lock(&self.engine).voice.is_none() && self.book_settings(&id).voice_id.is_none() {
+            if self.engine.default_voice().is_none() && self.book_settings(&id).voice_id.is_none() {
                 continue; // Voice not known yet; planned once playback or preparation resolves it.
             }
             let built = self
@@ -1419,20 +1244,11 @@ impl Core {
     /// The speech engine's plan for reading all of `book` in its voice and settings.
     fn speech_plan(&self, book: &BookModel) -> Result<Plan, String> {
         let settings = self.book_settings(&book.id);
-        let engine = lock(&self.engine);
-        let descriptor = engine.engine.descriptor().clone();
-        let offered = engine.voices.offered();
-        let voicing = Voicing::resolve(
-            &descriptor,
-            &engine.profile.params,
-            engine.voice.as_deref(),
-            &settings,
-            book.language.as_deref(),
-            offered.and_then(fallback_voice).as_deref(),
-            offered,
-        )?;
-        let model = engine.model.clone();
-        drop(engine);
+        let engine::Speech {
+            voicing,
+            descriptor,
+            model,
+        } = self.engine.speech(&settings, book.language.as_deref())?;
         let mut requests = Vec::with_capacity(book.total_entries());
         let mut keys = Vec::new();
         for index in 0..book.total_entries() {
@@ -1733,11 +1549,7 @@ impl Core {
                 WorkerEvent::Started(job) => {
                     let id = self.segment_id_for(&job);
                     lock(&self.generation).generating_segment_id = id;
-                    self.emit_engine_status(EngineStatusView {
-                        profile_name: lock(&self.engine).profile.name.clone(),
-                        state: EngineState::Busy,
-                        detail: None,
-                    });
+                    self.engine.mark_busy();
                 }
                 WorkerEvent::Finished { job, duration_ms } => {
                     // Keys are content hashes, so mark every plan that shares them.
@@ -1867,108 +1679,17 @@ impl Core {
     }
 
     async fn engine_loop(self: Arc<Self>) {
-        let mut launched_once = false;
         loop {
             let busy = lock(&self.generation).generating_segment_id.is_some();
-            if !busy {
-                let (engine, name, launch) = {
-                    let state = lock(&self.engine);
-                    (
-                        Arc::clone(&state.engine),
-                        state.profile.name.clone(),
-                        state.profile.launch.clone(),
-                    )
-                };
-                let status = engine.status().await;
-                if status == EngineStatus::Offline && !launched_once {
-                    if let Some(launch) = launch {
-                        launched_once = true;
-                        self.launch_engine(&launch);
-                    }
-                }
-                if let EngineStatus::Ready(model) = &status {
-                    {
-                        let mut state = lock(&self.engine);
-                        if state.model.is_none() {
-                            state.model = model.clone();
-                        }
-                    }
-                    if lock(&self.engine).voices == VoiceList::Unchecked {
-                        let _ = self.check_voices(true).await;
-                        if lock(&self.engine).voices.offered().is_some() {
-                            self.replan_with_voices().await;
-                        }
-                    }
-                }
-                let (state, detail) = match status {
-                    EngineStatus::Offline => (EngineState::Offline, None),
-                    EngineStatus::Loading => (EngineState::Loading, None),
-                    EngineStatus::Ready(model) => (EngineState::Ready, model),
-                    EngineStatus::Error(message) => (EngineState::Error, Some(message)),
-                };
-                self.emit_engine_status(EngineStatusView {
-                    profile_name: name,
-                    state,
-                    detail,
-                });
+            if self.engine.poll(busy).await == engine::Polled::VoicesKnown {
+                self.replan_with_voices().await;
             }
             tokio::time::sleep(Duration::from_secs(3)).await;
         }
     }
 
-    fn launch_engine(&self, launch: &LaunchCommand) {
-        let mut command = std::process::Command::new(&launch.program);
-        command
-            .args(&launch.args)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
-        if let Some(dir) = &launch.working_dir {
-            command.current_dir(dir);
-        }
-        match command.spawn() {
-            Ok(child) => {
-                tracing::info!(
-                    event = "proc.spawn",
-                    program = "engine",
-                    pid = child.id(),
-                    outcome = "ok",
-                    "Launched the speech engine"
-                );
-                lock(&self.engine).launched = Some(child)
-            }
-            Err(error) => {
-                tracing::error!(event = "proc.spawn", program = "engine", outcome = "failed", %error, "Could not launch the speech engine")
-            }
-        }
-    }
-
-    fn emit_engine_status(&self, status: EngineStatusView) {
-        let mut last = lock(&self.last_engine_status);
-        let before = last.as_ref().map(|s| s.state);
-        if before != Some(status.state) {
-            tracing::info!(
-                event = "engine.state",
-                engine = %status.profile_name,
-                from = crate::logging::name(before),
-                to = crate::logging::name(status.state),
-                detail = status.detail.as_deref(),
-                "Speech engine state changed"
-            );
-        }
-        if last.as_ref() != Some(&status) {
-            self.emit(CoreEvent::EngineStatus(status.clone()));
-            *last = Some(status);
-        }
-    }
-
     pub fn engine_status(&self) -> EngineStatusView {
-        lock(&self.last_engine_status)
-            .clone()
-            .unwrap_or_else(|| EngineStatusView {
-                profile_name: lock(&self.engine).profile.name.clone(),
-                state: EngineState::Offline,
-                detail: Some("checking…".into()),
-            })
+        self.engine.status()
     }
 
     #[cfg(debug_assertions)]
@@ -1980,10 +1701,7 @@ impl Core {
     pub fn shutdown(&self) {
         self.save_progress(true);
         *lock(&self.output) = None;
-        if let Some(mut child) = lock(&self.engine).launched.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
+        self.engine.shutdown();
         self.stop_aligner();
     }
 }

@@ -140,7 +140,7 @@ Pure moves, no logic changes.
 **Done when:** `extras.rs` is gone; `core.rs` declares no `Serialize` type; the regenerated
 `src/api/contract.ts` is byte-identical to before.
 
-### - [ ] 7. Extract the `Engine` component
+### - [x] 7. Extract the `Engine` component
 
 Moves off `Core`: fields `engine`, `registry`, `last_engine_status`; `ActiveEngine`, `VoiceList`;
 `check_voices`, `ensure_voice`, `ensure_model`, `engine_loop`, `launch_engine`,

@@ -44,7 +44,7 @@ impl Recorder {
     }
 }
 
-fn paths(root: &Path) -> Paths {
+pub(super) fn paths(root: &Path) -> Paths {
     Paths {
         home_dir: root.join("Home"),
         library_dir: root.join("Books"),
@@ -98,7 +98,7 @@ pub(super) fn library_folder(root: &Path, settings: &str) -> String {
     library_folder_with(root, settings, "voiceId = \"Test.wav\"")
 }
 
-fn library_folder_with(root: &Path, settings: &str, voice: &str) -> String {
+pub(super) fn library_folder_with(root: &Path, settings: &str, voice: &str) -> String {
     let bytes = epub();
     std::fs::create_dir_all(root.join("Books")).unwrap();
     std::fs::write(root.join("Books/quay-lights.epub"), &bytes).unwrap();

@@ -254,17 +254,11 @@ impl Core {
             self.playback.set_volume(player.volume);
         }
         let Some(profile) = profile else { return };
-        if profile == lock(&self.engine).profile {
+        if profile == self.engine.profile() {
             lock(&self.config).rejected_engine = None;
             return;
         }
-        let engine = self.registry.create(&profile).map_err(|e| e.to_string());
-        let checked = engine.and_then(|engine| {
-            aoide_tts::resolve_params(engine.descriptor(), &profile.params)
-                .map(|_| engine)
-                .map_err(|e| e.to_string())
-        });
-        let result = match checked {
+        let result = match self.engine.create(&profile) {
             Ok(engine) => runtime.block_on(self.activate_profile(profile, engine)),
             Err(error) => Err(error),
         };

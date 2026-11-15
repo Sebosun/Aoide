@@ -236,7 +236,7 @@ impl Core {
         let work = std::env::temp_dir().join(format!("aoide-export-{id}"));
         std::fs::create_dir_all(&work).map_err(|e| e.to_string())?;
         let metadata_path = work.join("chapters.txt");
-        let profile = lock(&self.engine).profile.name.clone();
+        let profile = self.engine.profile_name();
         std::fs::write(
             &metadata_path,
             ffmetadata(
