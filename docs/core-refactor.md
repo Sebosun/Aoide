@@ -189,7 +189,7 @@ Characterisation tests first: one per event, asserting the work the engine is th
 component; every `PlanEvent` variant has a test; `Core::activate_profile` is an engine switch
 followed by one `apply`.
 
-### - [ ] 9. Make progress saving a return value
+### - [x] 9. Make progress saving a return value
 
 `save_progress` is called from 7 sites after playback changes.
 

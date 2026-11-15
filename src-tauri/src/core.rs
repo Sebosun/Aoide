@@ -1032,10 +1032,11 @@ impl Core {
         let segment = book
             .segment(self.playback.position().index)
             .map(|seg| seg.id.clone());
-        self.playback.stop();
+        // The playhead stays where it is, so there is no new place to save.
+        let _ = self.playback.stop();
         self.play(&book.id, None, segment).await?;
         if !playing {
-            self.playback.pause();
+            let _ = self.playback.pause();
         }
         Ok(())
     }
@@ -1185,8 +1186,7 @@ impl Core {
     /// Moves the playhead `offset_ms` into entry `index`; `None` starts where the entry's text
     /// does (for a recording, just before its first word).
     fn seek_at(&self, index: usize, offset_ms: Option<u32>) {
-        self.playback.seek(index, offset_ms);
-        self.save_progress(true);
+        self.save_place(self.playback.seek(index, offset_ms));
         self.plan(PlanEvent::ListeningChanged { jump: true });
     }
 
@@ -1196,8 +1196,7 @@ impl Core {
     }
 
     pub fn pause(&self) {
-        self.playback.pause();
-        self.save_progress(true);
+        self.save_place(self.playback.pause());
     }
 
     pub fn resume(&self) -> Result<(), String> {
@@ -1206,8 +1205,7 @@ impl Core {
     }
 
     pub fn stop(&self) {
-        self.save_progress(true);
-        self.playback.stop();
+        self.save_place(self.playback.stop());
         *lock(&self.output) = None;
         self.plan(PlanEvent::ListeningStopped);
     }
@@ -1333,8 +1331,9 @@ impl Core {
         }
     }
 
-    fn save_progress(&self, force: bool) {
-        let Some(playback::Place { book, index }) = self.playback.place_to_save(force) else {
+    /// Saves the listener's place; the one way it is saved.
+    fn save_place(&self, place: Option<playback::Place>) {
+        let Some(playback::Place { book, index }) = place else {
             return;
         };
         let Some((chapter, local)) = book.locate(index) else {
@@ -1408,7 +1407,7 @@ impl Core {
             interval.tick().await;
             if self.provide_audio() {
                 self.plan(PlanEvent::ListeningChanged { jump: false });
-                self.save_progress(false);
+                self.save_place(self.playback.place_to_save(false));
             }
             self.keep_output_alive();
             let state = self.player_state();
@@ -1502,7 +1501,7 @@ impl Core {
 
     /// Stops processes Aoide started and saves progress.
     pub fn shutdown(&self) {
-        self.save_progress(true);
+        self.save_place(self.playback.place_to_save(true));
         *lock(&self.output) = None;
         self.engine.shutdown();
         self.stop_aligner();

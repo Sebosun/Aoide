@@ -630,8 +630,8 @@ impl Core {
         if self.playback.recording_of(id).is_none() {
             self.play(id, None, None).await?;
         }
-        self.playback.seek_recording(id, at_ms)?;
-        self.save_progress(true);
+        let place = self.playback.seek_recording(id, at_ms)?;
+        self.save_place(place);
         self.plan(PlanEvent::ListeningChanged { jump: true });
         self.playback.play();
         self.ensure_output()

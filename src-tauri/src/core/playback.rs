@@ -44,7 +44,8 @@ pub struct Tick {
     pub to_align: Vec<Alignable>,
 }
 
-/// The playhead, for saving the listener's place.
+/// The playhead, for saving the listener's place. Returned by each change that should be
+/// saved at once, for the caller to save.
 pub struct Place {
     pub book: Arc<BookModel>,
     pub index: usize,
@@ -129,8 +130,10 @@ impl Playback {
         lock(&self.player).play();
     }
 
-    pub fn pause(&self) {
+    #[must_use = "the place is lost unless it is saved"]
+    pub fn pause(&self) -> Option<Place> {
         lock(&self.player).pause();
+        self.place_to_save(true)
     }
 
     pub fn speed(&self) -> f32 {
@@ -151,7 +154,7 @@ impl Playback {
 
     /// The audio output failed: playback pauses with `error` shown.
     pub fn fail(&self, error: String) {
-        self.pause();
+        lock(&self.player).pause();
         *lock(&self.error) = Some(error);
     }
 
@@ -173,14 +176,19 @@ impl Playback {
         *lock(&self.error) = None;
     }
 
-    pub fn stop(&self) {
+    /// Ends the session; returns where it was.
+    #[must_use = "the place is lost unless it is saved"]
+    pub fn stop(&self) -> Option<Place> {
+        let place = self.place_to_save(true);
         lock(&self.player).load(Vec::new(), 0);
         *lock(&self.session) = None;
+        place
     }
 
     /// Moves the playhead `offset_ms` into entry `index`; `None` starts where the entry's text
     /// does (for a recording, just before its first word).
-    pub fn seek(&self, index: usize, offset_ms: Option<u32>) {
+    #[must_use = "the place is lost unless it is saved"]
+    pub fn seek(&self, index: usize, offset_ms: Option<u32>) -> Option<Place> {
         let (offset, released) = match lock(&self.session).as_mut() {
             Some(session) => {
                 let offset = offset_ms.unwrap_or_else(|| {
@@ -192,15 +200,19 @@ impl Playback {
             }
             None => (0, Vec::new()),
         };
-        let mut player = lock(&self.player);
-        for entry in released {
-            player.release(entry);
+        {
+            let mut player = lock(&self.player);
+            for entry in released {
+                player.release(entry);
+            }
+            player.seek_to(index, offset);
         }
-        player.seek_to(index, offset);
+        self.place_to_save(true)
     }
 
     /// Moves the playhead to `at_ms` on the timeline of book `id`'s recording.
-    pub fn seek_recording(&self, id: &str, at_ms: u64) -> Result<(), String> {
+    #[must_use = "the place is lost unless it is saved"]
+    pub fn seek_recording(&self, id: &str, at_ms: u64) -> Result<Option<Place>, String> {
         let plan = self
             .recording_of(id)
             .ok_or("the recording is not playing")?;
@@ -210,8 +222,7 @@ impl Playback {
             .position(|c| c.audio.contains(&at_ms))
             .ok_or("that time is not in the recording")?;
         let offset = (at_ms - plan.clips[index].audio.start) as u32;
-        self.seek(index, Some(offset));
-        Ok(())
+        Ok(self.seek(index, Some(offset)))
     }
 
     // ------------------------------------------------------------ audio
@@ -347,6 +358,7 @@ impl Playback {
     // ------------------------------------------------------------ views
 
     /// The playhead, when `force` or it was last saved a while ago.
+    #[must_use = "the place is lost unless it is saved"]
     pub fn place_to_save(&self, force: bool) -> Option<Place> {
         let mut session = lock(&self.session);
         let session = session.as_mut()?;
@@ -551,7 +563,8 @@ mod tests {
         let playback = Playback::new(PlayerCore::new(RATE));
         playback.start(speech(&[0]), 0);
         assert!(playback.is_book("b") && playback.book().is_some());
-        playback.stop();
+        let place = playback.stop().expect("where it stopped");
+        assert_eq!((place.book.id.as_str(), place.index), ("b", 0));
         assert!(playback.tick(&memory(&["k0"])).is_none());
         let state = playback.state();
         assert_eq!(
@@ -615,7 +628,8 @@ mod tests {
         let playback = Playback::new(PlayerCore::new(RATE));
         playback.start(speech(&[0, 1, 2, 3]), 0);
         playback.tick(&memory(&["k0", "k1", "k2", "k3"])).unwrap();
-        playback.seek(2, None);
+        let place = playback.seek(2, None).expect("the place sought");
+        assert_eq!(place.index, 2);
         let tick = playback.tick(&memory(&["k0", "k1", "k2", "k3"])).unwrap();
         assert_eq!((playback.position().index, tick.moved), (2, true));
         assert_eq!(playback.state().segment_id, Some("1:0:0".into()));

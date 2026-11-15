@@ -559,3 +559,56 @@ async fn a_change_that_cannot_be_saved_in_the_background_is_reported_once() {
     );
     assert_eq!(problem["error"]["kind"], "io");
 }
+
+// ------------------------------------------------------------ saving the place
+
+/// Core playing chapter `chapter` of the test book, with nothing saved yet; and what is saved
+/// (the chapter) once asked.
+async fn playing_chapter(
+    root: &Path,
+    chapter: usize,
+) -> (Arc<Core>, String, impl Fn(&Core) -> Option<u32>) {
+    let engine = super::engine_tests::Scripted::new(
+        "main",
+        aoide_tts::EngineStatus::Ready(None),
+        &["A.wav"],
+        false,
+    );
+    let (core, _events, id) =
+        super::engine_tests::start(root, &[&engine], "voiceId = \"A.wav\"").await;
+    core.play(&id, Some(chapter), None).await.unwrap();
+    let book = id.clone();
+    let saved = move |core: &Core| {
+        core.book_overview(&book)
+            .unwrap()
+            .progress
+            .map(|p| p.chapter)
+    };
+    assert_eq!(saved(&core), None, "playing alone saves nothing at once");
+    (core, id, saved)
+}
+
+#[tokio::test]
+async fn pausing_saves_the_place() {
+    let dir = tempfile::tempdir().unwrap();
+    let (core, _id, saved) = playing_chapter(dir.path(), 1).await;
+    core.pause();
+    assert_eq!(saved(&core), Some(1));
+}
+
+#[tokio::test]
+async fn stopping_saves_the_place() {
+    let dir = tempfile::tempdir().unwrap();
+    let (core, _id, saved) = playing_chapter(dir.path(), 1).await;
+    core.stop();
+    assert_eq!(saved(&core), Some(1));
+}
+
+#[tokio::test]
+async fn moving_the_playhead_saves_the_new_place() {
+    let dir = tempfile::tempdir().unwrap();
+    let (core, _id, saved) = playing_chapter(dir.path(), 1).await;
+    core.skip_chapter(-1).await.unwrap();
+    assert_eq!(saved(&core), Some(0));
+    core.stop();
+}
