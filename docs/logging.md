@@ -70,6 +70,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `app.migrate` | info | | `lib.rs`, moving Folio's folders |
 | `app.log` | warn | `error` | `logging.rs`, the file cannot be written |
 | `app.emit` | error | `name`, `error` | `core.rs`, an event the window did not get |
+| `app.poisoned` | error | `error` (reported) | `core.rs` `lock`, the first lock a panic poisoned |
 | `config.saved` | info | `section`, `changed` (setting names) | `core/settings.rs` `update_app_settings` |
 | `config.save` | warn | `kind`, `error`, `repeat` (reported); `section`, `outcome` from the first-run migration | `core.rs` (player), `core/config.rs` (migration) |
 | `config.problem` | warn | `error` | `core.rs`, a settings file Aoide cannot read |

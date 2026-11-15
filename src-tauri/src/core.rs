@@ -1,6 +1,10 @@
-//! Application core: library, playback session, generation and engine glue.
+//! Application core: builds the components (each its own module under `core/`, owning its
+//! state and locks), runs the background loops, implements the components' host traits and
+//! forwards commands. See `docs/core-refactor.md`, section Component.
 //!
-//! Locks are `std::sync::Mutex` and are never held across `.await`.
+//! Locks are `std::sync::Mutex`, taken through [`lock`], and never held across `.await`.
+//! `library` is the leaf lock: taken last and released before any call out of the component
+//! holding it. A component's own locks are released before it calls its host.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -23,6 +27,7 @@ use tauri::{AppHandle, Emitter};
 mod align;
 mod audiobooks;
 mod config;
+mod controls;
 pub use config::PreferencesView;
 mod discovery;
 mod engine;
@@ -147,10 +152,40 @@ fn now_ms() -> i64 {
         .map_or(0, |d| d.as_millis() as i64)
 }
 
+/// Tells the user of a poisoned lock; set once, by the first core started.
+static POISON_REPORTER: std::sync::OnceLock<error::Reporter> = std::sync::OnceLock::new();
+static POISONED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Locks `mutex`, carrying on with its data when a thread panicked while holding it.
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex
         .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(|poisoned| recover(poisoned, &POISONED, POISON_REPORTER.get()))
+}
+
+/// Carries on with a poisoned lock's data; the first time (`told` unset), says so.
+fn recover<G>(
+    poisoned: std::sync::PoisonError<G>,
+    told: &std::sync::atomic::AtomicBool,
+    reporter: Option<&error::Reporter>,
+) -> G {
+    if !told.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        let error = format!(
+            "a lock on {} was poisoned by a panic",
+            std::any::type_name::<G>()
+        );
+        match reporter {
+            Some(reporter) => reporter.report(
+                "app.poisoned",
+                "Something failed and Aoide carried on",
+                error,
+            ),
+            None => {
+                tracing::error!(event = "app.poisoned", %error, "Carrying on past a poisoned lock")
+            }
+        }
+    }
+    poisoned.into_inner()
 }
 
 // ---------------------------------------------------------------- core
@@ -242,23 +277,16 @@ pub struct Core {
     engine: engine::Engine,
     /// What the speech engine is asked to make.
     generation: generation::Generation,
-    last_player_state: Mutex<Option<PlayerStateView>>,
-    sleep: Mutex<Option<SleepTimer>>,
-    media: Mutex<Option<std::sync::mpsc::Sender<crate::media::MediaUpdate>>>,
+    /// The sleep timer, the media keys and the player state last sent.
+    controls: controls::Controls,
     extras: Mutex<listening::ExtrasState>,
-    /// Exact word timings being asked for. Never held with the playback's locks.
+    /// Exact word timings being asked for.
     aligning: Mutex<align::Aligning>,
     config: Mutex<config::Config>,
     /// Recordings and their sync.
     recordings: recordings::Recordings,
     /// What "Find audiobooks" found.
     audiobooks: Mutex<audiobooks::Matches>,
-}
-
-#[derive(Debug, Clone, Copy)]
-enum SleepTimer {
-    At(Instant),
-    EndOfChapter(usize),
 }
 
 fn default_profile() -> EngineProfile {
@@ -324,6 +352,7 @@ impl Core {
         let engine = registry.create(&profile).map_err(|e| e.to_string())?;
         let library = Arc::new(Mutex::new(library));
         let reporter = error::Reporter::new(Arc::clone(&events));
+        let _ = POISON_REPORTER.set(reporter.clone());
         let (generation, worker_events) = generation::Generation::new(
             Arc::clone(&library),
             paths.audio_dir.clone(),
@@ -362,9 +391,7 @@ impl Core {
             output: Mutex::new(None),
             engine: engine_component,
             generation,
-            last_player_state: Mutex::new(None),
-            sleep: Mutex::new(None),
-            media: Mutex::new(None),
+            controls: Default::default(),
             extras: Mutex::new(Default::default()),
             aligning: Mutex::new(Default::default()),
             config: Mutex::new(config),
@@ -377,7 +404,7 @@ impl Core {
             core.spawn_sync_runner();
         }
         if background {
-            *lock(&core.media) = crate::media::spawn(&core);
+            core.controls.attach_media(crate::media::spawn(&core));
         }
         if background && core.app_settings().scan.on_startup {
             let scanner = Arc::clone(&core);
@@ -949,43 +976,11 @@ impl Core {
     /// `minutes`: pause after that long; `end_of_chapter`: pause when the chapter ends.
     /// Neither cancels the timer.
     pub fn set_sleep_timer(&self, minutes: Option<u32>, end_of_chapter: bool) {
-        let timer = if end_of_chapter {
-            self.playback.book().and_then(|book| {
-                book.locate(self.playback.position().index)
-                    .map(|(c, _)| SleepTimer::EndOfChapter(c))
-            })
-        } else {
-            minutes.map(|m| SleepTimer::At(Instant::now() + Duration::from_secs(u64::from(m) * 60)))
-        };
-        *lock(&self.sleep) = timer;
-    }
-
-    fn check_sleep(&self, chapter: usize) {
-        let mut sleep = lock(&self.sleep);
-        let due = match *sleep {
-            Some(SleepTimer::At(at)) => Instant::now() >= at,
-            Some(SleepTimer::EndOfChapter(c)) => chapter != c,
-            None => false,
-        };
-        if due {
-            *sleep = None;
-            drop(sleep);
-            self.pause();
-        }
-    }
-
-    fn sleep_view(&self) -> Option<SleepView> {
-        match *lock(&self.sleep) {
-            Some(SleepTimer::At(at)) => Some(SleepView {
-                remaining_ms: Some(at.saturating_duration_since(Instant::now()).as_millis() as u64),
-                end_of_chapter: false,
-            }),
-            Some(SleepTimer::EndOfChapter(_)) => Some(SleepView {
-                remaining_ms: None,
-                end_of_chapter: true,
-            }),
-            None => None,
-        }
+        let chapter = self.playback.book().and_then(|book| {
+            book.locate(self.playback.position().index)
+                .map(|(chapter, _)| chapter)
+        });
+        self.controls.set_sleep(minutes, end_of_chapter, chapter);
     }
 
     /// Case-insensitive search of the book's text; at most 200 hits in reading order.
@@ -993,38 +988,25 @@ impl Core {
         Ok(self.load_book(id)?.search(query, 200))
     }
 
-    fn send_now_playing(&self, chapter: usize) {
-        let Some((id, title, authors, chapter_title)) = self.playback.book().map(|book| {
-            (
-                book.id.clone(),
-                book.title.clone(),
-                book.authors.join(", "),
-                book.chapters
-                    .get(chapter)
-                    .map(|c| c.title.clone())
-                    .unwrap_or_default(),
-            )
-        }) else {
-            return;
-        };
+    /// What the now-playing panel shows for `chapter` of the book playing.
+    fn now_playing(&self, chapter: usize) -> Option<controls::NowPlaying> {
+        let book = self.playback.book()?;
         let cover = lock(&self.library)
-            .book(&BookId(id))
+            .book(&BookId(book.id.clone()))
             .ok()
             .flatten()
             .and_then(|r| r.cover_path)
             .map(|p| p.to_string_lossy().into_owned());
-        self.send_media(crate::media::MediaUpdate::Metadata {
-            title: chapter_title,
-            album: title,
-            artist: authors,
+        Some(controls::NowPlaying {
+            title: book
+                .chapters
+                .get(chapter)
+                .map(|c| c.title.clone())
+                .unwrap_or_default(),
+            album: book.title.clone(),
+            artist: book.authors.join(", "),
             cover,
-        });
-    }
-
-    fn send_media(&self, update: crate::media::MediaUpdate) {
-        if let Some(tx) = lock(&self.media).as_ref() {
-            let _ = tx.send(update);
-        }
+        })
     }
 
     pub fn set_speed(&self, speed: f32) {
@@ -1128,32 +1110,15 @@ impl Core {
             }
             self.keep_output_alive();
             let state = self.player_state();
-            self.check_sleep(state.chapter);
+            if self.controls.sleep_due(state.chapter) {
+                self.pause();
+            }
             self.track_listening(&state);
-            let mut last = lock(&self.last_player_state);
-            let previous = last.as_ref();
-            if previous.map(|p| p.status) != Some(state.status) {
-                tracing::info!(
-                    event = "player.status",
-                    book = state.book_id.as_deref().map(crate::logging::book),
-                    from = crate::logging::name(previous.map(|p| p.status)),
-                    to = crate::logging::name(state.status),
-                    chapter = state.chapter,
-                    source = crate::logging::name(state.source),
-                    error = state.error.as_deref(),
-                    "Player status changed"
-                );
-                self.send_media(crate::media::MediaUpdate::Playback(state.status));
-            }
-            if state.book_id.is_some()
-                && previous.map(|p| (&p.book_id, p.chapter))
-                    != Some((&state.book_id, state.chapter))
+            if let Some(state) = self
+                .controls
+                .observe(state, &|chapter| self.now_playing(chapter))
             {
-                self.send_now_playing(state.chapter);
-            }
-            if last.as_ref() != Some(&state) {
-                self.emit(CoreEvent::PlayerState(state.clone()));
-                *last = Some(state);
+                self.emit(CoreEvent::PlayerState(state));
             }
         }
     }
@@ -1187,7 +1152,7 @@ impl Core {
 
     pub(crate) fn player_state(&self) -> PlayerStateView {
         PlayerStateView {
-            sleep: self.sleep_view(),
+            sleep: self.controls.sleep_view(),
             ..self.playback.state()
         }
     }

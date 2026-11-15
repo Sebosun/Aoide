@@ -612,3 +612,28 @@ async fn moving_the_playhead_saves_the_new_place() {
     assert_eq!(saved(&core), Some(0));
     core.stop();
 }
+
+#[test]
+fn the_first_poisoned_lock_is_reported_once() {
+    let events = Arc::new(Recorder::default());
+    let reporter = super::error::Reporter::new(Arc::clone(&events) as Arc<dyn Events>);
+    let told = std::sync::atomic::AtomicBool::new(false);
+    let mutex = Arc::new(Mutex::new(1));
+    let held = Arc::clone(&mutex);
+    let _ = std::thread::spawn(move || {
+        let _guard = held.lock().unwrap();
+        panic!("poisoning the lock on purpose");
+    })
+    .join();
+
+    for _ in 0..2 {
+        let guard = mutex
+            .lock()
+            .unwrap_or_else(|poisoned| super::recover(poisoned, &told, Some(&reporter)));
+        assert_eq!(*guard, 1, "the data is kept");
+    }
+
+    let problems = events.payloads(CoreEvent::PROBLEM);
+    assert_eq!(problems.len(), 1, "{problems:?}");
+    assert_eq!(problems[0]["error"]["kind"], "internal");
+}

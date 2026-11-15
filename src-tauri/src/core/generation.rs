@@ -96,7 +96,7 @@ pub(super) struct Generation {
     worker: Mutex<Worker>,
     worker_events: UnboundedSender<WorkerEvent>,
     store: Arc<Store>,
-    /// Whole-book preparation. Lock before `library` when both are needed.
+    /// Whole-book preparation.
     preparation: Mutex<Preparation>,
     state: Mutex<GenerationStateView>,
     /// The view last sent to the window.
