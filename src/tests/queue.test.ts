@@ -33,7 +33,7 @@ const button = (label: string) => {
 async function openQueue() {
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
-  const pill = wrapper.get('nav [aria-haspopup="dialog"].engine-pill');
+  const pill = wrapper.get('nav [aria-haspopup="dialog"].engine-card');
   expect(pill.attributes("aria-expanded")).toBe("false");
   await pill.trigger("click");
   await flushPromises();
@@ -41,7 +41,7 @@ async function openQueue() {
   return { wrapper, pill };
 }
 
-it("shows the books waiting for preparation in queue order, from the engine pill", async () => {
+it("shows the books waiting for preparation in queue order, from the sidebar card", async () => {
   await mock.prepareBook("book-1");
   await mock.prepareBook("book-0");
   const { wrapper } = await openQueue();
@@ -94,6 +94,7 @@ it("pauses, resumes and cancels a book from the queue", async () => {
 });
 
 it("shows what is being made for the book playing now", async () => {
+  await mock.prepareBook("book-1");
   const { wrapper } = await openQueue();
   mock.emitGeneration({
     ...initialGeneration(),
@@ -110,9 +111,31 @@ it("shows what is being made for the book playing now", async () => {
   wrapper.unmount();
 });
 
-it("says when nothing is waiting, opens a book or the engine settings, and closes on Escape", async () => {
+it("shows the engine in the sidebar only while a book is queued or the engine has failed", async () => {
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  const card = () => wrapper.find("nav .engine-card");
+  expect(card().exists()).toBe(false);
+  expect(wrapper.text()).not.toContain("Local Chatterbox");
+
+  await mock.prepareBook("book-1");
+  await flushPromises();
+  expect(card().text()).toContain("Narrating 1 book");
+  expect(card().text()).toContain("A Map of Quiet Places · 3 / 120");
+  await mock.cancelPrepare("book-1");
+  await flushPromises();
+  expect(card().exists()).toBe(false);
+
+  mock.emitEngine({ profileName: "Local Chatterbox", state: "error", detail: "The server stopped" });
+  await flushPromises();
+  expect(card().text()).toContain("Local Chatterbox has a problem");
+  expect(card().get('[role="alert"]').text()).toBe("The server stopped");
+  wrapper.unmount();
+});
+
+it("opens a book or the engine settings from the queue, and closes on Escape", async () => {
+  await mock.prepareBook("book-1");
   const { wrapper, pill } = await openQueue();
-  expect(panel()?.textContent).toContain("Nothing is waiting");
   button("Speech engine settings").click();
   await flushPromises();
   const navigation = useNavigationStore();
@@ -122,7 +145,6 @@ it("says when nothing is waiting, opens a book or the engine settings, and close
   navigation.closeSettings();
   await flushPromises();
 
-  await mock.prepareBook("book-1");
   await pill.trigger("click");
   await flushPromises();
   rows()[0].querySelector("button")!.click();
@@ -137,5 +159,22 @@ it("says when nothing is waiting, opens a book or the engine settings, and close
   await flushPromises();
   expect(panel()).toBeNull();
   expect(document.activeElement).toBe(pill.element);
+  wrapper.unmount();
+});
+
+it("says in the reader's player when the speech engine cannot speak", async () => {
+  useNavigationStore().view = "library";
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await wrapper.get('[aria-label="Open The Lantern Keeper"]').trigger("click");
+  await flushPromises();
+  const status = () => wrapper.get(".dock__status").text();
+  expect(status()).toBe("");
+  mock.emitEngine({ profileName: "Local Chatterbox", state: "offline", detail: null });
+  await flushPromises();
+  expect(status()).toBe("Local Chatterbox is offline");
+  mock.emitEngine({ profileName: "Local Chatterbox", state: "busy", detail: null });
+  await flushPromises();
+  expect(status()).toBe("");
   wrapper.unmount();
 });

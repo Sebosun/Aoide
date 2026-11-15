@@ -93,6 +93,16 @@ export function usePlayerControls() {
       ui.toast(String(e), "error");
     }
   }
+  /** The book's recording is playing, not a speech engine. */
+  const recording = computed(() => Boolean(player.state.bookId) && player.state.source === "recording");
+  /** The speech engine, when it cannot speak right now (not when it is ready or busy speaking). */
+  const engineStatus = computed(() => {
+    const engine = player.engine;
+    if (recording.value || engine.state === "ready" || engine.state === "busy") return "";
+    return engine.state === "error"
+      ? `${engine.profileName} has a problem${engine.detail ? `: ${engine.detail}` : ""}`
+      : `${engine.profileName} is ${engine.state}`;
+  });
   /** Shown under the scrubber only while it matters. */
   const status = computed(() =>
     player.state.waitingForSync
@@ -101,10 +111,8 @@ export function usePlayerControls() {
         ? "Buffering…"
         : player.state.offText
           ? "Not in the text"
-          : "",
+          : engineStatus.value,
   );
-  /** The book's recording is playing, not a speech engine. */
-  const recording = computed(() => Boolean(player.state.bookId) && player.state.source === "recording");
   /** The buffer and preparation numbers, for the scrubber's tooltip. */
   const detail = computed(() => {
     const parts: string[] = [];
@@ -160,6 +168,7 @@ export function usePlayerControls() {
     sleepLabel,
     bookmark,
     status,
+    engineStatus,
     detail,
     error,
   };

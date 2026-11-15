@@ -5,7 +5,7 @@ import type { Collection } from "../../api/types";
 import UiMenu from "../ui/UiMenu.vue";
 import type { MenuEntry } from "../ui/types";
 import { useCollections } from "../../composables/useCollections";
-import EnginePill from "./EnginePill.vue";
+import EngineCard from "./EngineCard.vue";
 import MiniPlayer from "../player/MiniPlayer.vue";
 import { useLibraryStore } from "../../stores/library";
 import { useNavigationStore, type View } from "../../stores/navigation";
@@ -121,7 +121,7 @@ const actions = (collection: Collection): MenuEntry[] => [
       </div>
     </section>
     <div class="sidebar__end">
-      <EnginePill />
+      <EngineCard />
       <MiniPlayer />
       <button
         type="button"

@@ -100,7 +100,8 @@ const prepared = computed(() => {
 });
 const engineLine = computed(() => {
   const engine = player.engine;
-  if (engine.state === "ready") return `${engine.profileName} is ready · starts in a few seconds`;
+  if (engine.state === "ready" || engine.state === "busy")
+    return `Read aloud by ${engine.profileName} · starts in a few seconds`;
   if (engine.state === "error")
     return `${engine.profileName} has a problem${engine.detail ? `: ${engine.detail}` : ""}`;
   return `${engine.profileName} is ${engine.state}`;
@@ -313,7 +314,12 @@ const collectionItems = computed<MenuEntry[]>(() => {
         <template v-else-if="audio === 'speech'">
           <b class="item-page__lead">{{ settings?.voiceId ?? "The engine's default voice" }}</b>
           <span class="item-page__facts">{{ player.engine.profileName }} · {{ prepared }}</span>
-          <small v-if="player.engine.state !== 'ready'" class="item-page__engine" role="status">{{ engineLine }}</small>
+          <small
+            v-if="player.engine.state !== 'ready' && player.engine.state !== 'busy'"
+            class="item-page__engine"
+            role="status"
+            >{{ engineLine }}</small
+          >
           <div class="item-page__row">
             <button
               v-for="action in preparation.actions"

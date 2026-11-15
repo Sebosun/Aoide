@@ -86,7 +86,7 @@ it("offers a voice or an audiobook when nothing is set up to play", async () => 
   const card = audioCard(wrapper);
   expect(card.attributes("data-audio")).toBe("none");
   expect(card.text()).toContain("None yet");
-  expect(card.get('[aria-label="Narrate with a voice"]').text()).toContain("Local Chatterbox is ready");
+  expect(card.get('[aria-label="Narrate with a voice"]').text()).toContain("Read aloud by Local Chatterbox");
   await card.get('[aria-label="Pair an audiobook"]').trigger("click");
   await flushPromises();
   expect(pair).toHaveBeenCalledWith(false);

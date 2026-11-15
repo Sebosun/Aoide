@@ -116,7 +116,7 @@ it("lists recordings being synced in the queue with their pause button", async (
   await flushPromises();
   mock.setRecordingForTest("book-1", "transcribing");
   await flushPromises();
-  await click(document.body.querySelector<HTMLElement>("nav .engine-pill"));
+  await click(document.body.querySelector<HTMLElement>("nav .engine-card"));
   const rows = [...document.body.querySelectorAll<HTMLElement>('[aria-label="Recordings being synced"] > li')];
   expect(rows.map((r) => r.textContent)).toEqual([expect.stringContaining("A Map of Quiet Places")]);
   expect(rows[0].textContent).toContain("about 14 min left");
