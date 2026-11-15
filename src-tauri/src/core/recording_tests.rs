@@ -968,7 +968,7 @@ async fn a_recording_gets_exact_word_times_from_the_aligner() {
         .unwrap();
     sync(&f.core);
     let mut settings = f.core.app_settings();
-    settings.aligner = Some(super::extras::AlignerSettings {
+    settings.aligner = Some(super::settings::AlignerSettings {
         base_url: fifty_ms_aligner(),
         network: aoide_tts::NetworkScope::Loopback,
         launch: None,

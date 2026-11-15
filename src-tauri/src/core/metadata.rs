@@ -173,6 +173,25 @@ impl Core {
     }
 }
 
+impl Core {
+    /// Stored details over the EPUB's own metadata.
+    pub fn book_details(&self, id: &str) -> Result<BookDetails, String> {
+        let book = self.load_book(id)?;
+        let stored = lock(&self.library)
+            .book_details(&BookId(id.into()))
+            .map_err(|e| e.to_string())?
+            .unwrap_or_default();
+        Ok(BookDetails {
+            description: stored.description.or_else(|| book.description.clone()),
+            publisher: stored.publisher.or_else(|| book.publisher.clone()),
+            isbn: stored.isbn.or_else(|| book.isbn.clone()),
+            published: stored.published,
+            subjects: stored.subjects,
+            open_library_key: stored.open_library_key,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

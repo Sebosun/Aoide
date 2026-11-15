@@ -11,7 +11,7 @@ use aoide_library::{GlobalKey, Library};
 use aoide_tts::EngineProfile;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use super::extras::AppSettings;
+use super::settings::AppSettings;
 use super::{lock, Core, CoreEvent};
 
 pub(super) const APPEARANCE: &str = "appearance";
@@ -291,7 +291,7 @@ mod tests {
             .unwrap();
         let app = AppSettings {
             cache_limit_bytes: Some(1 << 30),
-            library_sort: crate::core::extras::LibrarySort::Title,
+            library_sort: crate::core::settings::LibrarySort::Title,
             ..AppSettings::default()
         };
         library.set_value(GlobalKey::OldAppSettings, &app).unwrap();
@@ -317,7 +317,7 @@ mod tests {
         );
         let app = on_disk.section::<AppSettings>(APP).unwrap().unwrap();
         assert_eq!(app.cache_limit_bytes, Some(1 << 30));
-        assert_eq!(app.library_sort, crate::core::extras::LibrarySort::Title);
+        assert_eq!(app.library_sort, crate::core::settings::LibrarySort::Title);
         assert_eq!(
             on_disk.section::<Appearance>(APPEARANCE).unwrap(),
             Some(Appearance::default())

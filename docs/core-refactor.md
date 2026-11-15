@@ -128,7 +128,7 @@ value back through `BookKey`; a test shows removing a book removes its cascading
 `grep -rn 'format!("\(book\|progress\|prepare\)\.' src-tauri/src` finds nothing;
 `Library::setting` and `set_setting` are private or gone.
 
-### - [ ] 6. Relocate wire types and split `extras.rs`
+### - [x] 6. Relocate wire types and split `extras.rs`
 
 Pure moves, no logic changes.
 

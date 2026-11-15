@@ -70,7 +70,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `app.migrate` | info | | `lib.rs`, moving Folio's folders |
 | `app.log` | warn | `error` | `logging.rs`, the file cannot be written |
 | `app.emit` | error | `name`, `error` | `core.rs`, an event the window did not get |
-| `config.saved` | info | `section`, `changed` (setting names) | `core/extras.rs` `update_app_settings` |
+| `config.saved` | info | `section`, `changed` (setting names) | `core/settings.rs` `update_app_settings` |
 | `config.save` | warn | `kind`, `error`, `repeat` (reported); `section`, `outcome` from the first-run migration | `core.rs` (player), `core/config.rs` (migration) |
 | `config.problem` | warn | `error` | `core.rs`, a settings file Aoide cannot read |
 | `config.watch` | warn | `error` | `core/config.rs`, watching settings files |
@@ -125,7 +125,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `output.restart` | warn | | `core.rs` `keep_output_alive` |
 | `playback.cache` | warn | `key`, `error` | `core/playback.rs` |
 | `feeder.read` | warn | `error` | `core/feeder.rs` |
-| `cache.evict` | info | `segments`, `books` | `core/extras.rs` `enforce_cache_limit` |
+| `cache.evict` | info | `segments`, `books` | `core/storage.rs` `enforce_cache_limit` |
 | `export.done` | info, warn | `kind`, `book`, `file`, `took_ms`, `outcome`, `error` | `lib.rs` export commands |
 | `proc.spawn` | info, error | `program`, `pid`, `outcome`, `error` | `core.rs` (engine), `core/align.rs` (aligner) |
 | `proc.exit` | warn | `program`, `code`, `stderr_tail` | `core/export.rs`, `core/read_along.rs` (ffmpeg) |
@@ -142,7 +142,7 @@ from it:
 |---|---|---|
 | `progress.save` | saving the listening position | `core.rs` `save_progress` |
 | `library.save` | saving the books left out, or when a book was opened | `core.rs` |
-| `listening.save` | saving listening time | `core/extras.rs` |
+| `listening.save` | saving listening time | `core/listening.rs` |
 | `narration.save` | saving that a book plays its recording | `core/recording.rs` |
 | `discovery.save` | forgetting found books no longer on disk | `core/discovery.rs` |
 | `library.read`, `book.read`, `prep.read` | reading a stored value that does not parse (the default is used) | `core.rs`, `core/preparation.rs` |

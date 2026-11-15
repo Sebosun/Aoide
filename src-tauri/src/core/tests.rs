@@ -9,8 +9,8 @@ use std::time::Duration;
 use aoide_library::Library;
 use aoide_tts::testing::FakeEngine;
 
-use super::extras::{AppSettingsPatch, LibrarySort};
 use super::preparation::Preparation;
+use super::settings::{AppSettingsPatch, LibrarySort};
 use super::{BookSettings, Core, CoreEvent, Environment, Events, Paths, PrepareStage};
 
 #[derive(Default)]

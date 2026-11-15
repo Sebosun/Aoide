@@ -1,0 +1,98 @@
+//! Bookmarks: a saved place in a book, with an excerpt and an optional note.
+
+use super::*;
+
+use aoide_library::Bookmark;
+
+fn excerpt(text: &str) -> String {
+    const MAX: usize = 160;
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if text.chars().count() <= MAX {
+        return text;
+    }
+    let cut: String = text.chars().take(MAX).collect();
+    let cut = cut.rsplit_once(' ').map_or(cut.as_str(), |(head, _)| head);
+    format!("{cut}…")
+}
+
+impl Core {
+    pub fn bookmarks(&self, id: &str) -> Result<Vec<Bookmark>, String> {
+        lock(&self.library)
+            .bookmarks(&BookId(id.into()))
+            .map_err(|e| e.to_string())
+    }
+
+    /// Bookmarks the playhead when `id` is playing, else the book's saved position.
+    pub fn add_bookmark(&self, id: &str, note: &str) -> Result<Bookmark, String> {
+        let playing_index = self
+            .playback
+            .is_book(id)
+            .then(|| self.playback.position().index);
+        let book = self.load_book(id)?;
+        let index = match playing_index {
+            Some(index) => index.min(book.total_entries().saturating_sub(1)),
+            None => {
+                let progress = lock(&self.library)
+                    .progress(&BookId(id.into()))
+                    .map_err(|e| e.to_string())?;
+                progress
+                    .and_then(|p| {
+                        p.segment_id
+                            .as_deref()
+                            .and_then(|s| book.index_of(s))
+                            .or_else(|| book.index_at(p.chapter as usize, p.char_offset as usize))
+                    })
+                    .or_else(|| book.chapter_start(0))
+                    .unwrap_or(0)
+            }
+        };
+        let (chapter, local) = book.locate(index).ok_or("the book has no text")?;
+        let segment = &book.chapters[chapter].segments[local];
+        let library = lock(&self.library);
+        let bookmark_id = library
+            .add_bookmark(
+                &BookId(id.into()),
+                chapter as u32,
+                segment.range.start as u32,
+                Some(&segment.id),
+                &excerpt(&segment.display),
+                note.trim(),
+                now_ms() / 1000,
+            )
+            .map_err(|e| e.to_string())?;
+        library
+            .bookmarks(&BookId(id.into()))
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|b| b.id == bookmark_id)
+            .ok_or_else(|| "bookmark was not saved".into())
+    }
+
+    pub fn update_bookmark_note(&self, bookmark: i64, note: &str) -> Result<(), String> {
+        let found = lock(&self.library)
+            .update_bookmark_note(bookmark, note.trim())
+            .map_err(|e| e.to_string())?;
+        found
+            .then_some(())
+            .ok_or_else(|| "bookmark not found".into())
+    }
+
+    pub fn delete_bookmark(&self, bookmark: i64) -> Result<(), String> {
+        lock(&self.library)
+            .delete_bookmark(bookmark)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn excerpt_collapses_whitespace_and_cuts_at_a_word() {
+        assert_eq!(super::excerpt("A  short\n line."), "A short line.");
+        let long = "word ".repeat(60);
+        let cut = super::excerpt(&long);
+        assert!(cut.ends_with("word…"), "{cut}");
+        assert!(cut.chars().count() <= 161);
+    }
+}

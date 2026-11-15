@@ -1,0 +1,234 @@
+//! App settings: what they hold, and saving a change to them.
+
+use super::*;
+
+/// User preferences that are not part of an engine profile.
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct AppSettings {
+    /// Look books up on Open Library when the user asks for details.
+    pub metadata_lookup: bool,
+    /// Delete the oldest generated audio above this many bytes.
+    pub cache_limit_bytes: Option<u64>,
+    /// Local forced-alignment service for exact word timings; `None` uses Aoide's estimate.
+    pub aligner: Option<AlignerSettings>,
+    /// Library order: "recent", "title", "author" or "progress".
+    pub library_sort: LibrarySort,
+    /// Folders searched by "Find books".
+    pub scan: super::discovery::ScanSettings,
+    /// Carry on preparing queued books when Aoide starts.
+    pub resume_prepare: bool,
+    /// Speech recognition for syncing recordings.
+    pub recognition: super::recording::RecognitionSettings,
+    /// Where "Find audiobooks" looks.
+    pub audiobooks: super::audiobooks::AudiobookSearchSettings,
+    /// Pair found audiobooks without asking: each book's closest audiobooks are tried in turn
+    /// until one passes the quick check.
+    pub verify_audiobooks: bool,
+}
+
+/// A change to some of the [`AppSettings`]: fields left out keep their value; `null` clears an
+/// optional one. The core merges it into the saved settings, so changes from different places
+/// never overwrite each other.
+#[derive(Debug, Clone, Default, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct AppSettingsPatch {
+    #[cfg_attr(test, ts(optional))]
+    pub metadata_lookup: Option<bool>,
+    #[serde(deserialize_with = "present")]
+    #[cfg_attr(test, ts(optional))]
+    pub cache_limit_bytes: Option<Option<u64>>,
+    #[serde(deserialize_with = "present")]
+    #[cfg_attr(test, ts(optional))]
+    pub aligner: Option<Option<AlignerSettings>>,
+    #[cfg_attr(test, ts(optional))]
+    pub library_sort: Option<LibrarySort>,
+    #[cfg_attr(test, ts(optional))]
+    pub scan: Option<super::discovery::ScanSettings>,
+    #[cfg_attr(test, ts(optional))]
+    pub resume_prepare: Option<bool>,
+    #[cfg_attr(test, ts(optional))]
+    pub recognition: Option<super::recording::RecognitionSettings>,
+    #[cfg_attr(test, ts(optional))]
+    pub audiobooks: Option<super::audiobooks::AudiobookSearchSettings>,
+    #[cfg_attr(test, ts(optional))]
+    pub verify_audiobooks: Option<bool>,
+}
+
+/// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
+fn present<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::Deserialize<'de>,
+{
+    <Option<T> as serde::Deserialize>::deserialize(deserializer).map(Some)
+}
+
+impl AppSettingsPatch {
+    /// `settings` with this change made.
+    fn apply(self, mut settings: AppSettings) -> AppSettings {
+        fn set<T>(field: &mut T, value: Option<T>) {
+            if let Some(value) = value {
+                *field = value;
+            }
+        }
+        set(&mut settings.metadata_lookup, self.metadata_lookup);
+        set(&mut settings.cache_limit_bytes, self.cache_limit_bytes);
+        set(&mut settings.aligner, self.aligner);
+        set(&mut settings.library_sort, self.library_sort);
+        set(&mut settings.scan, self.scan);
+        set(&mut settings.resume_prepare, self.resume_prepare);
+        set(&mut settings.recognition, self.recognition);
+        set(&mut settings.audiobooks, self.audiobooks);
+        set(&mut settings.verify_audiobooks, self.verify_audiobooks);
+        settings
+    }
+}
+
+impl From<AppSettings> for AppSettingsPatch {
+    /// A change to every field.
+    fn from(settings: AppSettings) -> Self {
+        let AppSettings {
+            metadata_lookup,
+            cache_limit_bytes,
+            aligner,
+            library_sort,
+            scan,
+            resume_prepare,
+            recognition,
+            audiobooks,
+            verify_audiobooks,
+        } = settings;
+        Self {
+            metadata_lookup: Some(metadata_lookup),
+            cache_limit_bytes: Some(cache_limit_bytes),
+            aligner: Some(aligner),
+            library_sort: Some(library_sort),
+            scan: Some(scan),
+            resume_prepare: Some(resume_prepare),
+            recognition: Some(recognition),
+            audiobooks: Some(audiobooks),
+            verify_audiobooks: Some(verify_audiobooks),
+        }
+    }
+}
+
+/// Library order.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum LibrarySort {
+    Title,
+    Author,
+    Progress,
+    /// Also used for an order this version does not know.
+    #[default]
+    #[serde(other)]
+    Recent,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            metadata_lookup: true,
+            cache_limit_bytes: None,
+            aligner: None,
+            library_sort: LibrarySort::Recent,
+            scan: Default::default(),
+            resume_prepare: true,
+            recognition: Default::default(),
+            audiobooks: Default::default(),
+            verify_audiobooks: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct AlignerSettings {
+    pub base_url: String,
+    #[serde(default)]
+    pub network: NetworkScope,
+    /// Optional command that starts the aligner when it is not running.
+    #[serde(default)]
+    pub launch: Option<LaunchCommand>,
+}
+
+impl Core {
+    pub fn app_settings(&self) -> AppSettings {
+        lock(&self.config)
+            .get::<AppSettings>(super::config::APP)
+            .unwrap_or_default()
+    }
+
+    /// Replaces every app setting (for tests and smoke runs; the window sends patches).
+    pub fn save_app_settings(&self, settings: AppSettings) -> Result<(), String> {
+        self.update_app_settings(settings.into()).map(drop)
+    }
+
+    /// Merges `patch` into the saved app settings, checks and saves them, and does what the
+    /// change asks for. Returns the settings now saved; an invalid change saves nothing.
+    pub fn update_app_settings(&self, patch: AppSettingsPatch) -> Result<AppSettings, String> {
+        let (before, settings) = {
+            // Read, merge and write under one lock, so concurrent patches both land.
+            let mut config = lock(&self.config);
+            let before = config
+                .get::<AppSettings>(super::config::APP)
+                .unwrap_or_default();
+            let settings = patch.apply(before.clone());
+            settings.recognition.validate()?;
+            if let Some(aligner) = &settings.aligner {
+                aoide_aligner::Aligner::new(aoide_aligner::Options {
+                    base_url: aligner.base_url.clone(),
+                    network: aligner.network,
+                    ..Default::default()
+                })
+                .map_err(|e| e.to_string())?;
+            }
+            config.update(|file| file.set_section(super::config::APP, &settings))?;
+            (before, settings)
+        };
+        tracing::info!(event = "config.saved", section = "app", changed = %changed_keys(&before, &settings), "Saved the app settings");
+        if before.recognition != settings.recognition {
+            // Another model size or a recognition server may be what a waiting sync needs.
+            self.models_changed();
+        }
+        if settings.verify_audiobooks && !before.verify_audiobooks {
+            self.verify_found_audiobooks();
+        }
+        lock(&self.extras).last_eviction = None;
+        self.enforce_cache_limit();
+        Ok(settings)
+    }
+}
+
+/// The names of the settings that differ between `before` and `after` (never their values).
+fn changed_keys(before: &impl Serialize, after: &impl Serialize) -> String {
+    let (Ok(serde_json::Value::Object(before)), Ok(serde_json::Value::Object(after))) =
+        (serde_json::to_value(before), serde_json::to_value(after))
+    else {
+        return String::new();
+    };
+    after
+        .iter()
+        .filter(|(key, value)| before.get(*key) != Some(value))
+        .map(|(key, _)| key.as_str())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn settings_saved_before_resume_prepare_existed_keep_resuming() {
+        let old: super::AppSettings =
+            serde_json::from_str(r#"{"metadataLookup":false,"librarySort":"title"}"#).unwrap();
+        assert!(old.resume_prepare);
+        assert!(!old.metadata_lookup);
+        let off: super::AppSettings = serde_json::from_str(r#"{"resumePrepare":false}"#).unwrap();
+        assert!(!off.resume_prepare);
+    }
+}

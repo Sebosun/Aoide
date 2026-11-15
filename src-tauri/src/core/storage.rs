@@ -2,12 +2,12 @@
 //! nothing refers to any more. Source EPUBs outside Aoide's folders are never touched.
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
-use aoide_library::BookId;
+use aoide_library::{BookId, CachedSegment};
 use serde::Serialize;
 
-use super::{lock, Core};
+use super::{lock, Core, CoreEvent};
 
 /// Audio files younger than this may still be on their way into the index.
 const SETTLE: Duration = Duration::from_secs(10 * 60);
@@ -218,6 +218,88 @@ impl Core {
         self.playback.is_book(&id.0)
             || lock(&self.preparation).contains(&id.0)
             || lock(&self.extras).exporting.as_deref() == Some(id.0.as_str())
+    }
+}
+
+/// Cache-size checks run at most this often.
+const EVICTION_INTERVAL: Duration = Duration::from_secs(20);
+const EVICTION_BATCH: usize = 400;
+
+impl Core {
+    /// Deletes the oldest generated audio until the cache fits the configured limit. Audio of
+    /// the playing book and of books being prepared is kept. Throttled.
+    pub(super) fn enforce_cache_limit(&self) {
+        {
+            let mut extras = lock(&self.extras);
+            if extras
+                .last_eviction
+                .is_some_and(|at| at.elapsed() < EVICTION_INTERVAL)
+            {
+                return;
+            }
+            extras.last_eviction = Some(Instant::now());
+        }
+        let Some(limit) = self.app_settings().cache_limit_bytes else {
+            return;
+        };
+        let playing = self.playback.book().map(|b| BookId(b.id.clone()));
+        let mut protected: HashSet<String> = lock(&self.preparation).queued().into_iter().collect();
+        protected.extend(lock(&self.extras).exporting.clone());
+        let mut evicted_books = HashSet::new();
+        let mut evicted_keys = HashSet::new();
+        loop {
+            let library = lock(&self.library);
+            let Ok(total) = library.total_audio_bytes() else {
+                return;
+            };
+            if total <= limit {
+                break;
+            }
+            // Read well past the batch: protected books' old audio may come first.
+            let Ok(oldest) = library.oldest_segments(playing.as_ref(), EVICTION_BATCH * 25) else {
+                return;
+            };
+            let mut excess = total - limit;
+            let victims: Vec<CachedSegment> = oldest
+                .into_iter()
+                .filter(|s| !protected.contains(&s.book_id.0))
+                .take(EVICTION_BATCH)
+                .take_while(|s| {
+                    let take = excess > 0;
+                    excess = excess.saturating_sub(s.bytes);
+                    take
+                })
+                .collect();
+            if victims.is_empty() {
+                break; // Everything left belongs to protected books.
+            }
+            let keys: Vec<String> = victims.iter().map(|s| s.key.clone()).collect();
+            if library.delete_segments(&keys).is_err() {
+                return;
+            }
+            drop(library);
+            for victim in victims {
+                let _ = std::fs::remove_file(self.paths.audio_dir.join(&victim.file));
+                evicted_books.insert(victim.book_id.0);
+                evicted_keys.insert(victim.key);
+            }
+        }
+        if evicted_keys.is_empty() {
+            return;
+        }
+        tracing::info!(
+            event = "cache.evict",
+            segments = evicted_keys.len(),
+            books = evicted_books.len(),
+            "Deleted the oldest made audio to keep the cache within its limit"
+        );
+        self.playback.audio_lost(&evicted_keys);
+        lock(&self.worker).forget(evicted_keys.iter().cloned());
+        {
+            let mut preparation = lock(&self.preparation);
+            preparation.audio_lost(&lock(&self.library), &evicted_books, &evicted_keys);
+        }
+        self.emit(CoreEvent::LibraryChanged);
     }
 }
 
