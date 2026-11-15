@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref } from "vue";
 import { ArrowLeft, BookOpen, FolderSearch, Globe, Download, Headphones, X } from "@lucide/vue";
@@ -190,7 +191,9 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
 
       <p v-if="!discovery.visible.length" class="find__empty">Nothing here.</p>
       <ul class="find__grid">
-        <li
+        <UiCard
+          as="li"
+          pad="sm"
           v-for="c in discovery.visible"
           :key="c.id"
           class="find__card"
@@ -240,7 +243,7 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
               </button>
             </div>
           </div>
-        </li>
+        </UiCard>
       </ul>
       <footer v-if="importable && discovery.visible.length" class="find__footer">
         <label v-if="anyAudiobook" class="find__check"
@@ -415,9 +418,6 @@ const anyAudiobook = computed(() => discovery.visible.some((c) => c.audiobook.le
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
   gap: var(--space-7);
-  padding: var(--space-6);
-  border-radius: var(--radius-lg);
-  background: var(--page);
 }
 .find__card--selected {
   box-shadow: 0 0 0 2px var(--accent);

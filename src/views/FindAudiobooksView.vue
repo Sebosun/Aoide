@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref } from "vue";
 import { ArrowLeft, BookOpen, Folder, Headphones, Link2, Settings, X } from "@lucide/vue";
@@ -211,7 +212,9 @@ function openSettings() {
       </div>
       <p v-if="!audiobooks.visible.length" class="find-audiobooks__empty">Nothing here.</p>
       <ul class="find-audiobooks__grid">
-        <li
+        <UiCard
+          as="li"
+          pad="sm"
           v-for="m in audiobooks.visible"
           :key="m.bookId"
           class="find-audiobooks__card"
@@ -288,7 +291,7 @@ function openSettings() {
               </fieldset>
             </template>
           </div>
-        </li>
+        </UiCard>
       </ul>
       <footer v-if="pairableIds.length" class="find-audiobooks__footer">
         <UiButton
@@ -501,9 +504,6 @@ function openSettings() {
   display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
   gap: var(--space-7);
-  padding: var(--space-6);
-  border-radius: var(--radius-lg);
-  background: var(--page);
 }
 .find-audiobooks__card--selected {
   box-shadow: 0 0 0 2px var(--accent);

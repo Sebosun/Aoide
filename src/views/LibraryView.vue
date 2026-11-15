@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCard from "@/components/ui/UiCard.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import { computed } from "vue";
 import { BookOpen, Search, Trash2, TriangleAlert } from "@lucide/vue";
@@ -150,11 +151,11 @@ const SORTS: { value: LibrarySort; label: string }[] = [
         />
       </li>
     </ul>
-    <div v-else-if="!library.books.length" class="library__empty">
+    <UiCard as="div" pad="lg" v-else-if="!library.books.length" class="library__empty">
       <BookOpen :size="36" :stroke-width="1.4" />
       <b>Your library is empty</b>
       <span>Drop EPUB files on this window, or use Add in the sidebar.</span>
-    </div>
+    </UiCard>
     <p v-else-if="library.query.trim() && !library.visible.length" class="library__note">
       No books match “{{ library.query }}”.
     </p>
@@ -337,9 +338,6 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   display: grid;
   justify-items: center;
   gap: var(--space-5);
-  padding: var(--space-24) var(--space-10);
-  border-radius: var(--radius-xl);
-  background: var(--page);
   color: var(--dim);
   text-align: center;
 }

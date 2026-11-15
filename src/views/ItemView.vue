@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
@@ -384,7 +385,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
     </div>
 
     <div v-if="overview || unfetched" class="item-page__cards">
-      <section v-if="isArticle" class="item-page__card" aria-labelledby="item-text">
+      <UiCard v-if="isArticle" class="item-page__card" aria-labelledby="item-text">
         <div class="item-page__card-head">
           <h2 id="item-text" class="item-page__heading">Text</h2>
           <span class="item-page__badge" :class="{ 'item-page__badge--ok': overview }"
@@ -416,8 +417,8 @@ const collectionItems = computed<MenuEntry[]>(() => {
           </p>
           <p v-for="warning in overview?.warnings ?? []" :key="warning">{{ warning }}</p>
         </div>
-      </section>
-      <section v-else-if="audiobook" class="item-page__card" aria-labelledby="item-text">
+      </UiCard>
+      <UiCard v-else-if="audiobook" class="item-page__card" aria-labelledby="item-text">
         <div class="item-page__card-head">
           <h2 id="item-text" class="item-page__heading">Text</h2>
           <span class="item-page__badge">None</span>
@@ -432,8 +433,8 @@ const collectionItems = computed<MenuEntry[]>(() => {
             <Plus :size="15" aria-hidden="true" /> Add the EPUB…
           </button>
         </div>
-      </section>
-      <section v-else class="item-page__card" aria-labelledby="item-text">
+      </UiCard>
+      <UiCard v-else class="item-page__card" aria-labelledby="item-text">
         <div class="item-page__card-head">
           <h2 id="item-text" class="item-page__heading">Text</h2>
           <span class="item-page__badge item-page__badge--ok"><i aria-hidden="true" />EPUB</span>
@@ -459,9 +460,9 @@ const collectionItems = computed<MenuEntry[]>(() => {
           </p>
           <p v-for="warning in overview?.warnings ?? []" :key="warning">{{ warning }}</p>
         </div>
-      </section>
+      </UiCard>
 
-      <section v-if="overview" class="item-page__card" aria-labelledby="item-audio" :data-audio="audio">
+      <UiCard v-if="overview" class="item-page__card" aria-labelledby="item-audio" :data-audio="audio">
         <div class="item-page__card-head">
           <h2 id="item-audio" class="item-page__heading">Audio</h2>
           <span class="item-page__badge">{{
@@ -543,13 +544,13 @@ const collectionItems = computed<MenuEntry[]>(() => {
           :fraction="progress?.fraction ?? 0"
           :speed="player.state.speed"
         />
-      </section>
+      </UiCard>
     </div>
     <div v-else-if="loading" class="item-page__cards" aria-hidden="true">
       <UiSkeleton class="item-page__ghost-card" /><UiSkeleton class="item-page__ghost-card" />
     </div>
 
-    <section v-if="overview && !isArticle" class="item-page__card" aria-labelledby="item-contents">
+    <UiCard v-if="overview && !isArticle" class="item-page__card" aria-labelledby="item-contents">
       <h2 id="item-contents" class="item-page__heading">Contents</h2>
       <ol class="item-page__chapters" aria-label="Contents">
         <li v-for="(c, i) in overview.chapters" :key="c.index">
@@ -587,12 +588,12 @@ const collectionItems = computed<MenuEntry[]>(() => {
           </template>
         </li>
       </ol>
-    </section>
+    </UiCard>
 
-    <section v-if="overview && !audiobook && !isArticle" class="item-page__card" aria-labelledby="item-online">
+    <UiCard v-if="overview && !audiobook && !isArticle" class="item-page__card" aria-labelledby="item-online">
       <h2 id="item-online" class="item-page__heading">Details online</h2>
       <MetadataLookup :book-id="bookId" :matched="Boolean(details?.openLibraryKey)" @applied="details = $event" />
-    </section>
+    </UiCard>
   </article>
 </template>
 
@@ -710,9 +711,6 @@ const collectionItems = computed<MenuEntry[]>(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
-  padding: var(--space-10);
-  border-radius: var(--radius-lg);
-  background: var(--page);
 }
 .item-page__problem {
   margin: 0;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCard from "@/components/ui/UiCard.vue";
 import { computed, onMounted, ref } from "vue";
 import { api } from "@/api";
 import type { ActivityStats } from "@/api/types";
@@ -42,7 +43,7 @@ const height = (ms: number) => `${(ms / max.value) * 100}%`;
 </script>
 
 <template>
-  <section class="week-card" aria-label="Last 7 days">
+  <UiCard class="week-card" aria-label="Last 7 days">
     <button type="button" class="week-card__eyebrow" title="Activity" @click="navigation.view = 'activity'">
       Last 7 days
     </button>
@@ -79,7 +80,7 @@ const height = (ms: number) => `${(ms / max.value) * 100}%`;
         <span class="week-card__label">{{ day.label }}</span>
       </li>
     </ol>
-  </section>
+  </UiCard>
 </template>
 
 <style scoped>
@@ -87,9 +88,6 @@ const height = (ms: number) => `${(ms / max.value) * 100}%`;
   display: grid;
   gap: var(--space-6);
   align-content: start;
-  padding: var(--space-10);
-  border-radius: var(--radius-xl);
-  background: var(--page);
 }
 .week-card__eyebrow {
   justify-self: start;

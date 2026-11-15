@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Copy, Ellipsis, ExternalLink, Plus, TriangleAlert, Trash2 } from "@lucide/vue";
@@ -131,7 +132,7 @@ onBeforeUnmount(() => watcher?.disconnect());
     </header>
     <p v-if="feeds.error" class="feeds__error" role="alert">{{ feeds.error }}</p>
 
-    <div v-if="feeds.loaded && !feeds.feeds.length" class="feeds__empty feeds__empty--start">
+    <UiCard as="div" pad="lg" v-if="feeds.loaded && !feeds.feeds.length" class="feeds__empty feeds__empty--start">
       <h2 class="feeds__empty-title">No subscriptions yet</h2>
       <p>Subscribe to a site's feed and its new articles arrive here, ready to read or listen to.</p>
       <UiButton
@@ -146,7 +147,7 @@ onBeforeUnmount(() => watcher?.disconnect());
       <button type="button" class="feeds__link" @click="importList">
         Or import a subscription list from another feed reader…
       </button>
-    </div>
+    </UiCard>
 
     <div v-else-if="feeds.loaded" class="feeds__body">
       <section class="feeds__sources" aria-label="Subscriptions">
@@ -209,15 +210,15 @@ onBeforeUnmount(() => watcher?.disconnect());
       </section>
 
       <section class="feeds__entries" aria-label="Entries">
-        <div v-if="!feeds.entries.length" class="feeds__empty">
+        <UiCard as="div" pad="lg" v-if="!feeds.entries.length" class="feeds__empty">
           <h2 class="feeds__empty-title">
             {{ feeds.source.kind === "saved" ? "Nothing saved yet" : "No entries yet" }}
           </h2>
           <p>{{ emptyNote }}</p>
-        </div>
+        </UiCard>
         <template v-for="group in days" :key="group.day">
           <h2 class="feeds__day">{{ group.name }}</h2>
-          <div class="feeds__card">
+          <UiCard as="div" pad="list" class="feeds__card">
             <FeedEntry
               v-for="entry in group.entries"
               :key="entry.id"
@@ -226,7 +227,7 @@ onBeforeUnmount(() => watcher?.disconnect());
               @open="feeds.open(entry)"
               @save="feeds.toggleSaved(entry)"
             />
-          </div>
+          </UiCard>
         </template>
         <button v-if="feeds.more" ref="end" type="button" class="feeds__more" @click="feeds.loadMore()">
           Show older entries
@@ -392,11 +393,6 @@ onBeforeUnmount(() => watcher?.disconnect());
 .feeds__day:first-child {
   margin-top: 0;
 }
-.feeds__card {
-  padding: var(--space-1) var(--space-9);
-  border-radius: var(--radius-lg);
-  background: var(--page);
-}
 .feeds__more {
   align-self: center;
   height: 40px;
@@ -411,9 +407,6 @@ onBeforeUnmount(() => watcher?.disconnect());
   background: var(--glass);
 }
 .feeds__empty {
-  padding: var(--space-14);
-  border-radius: var(--radius-lg);
-  background: var(--page);
   color: var(--dim);
 }
 .feeds__empty p {

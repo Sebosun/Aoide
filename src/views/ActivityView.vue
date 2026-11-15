@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCard from "@/components/ui/UiCard.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import { computed, onMounted, ref } from "vue";
 import { BookOpen, Flame, Gauge, Headphones } from "@lucide/vue";
@@ -184,11 +185,11 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
         </div>
       </div>
 
-      <p v-if="!stats.readingMs && !stats.listeningMs" class="activity__empty">
+      <UiCard as="p" pad="lg" v-if="!stats.readingMs && !stats.listeningMs" class="activity__empty">
         Nothing yet. Time appears here as you read and listen.
-      </p>
+      </UiCard>
       <template v-else>
-        <section class="activity__card activity__chart">
+        <UiCard class="activity__card activity__chart">
           <ol
             class="activity__bars"
             :class="{ 'activity__bars--dense': bars.length > 14 }"
@@ -214,10 +215,10 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
               <span class="activity__bar-label" aria-hidden="true">{{ bar.label }}</span>
             </li>
           </ol>
-        </section>
+        </UiCard>
 
         <div class="activity__pair">
-          <section class="activity__card">
+          <UiCard class="activity__card">
             <h2 class="activity__heading">Last 26 weeks</h2>
             <div class="activity__calendar" role="img" aria-label="Last 26 weeks">
               <div v-for="(column, w) in calendar" :key="w" class="activity__week">
@@ -234,8 +235,8 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
             <div class="activity__scale" aria-hidden="true">
               Less <i v-for="n in 5" :key="n" :class="`activity__cell activity__cell--${n - 1}`" /> More
             </div>
-          </section>
-          <section class="activity__card" aria-label="By weekday">
+          </UiCard>
+          <UiCard class="activity__card" aria-label="By weekday">
             <h2 class="activity__heading">By weekday</h2>
             <p v-if="favourite" class="activity__note">Most on {{ favourite }}</p>
             <ul class="activity__weekdays">
@@ -245,10 +246,10 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
                 ><b>{{ time(w.ms) }}</b>
               </li>
             </ul>
-          </section>
+          </UiCard>
         </div>
 
-        <section class="activity__card">
+        <UiCard class="activity__card">
           <h2 class="activity__heading">By book <small>all time</small></h2>
           <ul class="activity__books" aria-label="By book">
             <li v-for="row in books" :key="row.bookId">
@@ -284,7 +285,7 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
               </button>
             </li>
           </ul>
-        </section>
+        </UiCard>
       </template>
     </template>
   </section>
@@ -360,9 +361,6 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   border-radius: var(--radius-lg);
 }
 .activity__empty {
-  padding: var(--space-20) var(--space-10);
-  border-radius: var(--radius-lg);
-  background: var(--page);
   color: var(--dim);
   text-align: center;
 }
@@ -370,9 +368,6 @@ const cellTitle = (cell: { day: string | null; ms: number }) =>
   display: grid;
   gap: var(--space-6);
   align-content: start;
-  padding: var(--space-10);
-  border-radius: var(--radius-lg);
-  background: var(--page);
   min-width: 0;
 }
 .activity__heading {

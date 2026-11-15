@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, ref, watch } from "vue";
 import { Pause, Play, Plus } from "@lucide/vue";
@@ -131,7 +132,7 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
     </section>
 
     <div class="audio-reader__side">
-      <section class="audio-reader__card" aria-labelledby="audio-reader-parts">
+      <UiCard class="audio-reader__card" aria-labelledby="audio-reader-parts">
         <h2 id="audio-reader-parts" class="audio-reader__label">Parts</h2>
         <p v-for="warning in book.warnings" :key="warning" class="audio-reader__warning" role="alert">
           {{ warning }}
@@ -151,8 +152,8 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
             </button>
           </li>
         </ol>
-      </section>
-      <section class="audio-reader__card" aria-labelledby="audio-reader-text">
+      </UiCard>
+      <UiCard class="audio-reader__card" aria-labelledby="audio-reader-text">
         <h2 id="audio-reader-text" class="audio-reader__label">Text</h2>
         <p class="audio-reader__lead">Read along with the book</p>
         <p class="audio-reader__copy">
@@ -162,7 +163,7 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
         <UiButton size="lg" class="audio-reader__add" @click="recordings.addText(book.id)">
           <Plus :size="16" aria-hidden="true" /> Add the EPUB…
         </UiButton>
-      </section>
+      </UiCard>
     </div>
   </div>
 </template>
@@ -263,9 +264,6 @@ const playPart = (index: number) => player.play(book.value.id, index, null);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-  padding: var(--space-9);
-  border-radius: var(--radius-lg);
-  background: var(--page);
 }
 .audio-reader__label {
   margin: 0;

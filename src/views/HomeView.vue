@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import { api } from "@/api";
@@ -44,13 +45,13 @@ const added = (at: number) => dayName(at);
 <template>
   <div class="home">
     <p v-if="error" class="home__error" role="alert">{{ error }}</p>
-    <section v-if="empty" class="home__welcome" aria-labelledby="home-welcome">
+    <UiCard pad="lg" v-if="empty" class="home__welcome" aria-labelledby="home-welcome">
       <h1 id="home-welcome" class="home__title">Nothing to read yet</h1>
       <p class="home__lead">Add books to start reading, or listen to them with a voice.</p>
       <UiButton variant="primary" size="lg" class="home__add" aria-label="Add" @click="navigation.openAdd()">
         <Plus :size="16" aria-hidden="true" /> Add books
       </UiButton>
-    </section>
+    </UiCard>
     <template v-else>
       <section v-if="continuing.length" class="home__section" aria-labelledby="home-continue">
         <h1 id="home-continue" class="home__title">Continue</h1>
@@ -63,7 +64,7 @@ const added = (at: number) => dayName(at);
           <div class="home__heading">
             <h2 id="home-next" class="home__subtitle">Up next</h2>
           </div>
-          <ul class="home__rows">
+          <UiCard as="ul" pad="list" class="home__rows">
             <li v-for="book in upNext" :key="book.id">
               <button
                 type="button"
@@ -92,7 +93,7 @@ const added = (at: number) => dayName(at);
                 }}</span>
               </button>
             </li>
-          </ul>
+          </UiCard>
         </section>
         <section class="home__section home__section--week" aria-labelledby="home-week">
           <h2 id="home-week" class="home__subtitle">This week</h2>
@@ -181,10 +182,7 @@ const added = (at: number) => dayName(at);
 }
 .home__rows {
   margin: 0;
-  padding: var(--space-2) var(--space-9);
   list-style: none;
-  border-radius: var(--radius-lg);
-  background: var(--page);
 }
 .home__rows li + li {
   border-top: 1px solid var(--wash);
@@ -260,9 +258,6 @@ const added = (at: number) => dayName(at);
   justify-items: start;
   gap: var(--space-6);
   max-width: 520px;
-  padding: var(--space-14);
-  border-radius: var(--radius-xl);
-  background: var(--page);
 }
 .home__lead {
   margin: 0 0 var(--space-3);
