@@ -24,7 +24,10 @@ const queue = computed(() =>
     .filter((b) => b.prepare && b.prepare.state !== "done")
     .sort((a, b) => (a.prepare!.position ?? Infinity) - (b.prepare!.position ?? Infinity)),
 );
-const failed = computed(() => player.engine.state === "error" && player.engine.wanted);
+/** The engine failed after audio was asked of it; not while a recording plays, which needs none. */
+const failed = computed(
+  () => player.engine.state === "error" && player.engine.wanted && player.state.source !== "recording",
+);
 const shown = computed(() => failed.value || queue.value.length > 0 || recordings.syncing.length > 0);
 const title = computed(() => {
   if (failed.value) return `${player.engine.profileName} has a problem`;

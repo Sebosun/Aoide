@@ -129,7 +129,11 @@ export function usePlayerControls() {
       );
     return parts.join(" · ");
   });
-  const error = computed(() => player.generation.error || player.state.error || player.error || "");
+  /** What went wrong. The speech engine's trouble is left out while the recording plays: it
+   *  is not reading anything then. */
+  const error = computed(
+    () => (recording.value ? "" : player.generation.error) || player.state.error || player.error || "",
+  );
   const percent = computed(() => Math.round(player.state.chapterFraction * 100));
   /** An audiobook on its own is playing, on its timeline. */
   const timeline = computed(() => Boolean(player.state.bookId) && player.state.positionMs !== null);

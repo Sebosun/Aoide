@@ -296,6 +296,22 @@ it("sets a sleep timer and bookmarks the playhead from the dock", async () => {
   wrapper.unmount();
 });
 
+it("says nothing of the speech engine while the book's recording plays", async () => {
+  const wrapper = await openReader();
+  const player = usePlayerStore();
+  player.engine = { ...player.engine, state: "error", wanted: true, detail: "connection refused" };
+  player.generation = { ...player.generation, error: "The speech engine is unavailable" };
+  mock.emitPlayer(playing({ source: "speech" }));
+  await flushPromises();
+  const dock = () => wrapper.get('[aria-label="Player"]');
+  expect(dock().text(), "speech plays: the engine matters").toContain("The speech engine is unavailable");
+  mock.emitPlayer(playing({ source: "recording" }));
+  await flushPromises();
+  expect(dock().text()).not.toContain("speech engine");
+  expect(dock().text()).not.toContain("has a problem");
+  wrapper.unmount();
+});
+
 it("jumps to a sentence from the scrubber", async () => {
   const wrapper = await openReader();
   await mock.play({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });

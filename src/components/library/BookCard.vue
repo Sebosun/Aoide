@@ -295,8 +295,11 @@ function dragged(event: DragEvent) {
 </template>
 
 <style scoped>
+/* A card is clicked and dragged, never selected as text. */
 .book-card {
   position: relative;
+  -webkit-user-select: none;
+  user-select: none;
   display: grid;
   /* Its one column keeps to the library's track, whatever the tile's text. */
   grid-template-columns: minmax(0, 1fr);

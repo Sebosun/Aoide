@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, expect, it, onTestFinished, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "@/api/mock";
@@ -55,15 +55,17 @@ it("switches to the reader's layout only after the old screen has faded out", as
 it("logs how smoothly each change of screen was drawn", async () => {
   const logged = vi.spyOn(mock, "logUi");
   const wrapper = mount(App, { global: { stubs: { transition: false } } });
+  onTestFinished(() => wrapper.unmount());
   await flushPromises();
   useNavigationStore().view = "library";
-  // Out, then in: two frames each (no CSS durations in the test DOM).
-  await new Promise((done) => setTimeout(done, 150));
-  await flushPromises();
-  expect(logged).toHaveBeenCalledWith({
-    entry: expect.objectContaining({ level: "debug", event: "ui.frames", command: "view", view: "library" }),
-  });
-  wrapper.unmount();
+  // Out, then in: a few frames each (no CSS durations in the test DOM), however slow the machine.
+  await vi.waitFor(
+    () =>
+      expect(logged).toHaveBeenCalledWith({
+        entry: expect.objectContaining({ level: "debug", event: "ui.frames", command: "view", view: "library" }),
+      }),
+    { timeout: 3000 },
+  );
 });
 
 it("opens on Home and shows each sidebar entry's screen, marking the current one", async () => {
