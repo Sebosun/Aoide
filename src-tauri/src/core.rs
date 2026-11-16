@@ -66,6 +66,7 @@ mod feeder;
 mod listening;
 mod metadata;
 mod narration;
+mod notices;
 mod playback;
 mod preparation;
 mod read_along;
