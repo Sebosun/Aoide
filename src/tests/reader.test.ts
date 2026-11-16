@@ -270,6 +270,27 @@ it("switches the time left between the chapter and the book, says when it ends, 
   wrapper.unmount();
 });
 
+it("moves the end times on with the clock while the book is paused", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
+  try {
+    vi.setSystemTime(new Date(2026, 10, 16, 21, 0));
+    const wrapper = await openReader();
+    mock.emitPlayer(playing({ status: "paused", chapterLeftMs: 180_000, bookLeftMs: 3_600_000 }));
+    await flushPromises();
+    const clock = (h: number, m: number) =>
+      new Date(2026, 10, 16, h, m).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    const title = () => wrapper.get('[aria-label="Player"] .scrubber__end').attributes("title");
+    expect(title()).toContain(`Chapter ends ${clock(21, 3)} · book ends ${clock(22, 0)}`);
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(title(), "ten minutes later, still paused").toContain(
+      `Chapter ends ${clock(21, 13)} · book ends ${clock(22, 10)}`,
+    );
+    wrapper.unmount();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it("plays from the saved position, pauses, resumes, changes speed, skips chapters and stops", async () => {
   const wrapper = await openReader();
   const play = vi.spyOn(mock, "play"),

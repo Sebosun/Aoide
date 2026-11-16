@@ -1,4 +1,4 @@
-import { computed, ref, watch } from "vue";
+import { computed, getCurrentScope, onScopeDispose, ref, watch } from "vue";
 import { api } from "@/api";
 import { endsAt, formatDuration, segmentAt } from "@/estimate";
 import { useLibraryStore } from "@/stores/library";
@@ -50,13 +50,22 @@ export function usePlayerControls() {
   const timeLeft = computed(() =>
     timeLeftMs.value === null ? "" : `${formatDuration(timeLeftMs.value)} left${showsBook.value ? " in book" : ""}`,
   );
+  /** Ticks to read the clock again: the times left hold still while paused, and the end times
+   *  move on all the same. */
+  const tick = ref(0);
+  if (getCurrentScope()) {
+    const clock = setInterval(() => tick.value++, 15_000);
+    onScopeDispose(() => clearInterval(clock));
+  }
   /** The time left's tooltip: when the chapter and the book end by the clock, and what a click
    *  shows instead. */
   const timeLeftTitle = computed(() => {
     const { chapterLeftMs, bookLeftMs } = player.state;
     if (chapterLeftMs === null) return "";
-    const ends = [`Chapter ends ${endsAt(chapterLeftMs)}`];
-    if (bookLeftMs !== null) ends.push(`book ends ${endsAt(bookLeftMs)}`);
+    void tick.value;
+    const at = new Date();
+    const ends = [`Chapter ends ${endsAt(chapterLeftMs, at)}`];
+    if (bookLeftMs !== null) ends.push(`book ends ${endsAt(bookLeftMs, at)}`);
     return [...ends, `click for the time left in the ${showsBook.value ? "chapter" : "book"}`].join(" · ");
   });
   /** Shows the other time left, and keeps the choice. */
