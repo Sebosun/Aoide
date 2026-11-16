@@ -346,6 +346,38 @@ impl Feeds {
     }
 
     /// The shelf item `id` is on, when it exists.
+    /// Moves item `id` between the library and the feed shelf as `event` asks ([`next_shelf`]);
+    /// the shelves it moved from and to, `None` when it stayed.
+    pub fn move_shelf(
+        &self,
+        id: &str,
+        event: ShelfEvent,
+    ) -> Result<Option<(ItemShelf, ItemShelf)>, String> {
+        let book = aoide_library::BookId(id.into());
+        let library = lock(&self.library);
+        let from = library
+            .book(&book)
+            .map_err(|e| e.to_string())?
+            .map(|b| ItemShelf::stored(&b.shelf))
+            .ok_or("The item was removed.")?;
+        let to = next_shelf(from, event);
+        if to == from {
+            return Ok(None);
+        }
+        library
+            .set_shelf(&book, to.name())
+            .map_err(|e| e.to_string())?;
+        drop(library);
+        tracing::info!(
+            event = "item.shelf",
+            book = crate::logging::book(id),
+            from = from.name(),
+            to = to.name(),
+            "Item moved shelves"
+        );
+        Ok(Some((from, to)))
+    }
+
     pub fn shelf_of(&self, id: &str) -> Option<ItemShelf> {
         lock(&self.library)
             .book(&aoide_library::BookId(id.into()))
@@ -973,11 +1005,7 @@ impl super::Core {
     /// Opens a feed's site (its own address when it names none) in the system's browser.
     pub fn open_feed_site(&self, id: i64) -> Result<(), String> {
         let feed = self.feeds.view_of(id)?;
-        let url =
-            Url::parse(feed.site_url.as_deref().unwrap_or(&feed.url)).map_err(|e| e.to_string())?;
-        if !matches!(url.scheme(), "http" | "https") {
-            return Err("That is not a web address.".into());
-        }
+        let url = super::articles::web_address(feed.site_url.as_deref().unwrap_or(&feed.url))?;
         (self.open_link)(url.as_str())
     }
 
@@ -1088,32 +1116,16 @@ impl super::Core {
         Ok(true)
     }
 
+    /// Moves item `id` between the library and the feed shelf as `event` asks, and tells the
+    /// window when it moved.
     pub(super) fn move_shelf(&self, id: &str, event: ShelfEvent) -> Result<(), String> {
-        let book = aoide_library::BookId(id.into());
-        let library = lock(&self.library);
-        let from = library
-            .book(&book)
-            .map_err(|e| e.to_string())?
-            .map(|b| ItemShelf::stored(&b.shelf))
-            .ok_or("The item was removed.")?;
-        let to = next_shelf(from, event);
-        if to != from {
-            library
-                .set_shelf(&book, to.name())
-                .map_err(|e| e.to_string())?;
-            drop(library);
-            tracing::info!(
-                event = "item.shelf",
-                book = crate::logging::book(id),
-                from = from.name(),
-                to = to.name(),
-                "Item moved shelves"
-            );
-            self.emit(super::CoreEvent::LibraryChanged);
-            self.emit(super::CoreEvent::FeedsChanged);
-            if let Ok(view) = self.article(id) {
-                self.emit(super::CoreEvent::ArticleState(view));
-            }
+        if self.feeds.move_shelf(id, event)?.is_none() {
+            return Ok(());
+        }
+        self.emit(super::CoreEvent::FeedsChanged);
+        match self.articles.view(id) {
+            Ok(view) => super::articles::ArticlesHost::article_changed(self, view, false),
+            Err(_) => self.emit(super::CoreEvent::LibraryChanged),
         }
         Ok(())
     }

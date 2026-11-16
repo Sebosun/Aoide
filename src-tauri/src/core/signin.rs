@@ -366,14 +366,7 @@ impl SignInHost for super::Core {
     }
 
     fn session_kept(&self, site: &str, reason: Option<Reason>) {
-        let library = lock(&self.library);
-        let kept = match reason {
-            Some(Reason::Check) => library.site_check_passed(site, super::now_ms()),
-            _ => library.site_signed_in(site, super::now_ms()),
-        };
-        if let Err(error) = kept {
-            tracing::warn!(event = "library.save", %error, "Could not note the site's sign-in");
-        }
+        super::sites::kept(&self.library, site, reason);
     }
 
     fn clear_site<'a>(&'a self, site: &'a str) -> Pending<'a, Result<(), String>> {
@@ -389,9 +382,7 @@ impl super::Core {
     /// Opens a window on article `id`'s page for the user to sign in or pass a check; the
     /// article is fetched again once the window shows it whole or the user says so.
     pub fn start_sign_in(self: &Arc<Self>, id: &str) -> Result<SignInView, String> {
-        if self.app_settings().browser.use_ == super::browsing::BrowserUse::Off {
-            return Err(super::browsing::BROWSER_OFF.into());
-        }
+        self.require_browser()?;
         let (url, asks) = self.sign_in.begin(&**self, id)?;
         let core = Arc::clone(self);
         tokio::spawn(async move { core.sign_in.run(&*core, url, asks).await });

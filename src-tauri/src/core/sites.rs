@@ -6,8 +6,35 @@ use aoide_config::{site_host, SiteData, SiteFetch, SiteRule};
 use aoide_library::SiteRow;
 use serde::Serialize;
 
+use std::sync::Mutex;
+
+use aoide_library::Library;
+
 use super::fetching::Reason;
 use super::lock;
+
+// ---------------------------------------------------------------- the sites table
+// Every write to the library's `sites` table is one of these.
+
+/// `site` asked for the user (`reason`): it is listed in Settings › Sites with what it asked.
+pub(super) fn asked(library: &Mutex<Library>, site: &str, reason: Reason) {
+    let noted = lock(library).site_wall(site, reason.name(), super::now_ms());
+    if let Err(error) = noted {
+        tracing::warn!(event = "library.save", %error, "Could not note the site's wall");
+    }
+}
+
+/// The user signed in to `site`, or passed its check (`reason`), in the sign-in window.
+pub(super) fn kept(library: &Mutex<Library>, site: &str, reason: Option<Reason>) {
+    let library = lock(library);
+    let kept = match reason {
+        Some(Reason::Check) => library.site_check_passed(site, super::now_ms()),
+        _ => library.site_signed_in(site, super::now_ms()),
+    };
+    if let Err(error) = kept {
+        tracing::warn!(event = "library.save", %error, "Could not note the site's sign-in");
+    }
+}
 
 /// Where a site's session stands.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

@@ -611,11 +611,7 @@ impl Articles {
         let (from, _) = fetching.names();
         self.store_stage(&book, from, to, error.as_deref());
         if let (Stage::NeedsYou(reason), Some(site)) = (to, site_of(&row.canonical_url)) {
-            // The site is listed in Settings › Sites with what it asked for.
-            let wall = lock(&self.library).site_wall(&site, reason.name(), super::now_ms());
-            if let Err(error) = wall {
-                tracing::warn!(event = "library.save", %error, "Could not note the site's wall");
-            }
+            super::sites::asked(&self.library, &site, reason);
         }
         if let Ok(view) = self.view(id) {
             host.article_changed(view, written);
@@ -870,11 +866,22 @@ fn lead(extracted: &Extracted) -> Option<String> {
     ))
 }
 
+/// `text` as a web address (http or https), the only kind Aoide opens in the system's browser.
+pub(super) fn web_address(text: &str) -> Result<Url, String> {
+    let url = Url::parse(text).map_err(|e| e.to_string())?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("That is not a web address.".into());
+    }
+    Ok(url)
+}
+
 pub(super) fn extract(html: &str, url: &Url) -> Extracted {
     aoide_article::extract(html, url, &ExtractOptions::default())
 }
 
 impl ArticlesHost for super::Core {
+    /// The one way the window is told an article changed: the library, and the article's view
+    /// with what the feeds know of it.
     fn article_changed(&self, view: ArticleView, snapshot: bool) {
         if snapshot {
             // Its text is read again from the new copy.
@@ -906,19 +913,18 @@ impl super::Core {
             .save(link, ItemShelf::Library, super::now_ms())?;
         self.move_shelf(&id, super::feeds::ShelfEvent::Saved)?;
         if let Some(view) = view {
-            self.emit(super::CoreEvent::LibraryChanged);
-            self.emit(super::CoreEvent::ArticleState(self.completed(view)));
+            self.article_changed(view, false);
         }
         Ok(id)
     }
 
     /// Fetches article `id` again: from the page, an archived copy, or in the browser.
     pub fn refetch_article(&self, id: &str, source: ArticleSource) -> Result<(), String> {
-        if source == ArticleSource::Browser && self.app_settings().browser.use_ == BrowserUse::Off {
-            return Err(super::browsing::BROWSER_OFF.into());
+        if source == ArticleSource::Browser {
+            self.require_browser()?;
         }
         if let Some(view) = self.articles.queue_fetch(id, source)? {
-            self.emit(super::CoreEvent::ArticleState(self.completed(view)));
+            self.article_changed(view, false);
         }
         Ok(())
     }
@@ -928,8 +934,8 @@ impl super::Core {
     }
 
     /// `view` with the feeds it names marked when they are subscribed, and whether it is kept
-    /// in the library.
-    pub(super) fn completed(&self, mut view: ArticleView) -> ArticleView {
+    /// in the library: an article view as the window is sent it.
+    fn completed(&self, mut view: ArticleView) -> ArticleView {
         for feed in &mut view.feeds {
             feed.subscribed = self.feeds.subscribed(&feed.url);
         }
@@ -941,10 +947,7 @@ impl super::Core {
     /// are opened.
     pub fn open_original(&self, id: &str) -> Result<(), String> {
         let view = self.articles.view(id)?;
-        let url = Url::parse(&view.canonical_url).map_err(|e| e.to_string())?;
-        if !matches!(url.scheme(), "http" | "https") {
-            return Err("That is not a web address.".into());
-        }
+        let url = web_address(&view.canonical_url)?;
         (self.open_link)(url.as_str())
     }
 }

@@ -54,6 +54,47 @@ fn page_with(feeds: &[&str]) -> String {
     )
 }
 
+#[test]
+fn an_item_moves_shelves_once_and_says_from_where() {
+    use super::feeds::{ItemShelf, ShelfEvent};
+    use aoide_library::{BookId, ItemKind, NewBook};
+
+    let pages = Pages::with(&[]);
+    let (feeds, library) = feeds(&pages);
+    let book = BookId("harbour.example/notices/1".into());
+    {
+        let library = library.lock().unwrap();
+        library
+            .upsert_book(
+                &NewBook {
+                    id: book.clone(),
+                    kind: ItemKind::Article,
+                    path: "articles/1/snapshot.html".into(),
+                    title: None,
+                    authors: vec![],
+                    language: None,
+                    cover_path: None,
+                    error: None,
+                },
+                0,
+            )
+            .unwrap();
+        library.set_shelf(&book, "feed").unwrap();
+    }
+    assert_eq!(feeds.move_shelf(&book.0, ShelfEvent::Opened), Ok(None));
+    assert_eq!(
+        feeds.move_shelf(&book.0, ShelfEvent::Saved),
+        Ok(Some((ItemShelf::Feed, ItemShelf::Library)))
+    );
+    assert_eq!(feeds.shelf_of(&book.0), Some(ItemShelf::Library));
+    assert_eq!(
+        feeds.move_shelf(&book.0, ShelfEvent::Saved),
+        Ok(None),
+        "already there"
+    );
+    assert!(feeds.move_shelf("gone", ShelfEvent::Saved).is_err());
+}
+
 pub(super) struct Host {
     pub now: AtomicI64,
     pub settings: Mutex<FeedSettings>,

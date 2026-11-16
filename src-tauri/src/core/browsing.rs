@@ -599,6 +599,14 @@ impl DownloadHost for super::Core {
 }
 
 impl super::Core {
+    /// Refuses what needs the browser while it is off.
+    pub(super) fn require_browser(&self) -> Result<(), String> {
+        if self.app_settings().browser.use_ == BrowserUse::Off {
+            return Err(BROWSER_OFF.into());
+        }
+        Ok(())
+    }
+
     /// What browser would run, and the download.
     pub fn browser_status(&self) -> BrowserStatusView {
         self.browsing.status(self)
