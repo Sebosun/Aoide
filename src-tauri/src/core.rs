@@ -84,6 +84,8 @@ pub use syncing::Stage as SyncStage;
 mod session;
 mod speech_problems;
 pub use speech_problems::SpeechProblem;
+mod tagging;
+pub use tagging::{TaggingRun, TaggingSettings};
 mod timeline;
 mod voicing;
 mod watching;
@@ -196,6 +198,7 @@ pub struct Core {
     generation: generation::Generation,
     /// What went wrong with the speech engine lately.
     speech_problems: speech_problems::SpeechProblems,
+    tagging: tagging::Tagging,
     /// The sleep timer, the media keys and the player state last sent.
     controls: controls::Controls,
     /// Exact word timings being asked for.
@@ -348,6 +351,7 @@ impl Core {
             engine: engine_component,
             generation,
             speech_problems: Default::default(),
+            tagging: Default::default(),
             controls: Default::default(),
             aligner,
             settings: config::Settings::new(config),

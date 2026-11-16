@@ -3,6 +3,8 @@ import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "@/api/mock";
 import LibraryView from "@/views/LibraryView.vue";
+import SettingsDialog from "@/components/settings/SettingsDialog.vue";
+import { useNavigationStore } from "@/stores/navigation";
 import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { pickMenuItem } from "@/tests/helpers";
@@ -104,5 +106,62 @@ it("edits an item's tags from its card", async () => {
     "Sea Stories",
     "To read",
   ]);
+  wrapper.unmount();
+});
+
+it("turns on tagging with a local model in Settings and tags the untagged items", async () => {
+  const save = vi.spyOn(mock, "updateAppSettings");
+  const run = vi.spyOn(mock, "tagUntaggedWithModel");
+  useNavigationStore().openSettings("library");
+  const wrapper = mount(SettingsDialog, { attachTo: document.body });
+  await flushPromises();
+  const section = () => wrapper.get('[aria-label="Tagging with a model"]');
+  // Off at first: nothing else to set.
+  expect(section().find('[aria-label="Model to tag with"]').exists()).toBe(false);
+  await section().get('[aria-label="Tag items with a model on this computer"]').setValue(true);
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ patch: { tagging: expect.objectContaining({ enabled: true }) } });
+  const model = section().get('[aria-label="Model to tag with"]');
+  await model.setValue("qwen2.5:3b");
+  await model.trigger("change");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({
+    patch: {
+      tagging: expect.objectContaining({ enabled: true, model: "qwen2.5:3b", baseUrl: "http://127.0.0.1:11434" }),
+    },
+  });
+  // One item without tags.
+  const atlas = (await mock.listBooks()).find((b) => b.title === "An Unfinished Atlas")!;
+  await mock.setBookTags({ bookId: atlas.id, tags: [] });
+  await section().get('[aria-label="Tag the items that have no tags"]').trigger("click");
+  await flushPromises();
+  expect(run).toHaveBeenCalled();
+  expect(section().text()).toContain("Tagged 1 item");
+  wrapper.unmount();
+});
+
+it("asks the model for an item's tags from its tag editor once tagging is on", async () => {
+  const wrapper = await library();
+  const open = async () => {
+    await wrapper.get('[aria-label="More for An Unfinished Atlas"]').trigger("click");
+    await flushPromises();
+    await pickMenuItem("Tags…");
+  };
+  await open();
+  const dialog = () =>
+    document.body.querySelector<HTMLElement>('[role="dialog"][aria-label="Tags for An Unfinished Atlas"]')!;
+  expect(dialog().querySelector('[aria-label="Suggest tags with the model"]')).toBeNull();
+  dialog().querySelector<HTMLButtonElement>('[aria-label="Close tags"]')!.click();
+  await flushPromises();
+
+  await mock.updateAppSettings({
+    patch: { tagging: { enabled: true, baseUrl: "http://127.0.0.1:11434", model: "m", network: "loopback" } },
+  });
+  await open();
+  dialog().querySelector<HTMLButtonElement>('[aria-label="Suggest tags with the model"]')!.click();
+  await flushPromises();
+  const shown = [...dialog().querySelectorAll(".tags-editor__tag")].map((t) => t.textContent?.trim());
+  expect(shown).toContain("Travel");
+  expect(shown).toContain("Maps");
   wrapper.unmount();
 });

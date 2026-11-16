@@ -47,6 +47,7 @@ aoide-aligner = { path = "../crates/aligner" }
 aoide-discovery = { path = "../crates/discovery" }
 aoide-config = { path = "../crates/config" }
 aoide-recording = { path = "../crates/recording" }
+aoide-classifier = { path = "../crates/classifier" }
 aoide-sync = { path = "../crates/sync" }
 aoide-transcribe = { path = "../crates/transcribe" }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }

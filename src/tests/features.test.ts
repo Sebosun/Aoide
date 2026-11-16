@@ -106,6 +106,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     aligner: null,
     librarySort: "recent",
     libraryTags: { include: [], exclude: [] },
+    tagging: { enabled: false, baseUrl: "http://127.0.0.1:11434", model: "", network: "loopback" },
     scan: { roots: [], exclude: [], includeHidden: [], onStartup: false },
     resumePrepare: true,
     recognition: {

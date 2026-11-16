@@ -123,6 +123,25 @@ pub fn set_book_tags(
     Ok(core.set_book_tags(&book_id, &tags)?)
 }
 
+/// Asks the tagging model (Settings › Library) for an item's tags; keeps and returns them.
+#[tauri::command]
+pub async fn tag_with_model(
+    core: CoreState<'_>,
+    book_id: String,
+) -> Result<Vec<String>, CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.tag_with_model(&book_id).await?)
+}
+
+/// Asks the tagging model for the tags of every item that has none, one after another.
+#[tauri::command]
+pub async fn tag_untagged_with_model(
+    core: CoreState<'_>,
+) -> Result<crate::core::TaggingRun, CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.tag_untagged_with_model().await?)
+}
+
 /// Puts the book on exactly these collections.
 #[tauri::command]
 pub fn set_book_collections(

@@ -86,6 +86,8 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `ui.frames` | debug | `command` (`scroll`, `open`, `view`), `view`, `frames`, `dropped` (over 24 ms), `worst_ms`, `took_ms` | `src/composables/useFrameLog.ts`: each scroll (`took_ms` and `frames` include the 300 ms it takes to count as ended), and each change of view until it has come in; an `open` counts from the click |
 | **Library** | | | |
 | `library.scan` | info, warn, error | `books`, `new`, `read`, `took_ms`, `outcome`, `error` | `core.rs` `rescan` |
+| `tags.classify` | info / warn | `book`, `tags` (how many came back), `error`, `took_ms`, `outcome` | `core/tagging.rs` |
+| `tags.classify_all` | info | `tagged`, `missed` (items given nothing or that failed), `took_ms`, `outcome` | `core/tagging.rs` |
 | `library.import` | info, warn | `ok`, `failed`; per failure `file`, `error` | `core.rs` `import_files` |
 | `library.watch` | warn | `error` | `core.rs`, the library folder watcher |
 | `discovery.scan` | info, warn | `roots`, `epubs`, `read`, `took_ms`, `outcome`, `error` | `core/discovery.rs` |

@@ -17,6 +17,8 @@ pub struct AppSettings {
     pub library_sort: LibrarySort,
     /// The tags the library shows only, and those it leaves out.
     pub library_tags: TagFilter,
+    /// Tags from a local language model, when turned on.
+    pub tagging: super::TaggingSettings,
     /// Folders searched by "Find books".
     pub scan: super::discovery::ScanSettings,
     /// Carry on preparing queued books when Aoide starts.
@@ -59,6 +61,8 @@ pub struct AppSettingsPatch {
     #[cfg_attr(test, ts(optional))]
     pub library_tags: Option<TagFilter>,
     #[cfg_attr(test, ts(optional))]
+    pub tagging: Option<super::TaggingSettings>,
+    #[cfg_attr(test, ts(optional))]
     pub scan: Option<super::discovery::ScanSettings>,
     #[cfg_attr(test, ts(optional))]
     pub resume_prepare: Option<bool>,
@@ -98,6 +102,7 @@ impl AppSettingsPatch {
         set(&mut settings.aligner, self.aligner);
         set(&mut settings.library_sort, self.library_sort);
         set(&mut settings.library_tags, self.library_tags);
+        set(&mut settings.tagging, self.tagging);
         set(&mut settings.scan, self.scan);
         set(&mut settings.resume_prepare, self.resume_prepare);
         set(&mut settings.recognition, self.recognition);
@@ -119,6 +124,7 @@ impl From<AppSettings> for AppSettingsPatch {
             aligner,
             library_sort,
             library_tags,
+            tagging,
             scan,
             resume_prepare,
             recognition,
@@ -134,6 +140,7 @@ impl From<AppSettings> for AppSettingsPatch {
             aligner: Some(aligner),
             library_sort: Some(library_sort),
             library_tags: Some(library_tags),
+            tagging: Some(tagging),
             scan: Some(scan),
             resume_prepare: Some(resume_prepare),
             recognition: Some(recognition),
@@ -178,6 +185,7 @@ impl Default for AppSettings {
             aligner: None,
             library_sort: LibrarySort::Recent,
             library_tags: TagFilter::default(),
+            tagging: Default::default(),
             scan: Default::default(),
             resume_prepare: true,
             recognition: Default::default(),

@@ -62,6 +62,8 @@ pub fn run() {
             commands::library::set_book_collections,
             commands::library::tags,
             commands::library::set_book_tags,
+            commands::library::tag_with_model,
+            commands::library::tag_untagged_with_model,
             commands::library::storage_report,
             commands::library::clean_unused_files,
             commands::speech::preview_voice,

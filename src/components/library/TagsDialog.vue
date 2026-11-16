@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { X } from "@lucide/vue";
+import { computed, onMounted, ref } from "vue";
+import { Sparkles, X } from "@lucide/vue";
+import { api } from "@/api";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiDialog from "@/components/ui/UiDialog.vue";
 import { useLibraryStore } from "@/stores/library";
 import { useUiStore } from "@/stores/ui";
 
 /** An item's tags, to remove or add to (each change saved at once). The tags in use are
- *  offered while typing; a tag removed here is not put back by the item's own subjects. */
+ *  offered while typing; a tag removed here is not put back by the item's own subjects. With a
+ *  tagging model set up (Settings › Library), it can be asked for tags too. */
 const props = defineProps<{ bookId: string; title: string }>();
 const emit = defineEmits<{ close: [] }>();
 const library = useLibraryStore(),
@@ -18,6 +20,28 @@ const offered = computed(() =>
   library.allTags.filter((t) => !tags.value.some((o) => o.toLowerCase() === t.toLowerCase())),
 );
 
+/** A tagging model is set up. */
+const model = ref(false),
+  asking = ref(false);
+onMounted(async () => {
+  try {
+    const tagging = (await api.appSettings()).tagging;
+    model.value = tagging.enabled && Boolean(tagging.model);
+  } catch {
+    model.value = false;
+  }
+});
+async function suggest() {
+  asking.value = true;
+  try {
+    await api.tagWithModel({ bookId: props.bookId });
+    await library.refresh();
+  } catch (e) {
+    ui.toast(String(e), "error");
+  } finally {
+    asking.value = false;
+  }
+}
 async function save(next: string[]) {
   try {
     await library.setBookTags(props.bookId, next);
@@ -73,6 +97,11 @@ const remove = (tag: string) => save(tags.value.filter((t) => t !== tag));
       <datalist id="tags-editor-offered">
         <option v-for="tag in offered" :key="tag" :value="tag" />
       </datalist>
+      <div v-if="model">
+        <UiButton size="sm" aria-label="Suggest tags with the model" :disabled="asking" @click="suggest">
+          <Sparkles :size="14" aria-hidden="true" /> {{ asking ? "Asking the model…" : "Suggest tags" }}
+        </UiButton>
+      </div>
     </div>
   </UiDialog>
 </template>

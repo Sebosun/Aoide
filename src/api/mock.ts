@@ -231,6 +231,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     aligner: null,
     librarySort: "recent",
     libraryTags: { include: [], exclude: [] },
+    tagging: { enabled: false, baseUrl: "http://127.0.0.1:11434", model: "", network: "loopback" },
     scan: { roots: [], exclude: [], includeHidden: [], onStartup: false },
     resumePrepare: true,
     recognition: {
@@ -947,6 +948,22 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         if (tag && !kept.some((k) => k.toLowerCase() === tag.toLowerCase())) kept.push(tag);
       getBook(id).tags = kept.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
       changed();
+    },
+    /** A model that tags every item "Maps" (core/tagging.rs keeps a model's tags beside the
+     *  item's own). */
+    async tagWithModel({ bookId: id }) {
+      if (!appSettings.tagging.enabled) throw refused("Turn on tagging with a model in Settings › Library first");
+      const book = getBook(id);
+      if (!book.tags.includes("Maps")) book.tags = [...book.tags, "Maps"].sort((a, b) => a.localeCompare(b));
+      changed();
+      return ["Maps"];
+    },
+    async tagUntaggedWithModel() {
+      if (!appSettings.tagging.enabled) throw refused("Turn on tagging with a model in Settings › Library first");
+      const untagged = books.filter((b) => b.status.kind !== "error" && !b.tags.length);
+      for (const book of untagged) book.tags = ["Maps"];
+      changed();
+      return { tagged: untagged.length, missed: 0 };
     },
     async setBookCollections({ bookId: id, ids }) {
       if (ids.some((c) => !shelves.some((s) => s.id === c))) throw refused("no such collection");

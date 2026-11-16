@@ -433,6 +433,30 @@ export type LibrarySort = "title" | "author" | "progress" | "recent";
 
 export type TagFilter = { include: Array<string>, exclude: Array<string>, };
 
+export type TaggingSettings = { 
+/**
+ * Off until the user turns it on.
+ */
+enabled: boolean, 
+/**
+ * The model server's origin (Ollama listens on 127.0.0.1:11434).
+ */
+baseUrl: string, 
+/**
+ * The model to ask, as the server names it.
+ */
+model: string, network: NetworkScope, };
+
+export type TaggingRun = { 
+/**
+ * Items that were given tags.
+ */
+tagged: number, 
+/**
+ * Items the model gave nothing for, or that failed.
+ */
+missed: number, };
+
 export type AlignerSettings = { baseUrl: string, network: NetworkScope, 
 /**
  * Optional command that starts the aligner when it is not running.
@@ -471,6 +495,10 @@ librarySort: LibrarySort,
  */
 libraryTags: TagFilter, 
 /**
+ * Tags from a local language model, when turned on.
+ */
+tagging: TaggingSettings, 
+/**
  * Folders searched by "Find books".
  */
 scan: ScanSettings, 
@@ -504,7 +532,7 @@ feeds: FeedSettings,
  */
 browser: BrowserSettings, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -1178,6 +1206,10 @@ export type Commands = {
    * subjects again does not bring them back).
    */
   "set_book_tags": { args: { bookId: string; tags: string[] }; result: void };
+  /** Asks the tagging model (Settings › Library) for an item's tags; keeps and returns them. */
+  "tag_with_model": { args: { bookId: string }; result: string[] };
+  /** Asks the tagging model for the tags of every item that has none, one after another. */
+  "tag_untagged_with_model": { args: Record<string, never>; result: TaggingRun };
   /** Puts the book on exactly these collections. */
   "set_book_collections": { args: { bookId: string; ids: number[] }; result: void };
   "storage_report": { args: Record<string, never>; result: StorageReport };
@@ -1458,6 +1490,10 @@ export interface CommandApi {
    * subjects again does not bring them back).
    */
   setBookTags(args: { bookId: string; tags: string[] }): Promise<void>;
+  /** Asks the tagging model (Settings › Library) for an item's tags; keeps and returns them. */
+  tagWithModel(args: { bookId: string }): Promise<string[]>;
+  /** Asks the tagging model for the tags of every item that has none, one after another. */
+  tagUntaggedWithModel(): Promise<TaggingRun>;
   /** Puts the book on exactly these collections. */
   setBookCollections(args: { bookId: string; ids: number[] }): Promise<void>;
   storageReport(): Promise<StorageReport>;
@@ -1647,6 +1683,8 @@ export const COMMANDS = {
   deleteCollection: "delete_collection",
   tags: "tags",
   setBookTags: "set_book_tags",
+  tagWithModel: "tag_with_model",
+  tagUntaggedWithModel: "tag_untagged_with_model",
   setBookCollections: "set_book_collections",
   storageReport: "storage_report",
   cleanUnusedFiles: "clean_unused_files",

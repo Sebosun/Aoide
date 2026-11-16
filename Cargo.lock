@@ -68,6 +68,7 @@ dependencies = [
  "aoide-audio",
  "aoide-browser",
  "aoide-chatterbox",
+ "aoide-classifier",
  "aoide-config",
  "aoide-discovery",
  "aoide-document",
@@ -176,6 +177,19 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
+]
+
+[[package]]
+name = "aoide-classifier"
+version = "0.1.0"
+dependencies = [
+ "aoide-tts",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "url",
 ]
 
 [[package]]
