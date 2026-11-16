@@ -474,3 +474,19 @@ it("lists articles as their own kind, with a text tile and their fetch on the ca
     wrapper.unmount();
   }
 });
+
+it("a refresh keeps the summaries that did not change, so only changed cards are drawn again", async () => {
+  const library = useLibraryStore();
+  await library.start();
+  const before = library.books;
+  await library.refresh();
+  expect(library.books).toBe(before);
+
+  const [changed, ...others] = before.map((b) => b.id);
+  const kept = others.map((id) => library.books.find((b) => b.id === id));
+  await library.markRead(changed, "finished");
+  await library.refresh();
+  expect(library.books.find((b) => b.id === changed)?.readState).toBe("finished");
+  expect(others.map((id) => library.books.find((b) => b.id === id))).toEqual(kept);
+  others.forEach((id, i) => expect(library.books.find((b) => b.id === id)).toBe(kept[i]));
+});

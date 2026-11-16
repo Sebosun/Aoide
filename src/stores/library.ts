@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { computed, ref } from "vue";
+import { computed, ref, toRaw } from "vue";
 import { api } from "@/api";
 import { useNavigationStore } from "@/stores/navigation";
 import type { BookProgress, BookSummary, Collection, ImportResult, ItemKind, LibrarySort } from "@/api/types";
@@ -16,6 +16,18 @@ const filters: Record<BuiltInFilter, (book: BookSummary) => boolean> = {
   listen: (book) => book.audio !== "none",
   preparing: (book) => Boolean(book.prepare && book.prepare.state !== "done"),
 };
+
+/** `next`, keeping each summary of `before` that did not change: a card whose book is the same
+ *  object is not drawn again, so a refresh redraws only what changed. */
+function keepUnchanged(next: BookSummary[], before: BookSummary[]) {
+  const old = new Map(before.map((book) => [book.id, toRaw(book)]));
+  const kept = next.map((book) => {
+    const same = old.get(book.id);
+    return same && JSON.stringify(same) === JSON.stringify(book) ? same : book;
+  });
+  // Nothing changed: the list itself is kept, and nothing that reads it runs again.
+  return kept.length === before.length && kept.every((book, i) => book === toRaw(before[i])) ? before : kept;
+}
 
 export const useLibraryStore = defineStore("library", () => {
   const books = ref<BookSummary[]>([]),
@@ -109,8 +121,8 @@ export const useLibraryStore = defineStore("library", () => {
     loading.value = true;
     try {
       const [list, shelves] = await Promise.all([api.listBooks(), api.collections()]);
-      books.value = list;
-      collections.value = shelves;
+      books.value = keepUnchanged(list, books.value);
+      if (JSON.stringify(shelves) !== JSON.stringify(toRaw(collections.value))) collections.value = shelves;
       if (filter.value.startsWith("collection:") && !collection.value) filter.value = "all";
     } catch (e) {
       error.value = String(e);
