@@ -885,6 +885,7 @@ fn timeline_state(
         },
         source: Narration::Recording,
         chapter_left_ms: Some(at_speed(part.end_ms.saturating_sub(at), base.speed)),
+        book_left_ms: Some(at_speed(timeline.total_ms.saturating_sub(at), base.speed)),
         position_ms: Some(at),
         duration_ms: Some(timeline.total_ms),
         part_position_ms: Some(into),
@@ -1287,8 +1288,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn playback_waiting_for_the_sync_passes_over_what_it_finds_missing() {
+    /// The test book read from its recording (entry 1 not in it), synced up to entry `synced`.
+    fn recorded(synced: usize) -> Target {
         let book = Arc::new(
             BookModel::parse("b", &crate::core::tests::epub(), &Default::default()).unwrap(),
         );
@@ -1304,18 +1305,58 @@ mod tests {
             clip(1_000..2_000),
             clip(2_000..3_000),
         ];
-        let recording = |synced: usize| Target {
+        Target {
             narration: NarrationPlan::recording(
                 &book,
                 Arc::new(RecordingPlan {
                     files: vec![],
-                    clips: clips.clone(),
+                    clips,
                 }),
                 synced,
                 || None,
             ),
-            book: Arc::clone(&book),
-        };
+            book,
+        }
+    }
+
+    #[test]
+    fn the_time_left_in_a_book_read_from_its_recording_is_known_once_the_sync_reaches_the_end() {
+        let playback = Playback::new(PlayerCore::new(RATE));
+        let _ = playback.start(recorded(3), 0);
+        assert_eq!(
+            playback.state().book_left_ms,
+            None,
+            "entry 3 awaits the sync"
+        );
+
+        let _ = playback.follow("b", recorded(4));
+        playback.set_speed(2.0);
+        // Three clips of a second (entry 1 is not in the recording), their pauses in them.
+        assert_eq!(playback.state().book_left_ms, Some(3_000 / 2));
+    }
+
+    #[test]
+    fn the_time_left_in_an_audiobook_alone_runs_to_the_end_of_its_recording() {
+        let timeline = Timeline::new(
+            "a".into(),
+            "A".into(),
+            vec![],
+            vec![],
+            65_000,
+            vec![("One".into(), 0), ("Two".into(), 40_000)],
+        );
+        let playback = Playback::new(PlayerCore::new(RATE));
+        let _ = playback.start_timeline(Arc::new(timeline), 30_000);
+        playback.set_speed(1.25);
+        let state = playback.state();
+        assert_eq!(state.position_ms, Some(30_000));
+        assert_eq!(state.chapter_left_ms, Some(8_000));
+        assert_eq!(state.book_left_ms, Some(28_000));
+    }
+
+    #[test]
+    fn playback_waiting_for_the_sync_passes_over_what_it_finds_missing() {
+        let recording = recorded;
         let playback = Playback::new(PlayerCore::new(RATE));
         let _ = playback.start(recording(1), 1);
         let state = playback.state();
