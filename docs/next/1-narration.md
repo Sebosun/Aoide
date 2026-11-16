@@ -85,16 +85,22 @@ made, and saying again a sentence with no audio simply plays it.
    - `tools/breeze-tts/aoide_breeze_tts.py` reads an optional `seed` from the body instead of
      always using `SEED`.
 
-**Component.** A small `core/takes.rs` owning the table access, or methods on `Generation` if it
-stays under about 60 lines. Host needs: none beyond the library.
+**Component.** The table access is `Library::count_take` and `Library::takes`
+(`crates/library/src/takes.rs`, which hashes the speech itself); `Generation::speech_plan` asks
+each sentence for its take. `core/takes.rs` holds `Core::say_again`, which wires the library,
+the worker, storage and playback as `regenerate_book` does (the session's entry is retaken with
+`narration::Event::Retaken`). Host needs: none beyond the library.
 
 **IPC.** `say_again(book_id, segment_id) -> ()`. The existing generation and player events
 report the rest. Saying again in a book other than the one being listened to starts listening
 to it at that sentence, as `play_from` does.
 
 **Interface.** In the sentence's context menu (3.1 builds the menu; until then, a button in
-`ReaderTools.vue` acting on the current sentence). While the sentence is being made, it shows
-the same "being made" state the reader already shows ahead of the playhead.
+`ReaderTools.vue` acting on the current sentence). The reader has no "being made" state of its
+own ahead of the playhead (the player says *Buffering…*), so the button itself is busy (a
+spinner, disabled) while the call runs and while the generation view's `generatingSegmentId` is
+the sentence. Clicking a sentence plays it; Say this again keeps play or pause instead, as
+decided above.
 
 ### Slices
 

@@ -530,6 +530,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const libraryHandlers = new Set<() => void>();
   let state = structuredClone(fixturePlayer) as PlayerState;
   let timer: ReturnType<typeof setInterval> | undefined;
+  /** A sentence said again is made after this long in the preview. */
+  const REMAKE_MS = 1_800;
+  let remaking: ReturnType<typeof setTimeout> | undefined;
   const emitPlayer = (next: PlayerState) => {
     state = { ...next };
     playerHandlers.forEach((h) => h({ ...state }));
@@ -1277,13 +1280,19 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (!segment.canSayAgain) throw refused("this sentence is not said by the speech engine");
       if (state.bookId !== id) return api.play({ bookId: id, chapter, segmentId });
       // As the core does: the playhead goes to the sentence, playing or paused as it was, and
-      // the sentence is made again.
-      emitPlayer({ ...state, chapter, segmentId, wordIndex: 0 });
-      emitGeneration({
-        ...(structuredClone(fixtureGenerationPlaying) as GenerationState),
-        bookId: id,
-        generatingSegmentId: segmentId,
-      });
+      // waits there while the sentence is made again.
+      const playing = state.status !== "paused";
+      halt();
+      clearTimeout(remaking);
+      emitPlayer({ ...state, chapter, segmentId, wordIndex: 0, status: playing ? "buffering" : "paused" });
+      const generation = { ...(structuredClone(fixtureGenerationPlaying) as GenerationState), bookId: id };
+      emitGeneration({ ...generation, generatingSegmentId: segmentId });
+      remaking = setTimeout(() => {
+        emitGeneration(generation);
+        if (!playing || state.bookId !== id) return;
+        emitPlayer({ ...state, status: "playing" });
+        run();
+      }, REMAKE_MS);
     },
     async regenerateBook({ bookId: id }) {
       getBook(id).audioBytes = 0;
@@ -2171,6 +2180,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     queueWaitingForTest,
     dispose: () => {
       halt();
+      clearTimeout(remaking);
       clearInterval(syncTimer);
     },
     emitPlayer,

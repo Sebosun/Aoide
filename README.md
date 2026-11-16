@@ -201,7 +201,7 @@ Open a book and read, or press **Listen**.
 
 ## Using Aoide
 
-**Listening.** Press <kbd>Space</kbd> to play or pause and <kbd>←</kbd> <kbd>→</kbd> to move a sentence. Click any sentence to jump there. If you scroll away while listening, the page stops following you until you click *Back to playhead*.
+**Listening.** Press <kbd>Space</kbd> to play or pause and <kbd>←</kbd> <kbd>→</kbd> to move a sentence. Click any sentence to jump there. If you scroll away while listening, the page stops following you until you click *Back to playhead*. If the voice garbles, repeats or cuts off a sentence, press **Say this again** (the circling arrow at the top of the reader) while it is spoken: Aoide throws away that sentence's audio and makes it again, read differently, then plays it, or waits there if you had paused. The rest of the book's audio is left alone, and a prepared book stays prepared.
 
 **Preparing ahead.** On a book's page, **Prepare whole book** makes all its audio in the background, so it plays instantly later, even with the speech server off. While books are being prepared, a **Narrating** card in the sidebar shows progress; click it to see the queue, pause it or cancel. Unfinished books carry on next time you start Aoide (you can turn that off under **Settings → Library**).
 

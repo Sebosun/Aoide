@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import UiButton from "@/components/ui/UiButton.vue";
+import SayAgainButton from "@/components/reader/SayAgainButton.vue";
 import { ref } from "vue";
 import { Minus, Plus } from "@lucide/vue";
 import type { ReaderMode } from "@/api/types";
@@ -8,7 +9,8 @@ import { TEXT_SCALES } from "@/theme";
 import { useMenu } from "@/composables/useMenu";
 import { usePreferencesStore } from "@/stores/preferences";
 
-/** Text size ("Aa") and, with `lines`, the Page / Lines switch. */
+/** Say this again (for the sentence being spoken), text size ("Aa") and, with `lines`, the
+ *  Page / Lines switch. */
 defineProps<{ lines: boolean }>();
 const preferences = usePreferencesStore();
 const root = ref<HTMLElement>(),
@@ -27,6 +29,7 @@ const modes: { value: ReaderMode; label: string }[] = [
 
 <template>
   <div class="reader-tools">
+    <SayAgainButton />
     <div ref="root" class="reader-tools__size">
       <UiButton
         variant="glass"

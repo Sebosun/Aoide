@@ -325,6 +325,29 @@ it("jumps to a sentence from the scrubber", async () => {
   wrapper.unmount();
 });
 
+it("says the sentence being spoken again, busy while it is made", async () => {
+  const say = vi.spyOn(mock, "sayAgain");
+  const wrapper = await openReader();
+  const button = () => wrapper.find('.reader__actions [aria-label="Say this again"]');
+  expect(button().exists(), "nothing is spoken").toBe(false);
+  mock.emitPlayer(playing({ bookId: "book-1" }));
+  await flushPromises();
+  expect(button().exists(), "another book is spoken").toBe(false);
+  mock.emitPlayer(playing({ status: "paused" }));
+  await flushPromises();
+  expect(button().attributes("aria-busy")).toBe("false");
+
+  await button().trigger("click");
+  await flushPromises();
+  expect(say).toHaveBeenCalledWith({ bookId: "book-0", segmentId: "0:1:0" });
+  expect(button().attributes("aria-busy"), "the sentence is being made").toBe("true");
+  expect(button().attributes("disabled")).toBeDefined();
+  mock.emitGeneration({ ...usePlayerStore().generation, generatingSegmentId: null });
+  await flushPromises();
+  expect(button().attributes("aria-busy"), "made").toBe("false");
+  wrapper.unmount();
+});
+
 it("changes the text size and the reader mode, and remembers both", async () => {
   const save = vi.spyOn(mock, "saveAppearance");
   const wrapper = await openReader();

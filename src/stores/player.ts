@@ -89,6 +89,8 @@ export const usePlayerStore = defineStore("player", () => {
     dispose,
     play: (id: string, chapter: number | null = null, segmentId: string | null = null) =>
       action(() => api.play({ bookId: id, chapter, segmentId })),
+    /** Throws away a sentence's audio and makes it again, from the playhead put on it. */
+    sayAgain: (id: string, segmentId: string) => action(() => api.sayAgain({ bookId: id, segmentId })),
     skipChapter: (delta: number) => action(() => api.skipChapter({ delta })),
     seek: (id: string, positionMs: number) => action(() => api.seek({ bookId: id, positionMs })),
     skip: (id: string, deltaMs: number) => action(() => api.skip({ bookId: id, deltaMs })),
