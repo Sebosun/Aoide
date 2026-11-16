@@ -49,7 +49,7 @@ async function submitLink() {
   }
 }
 async function subscribe(url: string) {
-  const result = await api.subscribe(url);
+  const result = await api.subscribe({ url });
   if (result.kind === "subscribed") await articles.showFeed(result.value);
   else if (result.kind === "choose") choices.value = result.value;
   else linkError.value = "No feed was found at that address.";
@@ -77,7 +77,7 @@ async function chooseBooks() {
 }
 /** An audiobook (files or a folder) is paired with a book or added on its own, as when dropped. */
 async function chooseAudio(folder: boolean) {
-  const paths = await api.chooseAudio(folder).catch((e) => {
+  const paths = await api.chooseAudio({ folder }).catch((e) => {
     library.error = String(e);
     return null;
   });

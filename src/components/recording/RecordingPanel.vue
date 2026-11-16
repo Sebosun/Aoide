@@ -50,7 +50,7 @@ const title = computed(() => library.books.find((b) => b.id === props.bookId)?.t
 async function add(folder: boolean) {
   error.value = "";
   try {
-    const paths = await api.chooseAudio(folder);
+    const paths = await api.chooseAudio({ folder });
     if (paths?.length) recordings.openPairing(paths, props.bookId);
   } catch (e) {
     error.value = String(e);
@@ -88,7 +88,7 @@ async function act(action: RecordingAction) {
 }
 async function exportReadAlong() {
   ui.toast(`Exporting ${title.value} with its recording… this can take a minute`);
-  const path = await api.exportReadAlong(props.bookId);
+  const path = await api.exportReadAlong({ bookId: props.bookId });
   ui.toast(`Exported to ${path}`);
 }
 async function downloadModel() {
@@ -96,7 +96,7 @@ async function downloadModel() {
   if (!id) return;
   download.value = { id, stage: "downloading", doneBytes: 0, totalBytes: 0, error: null };
   try {
-    await api.downloadModel(id);
+    await api.downloadModel({ modelId: id });
     await recordings.load(props.bookId);
   } catch (e) {
     download.value = { id, stage: "failed", doneBytes: 0, totalBytes: 0, error: String(e) };

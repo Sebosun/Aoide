@@ -21,7 +21,7 @@ async function search() {
   const id = ++request;
   searching.value = true;
   try {
-    const result = await api.searchBook(props.bookId, q);
+    const result = await api.searchBook({ bookId: props.bookId, query: q });
     if (id === request) hits.value = result;
   } catch (e) {
     error.value = String(e);

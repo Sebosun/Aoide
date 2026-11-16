@@ -102,7 +102,7 @@ async function save() {
   error.value = "";
   saving.value = true;
   try {
-    await api.saveEngineProfile(next);
+    await api.saveEngineProfile({ profile: next });
     profile.value = next;
     message.value = "Saved. Upcoming audio will use these settings.";
     void loadVoices();

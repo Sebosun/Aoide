@@ -256,7 +256,9 @@ fn contract() -> String {
     out
 }
 
-/// The Tauri commands in `commands/` as a TypeScript map from name to arguments and result.
+/// The Tauri commands in `commands/` as a TypeScript map from name to arguments and result,
+/// and as the UI calls them: `CommandApi`, each command a method taking its arguments by name
+/// (as one object, the one sent over IPC), and `COMMANDS`, each method's command.
 fn commands(names: &HashMap<String, String>) -> String {
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let parse = |path: &Path| syn::parse_file(&std::fs::read_to_string(path).unwrap()).unwrap();
@@ -273,6 +275,14 @@ fn commands(names: &HashMap<String, String>) -> String {
          export type Commands = {\n",
     );
     let mut declared = BTreeSet::new();
+    let mut methods = String::from(
+        "\n/** Every command as the UI calls it: a method taking the command's arguments by name. */\n\
+         export interface CommandApi {\n",
+    );
+    let mut table = String::from(
+        "\n/** Each `CommandApi` method's command. */\n\
+         export const COMMANDS = {\n",
+    );
     for item in &items {
         let syn::Item::Fn(function) = item else {
             continue;
@@ -288,7 +298,9 @@ fn commands(names: &HashMap<String, String>) -> String {
             continue;
         }
         let name = function.sig.ident.to_string();
+        let doc = jsdoc(&function.attrs);
         let mut args = Vec::new();
+
         for input in &function.sig.inputs {
             let syn::FnArg::Typed(arg) = input else {
                 continue;
@@ -301,7 +313,10 @@ fn commands(names: &HashMap<String, String>) -> String {
                 continue;
             }
             let ty = typescript(&arg.ty, names).unwrap_or_else(|e| panic!("{name}: {e}"));
-            args.push(format!("{}: {ty}", camel(&ident.ident.to_string())));
+            let arg = camel(&ident.ident.to_string());
+            // An `Option` may be left out.
+            let optional = if ty.ends_with(" | null") { "?" } else { "" };
+            args.push(format!("{arg}{optional}: {ty}"));
         }
         let result = match &function.sig.output {
             syn::ReturnType::Default => "void".to_owned(),
@@ -309,22 +324,63 @@ fn commands(names: &HashMap<String, String>) -> String {
                 typescript(ty, names).unwrap_or_else(|e| panic!("{name}: {e}"))
             }
         };
+        let all_optional = args.iter().all(|a| a.contains("?: "));
+        let param = match args.is_empty() {
+            true => String::new(),
+            false if all_optional => format!("args?: {{ {} }}", args.join("; ")),
+            false => format!("args: {{ {} }}", args.join("; ")),
+        };
         let args = if args.is_empty() {
             "Record<string, never>".to_owned()
         } else {
             format!("{{ {} }}", args.join("; "))
         };
         out.push_str(&format!(
-            "  \"{name}\": {{ args: {args}; result: {result} }};\n"
+            "{doc}  \"{name}\": {{ args: {args}; result: {result} }};\n"
         ));
+        let method = camel(&name);
+        methods.push_str(&format!("{doc}  {method}({param}): Promise<{result}>;\n"));
+        table.push_str(&format!("  {method}: \"{name}\",\n"));
         declared.insert(name);
     }
     out.push_str("};\n");
+    out.push_str(&methods);
+    out.push_str("}\n");
+    out.push_str(&table);
+    out.push_str("} as const satisfies Record<keyof CommandApi, keyof Commands>;\n");
     assert_eq!(
         declared, registered,
         "every #[tauri::command] in commands/ is registered in generate_handler!, and only those"
     );
     out
+}
+
+/// A function's doc comment as an indented JSDoc block; empty when it has none.
+fn jsdoc(attrs: &[syn::Attribute]) -> String {
+    let lines: Vec<String> = attrs
+        .iter()
+        .filter_map(|a| match &a.meta {
+            syn::Meta::NameValue(nv) if nv.path.is_ident("doc") => match &nv.value {
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(text),
+                    ..
+                }) => Some(text.value().trim().to_owned()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect();
+    match lines.as_slice() {
+        [] => String::new(),
+        [one] => format!("  /** {one} */\n"),
+        _ => format!(
+            "  /**\n{}   */\n",
+            lines
+                .iter()
+                .map(|l| format!("   * {l}\n"))
+                .collect::<String>()
+        ),
+    }
 }
 
 /// The commands named in `run`'s `generate_handler!`.

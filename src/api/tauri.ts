@@ -1,7 +1,7 @@
 import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type * as Wire from "@/api/contract";
-import type { Commands, CoreEvents } from "@/api/contract";
+import { COMMANDS, type CommandApi, type Commands, type CoreEvents } from "@/api/contract";
 import type { AoideApi, Candidate, UiLog } from "@/api/types";
 import { report } from "@/log";
 import { apiError } from "@/api/errors";
@@ -27,7 +27,7 @@ const SLOW_MS = 2_000;
 const writeLog = (entry: UiLog) => invoke<void>("log_ui", { entry });
 
 /** Calls one of Core's commands; its name, arguments and result come from the contract.
- *  A failure rejects with an ApiError; it (other than a cancelled scan), or a slow answer, goes
+ *  A failure rejects with an ApiError; it (other than a scan the user cancelled), or a slow answer, goes
  *  to Aoide's log too. */
 async function call<K extends keyof Commands>(
   name: K,
@@ -43,7 +43,7 @@ async function call<K extends keyof Commands>(
     return result;
   } catch (rejected) {
     const error = apiError(rejected);
-    if (!error.message.includes("cancelled"))
+    if (error.kind !== "cancelled")
       report(
         { level: "warn", event: "ipc.error", msg: error.message, command: name, tookMs: Date.now() - start },
         writeLog,
@@ -55,127 +55,32 @@ async function call<K extends keyof Commands>(
 const on = <K extends keyof CoreEvents>(name: K, handler: (payload: CoreEvents[K]) => void) =>
   listen<CoreEvents[K]>(name, (event) => handler(event.payload));
 
+/** Every command, as a method that sends its arguments (named as in the contract) as they are. */
+const commands = Object.fromEntries(
+  Object.entries(COMMANDS).map(([method, name]) => [
+    method,
+    (args?: Record<string, unknown>) =>
+      (call as (name: keyof Commands, ...args: [Record<string, unknown>?]) => Promise<unknown>)(
+        name,
+        ...(args ? [args] : []),
+      ),
+  ]),
+) as unknown as CommandApi;
+
 export const tauriApi: AoideApi = {
-  logUi: (entry) => call("log_ui", { entry }),
-  appInfo: () => call("app_info"),
+  ...commands,
   listBooks: async () =>
-    (await call("list_books")).map(({ coverPath, ...book }) => ({
+    (await commands.listBooks()).map(({ coverPath, ...book }) => ({
       ...book,
       coverUrl: coverPath ? convertFileSrc(coverPath) : null,
     })),
-  home: () => call("home"),
-  importFiles: (paths) => call("import_files", { paths }),
-  addAudiobook: (paths) => call("add_audiobook", { paths }),
-  rescanLibrary: () => call("rescan_library"),
-  removeBook: (bookId) => call("remove_book", { bookId }),
-  showInFolder: (bookId) => call("show_in_folder", { bookId }),
-  collections: () => call("collections"),
-  createCollection: (name) => call("create_collection", { name }),
-  renameCollection: (id, name) => call("rename_collection", { id, name }),
-  deleteCollection: (id) => call("delete_collection", { id }),
-  setBookCollections: (bookId, ids) => call("set_book_collections", { bookId, ids }),
-  openBook: (bookId) => call("open_book", { bookId }),
-  bookOverview: (bookId) => call("book_overview", { bookId }),
-  setMode: (bookId, mode) => call("set_mode", { bookId, mode }),
-  markFinished: (bookId) => call("mark_finished", { bookId }),
-  markUnread: (bookId) => call("mark_unread", { bookId }),
-  setReadingPlace: (bookId, chapter, segmentId) => call("set_reading_place", { bookId, chapter, segmentId }),
-  readingActivity: (bookId) => call("reading_activity", { bookId }),
-  chapter: (bookId, chapter) => call("chapter", { bookId, chapter }),
-  play: (bookId, chapter, segmentId) => call("play", { bookId, chapter, segmentId }),
-  pause: () => call("pause"),
-  resume: () => call("resume"),
-  stop: () => call("stop"),
-  setSpeed: (speed) => call("set_speed", { speed }),
-  setVolume: (volume) => call("set_volume", { volume }),
-  engineStatus: () => call("engine_status"),
-  engineOptions: () => call("engine_options"),
-  engineVoices: () => call("engine_voices"),
-  previewVoice: (profile, voiceId, params, language) => call("preview_voice", { profile, voiceId, params, language }),
-  saveEngineProfile: (profile) => call("save_engine_profile", { profile }),
-  bookSettings: (bookId) => call("book_settings", { bookId }),
-  saveBookSettings: (bookId, settings) => call("save_book_settings", { bookId, settings }),
-  prepareBook: (bookId) => call("prepare_book", { bookId }),
-  cancelPrepare: (bookId) => call("cancel_prepare", { bookId }),
-  prepareChapter: (bookId, chapter) => call("prepare_chapter", { bookId, chapter }),
-  chapterAudio: (bookId) => call("chapter_audio", { bookId }),
-  setPreparePaused: (bookId, paused) => call("set_prepare_paused", { bookId, paused }),
-  regenerateBook: (bookId) => call("regenerate_book", { bookId }),
-  storageReport: () => call("storage_report"),
-  cleanUnusedFiles: () => call("clean_unused_files"),
-  setSleepTimer: (minutes, endOfChapter) => call("set_sleep_timer", { minutes, endOfChapter }),
-  searchBook: (bookId, query) => call("search_book", { bookId, query }),
-  skipChapter: (delta) => call("skip_chapter", { delta }),
-  seek: (bookId, positionMs) => call("seek", { bookId, positionMs }),
-  skip: (bookId, deltaMs) => call("skip", { bookId, deltaMs }),
-  bookmarks: (bookId) => call("bookmarks", { bookId }),
-  addBookmark: (bookId, note) => call("add_bookmark", { bookId, note }),
-  updateBookmarkNote: (id, note) => call("update_bookmark_note", { id, note }),
-  deleteBookmark: (id) => call("delete_bookmark", { id }),
-  activityStats: () => call("activity_stats"),
-  bookListening: (bookId) => call("book_listening", { bookId }),
-  bookDetails: (bookId) => call("book_details", { bookId }),
-  lookupMetadata: (bookId, refresh) => call("lookup_metadata", { bookId, refresh }),
-  applyMetadata: (bookId, match) => call("apply_metadata", { bookId, candidate: match }),
-  appSettings: () => call("app_settings"),
-  updateAppSettings: (patch) => call("update_app_settings", { patch }),
-  preferences: () => call("preferences"),
-  saveAppearance: (appearance) => call("save_appearance", { appearance }),
+  scanForBooks: async () => candidates(await commands.scanForBooks()),
+  discoveredBooks: async () => candidates(await commands.discoveredBooks()),
   onConfigChanged: (h) => on("config://changed", h),
-  exportBook: (bookId) => call("export_book", { bookId }),
-  exportReadAlong: (bookId) => call("export_read_along", { bookId }),
-  scanForBooks: async () => candidates(await call("scan_for_books")),
-  cancelScan: () => call("cancel_scan"),
-  discoveredBooks: async () => candidates(await call("discovered_books")),
-  fetchDiscoveredDetails: (ids) => call("fetch_discovered_details", { ids }),
-  importDiscovered: (choices) => call("import_discovered", { choices }),
   onScanProgress: (h) => on("discovery://progress", h),
-  scanForAudiobooks: () => call("scan_for_audiobooks"),
-  audiobookMatches: () => call("audiobook_matches"),
-  unmatchedAudiobooks: () => call("unmatched_audiobooks"),
-  mergeAudiobook: (audiobookId, bookId) => call("merge_audiobook", { audiobookId, bookId }),
-  saveArticle: (url) => call("save_article", { url }),
-  refetchArticle: (bookId, source) => call("refetch_article", { bookId, source }),
-  browserStatus: () => call("browser_status"),
-  downloadBrowser: () => call("download_browser"),
-  cancelBrowserDownload: () => call("cancel_browser_download"),
-  removeBrowser: () => call("remove_browser"),
   onBrowserDownload: (h) => on("browser://download", h),
-  sites: () => call("sites"),
-  setSiteRule: (host, fetch, siteData) => call("set_site_rule", { host, fetch, siteData }),
-  signOutSite: (host) => call("sign_out_site", { host }),
-  forgetSite: (host) => call("forget_site", { host }),
-  clearBrowserData: () => call("clear_browser_data"),
-  chooseBrowser: () => call("choose_browser"),
-  startSignIn: (bookId) => call("start_sign_in", { bookId }),
-  signIn: () => call("sign_in"),
-  finishSignIn: () => call("finish_sign_in"),
-  cancelSignIn: () => call("cancel_sign_in"),
-  showSignInWindow: () => call("show_sign_in_window"),
-  staySignedIn: (stay) => call("stay_signed_in", { stay }),
   onSignInState: (h) => on("signin://state", h),
-  openOriginal: (bookId) => call("open_original", { bookId }),
-  article: (bookId) => call("article", { bookId }),
-  addLink: (url) => call("add_link", { url }),
-  saveToLibrary: (bookId) => call("save_to_library", { bookId }),
-  feeds: () => call("feeds"),
-  subscribe: (url) => call("subscribe", { url }),
-  unsubscribe: (feedId) => call("unsubscribe", { feedId }),
-  feedEntries: (feedId, filter, before, limit) => call("feed_entries", { feedId, filter, before, limit }),
-  openFeedEntry: (entryId) => call("open_feed_entry", { entryId }),
-  saveFeedEntry: (entryId) => call("save_feed_entry", { entryId }),
-  markEntryRead: (entryId, read) => call("mark_entry_read", { entryId, read }),
-  markAllRead: (feedId) => call("mark_all_read", { feedId }),
-  checkFeeds: () => call("check_feeds"),
-  chooseOpml: () => call("choose_opml"),
-  chooseOpmlTarget: () => call("choose_opml_target"),
-  importOpml: (path) => call("import_opml", { path }),
-  exportOpml: (path) => call("export_opml", { path }),
-  openFeedSite: (feedId) => call("open_feed_site", { feedId }),
   onFeedsChanged: (h) => on("feeds://changed", () => h()),
-  cancelAudiobookScan: () => call("cancel_audiobook_scan"),
-  lookForAudiobooks: (ids) => call("look_for_audiobooks", { ids }),
-  pairAudiobooks: (choices) => call("pair_audiobooks", { choices }),
   onAudiobookScan: (h) => on("audiobooks://progress", h),
   onAudiobookMatches: (h) => on("audiobooks://matches", h),
   onDiscoveryDetails: (h) => on("discovery://details", h),
@@ -185,19 +90,6 @@ export const tauriApi: AoideApi = {
   onGenerationState: (h) => on("generation://state", h),
   onExportProgress: (h) => on("export://progress", h),
   onLibraryChanged: (h) => on("library://changed", () => h()),
-  inspectRecording: (paths) => call("inspect_recording", { paths }),
-  attachRecording: (bookId, paths, asListed = false) => call("attach_recording", { bookId, paths, asListed }),
-  recording: (bookId) => call("recording", { bookId }),
-  recordings: () => call("recordings"),
-  syncReport: (bookId) => call("sync_report", { bookId }),
-  syncAction: (bookId, action) => call("sync_action", { bookId, action }),
-  removeRecording: (bookId) => call("remove_recording", { bookId }),
-  setNarration: (bookId, narration) => call("set_narration", { bookId, narration }),
-  recognitionOptions: () => call("recognition_options"),
-  downloadModel: (modelId) => call("download_model", { modelId }),
-  chooseAudio: (folder) => call("choose_audio", { folder }),
-  chooseBooks: () => call("choose_books"),
-  playRecordingAt: (bookId, atMs) => call("play_recording_at", { bookId, atMs }),
   onSyncState: (h) => on("sync://state", h),
   onArticleState: (h) => on("article://state", h),
   onModelDownload: (h) => on("model://download", h),

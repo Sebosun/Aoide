@@ -36,12 +36,12 @@ export const useFeedsStore = defineStore("feeds", () => {
 
   const ask = (before: number | null, limit: number) => {
     const from = source.value;
-    return api.feedEntries(
-      from.kind === "feed" ? from.id : null,
-      from.kind === "saved" ? "saved" : "all",
+    return api.feedEntries({
+      feedId: from.kind === "feed" ? from.id : null,
+      filter: from.kind === "saved" ? "saved" : "all",
       before,
       limit,
-    );
+    });
   };
   /** Lists the source's entries again, as many as were shown (one page at least). */
   async function refresh() {
@@ -93,7 +93,7 @@ export const useFeedsStore = defineStore("feeds", () => {
     error.value = "";
     opening.value = entry.id;
     try {
-      const id = await api.openFeedEntry(entry.id);
+      const id = await api.openFeedEntry({ entryId: entry.id });
       // The reader shows it as an article (with Save to library) from the start.
       await useArticlesStore().whenFetched(id);
       const reader = useReaderStore();
@@ -108,8 +108,8 @@ export const useFeedsStore = defineStore("feeds", () => {
   /** Saves an entry to the library, or takes it out again (back to the feed). */
   async function toggleSaved(entry: EntryView) {
     try {
-      if (entry.inLibrary && entry.bookId) await api.removeBook(entry.bookId);
-      else await api.saveFeedEntry(entry.id);
+      if (entry.inLibrary && entry.bookId) await api.removeBook({ bookId: entry.bookId });
+      else await api.saveFeedEntry({ entryId: entry.id });
       await Promise.all([refresh(), useLibraryStore().refresh()]);
     } catch (e) {
       error.value = String(e);
@@ -124,24 +124,25 @@ export const useFeedsStore = defineStore("feeds", () => {
   };
   const checkNow = () => run(() => api.checkFeeds());
   /** Marks the listed feed's entries read (every feed's, unless one is chosen). */
-  const markAllRead = () => run(() => api.markAllRead(source.value.kind === "feed" ? source.value.id : null));
+  const markAllRead = () =>
+    run(() => api.markAllRead({ feedId: source.value.kind === "feed" ? source.value.id : null }));
   const unsubscribe = (id: number) =>
     run(async () => {
-      await api.unsubscribe(id);
+      await api.unsubscribe({ feedId: id });
       if (source.value.kind === "feed" && source.value.id === id) await choose({ kind: "all" });
     });
   /** Imports a subscription list the user picks; null when they pick none. */
   async function importList() {
     const path = await api.chooseOpml();
     if (!path) return null;
-    const result = await api.importOpml(path);
+    const result = await api.importOpml({ path });
     await refresh();
     return result;
   }
   /** Exports the subscriptions where the user picks; how many, or null when they pick nowhere. */
   async function exportList() {
     const path = await api.chooseOpmlTarget();
-    return path ? api.exportOpml(path) : null;
+    return path ? api.exportOpml({ path }) : null;
   }
   function dispose() {
     unlisten?.();

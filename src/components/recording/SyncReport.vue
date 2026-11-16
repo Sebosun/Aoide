@@ -21,7 +21,7 @@ const recording = computed(() => recordings.byBook[bookId] ?? null);
 const title = computed(() => library.books.find((b) => b.id === bookId)?.title ?? "");
 onMounted(async () => {
   try {
-    report.value = await api.syncReport(bookId);
+    report.value = await api.syncReport({ bookId });
   } catch (e) {
     error.value = String(e);
   }
@@ -38,7 +38,7 @@ const skipped = computed(() => report.value?.chapters.filter((c) => c.words > 0 
 const narrated = computed(() => report.value?.chapters.filter((c) => c.timedWords > 0) ?? []);
 async function play(atMs: number) {
   try {
-    await api.playRecordingAt(bookId, atMs);
+    await api.playRecordingAt({ bookId, atMs });
   } catch (e) {
     ui.toast(String(e), "error");
   }

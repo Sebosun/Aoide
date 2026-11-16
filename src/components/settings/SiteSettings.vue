@@ -135,9 +135,15 @@ const ROUTES: { value: Route; label: string }[] = [
 ];
 const setRule = (site: SiteView, change: { fetch?: Route; siteData?: SiteData }) => {
   const fetch = change.fetch ?? site.fetch ?? "auto";
-  void run(() => api.setSiteRule(site.host, fetch === "auto" ? null : fetch, change.siteData ?? site.siteData));
+  void run(() =>
+    api.setSiteRule({
+      host: site.host,
+      fetch: fetch === "auto" ? null : fetch,
+      siteData: change.siteData ?? site.siteData,
+    }),
+  );
 };
-const signOut = (site: SiteView) => run(() => api.signOutSite(site.host), `Signed out of ${site.host}.`);
+const signOut = (site: SiteView) => run(() => api.signOutSite({ host: site.host }), `Signed out of ${site.host}.`);
 async function forget(site: SiteView) {
   const ok = await ui.confirm({
     title: `Forget ${site.host}?`,
@@ -145,7 +151,7 @@ async function forget(site: SiteView) {
     confirmLabel: "Forget",
     danger: true,
   });
-  if (ok) await run(() => api.forgetSite(site.host), `Forgot ${site.host}.`);
+  if (ok) await run(() => api.forgetSite({ host: site.host }), `Forgot ${site.host}.`);
 }
 async function removeAll() {
   const ok = await ui.confirm({

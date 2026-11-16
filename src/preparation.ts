@@ -77,7 +77,7 @@ export function describePreparation(status: PreparationStatus): string {
 export async function prepareChapter(bookId: string, chapter: number): Promise<void> {
   const ui = useUiStore();
   try {
-    await api.prepareChapter(bookId, chapter);
+    await api.prepareChapter({ bookId, chapter });
     ui.toast(`Preparing chapter ${chapter + 1} in the background`);
   } catch (e) {
     ui.toast(String(e), "error");
@@ -89,11 +89,12 @@ export async function runPrepareAction(bookId: string, action: PrepareAction): P
   const ui = useUiStore();
   try {
     if (action === "prepare") {
-      await api.prepareBook(bookId);
+      await api.prepareBook({ bookId });
       ui.toast("Preparing the whole book in the background");
-    } else if (action === "start") await api.prepareBook(bookId);
-    else if (action === "pause" || action === "resume") await api.setPreparePaused(bookId, action === "pause");
-    else await api.cancelPrepare(bookId);
+    } else if (action === "start") await api.prepareBook({ bookId });
+    else if (action === "pause" || action === "resume")
+      await api.setPreparePaused({ bookId, paused: action === "pause" });
+    else await api.cancelPrepare({ bookId });
   } catch (e) {
     ui.toast(String(e), "error");
   }

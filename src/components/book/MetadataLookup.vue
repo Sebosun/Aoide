@@ -18,7 +18,7 @@ async function lookup(refresh = false) {
   error.value = "";
   searching.value = true;
   try {
-    matches.value = await api.lookupMetadata(props.bookId, refresh);
+    matches.value = await api.lookupMetadata({ bookId: props.bookId, refresh });
   } catch (e) {
     error.value = String(e);
   } finally {
@@ -29,7 +29,7 @@ async function apply(match: MetadataMatch) {
   error.value = "";
   applying.value = match.key;
   try {
-    const details = await api.applyMetadata(props.bookId, match);
+    const details = await api.applyMetadata({ bookId: props.bookId, candidate: match });
     matches.value = null;
     emit("applied", details);
     await library.refresh();

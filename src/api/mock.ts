@@ -966,7 +966,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async home() {
       return structuredClone(home);
     },
-    async importFiles(paths) {
+    async importFiles({ paths }) {
       return paths.map((path) => ({
         path,
         bookId: null,
@@ -975,7 +975,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     /** As the core does for the preview's audiobook (`audiobook.json`): added once, then the
      *  same item; a protected file is refused. */
-    async addAudiobook(paths) {
+    async addAudiobook({ paths }) {
       const path = paths[0] ?? "";
       if (/\.(aax|aa)$/i.test(path))
         return {
@@ -999,19 +999,19 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         .map((s) => ({ ...s, books: books.filter((b) => b.collections.includes(s.id)).length }))
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
     },
-    async createCollection(name) {
+    async createCollection({ name }) {
       const id = (shelves.at(-1)?.id ?? 0) + 1;
       shelves.push({ id, name: shelfName(name), createdAt: Date.now() });
       changed();
       return id;
     },
-    async renameCollection(id, name) {
+    async renameCollection({ id, name }) {
       const shelf = shelves.find((s) => s.id === id);
       if (!shelf) throw new Error("no such collection");
       shelf.name = shelfName(name, id);
       changed();
     },
-    async deleteCollection(id) {
+    async deleteCollection({ id }) {
       const at = shelves.findIndex((s) => s.id === id);
       if (at >= 0) shelves.splice(at, 1);
       books.forEach((b) => {
@@ -1019,15 +1019,15 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       });
       changed();
     },
-    async setBookCollections(id, ids) {
-      if (ids.some((c) => !shelves.some((s) => s.id === c))) throw new Error("no such collection");
+    async setBookCollections({ bookId: id, ids }) {
+      if (ids.some((c) => !shelves.some((s) => s.id === c))) throw refused("no such collection");
       getBook(id).collections = shelves
         .filter((s) => ids.includes(s.id))
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((s) => s.id);
       changed();
     },
-    async removeBook(id) {
+    async removeBook({ bookId: id }) {
       // As the core does: an item an entry still opens goes back to the feed shelf.
       if (entries.some((e) => e.bookId === id) && !feedShelf.has(id)) {
         feedShelf.add(id);
@@ -1043,15 +1043,15 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       fetched.delete(id);
       changed();
     },
-    async showInFolder(id) {
+    async showInFolder({ bookId: id }) {
       getBook(id);
     },
-    async openBook(id): Promise<BookView> {
+    async openBook({ bookId: id }): Promise<BookView> {
       const b = getBook(id);
       b.lastOpenedAt = Date.now();
-      return api.bookOverview(id);
+      return api.bookOverview({ bookId: id });
     },
-    async bookOverview(id): Promise<BookView> {
+    async bookOverview({ bookId: id }): Promise<BookView> {
       const b = getBook(id),
         view = coreView(id);
       if (isArticle(id) && !fetched.has(id)) throw new Error(articles.get(id)!.error ?? "Not fetched yet.");
@@ -1071,7 +1071,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         shape: b.shape,
       };
     },
-    async setMode(id, mode) {
+    async setMode({ bookId: id, mode }) {
       const b = getBook(id);
       if (mode === "read" && isAudiobook(id)) throw new Error(NO_TEXT);
       if (mode === "read" && state.bookId === id && state.status === "playing") await api.pause();
@@ -1079,10 +1079,10 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       b.shape = mode === "read" ? "read" : "readAlong";
       settings.set(id, { ...settingsOf(id), mode });
       changed();
-      return api.bookOverview(id);
+      return api.bookOverview({ bookId: id });
     },
-    async chapter(id, chapter) {
-      if (isAudiobook(id)) throw new Error(NO_TEXT);
+    async chapter({ bookId: id, chapter }) {
+      if (isAudiobook(id)) throw refused(NO_TEXT);
       if (isArticle(id)) {
         if (!fetched.has(id)) throw new Error(articles.get(id)!.error ?? "Not fetched yet.");
         if (chapter !== 0) throw new Error("Chapter not found.");
@@ -1090,17 +1090,17 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       }
       return getChapter(id, chapter);
     },
-    async markFinished(id) {
+    async markFinished({ bookId: id }) {
       getBook(id).readState = "finished";
       changed();
     },
-    async markUnread(id) {
+    async markUnread({ bookId: id }) {
       const b = getBook(id);
       b.readState = "unread";
       b.progress = null;
       changed();
     },
-    async setReadingPlace(id, chapter, segmentId) {
+    async setReadingPlace({ bookId: id, chapter, segmentId }) {
       const b = getBook(id);
       if (state.bookId === id && state.status === "playing") return null;
       // As the core does: the place's share of the book's spoken segments.
@@ -1115,11 +1115,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       changed();
       return structuredClone(b.progress);
     },
-    async readingActivity(id) {
+    async readingActivity({ bookId: id }) {
       getBook(id);
       readMs.set(id, (readMs.get(id) ?? 0) + 15_000);
     },
-    async play(id, chapter, segmentId) {
+    async play({ bookId: id, chapter = null, segmentId = null }) {
       const book = getBook(id);
       if (isAudiobook(id)) {
         const parts = partsOf(id),
@@ -1182,11 +1182,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       halt();
       emitPlayer({ ...state, status: "stopped", wordIndex: null });
     },
-    async setSpeed(speed) {
+    async setSpeed({ speed }) {
       emitPlayer({ ...state, speed });
       if (state.status === "playing") run();
     },
-    async setVolume(volume) {
+    async setVolume({ volume }) {
       emitPlayer({ ...state, volume: Math.min(1, Math.max(0, volume)) });
     },
     async engineStatus() {
@@ -1218,24 +1218,23 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async engineVoices() {
       return ["Emily.wav", "Adrian.wav", "Olivia.wav"].map((id) => ({ id, displayName: id.replace(".wav", "") }));
     },
-    async saveEngineProfile(next) {
-      if (!descriptors.some((d) => d.kind === next.kind))
-        throw new Error(`No adapter for engine kind \`${next.kind}\``);
+    async saveEngineProfile({ profile: next }) {
+      if (!descriptors.some((d) => d.kind === next.kind)) throw refused(`No adapter for engine kind \`${next.kind}\``);
       if (next.network === "loopback" && !/^https?:\/\/(127\.|localhost|\[::1\])/.test(next.baseUrl))
         throw new Error("Only loopback addresses are allowed unless home-network access is on.");
       profile = JSON.parse(JSON.stringify(next));
       engine.profileName = next.name;
     },
-    async bookSettings(id) {
+    async bookSettings({ bookId: id }) {
       return structuredClone(settingsOf(id));
     },
-    async saveBookSettings(id, next) {
+    async saveBookSettings({ bookId: id, settings: next }) {
       getBook(id);
       settings.set(id, JSON.parse(JSON.stringify(next)));
       const recording = recordings.get(id);
       if (recording) emitSync(recording); // Whether it narrates the book may have changed.
     },
-    async prepareBook(id) {
+    async prepareBook({ bookId: id }) {
       wantEngine();
       const b = getBook(id);
       const entry = prepareEntry(id) ?? prepareQueue[prepareQueue.push({ id, stage: "waiting", chapters: null }) - 1];
@@ -1244,13 +1243,13 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (entry.stage === "queued") b.prepare = prepareView("queued", 3, 120, 0, null);
       settlePrepare();
     },
-    async setPreparePaused(id, paused) {
+    async setPreparePaused({ bookId: id, paused }) {
       const entry = prepareEntry(id);
       if (entry) entry.stage = nextStage(entry.stage, paused ? "pause" : "resume");
       if (entry?.stage === "waiting") entry.stage = nextStage(entry.stage, "planned"); // The mock plans at once.
       settlePrepare();
     },
-    async prepareChapter(id, chapter) {
+    async prepareChapter({ bookId: id, chapter }) {
       const b = getBook(id);
       if (!chapters[Number(id.split("-")[1])]?.[chapter]) throw new Error("no such chapter");
       const entry = prepareEntry(id);
@@ -1265,7 +1264,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       b.prepare = prepareView(added.stage, 0, 12, 0, [chapter]);
       settlePrepare();
     },
-    async chapterAudio(id) {
+    async chapterAudio({ bookId: id }) {
       getBook(id);
       if (isAudiobook(id)) return [];
       const list = chapters[Number(id.split("-")[1])],
@@ -1276,14 +1275,14 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         return { done: queued && (queued.chapters ?? [c]).includes(c) ? 3 : 0, total };
       });
     },
-    async cancelPrepare(id) {
+    async cancelPrepare({ bookId: id }) {
       const b = books.find((b) => b.id === id);
       if (b) b.prepare = null;
       const at = prepareQueue.findIndex((e) => e.id === id);
       if (at >= 0) prepareQueue.splice(at, 1);
       settlePrepare();
     },
-    async regenerateBook(id) {
+    async regenerateBook({ bookId: id }) {
       getBook(id).audioBytes = 0;
       changed();
     },
@@ -1315,7 +1314,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       unused.bytes = 0;
       return freed;
     },
-    async setSleepTimer(minutes, endOfChapter) {
+    async setSleepTimer({ minutes = null, endOfChapter }) {
       emitPlayer({
         ...state,
         sleep:
@@ -1324,7 +1323,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
             : { remainingMs: minutes === null ? null : minutes * 60_000, endOfChapter },
       });
     },
-    async searchBook(id, query) {
+    async searchBook({ bookId: id, query }) {
       getBook(id);
       const q = query.trim().toLowerCase();
       if (q.length < 2) return [];
@@ -1348,29 +1347,29 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       );
       return hits;
     },
-    async skipChapter(delta) {
+    async skipChapter({ delta }) {
       if (state.bookId && state.positionMs !== null) {
         const parts = partsOf(state.bookId),
           part = Math.min(parts.length - 1, Math.max(0, state.chapter + delta));
-        await api.seek(state.bookId, parts[part].start);
+        await api.seek({ bookId: state.bookId, positionMs: parts[part].start });
         await api.resume();
       } else if (state.bookId) {
         const list = chapters[Number(state.bookId.split("-")[1])];
         const c = Math.min(list.length - 1, Math.max(0, state.chapter + delta));
-        await api.play(state.bookId, c, list[c].blocks[0].segments[0].id);
+        await api.play({ bookId: state.bookId, chapter: c, segmentId: list[c].blocks[0].segments[0].id });
       }
     },
-    async seek(id, positionMs) {
+    async seek({ bookId: id, positionMs }) {
       const total = partsOf(id).at(-1)?.end ?? 0,
         at = Math.min(total, Math.max(0, positionMs));
       if (state.bookId === id && state.positionMs !== null) emitPlayer(timelineState(id, at, state.status));
       keepTime(id, at);
     },
-    async skip(id, deltaMs) {
+    async skip({ bookId: id, deltaMs }) {
       const at = state.bookId === id ? state.positionMs : (getBook(id).progress?.positionMs ?? 0);
-      await api.seek(id, (at ?? 0) + deltaMs);
+      await api.seek({ bookId: id, positionMs: (at ?? 0) + deltaMs });
     },
-    async bookmarks(id) {
+    async bookmarks({ bookId: id }) {
       return structuredClone(
         bookmarks
           .filter((b) => b.bookId === id)
@@ -1383,7 +1382,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
           ),
       );
     },
-    async addBookmark(id, note) {
+    async addBookmark({ bookId: id, note }) {
       const book = getBook(id);
       const playing = state.bookId === id;
       if (isAudiobook(id)) {
@@ -1423,16 +1422,16 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       bookmarks.push(mark);
       return structuredClone(mark);
     },
-    async updateBookmarkNote(id, note) {
+    async updateBookmarkNote({ id, note }) {
       const mark = bookmarks.find((b) => b.id === id);
       if (!mark) throw new Error("Bookmark not found.");
       mark.note = note;
     },
-    async deleteBookmark(id) {
+    async deleteBookmark({ id }) {
       const index = bookmarks.findIndex((b) => b.id === id);
       if (index >= 0) bookmarks.splice(index, 1);
     },
-    async bookListening(id) {
+    async bookListening({ bookId: id }) {
       getBook(id);
       return id === "book-0"
         ? [
@@ -1458,7 +1457,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         byBook,
       };
     },
-    async bookDetails(id) {
+    async bookDetails({ bookId: id }) {
       getBook(id);
       return structuredClone(
         details.get(id) ?? {
@@ -1471,7 +1470,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         },
       );
     },
-    async lookupMetadata(id, _refresh): Promise<MetadataMatch[]> {
+    async lookupMetadata({ bookId: id, refresh: _refresh }): Promise<MetadataMatch[]> {
       const book = getBook(id);
       if (!appSettings.metadataLookup) throw new Error("Online metadata lookup is turned off in Settings.");
       return [
@@ -1487,7 +1486,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         },
       ];
     },
-    async applyMetadata(id, match) {
+    async applyMetadata({ bookId: id, candidate: match }) {
       getBook(id);
       const next: BookDetails = {
         description: details.get(id)?.description ?? null,
@@ -1504,24 +1503,24 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async appSettings() {
       return { ...appSettings };
     },
-    async updateAppSettings(patch) {
+    async updateAppSettings({ patch }) {
       appSettings = JSON.parse(JSON.stringify({ ...appSettings, ...patch }));
       return JSON.parse(JSON.stringify(appSettings));
     },
     async preferences() {
       return structuredClone(preferences);
     },
-    async saveAppearance(next) {
+    async saveAppearance({ appearance: next }) {
       preferences = { ...preferences, appearance: { ...next } };
     },
     onConfigChanged: (h) => subscribe(configHandlers, h),
-    async exportBook(id) {
+    async exportBook({ bookId: id }) {
       getBook(id);
       const path = `~/Documents/Aoide/Exports/${books.find((b) => b.id === id)!.title}.m4b`;
       exportHandlers.forEach((h) => h({ bookId: id, stage: "done", done: 1, total: 1, path, error: null }));
       return path;
     },
-    async exportReadAlong(id) {
+    async exportReadAlong({ bookId: id }) {
       getBook(id);
       const path = `~/Documents/Aoide/Exports/${books.find((b) => b.id === id)!.title} (read-along).epub`;
       exportHandlers.forEach((h) => h({ bookId: id, stage: "done", done: 1, total: 1, path, error: null }));
@@ -1539,7 +1538,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async discoveredBooks() {
       return scanned ? listed() : [];
     },
-    async fetchDiscoveredDetails(ids) {
+    async fetchDiscoveredDetails({ ids }) {
       for (const id of ids) {
         const c = found.find((f) => f.id === id);
         if (c && c.status === "new")
@@ -1556,7 +1555,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         detailHandlers.forEach((h) => h(id));
       }
     },
-    async importDiscovered(choices) {
+    async importDiscovered({ choices }) {
       const results = [];
       for (const [done, choice] of choices.entries()) {
         importHandlers.forEach((h) =>
@@ -1578,7 +1577,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         });
         changed();
         results.push({ path: c.paths[0], bookId: c.id, error: null });
-        if (choice.pairAudiobook && c.audiobook.length) await api.attachRecording(c.id, c.audiobook);
+        if (choice.pairAudiobook && c.audiobook.length) await api.attachRecording({ bookId: c.id, paths: c.audiobook });
       }
       return results;
     },
@@ -1597,7 +1596,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       });
       for (const m of audiobookMatches)
         if (m.stage.kind === "verifying" && !recordings.has(m.bookId))
-          await api.attachRecording(m.bookId, m.candidates[0].paths);
+          await api.attachRecording({ bookId: m.bookId, paths: m.candidates[0].paths });
       unmatched = [
         {
           paths: [WINTER_RADIO],
@@ -1621,18 +1620,18 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       return structuredClone(unmatched.filter((u) => !(added && u.paths[0] === WINTER_RADIO)));
     },
     async cancelAudiobookScan() {},
-    async lookForAudiobooks(ids) {
+    async lookForAudiobooks({ ids }) {
       if (!appSettings.audiobooks.onAdd) return 0;
       await api.scanForAudiobooks();
       return audiobookMatches.filter((m) => ids.includes(m.bookId) && m.stage.kind === "found").length;
     },
-    async pairAudiobooks(choices) {
+    async pairAudiobooks({ choices }) {
       const outcomes = [];
       for (const { bookId, candidate } of choices) {
         const match = audiobookMatches.find((m) => m.bookId === bookId);
         try {
-          if (!match?.candidates[candidate]) throw new Error("no such audiobook match");
-          await api.attachRecording(bookId, match.candidates[candidate].paths);
+          if (!match?.candidates[candidate]) throw refused("no such audiobook match");
+          await api.attachRecording({ bookId, paths: match.candidates[candidate].paths });
           match.stage = { kind: "paired", candidate };
           outcomes.push({ bookId, error: null });
         } catch (e) {
@@ -1656,7 +1655,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         libraryHandlers.delete(h);
       };
     },
-    async inspectRecording(paths): Promise<InspectionView> {
+    async inspectRecording({ paths }): Promise<InspectionView> {
       const audio = paths.filter((p) => /\.(m4b|m4a|mp3|flac|ogg|opus|wav)$/i.test(p) || !/\.[a-z0-9]+$/i.test(p));
       const protectedFiles = paths.filter((p) => /\.(aax|aa)$/i.test(p));
       const name = (p: string) => p.split("/").pop() ?? p;
@@ -1684,7 +1683,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
      *  bookmarks and collections, and the audiobook item goes. */
     /** As the core does for the preview's article (`article.json`): saved once, then fetched;
      *  a link saved again is the same item, fetched again unless it is ready. */
-    async saveArticle(url) {
+    async saveArticle({ url }) {
       parseLink(url);
       const id = fixtureArticle.summary.id;
       const known = articles.get(id);
@@ -1700,7 +1699,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       }
       return id;
     },
-    async refetchArticle(id, source) {
+    async refetchArticle({ bookId: id, source }) {
       const view = articles.get(id);
       if (!view) throw new Error("Not an article.");
       if (source === "browser" && appSettings.browser.use === "off")
@@ -1708,7 +1707,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (view.stage.kind === "queued" || view.stage.kind === "fetching") return;
       fetchArticle(id, { kind: "ready" }, source);
     },
-    async article(id) {
+    async article({ bookId: id }) {
       const view = articles.get(id);
       if (!view) throw new Error("Not an article.");
       return structuredClone(view);
@@ -1718,7 +1717,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     /** As the core does: a known address is the feed already subscribed; any other address
      *  ending in a feed's usual name subscribes to a new, empty feed; anything else is no feed. */
-    async subscribe(url): Promise<SubscribeResult> {
+    async subscribe({ url }): Promise<SubscribeResult> {
       const link = parseLink(url).href;
       const known = feedViews().find((f) => f.url === link);
       if (known) return { kind: "subscribed", value: known };
@@ -1752,17 +1751,17 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       return { kind: "subscribed", value: feed };
     },
     /** As the core does: the feed's entries go, and the items only they opened. */
-    async unsubscribe(feedId) {
+    async unsubscribe({ feedId }) {
       feeds = feeds.filter((f) => f.id !== feedId);
       entries = entries.filter((e) => e.feedId !== feedId);
       for (const id of [...feedShelf]) {
         if (entries.some((e) => e.bookId === id)) continue;
         feedShelf.delete(id);
-        await api.removeBook(id);
+        await api.removeBook({ bookId: id });
       }
       feedsChanged();
     },
-    async feedEntries(feedId, filter, before, limit) {
+    async feedEntries({ feedId = null, filter, before = null, limit = null }) {
       const all = entryViews().filter(
         (e) =>
           (feedId === null || e.feedId === feedId) &&
@@ -1771,36 +1770,36 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       const start = before === null ? 0 : all.findIndex((e) => e.id === before) + 1;
       return structuredClone(all.slice(start, start + Math.min(limit ?? 50, 200)));
     },
-    async openFeedEntry(entryId) {
+    async openFeedEntry({ entryId }) {
       const entry = getEntry(entryId);
       const id = entryItem(entry);
       entry.read = true;
       feedsChanged();
       return id;
     },
-    async saveFeedEntry(entryId) {
+    async saveFeedEntry({ entryId }) {
       const id = entryItem(getEntry(entryId));
-      await api.saveToLibrary(id);
+      await api.saveToLibrary({ bookId: id });
       return id;
     },
-    async saveToLibrary(id) {
+    async saveToLibrary({ bookId: id }) {
       if (!feedShelf.delete(id)) return;
       setArticle(id, { inLibrary: true });
       feedsChanged();
     },
     /** As the core does: a feed address subscribes, anything else is saved as an article. */
-    async addLink(url): Promise<AddedLink> {
+    async addLink({ url }): Promise<AddedLink> {
       if (isFeedAddress(parseLink(url).href)) {
-        const result = await api.subscribe(url);
+        const result = await api.subscribe({ url });
         if (result.kind === "subscribed") return result;
       }
-      return { kind: "saved", value: await api.saveArticle(url) };
+      return { kind: "saved", value: await api.saveArticle({ url }) };
     },
-    async markEntryRead(entryId, read) {
+    async markEntryRead({ entryId, read }) {
       getEntry(entryId).read = read;
       feedsChanged();
     },
-    async markAllRead(feedId) {
+    async markAllRead({ feedId = null } = {}) {
       for (const entry of entries) if (feedId === null || entry.feedId === feedId) entry.read = true;
       feedsChanged();
     },
@@ -1811,8 +1810,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       feedsChanged();
     },
     /** The preview opens nothing. */
-    async openFeedSite(feedId) {
-      if (!feeds.some((f) => f.id === feedId)) throw new Error("No such feed.");
+    async openFeedSite({ feedId }) {
+      if (!feeds.some((f) => f.id === feedId)) throw refused("No such feed.");
     },
     async chooseOpml() {
       return "~/subscriptions.opml";
@@ -1852,11 +1851,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     onFeedsChanged: (h) => subscribe(feedHandlers, h),
     /** The preview opens nothing. */
-    async openOriginal(id) {
-      if (!articles.has(id)) throw new Error("Not an article.");
+    async openOriginal({ bookId: id }) {
+      if (!articles.has(id)) throw refused("Not an article.");
     },
-    async mergeAudiobook(audiobookId, bookId) {
-      if (!isAudiobook(audiobookId)) throw new Error("That is not an audiobook on its own.");
+    async mergeAudiobook({ audiobookId, bookId }) {
+      if (!isAudiobook(audiobookId)) throw refused("That is not an audiobook on its own.");
       const book = getBook(bookId),
         audio = getBook(audiobookId);
       if (book.kind !== "book") throw new Error("That is not a book with text.");
@@ -1872,11 +1871,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       changed();
       simulateSync(bookId);
     },
-    async attachRecording(bookId, paths) {
+    async attachRecording({ bookId, paths }) {
       getBook(bookId);
-      const found = await api.inspectRecording(paths);
-      if (found.problems.length) throw new Error(`${found.problems[0].name}: ${found.problems[0].problem}`);
-      if (!found.files.length) throw new Error("No audio files were found there.");
+      const found = await api.inspectRecording({ paths });
+      if (found.problems.length) throw refused(`${found.problems[0].name}: ${found.problems[0].problem}`);
+      if (!found.files.length) throw refused("No audio files were found there.");
       emitSync({
         ...recordingIn(bookId, "checking"),
         files: found.files,
@@ -1889,14 +1888,14 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       simulateSync(bookId);
       return structuredClone(recordings.get(bookId)!);
     },
-    async recording(bookId) {
+    async recording({ bookId }) {
       const r = recordings.get(bookId);
       return r ? structuredClone(r) : null;
     },
     async recordings() {
       return [...recordings.values()].map((r) => structuredClone(r));
     },
-    async syncReport(bookId): Promise<SyncReportView> {
+    async syncReport({ bookId }): Promise<SyncReportView> {
       const r = recordings.get(bookId);
       if (!r?.summary) throw new Error("the recording is not matched yet");
       const list = chapters[Number(bookId.split("-")[1])] ?? [];
@@ -1925,7 +1924,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         ],
       };
     },
-    async syncAction(bookId, action) {
+    async syncAction({ bookId, action }) {
       const r = recordings.get(bookId);
       if (!r) throw refused("the book has no recording");
       const stage = syncStages[r.stage].next[action];
@@ -1940,17 +1939,17 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       changed();
       if (stage === "waiting" || stage === "checking") simulateSync(bookId);
     },
-    async removeRecording(bookId) {
+    async removeRecording({ bookId }) {
       recordings.delete(bookId);
       const book = books.find((b) => b.id === bookId);
       if (book) book.recording = null;
       if (settings.has(bookId)) settings.set(bookId, { ...settingsOf(bookId), narration: null });
       changed();
     },
-    async setNarration(bookId, narration) {
+    async setNarration({ bookId, narration }) {
       const recording = recordings.get(bookId);
-      if (narration === "recording" && !recording?.listenable) throw new Error("the recording is not synced yet");
-      await api.saveBookSettings(bookId, { ...settingsOf(bookId), narration });
+      if (narration === "recording" && !recording?.listenable) throw refused("the recording is not synced yet");
+      await api.saveBookSettings({ bookId, settings: { ...settingsOf(bookId), narration } });
     },
     async recognitionOptions() {
       const models: [string, "tiny" | "base" | "small", boolean, number][] = [
@@ -1974,7 +1973,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         })),
       };
     },
-    async downloadModel(modelId) {
+    async downloadModel({ modelId }) {
       const total = 147_964_211;
       for (const share of [0.25, 0.6, 1]) {
         await new Promise((resolve) => setTimeout(resolve, 150));
@@ -2001,14 +2000,14 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async chooseBooks() {
       return ["~/Downloads/the-lantern-keeper.epub"];
     },
-    async chooseAudio(folder) {
+    async chooseAudio({ folder }) {
       return folder ? ["~/Audiobooks/The Lantern Keeper"] : ["~/Audiobooks/the-lantern-keeper.m4b"];
     },
-    async playRecordingAt(bookId, atMs) {
+    async playRecordingAt({ bookId, atMs }) {
       if (!recordings.get(bookId)?.narrates)
         throw new Error("choose the recording as the book's narration to listen to it");
       const list = chapters[Number(bookId.split("-")[1])] ?? [];
-      await api.play(bookId, Math.min(list.length - 1, Math.floor(atMs / hour)), null);
+      await api.play({ bookId, chapter: Math.min(list.length - 1, Math.floor(atMs / hour)), segmentId: null });
     },
     onSyncState: (h) => subscribe(syncHandlers, h),
     onArticleState: (h) => subscribe(articleHandlers, h),
@@ -2033,7 +2032,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         }
       return [...sites.values()].sort((a, b) => a.host.localeCompare(b.host)).map((s) => structuredClone(s));
     },
-    async setSiteRule(host, fetch, siteData) {
+    async setSiteRule({ host, fetch = null, siteData }) {
       const key = siteHost(host);
       if (!key) throw new Error("No site was named.");
       sites.set(key, {
@@ -2042,17 +2041,17 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         siteData,
       });
     },
-    async signOutSite(host) {
+    async signOutSite({ host }) {
       browserOff();
       const site = sites.get(siteHost(host));
       if (site && (site.session.kind === "signedIn" || site.session.kind === "checkPassed"))
         site.session = { kind: "none" };
     },
-    async forgetSite(host) {
+    async forgetSite({ host }) {
       browserOff();
       sites.delete(siteHost(host));
     },
-    async startSignIn(id) {
+    async startSignIn({ bookId: id }) {
       browserOff();
       if (signInOpen()) throw new Error("A sign-in is already open. Finish or cancel it first.");
       openSignIn(id);
@@ -2073,8 +2072,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async showSignInWindow() {
       if (!signInOpen()) throw new Error("No sign-in is open.");
     },
-    async staySignedIn(stay) {
-      if (!signInOpen()) throw new Error("No sign-in is open.");
+    async staySignedIn({ stay }) {
+      if (!signInOpen()) throw refused("No sign-in is open.");
       tellSignIn({ staySignedIn: stay });
     },
     onSignInState: (h) => subscribe(signInHandlers, h),

@@ -73,7 +73,7 @@ it("shows what is playing in the sidebar and opens the reader from it", async ()
   const wrapper = mount(App);
   await flushPromises();
   expect(wrapper.find('nav [aria-label="Now playing"]').exists()).toBe(false);
-  await mock.play("book-0", 0, null);
+  await mock.play({ bookId: "book-0", chapter: 0, segmentId: null });
   await flushPromises();
   const card = wrapper.get('nav [aria-label="Now playing"]');
   expect(card.text()).toContain("The Lantern Keeper");
@@ -151,7 +151,7 @@ it("imports chosen EPUBs, closing the dialog on Library", async () => {
   await flushPromises();
   await button(wrapper, "Choose books").trigger("click");
   await flushPromises();
-  expect(imported).toHaveBeenCalledWith(["~/Downloads/the-lantern-keeper.epub"]);
+  expect(imported).toHaveBeenCalledWith({ paths: ["~/Downloads/the-lantern-keeper.epub"] });
   expect(dialog(wrapper).exists()).toBe(false);
   expect(nav(wrapper, "Library").attributes("aria-current")).toBe("page");
   wrapper.unmount();
@@ -225,7 +225,7 @@ it("saves a link from the Add dialog: the card shows the fetch, then the article
   await linkField(wrapper).setValue("https://quay.example/lights");
   await dialog(wrapper).get("form").trigger("submit");
   await flushPromises();
-  expect(save).toHaveBeenCalledWith("https://quay.example/lights");
+  expect(save).toHaveBeenCalledWith({ url: "https://quay.example/lights" });
   expect(dialog(wrapper).exists()).toBe(false);
   expect(wrapper.find(".library").exists()).toBe(true);
   const card = () => wrapper.findAll(".book-card").find((c) => c.find(".book-card__tile").exists())!;

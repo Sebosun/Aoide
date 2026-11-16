@@ -23,7 +23,7 @@ export function useReadingTime() {
     const id = reader.book?.id;
     if (!id || Date.now() - lastSent < REPORT_MS || !reading()) return;
     lastSent = Date.now();
-    api.readingActivity(id).catch(() => {
+    api.readingActivity({ bookId: id }).catch(() => {
       // Logged by the API layer; the next report counts the time since the last one.
     });
   }

@@ -41,13 +41,13 @@ export const useReaderStore = defineStore("reader", () => {
   async function setMode(mode: ReadingMode) {
     const id = book.value?.id;
     if (!id) return;
-    const view = await api.setMode(id, mode);
+    const view = await api.setMode({ bookId: id, mode });
     if (book.value?.id === id) book.value = view;
   }
   /** A chapter's text, fetched once; does not change which chapter is shown. */
   async function chapterText(id: string, index: number) {
     const key = `${id}:${index}`;
-    return (cache.value[key] ??= await api.chapter(id, index));
+    return (cache.value[key] ??= await api.chapter({ bookId: id, chapter: index }));
   }
   async function loadChapter(index: number) {
     const id = book.value?.id;
@@ -65,7 +65,7 @@ export const useReaderStore = defineStore("reader", () => {
     loading.value = true;
     error.value = "";
     try {
-      const result = await api.openBook(id);
+      const result = await api.openBook({ bookId: id });
       if (request !== openRequest) return;
       book.value = result;
       const saved = result.progress;

@@ -326,7 +326,7 @@ impl Discovery {
         *lock(&self.scanning) = None;
         if let Err(error) = &result {
             self.emit_scan(ScanProgress {
-                stage: if error == "cancelled" {
+                stage: if error == super::error::CANCELLED {
                     ScanStage::Cancelled
                 } else {
                     ScanStage::Error
@@ -355,13 +355,13 @@ impl Discovery {
         let started = Instant::now();
         let found = self.walk(&options, cancel);
         if cancelled() {
-            return Err("cancelled".into());
+            return Err(super::error::CANCELLED.into());
         }
         let scan_started = now_ms();
         let (unchanged, changed) = self.set_aside_unchanged(found, scan_started)?;
         let records = self.read_files(&changed, scan_started, cancel);
         if cancelled() {
-            return Err("cancelled".into());
+            return Err(super::error::CANCELLED.into());
         }
         self.store(&records, scan_started)?;
         let found = (unchanged + records.len()) as u64;

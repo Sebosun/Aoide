@@ -496,7 +496,7 @@ impl Finder {
         lock(&self.matches).cancel = None;
         let stage = match &result {
             Ok(()) => ScanStage::Done,
-            Err(error) if error == "cancelled" => ScanStage::Cancelled,
+            Err(error) if error == super::error::CANCELLED => ScanStage::Cancelled,
             Err(_) => ScanStage::Error,
         };
         self.emit(CoreEvent::AudiobookScan(ScanProgress {
@@ -533,7 +533,7 @@ impl Finder {
                 took_ms = crate::logging::took(started),
                 "Search for audiobooks cancelled"
             );
-            return Err("cancelled".into());
+            return Err(super::error::CANCELLED.into());
         }
         let ids = ids.as_deref();
         let books = self.books_to_match(ids)?;

@@ -73,12 +73,12 @@ export const useSignInStore = defineStore("signin", () => {
     start: (articleId: string) =>
       run(async () => {
         await init();
-        receive(await api.startSignIn(articleId));
+        receive(await api.startSignIn({ bookId: articleId }));
       }),
     finish: () => run(() => api.finishSignIn()),
     cancel: () => run(() => api.cancelSignIn()),
     showWindow: () => run(() => api.showSignInWindow()),
-    stay: (stay: boolean) => run(() => api.staySignedIn(stay)),
+    stay: (stay: boolean) => run(() => api.staySignedIn({ stay })),
     /** Closes a failed sign-in's dialog. */
     dismiss: () => {
       shown.value = false;

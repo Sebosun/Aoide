@@ -19,7 +19,7 @@ export function useAppSettings() {
     error.value = "";
     message.value = "";
     try {
-      settings.value = await api.updateAppSettings(change);
+      settings.value = await api.updateAppSettings({ patch: change });
       message.value = done;
       return true;
     } catch (e) {

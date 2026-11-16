@@ -114,16 +114,16 @@ it("previews the chosen voice with the unsaved engine settings", async () => {
   await wrapper.get('[aria-label="Temperature"]').setValue("1.2");
   await wrapper.get('[aria-label="Preview voice"]').trigger("click");
   await flushPromises();
-  expect(preview).toHaveBeenCalledWith(
-    expect.objectContaining({
+  expect(preview).toHaveBeenCalledWith({
+    profile: expect.objectContaining({
       kind: "chatterbox",
       voiceId: "Olivia.wav",
       params: expect.objectContaining({ temperature: 1.2 }),
     }),
-    "Olivia.wav",
-    {},
-    null,
-  );
+    voiceId: "Olivia.wav",
+    params: {},
+    language: null,
+  });
   expect(play).toHaveBeenCalled();
   expect(wrapper.find('[aria-label="Stop preview"]').exists()).toBe(true);
   await wrapper.get('[aria-label="Stop preview"]').trigger("click");
@@ -140,7 +140,12 @@ it("previews a book's own voice from book tools", async () => {
   await choose(wrapper, "Voice for this book", "Adrian");
   await wrapper.get('[aria-label="Preview voice"]').trigger("click");
   await flushPromises();
-  expect(preview).toHaveBeenCalledWith(expect.objectContaining({ kind: "chatterbox" }), "Adrian.wav", {}, "en");
+  expect(preview).toHaveBeenCalledWith({
+    profile: expect.objectContaining({ kind: "chatterbox" }),
+    voiceId: "Adrian.wav",
+    params: {},
+    language: "en",
+  });
   expect(play).toHaveBeenCalled();
   wrapper.unmount();
 });
@@ -213,7 +218,7 @@ it("cleans up unused files and deletes a book's audio after confirming", async (
   await flushPromises();
   await host.get('[data-confirm="yes"]').trigger("click");
   await flushPromises();
-  expect(regenerate).toHaveBeenCalledWith("book-0");
+  expect(regenerate).toHaveBeenCalledWith({ bookId: "book-0" });
   expect(wrapper.findAll('[aria-label="Audio by book"] tbody tr')).toHaveLength(0);
   wrapper.unmount();
   host.unmount();
@@ -221,7 +226,7 @@ it("cleans up unused files and deletes a book's audio after confirming", async (
 
 it("deletes the audio of finished books, but not of the book that is playing", async () => {
   const regenerate = vi.spyOn(mock, "regenerateBook");
-  await mock.play("book-0", 0, null);
+  await mock.play({ bookId: "book-0", chapter: 0, segmentId: null });
   await mock.pause();
   mock.setProgressForTest("book-0", 1);
   mock.setProgressForTest("book-1", 1);
@@ -235,7 +240,7 @@ it("deletes the audio of finished books, but not of the book that is playing", a
   await flushPromises();
   await host.get('[data-confirm="yes"]').trigger("click");
   await flushPromises();
-  expect(regenerate.mock.calls).toEqual([["book-1"]]);
+  expect(regenerate.mock.calls).toEqual([[{ bookId: "book-1" }]]);
   wrapper.unmount();
   host.unmount();
 });
@@ -387,11 +392,15 @@ it("edits a site's data policy and route, signs out, forgets and removes all sit
   expect(rows()[1]).toContain("Asked for a subscription");
 
   await choose(wrapper, "Site data for harbour.example", "Clear before each fetch");
-  expect(setRule).toHaveBeenLastCalledWith("harbour.example", null, "clear_before_fetch");
+  expect(setRule).toHaveBeenLastCalledWith({ host: "harbour.example", fetch: null, siteData: "clear_before_fetch" });
   await choose(wrapper, "How harbour.example is fetched", "Browser");
-  expect(setRule).toHaveBeenLastCalledWith("harbour.example", "browser", "clear_before_fetch");
+  expect(setRule).toHaveBeenLastCalledWith({
+    host: "harbour.example",
+    fetch: "browser",
+    siteData: "clear_before_fetch",
+  });
   await choose(wrapper, "How harbour.example is fetched", "Automatic");
-  expect(setRule).toHaveBeenLastCalledWith("harbour.example", null, "clear_before_fetch");
+  expect(setRule).toHaveBeenLastCalledWith({ host: "harbour.example", fetch: null, siteData: "clear_before_fetch" });
 
   await wrapper.get('[aria-label="Sign out of harbour.example"]').trigger("click");
   await flushPromises();

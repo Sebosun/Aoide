@@ -75,17 +75,17 @@ async function act(action: () => Promise<unknown>) {
 const preparation = computed(() => preparationStatus(props.book.prepare));
 async function exportBook() {
   ui.toast(`Exporting ${props.book.title}… this can take a while`);
-  const path = await api.exportBook(props.book.id);
+  const path = await api.exportBook({ bookId: props.book.id });
   ui.toast(`Exported to ${path}`);
 }
 async function exportReadAlong() {
   ui.toast(`Exporting ${props.book.title} with its recording… this can take a minute`);
-  const path = await api.exportReadAlong(props.book.id);
+  const path = await api.exportReadAlong({ bookId: props.book.id });
   ui.toast(`Exported to ${path}`);
 }
 const recordings = useRecordingsStore();
 async function addAudiobook() {
-  const paths = await api.chooseAudio(false);
+  const paths = await api.chooseAudio({ folder: false });
   if (paths?.length) recordings.openPairing(paths, props.book.id);
 }
 async function deleteAudio() {
@@ -96,7 +96,7 @@ async function deleteAudio() {
     danger: true,
   });
   if (ok) {
-    await api.regenerateBook(props.book.id);
+    await api.regenerateBook({ bookId: props.book.id });
     ui.toast("Generated audio deleted");
   }
 }
@@ -162,7 +162,7 @@ const items = computed<MenuEntry[]>(() => {
       id: "folder",
       label: "Show in folder",
       icon: FolderOpen,
-      action: () => act(() => api.showInFolder(book.id)),
+      action: () => act(() => api.showInFolder({ bookId: book.id })),
     });
     if (!audiobook.value) list.push(...textActions(book));
     if (book.audioBytes)

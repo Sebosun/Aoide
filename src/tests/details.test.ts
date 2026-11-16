@@ -66,14 +66,14 @@ it("reads without playing, and listens from the saved place", async () => {
   await flushPromises();
   await page(wrapper).get('[aria-label="Listen"]').trigger("click");
   await flushPromises();
-  expect(play).toHaveBeenCalledWith("book-1", null, null);
+  expect(play).toHaveBeenCalledWith({ bookId: "book-1", chapter: null, segmentId: null });
   expect(useNavigationStore().view).toBe("reader");
 
   useNavigationStore().openItem("book-1");
   await flushPromises();
   await page(wrapper).get('[aria-label="Contents"] [aria-label="Open chapter 2: The long way home"]').trigger("click");
   await flushPromises();
-  expect(play).toHaveBeenLastCalledWith("book-1", 1, "1:0:0");
+  expect(play).toHaveBeenLastCalledWith({ bookId: "book-1", chapter: 1, segmentId: "1:0:0" });
   expect(useNavigationStore().view).toBe("reader");
   wrapper.unmount();
 });
@@ -90,7 +90,7 @@ it("offers a voice or an audiobook when nothing is set up to play", async () => 
   expect(card.get('[aria-label="Narrate with a voice"]').text()).toContain("Read aloud by Local Chatterbox");
   await card.get('[aria-label="Pair an audiobook"]').trigger("click");
   await flushPromises();
-  expect(pair).toHaveBeenCalledWith(false);
+  expect(pair).toHaveBeenCalledWith({ folder: false });
   expect(useRecordingsStore().pairing?.bookId).toBe("book-1");
   wrapper.unmount();
 });
@@ -104,7 +104,7 @@ it("shows the voice and what is prepared when speech plays the book", async () =
   expect(card.text()).toContain("Local Chatterbox · 2.3 MB made so far");
   await card.get('[aria-label="Prepare whole book"]').trigger("click");
   await flushPromises();
-  expect(prepare).toHaveBeenCalledWith("book-0");
+  expect(prepare).toHaveBeenCalledWith({ bookId: "book-0" });
   await card.get('[aria-label="Pause preparing"]').trigger("click");
   wrapper.unmount();
 });
@@ -121,14 +121,14 @@ it("shows the recording and the narration switch when the book has a recording",
 });
 
 it("puts the book on a collection from its page", async () => {
-  const id = await mock.createCollection("Night reading");
+  const id = await mock.createCollection({ name: "Night reading" });
   const shelve = vi.spyOn(mock, "setBookCollections");
   useNavigationStore().openItem("book-1");
   const wrapper = await app();
   await page(wrapper).get('[aria-label="Add to collection"]').trigger("click");
   document.body.querySelector<HTMLElement>('[role="menuitemcheckbox"][aria-label="Night reading"]')!.click();
   await flushPromises();
-  expect(shelve).toHaveBeenCalledWith("book-1", [id]);
+  expect(shelve).toHaveBeenCalledWith({ bookId: "book-1", ids: [id] });
   wrapper.unmount();
 });
 
@@ -179,7 +179,7 @@ it("leads with Read for a book read silently and with Listen for one listened to
   expect(about.get('[aria-label="Listen"]').classes()).toContain("ui-button--raised");
   expect(about.get('[aria-labelledby="item-text"]').text()).toMatch(/About .+ to read/);
 
-  await mock.setMode("book-1", "listen");
+  await mock.setMode({ bookId: "book-1", mode: "listen" });
   await flushPromises();
   about = page(wrapper);
   expect(about.get('[aria-label="Listen"]').classes()).toContain("ui-button--accent");
@@ -187,13 +187,13 @@ it("leads with Read for a book read silently and with Listen for one listened to
   const setMode = vi.spyOn(mock, "setMode");
   await about.get('[aria-label="Read"]').trigger("click");
   await flushPromises();
-  expect(setMode).toHaveBeenCalledWith("book-1", "read");
+  expect(setMode).toHaveBeenCalledWith({ bookId: "book-1", mode: "read" });
   expect(useReaderStore().shape).toBe("read");
   wrapper.unmount();
 });
 
 it("shows an audiobook's page: Listen only, no text, its length, parts and files", async () => {
-  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  await mock.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
   const play = vi.spyOn(mock, "play");
   useNavigationStore().openItem("book-5");
   const wrapper = await app();
@@ -212,7 +212,7 @@ it("shows an audiobook's page: Listen only, no text, its length, parts and files
 
   await contents.get('[aria-label="Play part 2: Part Two"]').trigger("click");
   await flushPromises();
-  expect(play).toHaveBeenCalledWith("book-5", 1, null);
+  expect(play).toHaveBeenCalledWith({ bookId: "book-5", chapter: 1, segmentId: null });
   expect(useNavigationStore().view).toBe("reader");
   await mock.pause();
   wrapper.unmount();
@@ -246,10 +246,10 @@ it("shows an article's page: its site and fetch, narration only, the original an
   expect(about().find('[aria-labelledby="item-online"]').exists(), "no details online").toBe(false);
 
   await about().get('[aria-label="Open original"]').trigger("click");
-  expect(open).toHaveBeenCalledWith("book-6");
+  expect(open).toHaveBeenCalledWith({ bookId: "book-6" });
   await about().get('[aria-label="Fetch again"]').trigger("click");
   await flushPromises();
-  expect(refetch).toHaveBeenCalledWith("book-6", "http");
+  expect(refetch).toHaveBeenCalledWith({ bookId: "book-6", source: "http" });
   expect(about().get('[aria-labelledby="item-text"]').text()).toContain("Fetching…");
   expect(about().get('[aria-label="Fetch again"]').attributes("disabled")).toBeDefined();
   wrapper.unmount();
@@ -277,10 +277,10 @@ it("shows why an article could not be fetched, and fetches it again", async () =
 
 it("says an article was rendered in the browser, which the mock, like the core, refuses while it is off", async () => {
   const { wrapper, about } = await articlePage("failed");
-  await expect(mock.refetchArticle("book-6", "browser")).rejects.toThrow("The browser is off.");
-  await mock.updateAppSettings({ browser: { use: "fallback", path: null, idleSeconds: 60 } });
+  await expect(mock.refetchArticle({ bookId: "book-6", source: "browser" })).rejects.toThrow("The browser is off.");
+  await mock.updateAppSettings({ patch: { browser: { use: "fallback", path: null, idleSeconds: 60 } } });
   vi.useFakeTimers();
-  await mock.refetchArticle("book-6", "browser");
+  await mock.refetchArticle({ bookId: "book-6", source: "browser" });
   await vi.advanceTimersByTimeAsync(1500);
   vi.useRealTimers();
   await flushPromises();

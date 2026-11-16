@@ -49,7 +49,7 @@ it("fetches online details only when asked and shows the suggestion", async () =
   expect(fetch).not.toHaveBeenCalled();
   await wrapper.get('[aria-label="Fetch details online"]').trigger("click");
   await flushPromises();
-  expect(fetch).toHaveBeenCalledWith(["h-tide", "h-glass"]);
+  expect(fetch).toHaveBeenCalledWith({ ids: ["h-tide", "h-glass"] });
   expect(wrapper.text()).toContain("Preview Press");
   wrapper.unmount();
 });
@@ -65,12 +65,14 @@ it("imports the selected books, applying chosen online details, and refreshes th
   await wrapper.get('[aria-label="Select Notes on the Tide"]').setValue(true);
   await wrapper.get('[aria-label="Import selected books"]').trigger("click");
   await flushPromises();
-  expect(importer).toHaveBeenCalledWith([{ id: "h-tide", applySuggestion: true, pairAudiobook: true }]);
+  expect(importer).toHaveBeenCalledWith({ choices: [{ id: "h-tide", applySuggestion: true, pairAudiobook: true }] });
   expect(titles(wrapper)).toEqual(["The Glass Meridian"]);
   expect(useLibraryStore().books.some((b) => b.title === "Notes on the Tide")).toBe(true);
   await wrapper.get('[aria-label="Import all new books"]').trigger("click");
   await flushPromises();
-  expect(importer).toHaveBeenLastCalledWith([{ id: "h-glass", applySuggestion: true, pairAudiobook: false }]);
+  expect(importer).toHaveBeenLastCalledWith({
+    choices: [{ id: "h-glass", applySuggestion: true, pairAudiobook: false }],
+  });
   wrapper.unmount();
 });
 
@@ -83,8 +85,8 @@ it("saves which folders are searched", async () => {
   await wrapper.get('[aria-label="Look for new books when Aoide starts"]').setValue(true);
   await wrapper.get(".scan-folders__form").trigger("submit");
   await flushPromises();
-  expect(save).toHaveBeenCalledWith(
-    expect.objectContaining({
+  expect(save).toHaveBeenCalledWith({
+    patch: expect.objectContaining({
       scan: {
         roots: ["/home/me/Books", "/media/shelf"],
         exclude: ["/home/me/Books/old"],
@@ -92,7 +94,7 @@ it("saves which folders are searched", async () => {
         onStartup: true,
       },
     }),
-  );
+  });
   wrapper.unmount();
 });
 
@@ -108,7 +110,7 @@ it("shows audiobooks found beside new books and pairs them on import unless told
   await wrapper.get('[aria-label="Select Notes on the Tide"]').setValue(true);
   await wrapper.get('[aria-label="Import selected books"]').trigger("click");
   await flushPromises();
-  expect(importer).toHaveBeenCalledWith([{ id: "h-tide", applySuggestion: false, pairAudiobook: false }]);
+  expect(importer).toHaveBeenCalledWith({ choices: [{ id: "h-tide", applySuggestion: false, pairAudiobook: false }] });
   wrapper.unmount();
 });
 

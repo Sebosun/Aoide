@@ -17,7 +17,7 @@ export const usePlayerStore = defineStore("player", () => {
     playingBook.value = null;
     if (!id) return;
     try {
-      const book = await api.bookOverview(id);
+      const book = await api.bookOverview({ bookId: id });
       if (state.value.bookId === id) playingBook.value = book;
     } catch (e) {
       error.value = String(e);
@@ -66,7 +66,7 @@ export const usePlayerStore = defineStore("player", () => {
   function setVolume(volume: number) {
     if (volume > 0) heard = volume;
     state.value = { ...state.value, volume }; // Ahead of the next state event, so a dragged slider stays put.
-    return action(() => api.setVolume(volume));
+    return action(() => api.setVolume({ volume }));
   }
   const toggleMute = () => setVolume(state.value.volume > 0 ? 0 : heard);
   function dispose() {
@@ -82,16 +82,16 @@ export const usePlayerStore = defineStore("player", () => {
     start,
     dispose,
     play: (id: string, chapter: number | null = null, segmentId: string | null = null) =>
-      action(() => api.play(id, chapter, segmentId)),
-    skipChapter: (delta: number) => action(() => api.skipChapter(delta)),
-    seek: (id: string, positionMs: number) => action(() => api.seek(id, positionMs)),
-    skip: (id: string, deltaMs: number) => action(() => api.skip(id, deltaMs)),
+      action(() => api.play({ bookId: id, chapter, segmentId })),
+    skipChapter: (delta: number) => action(() => api.skipChapter({ delta })),
+    seek: (id: string, positionMs: number) => action(() => api.seek({ bookId: id, positionMs })),
+    skip: (id: string, deltaMs: number) => action(() => api.skip({ bookId: id, deltaMs })),
     setSleepTimer: (minutes: number | null, endOfChapter: boolean) =>
-      action(() => api.setSleepTimer(minutes, endOfChapter)),
+      action(() => api.setSleepTimer({ minutes, endOfChapter })),
     pause: () => action(() => api.pause()),
     resume: () => action(() => api.resume()),
     stop: () => action(() => api.stop()),
-    setSpeed: (speed: number) => action(() => api.setSpeed(speed)),
+    setSpeed: (speed: number) => action(() => api.setSpeed({ speed })),
     setVolume,
     toggleMute,
   };

@@ -6,13 +6,15 @@ pub async fn list_books(core: CoreState<'_>) -> Result<Vec<BookSummary>, CoreErr
     blocking(move || core.list_books()).await
 }
 
+/// Home's lists, as ids of library items.
 #[tauri::command]
 pub async fn home(core: CoreState<'_>) -> Result<HomeView, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.home()).await
 }
 
-/// Adds an audiobook with no EPUB: an M4B, audio files, or a folder of them.
+/// Adds an audiobook with no EPUB (an M4B, audio files or a folder of them); the same files again
+/// are the same item. Refusals (DRM, unreadable) come back as the error.
 #[tauri::command]
 pub async fn add_audiobook(
     core: CoreState<'_>,
@@ -22,6 +24,7 @@ pub async fn add_audiobook(
     blocking(move || Ok::<_, String>(core.add_audiobook(paths))).await
 }
 
+/// Copies dropped EPUB files into the library folder and imports them.
 #[tauri::command]
 pub async fn import_files(
     core: CoreState<'_>,
@@ -43,12 +46,14 @@ pub async fn remove_book(core: CoreState<'_>, book_id: String) -> Result<(), Cor
     blocking(move || core.remove_book(&book_id)).await
 }
 
+/// Opens the file manager on the book's folder with its EPUB selected.
 #[tauri::command]
 pub async fn show_in_folder(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     blocking(move || core.show_in_folder(&book_id)).await
 }
 
+/// Opens an article's page, as it was kept, in the system's browser.
 #[tauri::command]
 pub async fn open_original(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
@@ -61,6 +66,7 @@ pub async fn open_book(core: CoreState<'_>, book_id: String) -> Result<BookView,
     blocking(move || core.open_book(&book_id)).await
 }
 
+/// Like openBook, without marking the book as recently opened.
 #[tauri::command]
 pub async fn book_overview(core: CoreState<'_>, book_id: String) -> Result<BookView, CoreError> {
     let core = Arc::clone(&core);
@@ -77,11 +83,13 @@ pub async fn chapter(
     blocking(move || core.chapter(&book_id, chapter)).await
 }
 
+/// By name.
 #[tauri::command]
 pub fn collections(core: CoreState<'_>) -> Result<Vec<aoide_library::Collection>, CoreError> {
     Ok(core.collections()?)
 }
 
+/// Fails when the name is empty or already used (ignoring case). Returns the new id.
 #[tauri::command]
 pub fn create_collection(core: CoreState<'_>, name: String) -> Result<i64, CoreError> {
     Ok(core.create_collection(&name)?)
@@ -92,11 +100,13 @@ pub fn rename_collection(core: CoreState<'_>, id: i64, name: String) -> Result<(
     Ok(core.rename_collection(id, &name)?)
 }
 
+/// The books stay in the library.
 #[tauri::command]
 pub fn delete_collection(core: CoreState<'_>, id: i64) -> Result<(), CoreError> {
     Ok(core.delete_collection(id)?)
 }
 
+/// Puts the book on exactly these collections.
 #[tauri::command]
 pub fn set_book_collections(
     core: CoreState<'_>,
@@ -111,11 +121,13 @@ pub fn storage_report(core: CoreState<'_>) -> Result<crate::core::StorageReport,
     Ok(core.storage_report()?)
 }
 
+/// Deletes unused files (see StorageReport) and returns what was freed.
 #[tauri::command]
 pub fn clean_unused_files(core: CoreState<'_>) -> Result<crate::core::CleanResult, CoreError> {
     Ok(core.clean_unused_files()?)
 }
 
+/// Case-insensitive text search (min 2 chars), at most 200 hits in reading order.
 #[tauri::command]
 pub async fn search_book(
     core: CoreState<'_>,
@@ -135,6 +147,8 @@ pub async fn book_details(
     blocking(move || core.book_details(&book_id)).await
 }
 
+/// Searches Open Library for the book (fails when lookups are turned off). Cached for 30 days;
+/// refresh asks Open Library again.
 #[tauri::command]
 pub async fn lookup_metadata(
     core: CoreState<'_>,
@@ -145,6 +159,7 @@ pub async fn lookup_metadata(
     Ok(core.lookup_metadata(&book_id, refresh).await?)
 }
 
+/// Stores the picked match's details (and cover when the book has none).
 #[tauri::command]
 pub async fn apply_metadata(
     core: CoreState<'_>,
@@ -155,12 +170,14 @@ pub async fn apply_metadata(
     Ok(core.apply_metadata(&book_id, candidate).await?)
 }
 
+/// Writes an M4B audiobook (generating missing audio first); resolves with the output path.
 #[tauri::command]
 pub async fn export_book(core: CoreState<'_>, book_id: String) -> Result<String, CoreError> {
     let core = Arc::clone(&core);
     Ok(core.export_book(&book_id).await?)
 }
 
+/// Writes the book with its synced recording as an EPUB 3 with Media Overlays; returns its path.
 #[tauri::command]
 pub async fn export_read_along(core: CoreState<'_>, book_id: String) -> Result<String, CoreError> {
     let core = Arc::clone(&core);

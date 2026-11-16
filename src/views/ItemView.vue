@@ -62,10 +62,10 @@ const loading = computed(() => !overview.value && !error.value && !unfetched.val
 async function load() {
   try {
     const [view, info, days, book] = await Promise.all([
-      api.bookOverview(props.bookId),
-      api.bookDetails(props.bookId),
-      api.bookListening(props.bookId).catch(() => []),
-      api.bookSettings(props.bookId).catch(() => null),
+      api.bookOverview({ bookId: props.bookId }),
+      api.bookDetails({ bookId: props.bookId }),
+      api.bookListening({ bookId: props.bookId }).catch(() => []),
+      api.bookSettings({ bookId: props.bookId }).catch(() => null),
     ]);
     overview.value = view;
     details.value = info;
@@ -214,7 +214,7 @@ const listened = computed(() => (summary.value?.mode ?? overview.value?.mode) ==
 /** Read opens the text where it was left, to be read silently (pausing it if it plays). */
 async function read() {
   try {
-    if (listened.value) await api.setMode(props.bookId, "read");
+    if (listened.value) await api.setMode({ bookId: props.bookId, mode: "read" });
   } catch (e) {
     error.value = String(e);
     return;
@@ -228,7 +228,7 @@ async function listen() {
 }
 async function pair() {
   try {
-    const paths = await api.chooseAudio(false);
+    const paths = await api.chooseAudio({ folder: false });
     if (paths?.length) recordings.openPairing(paths, props.bookId);
   } catch (e) {
     error.value = String(e);

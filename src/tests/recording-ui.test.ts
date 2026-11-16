@@ -87,7 +87,7 @@ it("switches narration once part of the recording is synced", async () => {
   await flushPromises();
   await wrapper.get('[role="radio"]:first-child').trigger("click");
   await flushPromises();
-  expect((await mock.bookSettings("book-0")).narration).toBe("recording");
+  expect((await mock.bookSettings({ bookId: "book-0" })).narration).toBe("recording");
   expect(wrapper.get('[role="radio"][aria-checked="true"]').text()).toBe("Recording");
   expect(wrapper.text()).toContain("The narrator's recording plays for this book");
 });
@@ -101,8 +101,8 @@ it("lets the speech engine speak what the recording lacks, only when asked", asy
   expect((toggle.element as HTMLInputElement).checked).toBe(false);
   await toggle.setValue(true);
   await flushPromises();
-  expect((await mock.bookSettings("book-0")).speakMissing).toBe(true);
-  expect((await mock.bookSettings("book-0")).narration).toBe("recording");
+  expect((await mock.bookSettings({ bookId: "book-0" })).speakMissing).toBe(true);
+  expect((await mock.bookSettings({ bookId: "book-0" })).narration).toBe("recording");
 
   await wrapper.get('[role="radio"]:last-child').trigger("click");
   await flushPromises();
@@ -123,7 +123,7 @@ it("lists recordings being synced in the queue with their pause button", async (
   expect(rows[0].textContent).toContain("about 14 min left");
   const pause = vi.spyOn(mock, "syncAction");
   await click(rows[0].querySelector<HTMLElement>('[aria-label="Pause syncing A Map of Quiet Places"]'));
-  expect(pause).toHaveBeenCalledWith("book-1", "pause");
+  expect(pause).toHaveBeenCalledWith({ bookId: "book-1", action: "pause" });
 });
 
 it("reports chapters and narration missing from the text, each playable", async () => {
@@ -137,7 +137,7 @@ it("reports chapters and narration missing from the text, each playable", async 
   expect(report.textContent).toContain("This is a recording of The Lantern Keeper");
   const play = vi.spyOn(mock, "playRecordingAt");
   await click(report.querySelector<HTMLElement>('[aria-label="Play the stretch at 0:00:00"]'));
-  expect(play).toHaveBeenCalledWith("book-0", 0);
+  expect(play).toHaveBeenCalledWith({ bookId: "book-0", atMs: 0 });
 });
 
 it("says when the narration playing is not in the text", async () => {
@@ -221,7 +221,7 @@ it("starts listening while the recording syncs, and says when playback waits for
   await flushPromises();
   await panel.get('[aria-label="Listen now"]').trigger("click");
   await flushPromises();
-  expect((await mock.bookSettings("book-0")).narration).toBe("recording");
+  expect((await mock.bookSettings({ bookId: "book-0" })).narration).toBe("recording");
   expect(player.state.bookId).toBe("book-0");
   expect(player.state.source).toBe("recording");
   mock.emitPlayer({ ...player.state, status: "buffering", waitingForSync: true });
@@ -248,7 +248,7 @@ it("lets files be put in order by hand before pairing", async () => {
   await click(pair.querySelector<HTMLElement>('[aria-label="Move part-b.mp3 earlier"]'));
   expect(order()).toEqual(["part-b.mp3", "part-a.mp3"]);
   await click(byText(pair, "button", "Check and sync"));
-  expect(attach).toHaveBeenCalledWith("book-0", [paths[1], paths[0]], true);
+  expect(attach).toHaveBeenCalledWith({ bookId: "book-0", paths: [paths[1], paths[0]], asListed: true });
 });
 
 it("exports a synced book as a read-along EPUB from its card and its recording panel", async () => {
@@ -265,7 +265,7 @@ it("exports a synced book as a read-along EPUB from its card and its recording p
   const labels = () => [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')];
   expect(labels().map((m) => m.textContent?.trim())).not.toContain("Export as M4B");
   await click(labels().find((m) => m.textContent?.includes("Export read-along EPUB")));
-  expect(exportReadAlong).toHaveBeenCalledWith("book-0");
+  expect(exportReadAlong).toHaveBeenCalledWith({ bookId: "book-0" });
   expect(host.text()).toContain("Exported to ~/Documents/Aoide/Exports/The Lantern Keeper (read-along).epub");
   library.unmount();
 
@@ -325,8 +325,8 @@ it("adds audio on its own from the pairing dialog instead of pairing it", async 
 });
 
 it("gives an audiobook its EPUB from its page: the book takes its recording and bookmarks", async () => {
-  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
-  await mock.addBookmark("book-5", "by the window");
+  await mock.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
+  await mock.addBookmark({ bookId: "book-5", note: "by the window" });
   vi.spyOn(mock, "chooseBooks").mockResolvedValue(["~/Books/a-map-of-quiet-places.epub"]);
   vi.spyOn(mock, "importFiles").mockResolvedValue([
     { path: "~/Books/a-map-of-quiet-places.epub", bookId: "book-1", error: null },
@@ -337,16 +337,16 @@ it("gives an audiobook its EPUB from its page: the book takes its recording and 
   await flushPromises();
   const text = document.body.querySelector<HTMLElement>('[aria-labelledby="item-text"]')!;
   await click(byText(text, "button", "Add the EPUB…"));
-  expect(merge).toHaveBeenCalledWith("book-5", "book-1");
+  expect(merge).toHaveBeenCalledWith({ audiobookId: "book-5", bookId: "book-1" });
   expect(useLibraryStore().books.some((b) => b.id === "book-5")).toBe(false);
   expect(useNavigationStore().bookId).toBe("book-1");
   expect(useRecordingsStore().byBook["book-1"]?.stage).not.toBe("standalone");
-  expect((await mock.bookmarks("book-1")).map((b) => b.note)).toContain("by the window");
+  expect((await mock.bookmarks({ bookId: "book-1" })).map((b) => b.note)).toContain("by the window");
   expect(toasts().some((t) => t.includes("has its text"))).toBe(true);
 });
 
 it("offers to add the EPUB from an audiobook's reader", async () => {
-  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  await mock.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
   vi.spyOn(mock, "chooseBooks").mockResolvedValue([]);
   await useLibraryStore().start();
   await useReaderStore().open("book-5");

@@ -1,5 +1,6 @@
 use super::prelude::*;
 
+/// What dropped or chosen audio files hold, before pairing them with a book.
 #[tauri::command]
 pub async fn inspect_recording(
     core: CoreState<'_>,
@@ -9,6 +10,8 @@ pub async fn inspect_recording(
     blocking(move || Ok::<_, CoreError>(core.inspect_recording(paths))).await
 }
 
+/// Pairs audio files with a book (replacing its recording) and starts syncing them.
+/// `asListed`: the files stay in the order given instead of being sorted.
 #[tauri::command]
 pub async fn attach_recording(
     core: CoreState<'_>,
@@ -36,12 +39,14 @@ pub async fn recording(
     blocking(move || Ok::<_, CoreError>(core.recording(&book_id))).await
 }
 
+/// Every book's recording, oldest first.
 #[tauri::command]
 pub async fn recordings(core: CoreState<'_>) -> Result<Vec<crate::core::RecordingView>, CoreError> {
     let core = Arc::clone(&core);
     blocking(move || Ok::<_, CoreError>(core.recordings())).await
 }
 
+/// How well the recording matched the text (fails until it is matched).
 #[tauri::command]
 pub async fn sync_report(
     core: CoreState<'_>,
@@ -61,12 +66,14 @@ pub async fn sync_action(
     blocking(move || core.sync_action(&book_id, action)).await
 }
 
+/// Forgets the recording and its sync; the audio files are left alone.
 #[tauri::command]
 pub async fn remove_recording(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     Ok(core.remove_recording(&book_id).await?)
 }
 
+/// Plays the book with its recording (once synced) or a speech engine.
 #[tauri::command]
 pub async fn set_narration(
     core: CoreState<'_>,
@@ -82,12 +89,14 @@ pub fn recognition_options(core: CoreState<'_>) -> crate::core::RecognitionOptio
     core.recognition_options()
 }
 
+/// Downloads a speech-recognition model (progress on "model://download").
 #[tauri::command]
 pub async fn download_model(core: CoreState<'_>, model_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     Ok(core.download_model(&model_id).await?)
 }
 
+/// Plays the book's recording from a time on its timeline (needs the recording narration).
 #[tauri::command]
 pub async fn play_recording_at(
     core: CoreState<'_>,

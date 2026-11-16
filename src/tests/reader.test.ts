@@ -65,7 +65,7 @@ it("plays the clicked sentence", async () => {
   const play = vi.spyOn(mock, "play");
   const wrapper = await openReader();
   await wrapper.get('[data-segment-id="0:1:0"]').trigger("click");
-  expect(play).toHaveBeenCalledWith("book-0", 0, "0:1:0");
+  expect(play).toHaveBeenCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
   wrapper.unmount();
 });
 
@@ -138,7 +138,7 @@ it("shows the playhead chapter and jumps to a chapter from the margin", async ()
   await wrapper.get('[aria-label="About this book"] [aria-haspopup="menu"]').trigger("click");
   await pickMenuItem("Chapter 1: The small light");
   await flushPromises();
-  expect(play).toHaveBeenCalledWith("book-0", 0, "0:0:0");
+  expect(play).toHaveBeenCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:0:0" });
   wrapper.unmount();
 });
 
@@ -203,7 +203,7 @@ it("plays from the saved position, pauses, resumes, changes speed, skips chapter
   const dock = () => wrapper.get('[aria-label="Player"]');
   await dock().get('[aria-label="Play"]').trigger("click");
   await flushPromises();
-  expect(play).toHaveBeenCalledWith("book-0", null, null);
+  expect(play).toHaveBeenCalledWith({ bookId: "book-0", chapter: null, segmentId: null });
   await dock().get('[aria-label="Pause"]').trigger("click");
   await flushPromises();
   expect(usePlayerStore().state.status).toBe("paused");
@@ -216,7 +216,7 @@ it("plays from the saved position, pauses, resumes, changes speed, skips chapter
   expect(dock().text()).toContain("1.25×");
   await dock().get('[aria-label="Next chapter"]').trigger("click");
   await dock().get('[aria-label="Previous chapter"]').trigger("click");
-  expect(skip.mock.calls).toEqual([[1], [-1]]);
+  expect(skip.mock.calls).toEqual([[{ delta: 1 }], [{ delta: -1 }]]);
   await dock().get('[aria-label="Stop"]').trigger("click");
   await flushPromises();
   expect(usePlayerStore().state.status).toBe("stopped");
@@ -227,33 +227,33 @@ it("sets a sleep timer and bookmarks the playhead from the dock", async () => {
   const sleep = vi.spyOn(mock, "setSleepTimer"),
     mark = vi.spyOn(mock, "addBookmark");
   const wrapper = await openReader();
-  await mock.play("book-0", 0, "0:1:0");
+  await mock.play({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
   await flushPromises();
   const dock = wrapper.get('[aria-label="Player"]');
   expect(dock.get('[aria-label="Sleep timer"]').text(), "just the moon while off").toBe("");
   await choose(dock, "Sleep timer", "15 min");
   await flushPromises();
-  expect(sleep).toHaveBeenLastCalledWith(15, false);
+  expect(sleep).toHaveBeenLastCalledWith({ minutes: 15, endOfChapter: false });
   expect(dock.text()).toMatch(/1[45]:\d\d/);
   await choose(dock, "Sleep timer", "End of chapter");
-  expect(sleep).toHaveBeenLastCalledWith(null, true);
+  expect(sleep).toHaveBeenLastCalledWith({ minutes: null, endOfChapter: true });
   await dock.get('[aria-label="Add bookmark"]').trigger("click");
   await flushPromises();
-  expect(mark).toHaveBeenCalledWith("book-0", "");
+  expect(mark).toHaveBeenCalledWith({ bookId: "book-0", note: "" });
   expect(useUiStore().toasts.map((t) => t.text)).toContain("Bookmarked");
   wrapper.unmount();
 });
 
 it("jumps to a sentence from the scrubber", async () => {
   const wrapper = await openReader();
-  await mock.play("book-0", 0, "0:1:0");
+  await mock.play({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
   await flushPromises();
   const play = vi.spyOn(mock, "play");
   const slider = wrapper.get('[aria-label="Player"] [role="slider"]');
   await slider.trigger("keydown", { key: "ArrowRight" });
-  expect(play).toHaveBeenLastCalledWith("book-0", 0, "0:2:0");
+  expect(play).toHaveBeenLastCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:2:0" });
   await slider.trigger("keydown", { key: "Home" });
-  expect(play).toHaveBeenLastCalledWith("book-0", 0, "0:0:0");
+  expect(play).toHaveBeenLastCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:0:0" });
   wrapper.unmount();
 });
 
@@ -264,14 +264,14 @@ it("changes the text size and the reader mode, and remembers both", async () => 
   await wrapper.get('[aria-label="Text size"]').trigger("click");
   await wrapper.get('[aria-label="Larger text"]').trigger("click");
   await flushPromises();
-  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ textSize: 3 }));
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ textSize: 3 }) });
   await wrapper
     .get('[aria-label="Reader mode"]')
     .findAll("button")
     .find((b) => b.text() === "Lines")!
     .trigger("click");
   await flushPromises();
-  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ readerMode: "lines" }));
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ readerMode: "lines" }) });
   wrapper.unmount();
 });
 
@@ -324,8 +324,8 @@ it("listens from where the reader is and reads on silently when Listening is pre
   useReaderStore().place = { chapter: 1, segmentId: "1:1:0" };
   await wrapper.get("button.listen-button").trigger("click");
   await flushPromises();
-  expect(setMode).toHaveBeenCalledWith("book-1", "listen");
-  expect(play).toHaveBeenCalledWith("book-1", 1, "1:1:0");
+  expect(setMode).toHaveBeenCalledWith({ bookId: "book-1", mode: "listen" });
+  expect(play).toHaveBeenCalledWith({ bookId: "book-1", chapter: 1, segmentId: "1:1:0" });
   const listening = wrapper.get("button.listen-button");
   expect([listening.text(), listening.attributes("aria-pressed")]).toEqual(["Listening", "true"]);
   expect(wrapper.find('[aria-label="Player"]').exists()).toBe(true);
@@ -333,7 +333,7 @@ it("listens from where the reader is and reads on silently when Listening is pre
 
   await listening.trigger("click");
   await flushPromises();
-  expect(setMode).toHaveBeenLastCalledWith("book-1", "read");
+  expect(setMode).toHaveBeenLastCalledWith({ bookId: "book-1", mode: "read" });
   expect(usePlayerStore().state.status).toBe("paused");
   expect(wrapper.find('[aria-label="Player"]').exists()).toBe(false);
   wrapper.unmount();
@@ -366,7 +366,7 @@ it("offers ways to give the book a voice when nothing could narrate it", async (
   expect(items).toEqual(["Narrate with a voice", "Pair an audiobook…", "Speech engine settings"]);
   expect(play).not.toHaveBeenCalled();
   await pickMenuItem("Narrate with a voice");
-  expect(play).toHaveBeenCalledWith("book-1", null, null);
+  expect(play).toHaveBeenCalledWith({ bookId: "book-1", chapter: null, segmentId: null });
   wrapper.unmount();
 });
 
@@ -392,7 +392,7 @@ it("tells the core where the reader is, at most once a second, and listens from 
     box.dispatchEvent(new Event("scroll"));
     await vi.advanceTimersByTimeAsync(0);
     expect(place).toHaveBeenCalledTimes(1);
-    expect(place).toHaveBeenLastCalledWith("book-1", 0, ids[1]);
+    expect(place).toHaveBeenLastCalledWith({ bookId: "book-1", chapter: 0, segmentId: ids[1] });
     // The same sentence at the top is not reported again.
     box.dispatchEvent(new Event("scroll"));
     await vi.advanceTimersByTimeAsync(1500);
@@ -407,14 +407,14 @@ it("tells the core where the reader is, at most once a second, and listens from 
     await vi.advanceTimersByTimeAsync(500);
     expect(place).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(600);
-    expect(place).toHaveBeenLastCalledWith("book-1", 0, ids[2]);
+    expect(place).toHaveBeenLastCalledWith({ bookId: "book-1", chapter: 0, segmentId: ids[2] });
     await flushPromises();
     // The core's progress shows in the library at once.
     expect(useLibraryStore().books.find((b) => b.id === "book-1")?.progress?.segmentId).toBe(ids[2]);
 
     await wrapper.get("button.listen-button").trigger("click");
     await flushPromises();
-    expect(play).toHaveBeenCalledWith("book-1", 0, ids[2]);
+    expect(play).toHaveBeenCalledWith({ bookId: "book-1", chapter: 0, segmentId: ids[2] });
     wrapper.unmount();
   } finally {
     vi.useRealTimers();
@@ -423,7 +423,7 @@ it("tells the core where the reader is, at most once a second, and listens from 
 
 it("opens a book read silently at its saved place, and picking a chapter only shows it", async () => {
   const play = vi.spyOn(mock, "play");
-  await mock.setReadingPlace("book-1", 1, "1:1:0");
+  await mock.setReadingPlace({ bookId: "book-1", chapter: 1, segmentId: "1:1:0" });
   const scrolled: string[] = [];
   const original = Element.prototype.scrollIntoView;
   Element.prototype.scrollIntoView = function (this: HTMLElement) {
@@ -461,7 +461,7 @@ it("counts reading time only while a silent book is read in a focused window", a
 
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
     expect(activity).toHaveBeenCalledTimes(1);
-    expect(activity).toHaveBeenLastCalledWith("book-1");
+    expect(activity).toHaveBeenLastCalledWith({ bookId: "book-1" });
     window.dispatchEvent(new Event("scroll"));
     expect(activity).toHaveBeenCalledTimes(1); // At most every 15 s.
     await vi.advanceTimersByTimeAsync(15_000);
@@ -493,7 +493,7 @@ it("counts reading time only while a silent book is read in a focused window", a
 
 /** The preview's audiobook on its own ("Winter Radio": Part One 1.02 s, Part Two 0.525 s). */
 async function openAudiobook() {
-  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  await mock.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
   return openReader({ book: "book-5", attach: true });
 }
 
@@ -521,25 +521,25 @@ it("scrubs and skips an audiobook on its timeline, and jumps to a part", async (
   const slider = wrapper.get('[role="slider"][aria-label="Position in part"]');
   await slider.trigger("keydown", { key: "End" });
   await flushPromises();
-  expect(seek).toHaveBeenLastCalledWith("book-5", 1020);
+  expect(seek).toHaveBeenLastCalledWith({ bookId: "book-5", positionMs: 1020 });
   expect(wrapper.text(), "the saved place moved into the next part").toContain("Part 2 · Part Two");
   await wrapper.get('[aria-label="Back 30 seconds"]').trigger("click");
-  expect(seek).toHaveBeenLastCalledWith("book-5", 0);
+  expect(seek).toHaveBeenLastCalledWith({ bookId: "book-5", positionMs: 0 });
 
   await wrapper.findAll(".audio-reader__part-row")[1].trigger("click");
   await flushPromises();
-  expect(play).toHaveBeenLastCalledWith("book-5", 1, null);
+  expect(play).toHaveBeenLastCalledWith({ bookId: "book-5", chapter: 1, segmentId: null });
   expect(wrapper.get(".audio-reader__part-row--current").text()).toContain("Part Two");
   expect(wrapper.find('.audio-reader__play[aria-label="Pause"]').exists()).toBe(true);
   await wrapper.get('[aria-label="Forward 30 seconds"]').trigger("click");
-  expect(seek).toHaveBeenLastCalledWith("book-5", 1545);
+  expect(seek).toHaveBeenLastCalledWith({ bookId: "book-5", positionMs: 1545 });
   await mock.pause();
   wrapper.unmount();
 });
 
 it("bookmarks a moment of an audiobook and plays from it", async () => {
   const wrapper = await openAudiobook();
-  await mock.play("book-5", 1, null);
+  await mock.play({ bookId: "book-5", chapter: 1, segmentId: null });
   await mock.pause();
   await flushPromises();
   await wrapper.get('[aria-label="Bookmark this moment"]').trigger("click");
@@ -557,8 +557,8 @@ it("bookmarks a moment of an audiobook and plays from it", async () => {
     play = vi.spyOn(mock, "play");
   await mark.trigger("click");
   await flushPromises();
-  expect(seek).toHaveBeenCalledWith("book-5", 1020);
-  expect(play).toHaveBeenCalledWith("book-5", null, null);
+  expect(seek).toHaveBeenCalledWith({ bookId: "book-5", positionMs: 1020 });
+  expect(play).toHaveBeenCalledWith({ bookId: "book-5", chapter: null, segmentId: null });
   await mock.pause();
   wrapper.unmount();
 });
@@ -585,7 +585,7 @@ it("heads an article with its site, reading time and original, and outlines its 
     .findAll("button")
     .find((b) => b.text() === "Open original")!
     .trigger("click");
-  expect(open).toHaveBeenCalledWith("book-6");
+  expect(open).toHaveBeenCalledWith({ bookId: "book-6" });
   expect(wrapper.find('[aria-label="This article needs you"]').exists()).toBe(false);
 
   // An article has one chapter: the header offers its headings instead of chapters.
@@ -623,7 +623,7 @@ it("says what an article that needs you is missing, and fetches it again", async
       expect(button("Open original")).toBeUndefined();
       await button(action).trigger("click");
       await flushPromises();
-      expect(refetch).toHaveBeenLastCalledWith("book-6", source);
+      expect(refetch).toHaveBeenLastCalledWith({ bookId: "book-6", source });
       // The notice stays while the fetch runs, its actions waiting for it.
       expect(notice().text()).toContain("Fetching again…");
       expect(button("Fetch again").attributes("disabled")).toBeDefined();
@@ -647,6 +647,6 @@ it("offers a sign-in window first once the browser is on, else turning it on", a
   expect(first().text()).toBe("Sign in to Quay Weekly…");
   await first().trigger("click");
   await flushPromises();
-  expect(start).toHaveBeenCalledWith("book-6");
+  expect(start).toHaveBeenCalledWith({ bookId: "book-6" });
   wrapper.unmount();
 });

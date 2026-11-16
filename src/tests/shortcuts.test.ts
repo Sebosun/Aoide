@@ -82,17 +82,17 @@ it("plays and pauses with Space, except while typing, on a control or under a di
 it("moves a sentence back or forward with the arrow keys, also when the text is not open", async () => {
   const play = vi.spyOn(mock, "play");
   const wrapper = await app();
-  await mock.play("book-0", 0, "0:1:0");
+  await mock.play({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
   await mock.pause();
   await flushPromises();
   play.mockClear();
   expect(press("ArrowRight").defaultPrevented).toBe(true);
   await flushPromises();
-  expect(play).toHaveBeenLastCalledWith("book-0", 0, "0:2:0");
+  expect(play).toHaveBeenLastCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:2:0" });
   await mock.pause();
   press("ArrowLeft");
   await flushPromises();
-  expect(play).toHaveBeenLastCalledWith("book-0", 0, "0:1:0");
+  expect(play).toHaveBeenLastCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
   await mock.pause();
   play.mockClear();
   // Text fields keep their arrow keys.

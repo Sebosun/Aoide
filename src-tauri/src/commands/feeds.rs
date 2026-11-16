@@ -1,10 +1,12 @@
 use super::prelude::*;
 
+/// Subscriptions, by title, with their unread counts and health.
 #[tauri::command]
 pub fn feeds(core: CoreState<'_>) -> Result<Vec<crate::core::FeedView>, CoreError> {
     Ok(core.feeds()?)
 }
 
+/// A link given to Add: a feed is subscribed, anything else is saved as an article.
 #[tauri::command]
 pub async fn add_link(
     core: CoreState<'_>,
@@ -14,6 +16,8 @@ pub async fn add_link(
     Ok(core.add_link(&url).await?)
 }
 
+/// Subscribes to a feed address, or to the one feed a page links to; a page with several feeds
+/// offers them to choose from. Subscribing again finds the same feed.
 #[tauri::command]
 pub async fn subscribe(
     core: CoreState<'_>,
@@ -23,11 +27,13 @@ pub async fn subscribe(
     Ok(core.subscribe(&url).await?)
 }
 
+/// Removes a feed and its entries that were not saved.
 #[tauri::command]
 pub fn unsubscribe(core: CoreState<'_>, feed_id: i64) -> Result<(), CoreError> {
     Ok(core.unsubscribe(feed_id)?)
 }
 
+/// Entries newest first, from one feed or all; the next page starts `before` an entry id.
 #[tauri::command]
 pub fn feed_entries(
     core: CoreState<'_>,
@@ -45,11 +51,13 @@ pub fn feed_entries(
     Ok(core.feed_entries(&query)?)
 }
 
+/// The item to read an entry as (made on the feed shelf when needed); marks it read.
 #[tauri::command]
 pub fn open_feed_entry(core: CoreState<'_>, entry_id: i64) -> Result<String, CoreError> {
     Ok(core.open_feed_entry(entry_id)?)
 }
 
+/// Keeps an entry's item in the library; returns its id.
 #[tauri::command]
 pub fn save_feed_entry(core: CoreState<'_>, entry_id: i64) -> Result<String, CoreError> {
     Ok(core.save_feed_entry(entry_id)?)
@@ -60,21 +68,25 @@ pub fn mark_entry_read(core: CoreState<'_>, entry_id: i64, read: bool) -> Result
     Ok(core.mark_entry_read(entry_id, read)?)
 }
 
+/// Marks one feed's entries read, or every feed's.
 #[tauri::command]
 pub fn mark_all_read(core: CoreState<'_>, feed_id: Option<i64>) -> Result<(), CoreError> {
     Ok(core.mark_all_read(feed_id)?)
 }
 
+/// Keeps an item opened from a feed in the library (the reader's "Save to library").
 #[tauri::command]
 pub fn save_to_library(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     Ok(core.save_to_library(&book_id)?)
 }
 
+/// Opens a feed's site (its own address when it names none) in the system's browser.
 #[tauri::command]
 pub fn open_feed_site(core: CoreState<'_>, feed_id: i64) -> Result<(), CoreError> {
     Ok(core.open_feed_site(feed_id)?)
 }
 
+/// Checks every feed now ("feeds://changed" reports what changed).
 #[tauri::command]
 pub async fn check_feeds(core: CoreState<'_>) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
@@ -82,7 +94,7 @@ pub async fn check_feeds(core: CoreState<'_>) -> Result<(), CoreError> {
     Ok(())
 }
 
-/// The system's file chooser for a subscription list to import; `None` when cancelled.
+/// The system's file chooser for a subscription list (OPML) to import; null when cancelled.
 #[tauri::command]
 pub async fn choose_opml(app: tauri::AppHandle) -> Option<String> {
     pick(&app, |dialog, done| {
@@ -94,7 +106,7 @@ pub async fn choose_opml(app: tauri::AppHandle) -> Option<String> {
     .await
 }
 
-/// The system's save dialog for exporting the subscription list; `None` when cancelled.
+/// The system's save dialog for exporting the subscription list; null when cancelled.
 #[tauri::command]
 pub async fn choose_opml_target(app: tauri::AppHandle) -> Option<String> {
     pick(&app, |dialog, done| {
@@ -107,6 +119,7 @@ pub async fn choose_opml_target(app: tauri::AppHandle) -> Option<String> {
     .await
 }
 
+/// Subscribes to the feeds an OPML file lists that are not subscribed yet.
 #[tauri::command]
 pub async fn import_opml(
     core: CoreState<'_>,
@@ -116,6 +129,7 @@ pub async fn import_opml(
     blocking(move || core.import_opml(&path)).await
 }
 
+/// Writes every subscription to an OPML file; resolves with how many.
 #[tauri::command]
 pub async fn export_opml(core: CoreState<'_>, path: String) -> Result<u32, CoreError> {
     let core = Arc::clone(&core);

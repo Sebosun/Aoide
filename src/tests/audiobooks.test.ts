@@ -73,7 +73,7 @@ it("lists the audiobooks found for each book, closest first, and pairs the ones 
   await wrapper.get('[aria-label="Pair selected audiobooks"]').trigger("click");
   await flushPromises();
 
-  expect(pair).toHaveBeenCalledWith([{ bookId: "book-1", candidate: 1 }]);
+  expect(pair).toHaveBeenCalledWith({ choices: [{ bookId: "book-1", candidate: 1 }] });
   expect(titles(wrapper)).toEqual(["An Unfinished Atlas"]);
   await wrapper.get('[aria-label="Show paired books"]').trigger("click");
   expect(titles(wrapper)).toEqual(["A Map of Quiet Places"]);
@@ -86,16 +86,18 @@ it("pairs every book's closest audiobook at once", async () => {
   const wrapper = await scanned();
   await wrapper.get('[aria-label="Pair all found audiobooks"]').trigger("click");
   await flushPromises();
-  expect(pair).toHaveBeenCalledWith([
-    { bookId: "book-1", candidate: 0 },
-    { bookId: "book-3", candidate: 0 },
-  ]);
+  expect(pair).toHaveBeenCalledWith({
+    choices: [
+      { bookId: "book-1", candidate: 0 },
+      { bookId: "book-3", candidate: 0 },
+    ],
+  });
   expect(wrapper.get('[aria-label="Show paired books"]').text()).toContain("2");
   wrapper.unmount();
 });
 
 it("with verifying on, says Aoide checks the matches itself and lists them as being checked", async () => {
-  await mock.updateAppSettings({ verifyAudiobooks: true });
+  await mock.updateAppSettings({ patch: { verifyAudiobooks: true } });
   const pair = vi.spyOn(mock, "pairAudiobooks");
   const wrapper = await scanned();
   expect(wrapper.text()).toContain("Aoide pairs each book's closest audiobook");
@@ -111,7 +113,7 @@ it("opens Find audiobooks after adding books whose audiobooks wait for the user,
   vi.spyOn(mock, "importFiles").mockResolvedValue([{ path: "~/Downloads/map.epub", bookId: "book-1", error: null }]);
   const look = vi.spyOn(mock, "lookForAudiobooks");
   await useLibraryStore().importFiles(["~/Downloads/map.epub"]);
-  expect(look).toHaveBeenCalledWith(["book-1"]);
+  expect(look).toHaveBeenCalledWith({ ids: ["book-1"] });
   expect(useNavigationStore().view).toBe("audiobooks");
 
   useNavigationStore().view = "library";

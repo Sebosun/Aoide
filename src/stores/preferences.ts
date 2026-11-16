@@ -36,7 +36,7 @@ export const usePreferencesStore = defineStore("preferences", () => {
     error.value = "";
     applyAppearance(next, themes.value);
     try {
-      await api.saveAppearance(next);
+      await api.saveAppearance({ appearance: next });
     } catch (e) {
       error.value = String(e);
     }

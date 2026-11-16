@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api } from "@/api";
+import { ApiError } from "@/api/errors";
 import type { Candidate, CandidateStatus, DiscoveryImportProgress, ScanProgress } from "@/api/types";
 import { useLibraryStore } from "@/stores/library";
 
@@ -83,12 +84,12 @@ export const useDiscoveryStore = defineStore("discovery", () => {
         candidates.value = await api.scanForBooks();
         selected.value = new Set();
       },
-      (e) => String(e).includes("cancelled"),
+      (e) => e instanceof ApiError && e.kind === "cancelled",
     );
   async function fetchDetails(ids = needingDetails.value) {
     if (!ids.length) return;
     await run({ kind: "fetching", done: 0, total: ids.length }, async () => {
-      await api.fetchDiscoveredDetails(ids);
+      await api.fetchDiscoveredDetails({ ids });
       candidates.value = await api.discoveredBooks();
     });
   }
@@ -103,7 +104,7 @@ export const useDiscoveryStore = defineStore("discovery", () => {
       };
     });
     await run({ kind: "importing", progress: null }, async () => {
-      const results = await api.importDiscovered(choices);
+      const results = await api.importDiscovered({ choices });
       const failed = results.filter((r) => r.error);
       if (failed.length) error.value = failed.map((r) => `${r.path}: ${r.error}`).join("\n");
       candidates.value = await api.discoveredBooks();

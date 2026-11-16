@@ -32,7 +32,7 @@ it("maps Rust cover paths to display URLs without leaking the wire field", async
 
 it("passes camelCase playback arguments and returns event unlisteners", async () => {
   ipc.invoke.mockResolvedValue(undefined);
-  await tauriApi.play("book-0", 1, "1:2:0");
+  await tauriApi.play({ bookId: "book-0", chapter: 1, segmentId: "1:2:0" });
   expect(ipc.invoke).toHaveBeenCalledWith("play", { bookId: "book-0", chapter: 1, segmentId: "1:2:0" });
   const off = vi.fn();
   ipc.listen.mockResolvedValue(off);
@@ -52,14 +52,14 @@ it("simulates words, segment and chapter transitions, and respects pause, speed,
   const states: PlayerState[] = [];
   const off = await mock.onPlayerState((s) => states.push(s));
   try {
-    await mock.play("book-0", 0, "0:0:0");
+    await mock.play({ bookId: "book-0", chapter: 0, segmentId: "0:0:0" });
     await vi.advanceTimersByTimeAsync(320);
     expect(states.at(-1)?.wordIndex).toBe(1);
     await mock.pause();
     const count = states.length;
     await vi.advanceTimersByTimeAsync(2000);
     expect(states).toHaveLength(count);
-    await mock.setSpeed(2);
+    await mock.setSpeed({ speed: 2 });
     await mock.resume();
     await vi.advanceTimersByTimeAsync(320);
     expect(states.at(-1)?.segmentId).toBe("0:1:0");
@@ -70,7 +70,7 @@ it("simulates words, segment and chapter transitions, and respects pause, speed,
     await vi.advanceTimersByTimeAsync(1000);
     expect(states).toHaveLength(stoppedCount);
     off();
-    await mock.play("book-1", null, null);
+    await mock.play({ bookId: "book-1", chapter: null, segmentId: null });
     expect(states).toHaveLength(stoppedCount);
   } finally {
     mock.dispose();
@@ -104,20 +104,20 @@ it("the mock's sign-in, as the core's: waiting, fetched once the user says so, t
   const mock = createMockApi("?article=needsyou-signin&browser=ready");
   const stages: string[] = [];
   await mock.onSignInState((v) => stages.push(v.stage.kind));
-  const opened = await mock.startSignIn("book-6");
+  const opened = await mock.startSignIn({ bookId: "book-6" });
   expect(opened).toMatchObject({ site: "quay.example", reason: "signIn", staySignedIn: true });
-  await expect(mock.startSignIn("book-6")).rejects.toThrow("already open");
+  await expect(mock.startSignIn({ bookId: "book-6" })).rejects.toThrow("already open");
   await vi.advanceTimersByTimeAsync(300);
   await mock.finishSignIn();
   await vi.advanceTimersByTimeAsync(500);
   expect(stages).toEqual(["waiting", "fetching", "done"]);
   expect(await mock.signIn()).toMatchObject({ result: { kind: "ready" } });
-  expect(await mock.article("book-6")).toMatchObject({ stage: { kind: "ready" }, via: "browser" });
+  expect(await mock.article({ bookId: "book-6" })).toMatchObject({ stage: { kind: "ready" }, via: "browser" });
   const site = (await mock.sites()).find((s) => s.host === "quay.example");
   expect(site?.session.kind).toBe("signedIn");
 
   const preview = createMockApi("?signin=fetching");
   expect((await preview.signIn())?.stage.kind).toBe("fetching");
   const off = createMockApi("?article=needsyou-signin");
-  await expect(off.startSignIn("book-6")).rejects.toThrow("The browser is off.");
+  await expect(off.startSignIn({ bookId: "book-6" })).rejects.toThrow("The browser is off.");
 });

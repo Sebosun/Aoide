@@ -61,7 +61,7 @@ it("zooms with Ctrl and plus, minus or zero, saves the size and says it", async 
   expect(press("=").defaultPrevented).toBe(true);
   await flushPromises();
   expect(shown()).toBe("1.1");
-  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ zoom: 1.1 }));
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ zoom: 1.1 }) });
   press("+", { ctrlKey: true, shiftKey: true });
   await flushPromises();
   expect(shown()).toBe("1.25");
@@ -75,7 +75,7 @@ it("zooms with Ctrl and plus, minus or zero, saves the size and says it", async 
   press("0");
   await flushPromises();
   expect(shown()).toBe("1");
-  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ zoom: 1 }));
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ zoom: 1 }) });
   // Without Ctrl the keys are left alone.
   expect(press("=", {}).defaultPrevented).toBe(false);
   expect(shown()).toBe("1");
@@ -111,7 +111,7 @@ it("changes the interface size from Settings", async () => {
   await row.get('[aria-label="Larger interface"]').trigger("click");
   await flushPromises();
   expect(row.text()).toContain("110%");
-  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ zoom: 1.1 }));
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ zoom: 1.1 }) });
   await row.get('[aria-label="Smaller interface"]').trigger("click");
   await row.get('[aria-label="Smaller interface"]').trigger("click");
   await flushPromises();

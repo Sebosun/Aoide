@@ -95,7 +95,7 @@ async function deleteAudio(list: { bookId: string; title: string; bytes: number 
   if (!ok) return;
   busy.value = true;
   try {
-    for (const row of list) await api.regenerateBook(row.bookId);
+    for (const row of list) await api.regenerateBook({ bookId: row.bookId });
     ui.toast(`Freed ${formatBytes(sum(list))}`);
   } catch (e) {
     ui.toast(String(e), "error");

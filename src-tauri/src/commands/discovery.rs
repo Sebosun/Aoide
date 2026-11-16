@@ -1,5 +1,6 @@
 use super::prelude::*;
 
+/// Scans the configured folders; resolves with everything found.
 #[tauri::command]
 pub async fn scan_for_books(core: CoreState<'_>) -> Result<Vec<crate::core::Candidate>, CoreError> {
     let core = Arc::clone(&core);
@@ -11,6 +12,7 @@ pub fn cancel_scan(core: CoreState<'_>) {
     core.cancel_scan();
 }
 
+/// Results of the last scan, compared with the library.
 #[tauri::command]
 pub async fn discovered_books(
     core: CoreState<'_>,
@@ -19,6 +21,8 @@ pub async fn discovered_books(
     blocking(move || core.discovered_books()).await
 }
 
+/// Searches the audiobook folders for every book without a recording; with verifying on, Aoide
+/// starts pairing them itself. "audiobooks://progress" reports the search.
 #[tauri::command]
 pub async fn scan_for_audiobooks(
     core: CoreState<'_>,
@@ -27,11 +31,15 @@ pub async fn scan_for_audiobooks(
     Ok(core.scan_for_audiobooks().await?)
 }
 
+/// The matches the last searches found, and where each stands.
 #[tauri::command]
 pub fn audiobook_matches(core: CoreState<'_>) -> Vec<crate::core::AudiobookMatch> {
     core.audiobook_matches()
 }
 
+/// Gives an audiobook on its own the book it reads (already imported, with no recording): the book
+/// takes its recording, which syncs, its bookmarks, collections and listening time, and its place
+/// once the sync reaches it. The audiobook item is removed.
 #[tauri::command]
 pub fn merge_audiobook(
     core: CoreState<'_>,
@@ -41,6 +49,7 @@ pub fn merge_audiobook(
     Ok(core.merge_audiobook(&audiobook_id, &book_id)?)
 }
 
+/// What the last whole search found that comes close to no book, to add on its own.
 #[tauri::command]
 pub fn unmatched_audiobooks(core: CoreState<'_>) -> Vec<crate::core::AudiobookSuggestion> {
     core.unmatched_audiobooks()
@@ -51,7 +60,8 @@ pub fn cancel_audiobook_scan(core: CoreState<'_>) {
     core.cancel_audiobook_scan();
 }
 
-/// After books were added: how many of them have audiobooks waiting for the user.
+/// After books were added: how many have audiobooks waiting for the user (0 when looking on adding
+/// is off or Aoide verifies them).
 #[tauri::command]
 pub async fn look_for_audiobooks(
     core: CoreState<'_>,
@@ -61,6 +71,7 @@ pub async fn look_for_audiobooks(
     Ok(core.look_for_audiobooks(ids).await?)
 }
 
+/// Pairs each chosen candidate; each succeeds or fails on its own.
 #[tauri::command]
 pub async fn pair_audiobooks(
     core: CoreState<'_>,
@@ -70,6 +81,7 @@ pub async fn pair_audiobooks(
     blocking(move || Ok::<_, CoreError>(core.pair_audiobooks(choices))).await
 }
 
+/// Open Library lookups for these candidates; "discovery://details" fires per id.
 #[tauri::command]
 pub async fn fetch_discovered_details(
     core: CoreState<'_>,
@@ -79,6 +91,7 @@ pub async fn fetch_discovered_details(
     Ok(core.fetch_discovered_details(ids).await?)
 }
 
+/// `pairAudiobook` pairs the audiobook found beside a book once it is imported.
 #[tauri::command]
 pub async fn import_discovered(
     core: CoreState<'_>,
@@ -88,7 +101,7 @@ pub async fn import_discovered(
     Ok(core.import_discovered(choices).await?)
 }
 
-/// The system's file chooser for EPUB files to add. `None` when cancelled.
+/// The system's file chooser for EPUB files to add; null when cancelled.
 #[tauri::command]
 pub async fn choose_books(app: tauri::AppHandle) -> Option<Vec<String>> {
     pick(&app, |dialog, done| {
@@ -100,7 +113,7 @@ pub async fn choose_books(app: tauri::AppHandle) -> Option<Vec<String>> {
     .await
 }
 
-/// The system's file chooser for audiobook files, or a folder of them. `None` when cancelled.
+/// The system's file chooser for audiobook files (or a folder); null when cancelled.
 #[tauri::command]
 pub async fn choose_audio(app: tauri::AppHandle, folder: bool) -> Option<Vec<String>> {
     const AUDIO: [&str; 10] = [

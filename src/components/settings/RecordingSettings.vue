@@ -93,7 +93,7 @@ async function download(id: string) {
     [id]: { id, stage: "downloading", doneBytes: 0, totalBytes: 0, error: null },
   };
   try {
-    await api.downloadModel(id);
+    await api.downloadModel({ modelId: id });
     await load();
   } catch (e) {
     downloadError.value = String(e);

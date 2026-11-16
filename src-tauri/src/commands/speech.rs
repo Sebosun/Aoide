@@ -20,17 +20,21 @@ pub async fn save_book_settings(
     Ok(core.save_book_settings(&book_id, settings).await?)
 }
 
+/// Registered adapters and the active global profile.
 #[tauri::command]
 pub fn engine_options(core: CoreState<'_>) -> EngineOptions {
     core.engine_options()
 }
 
+/// Voices of the active engine (fails when the engine is offline).
 #[tauri::command]
 pub async fn engine_voices(core: CoreState<'_>) -> Result<Vec<aoide_tts::Voice>, CoreError> {
     let core = Arc::clone(&core);
     Ok(core.engine_voices().await?)
 }
 
+/// Speaks a sample sentence with `profile` (saved or not) and returns a WAV file. `params` override
+/// the profile's; a null voice means the profile's voice, else the engine's first.
 /// The WAV goes back as raw bytes (an ArrayBuffer in the UI), not as a JSON number array.
 #[tauri::command]
 pub async fn preview_voice(
@@ -47,6 +51,7 @@ pub async fn preview_voice(
     Ok(tauri::ipc::Response::new(wav))
 }
 
+/// Validates and activates a profile; regenerates upcoming audio with it.
 #[tauri::command]
 pub async fn save_engine_profile(
     core: CoreState<'_>,
@@ -56,12 +61,14 @@ pub async fn save_engine_profile(
     Ok(core.save_engine_profile(profile).await?)
 }
 
+/// Queue whole-book generation (progress arrives via BookSummary.prepare + library://changed).
 #[tauri::command]
 pub async fn prepare_book(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
     Ok(core.prepare_book(&book_id).await?)
 }
 
+/// Queues one chapter (from 0); it joins the book's entry, or is already covered by a whole book.
 #[tauri::command]
 pub async fn prepare_chapter(
     core: CoreState<'_>,
@@ -72,6 +79,7 @@ pub async fn prepare_chapter(
     Ok(core.prepare_chapter(&book_id, chapter).await?)
 }
 
+/// How much of each chapter's audio is made, in chapter order.
 #[tauri::command]
 pub async fn chapter_audio(
     core: CoreState<'_>,
@@ -81,6 +89,7 @@ pub async fn chapter_audio(
     Ok(core.chapter_audio(&book_id).await?)
 }
 
+/// Pause or resume a queued book's preparation (remembered across restarts).
 #[tauri::command]
 pub fn set_prepare_paused(core: CoreState<'_>, book_id: String, paused: bool) {
     core.set_prepare_paused(&book_id, paused);
@@ -91,6 +100,7 @@ pub fn cancel_prepare(core: CoreState<'_>, book_id: String) {
     core.cancel_prepare(&book_id);
 }
 
+/// Delete the book's generated audio so it is regenerated.
 #[tauri::command]
 pub async fn regenerate_book(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);

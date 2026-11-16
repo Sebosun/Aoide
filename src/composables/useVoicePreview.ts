@@ -33,7 +33,7 @@ export function useVoicePreview() {
     try {
       let url = cache.get(key);
       if (!url) {
-        const wav = await api.previewVoice(plain, voiceId, { ...params }, language);
+        const wav = await api.previewVoice({ profile: plain, voiceId, params: { ...params }, language });
         url = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
         cache.set(key, url);
       }

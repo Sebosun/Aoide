@@ -97,18 +97,18 @@ export const useLibraryStore = defineStore("library", () => {
   async function setSort(next: LibrarySort) {
     sort.value = next;
     try {
-      await api.updateAppSettings({ librarySort: next });
+      await api.updateAppSettings({ patch: { librarySort: next } });
     } catch (e) {
       error.value = String(e);
     }
   }
   /** Marks a book finished, or unread (which also forgets where the user was in it). */
   async function markRead(id: string, state: "finished" | "unread") {
-    await (state === "finished" ? api.markFinished(id) : api.markUnread(id));
+    await (state === "finished" ? api.markFinished({ bookId: id }) : api.markUnread({ bookId: id }));
     await refresh();
   }
   async function setReadingWpm(wpm: number) {
-    readingWpm.value = (await api.updateAppSettings({ readingWpm: wpm })).readingWpm;
+    readingWpm.value = (await api.updateAppSettings({ patch: { readingWpm: wpm } })).readingWpm;
   }
   /** The progress the core reported for a book read silently, until the next refresh. */
   function setProgress(id: string, progress: BookProgress) {
@@ -132,20 +132,20 @@ export const useLibraryStore = defineStore("library", () => {
   }
   /** Collection changes throw (for example a duplicate name) so the caller can say why. */
   async function createCollection(name: string) {
-    const id = await api.createCollection(name);
+    const id = await api.createCollection({ name });
     await refresh();
     return id;
   }
   async function renameCollection(id: number, name: string) {
-    await api.renameCollection(id, name);
+    await api.renameCollection({ id, name });
     await refresh();
   }
   async function deleteCollection(id: number) {
-    await api.deleteCollection(id);
+    await api.deleteCollection({ id });
     await refresh();
   }
   async function setBookCollections(bookId: string, ids: number[]) {
-    await api.setBookCollections(bookId, ids);
+    await api.setBookCollections({ bookId, ids });
     await refresh();
   }
   async function perform(action: () => Promise<unknown>) {
@@ -177,7 +177,7 @@ export const useLibraryStore = defineStore("library", () => {
   }
   async function importFiles(paths: string[]) {
     await perform(async () => {
-      imports.value = await api.importFiles(paths);
+      imports.value = await api.importFiles({ paths });
     });
     await lookForAudiobooks(imports.value.flatMap((r) => (r.bookId ? [r.bookId] : [])));
   }
@@ -186,7 +186,7 @@ export const useLibraryStore = defineStore("library", () => {
   async function lookForAudiobooks(ids: string[]) {
     if (!ids.length) return;
     try {
-      if ((await api.lookForAudiobooks(ids)) > 0) useNavigationStore().view = "audiobooks";
+      if ((await api.lookForAudiobooks({ ids })) > 0) useNavigationStore().view = "audiobooks";
     } catch (e) {
       error.value = String(e);
     }
@@ -238,7 +238,7 @@ export const useLibraryStore = defineStore("library", () => {
     chooseFiles,
     lookForAudiobooks,
     rescan: () => perform(() => api.rescanLibrary()),
-    remove: (id: string) => perform(() => api.removeBook(id)),
+    remove: (id: string) => perform(() => api.removeBook({ bookId: id })),
     dispose,
   };
 });

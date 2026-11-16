@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api } from "@/api";
+import { ApiError } from "@/api/errors";
 import type { AudiobookMatch, AudiobookSuggestion, MatchStage, ScanProgress } from "@/api/types";
 import { useRecordingsStore } from "@/stores/recordings";
 
@@ -98,12 +99,14 @@ export const useAudiobooksStore = defineStore("audiobooks", () => {
         put(await api.scanForAudiobooks());
         await loadUnmatched();
       },
-      (e) => String(e).includes("cancelled"),
+      (e) => e instanceof ApiError && e.kind === "cancelled",
     );
   async function pair(bookIds: string[]) {
     if (!bookIds.length) return;
     await run("pairing", async () => {
-      const outcomes = await api.pairAudiobooks(bookIds.map((bookId) => ({ bookId, candidate: candidateOf(bookId) })));
+      const outcomes = await api.pairAudiobooks({
+        choices: bookIds.map((bookId) => ({ bookId, candidate: candidateOf(bookId) })),
+      });
       const failed = outcomes.filter((o) => o.error);
       if (failed.length) error.value = failed.map((o) => o.error).join("\n");
       put(await api.audiobookMatches());

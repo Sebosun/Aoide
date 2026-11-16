@@ -23,8 +23,8 @@ export async function applyPreviewParams(search = location.search) {
   const view = query.get("view") as View | null,
     settings = query.get("settings") as SettingsTab | null;
   if (settings) useNavigationStore().openSettings(settings);
-  for (const id of query.get("prepare")?.split(",").filter(Boolean) ?? []) await api.prepareBook(id);
-  if (query.has("audiobook")) await api.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  for (const id of query.get("prepare")?.split(",").filter(Boolean) ?? []) await api.prepareBook({ bookId: id });
+  if (query.has("audiobook")) await api.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
   if (query.has("shelves")) {
     // Sample collections for screenshots: `shelves=1`.
     const library = useLibraryStore();

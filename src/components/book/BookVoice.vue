@@ -37,7 +37,7 @@ let unlisten: (() => void) | undefined,
 onMounted(async () => {
   void library.start(); // Its summary gives the audio size, preparation and language.
   try {
-    const [book, options] = await Promise.all([api.bookSettings(props.bookId), api.engineOptions()]);
+    const [book, options] = await Promise.all([api.bookSettings({ bookId: props.bookId }), api.engineOptions()]);
     settings.value = book;
     profile.value = options.profile;
     descriptor.value = options.descriptors.find((d) => d.kind === options.profile.kind) ?? null;
@@ -77,7 +77,7 @@ async function save() {
     language: settings.value.language?.trim() || null,
   };
   try {
-    await api.saveBookSettings(props.bookId, next);
+    await api.saveBookSettings({ bookId: props.bookId, settings: next });
     settings.value = next;
     message.value = "Saved. Audio from the playhead on uses these settings.";
     if (reader.book?.id === props.bookId)
@@ -97,7 +97,7 @@ async function regenerate() {
     confirmLabel: "Regenerate",
     danger: true,
   });
-  if (ok) await run(() => api.regenerateBook(props.bookId));
+  if (ok) await run(() => api.regenerateBook({ bookId: props.bookId }));
 }
 async function run(action: () => Promise<unknown>) {
   error.value = "";
@@ -112,7 +112,7 @@ async function exportBook() {
   error.value = "";
   exporting.value = { bookId: props.bookId, stage: "generating", done: 0, total: 0, path: null, error: null };
   try {
-    const path = await api.exportBook(props.bookId);
+    const path = await api.exportBook({ bookId: props.bookId });
     exporting.value = { ...exporting.value!, stage: "done", path };
   } catch (e) {
     exporting.value = { ...exporting.value!, stage: "error", error: String(e) };

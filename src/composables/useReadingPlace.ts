@@ -40,7 +40,7 @@ export function useReadingPlace(container: Ref<HTMLElement | undefined>, active:
     if (!segmentId || (reader.place?.chapter === chapter && reader.place.segmentId === segmentId)) return;
     lastAt = Date.now();
     reader.place = { chapter, segmentId };
-    api.setReadingPlace(book, chapter, segmentId).then(
+    api.setReadingPlace({ bookId: book, chapter, segmentId }).then(
       (progress) => {
         if (progress) library.setProgress(book, progress);
       },

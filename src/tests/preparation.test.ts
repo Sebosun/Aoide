@@ -60,12 +60,9 @@ it("runs each action and says so once when a book starts preparing", async () =>
   await runPrepareAction("book-1", "resume");
   await runPrepareAction("book-1", "start");
   await runPrepareAction("book-1", "cancel");
-  expect(prepare.mock.calls).toEqual([["book-1"], ["book-1"]]);
-  expect(pause.mock.calls).toEqual([
-    ["book-1", true],
-    ["book-1", false],
-  ]);
-  expect(cancel).toHaveBeenCalledWith("book-1");
+  expect(prepare.mock.calls).toEqual([[{ bookId: "book-1" }], [{ bookId: "book-1" }]]);
+  expect(pause.mock.calls).toEqual([[{ bookId: "book-1", paused: true }], [{ bookId: "book-1", paused: false }]]);
+  expect(cancel).toHaveBeenCalledWith({ bookId: "book-1" });
   expect(useUiStore().toasts.map((t) => t.text)).toEqual(["Preparing the whole book in the background"]);
 });
 
@@ -76,8 +73,8 @@ it("reports a failed action as an error message", async () => {
 });
 
 it("shows a queued book as queued on its page, not as preparing", async () => {
-  await mock.prepareBook("book-1");
-  await mock.prepareBook("book-0");
+  await mock.prepareBook({ bookId: "book-1" });
+  await mock.prepareBook({ bookId: "book-0" });
   await useLibraryStore().start(); // App.vue starts it.
   const wrapper = mount(ItemView, { props: { bookId: "book-0" }, attachTo: document.body });
   await flushPromises();
@@ -106,7 +103,7 @@ it("prepares one chapter from its row in the contents and shows each chapter's a
   expect(rows[0].find('[aria-label^="Prepare chapter"]').exists()).toBe(false);
   await rows[1].get('[aria-label="Prepare chapter 2: Across the water"]').trigger("click");
   await flushPromises();
-  expect(prepare).toHaveBeenCalledWith("book-0", 1);
+  expect(prepare).toHaveBeenCalledWith({ bookId: "book-0", chapter: 1 });
   expect(useUiStore().toasts.at(-1)?.text).toBe("Preparing chapter 2 in the background");
   expect(wrapper.findAll('[aria-label="Contents"] li')[1].text()).toMatch(/Queued|Preparing/);
   wrapper.unmount();

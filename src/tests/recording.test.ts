@@ -80,7 +80,7 @@ it("offers what the core's stage machine accepts when a sync is paused and resum
   mock.setRecordingForTest("book-0", "paused");
   await flushPromises();
   expect(recordingStatus(store.byBook["book-0"]).actions).toContain("resume");
-  await mock.syncAction("book-0", "resume");
+  await mock.syncAction({ bookId: "book-0", action: "resume" });
   // The core puts a resumed recording back in line (core/syncing.rs), not straight to work.
   expect(store.byBook["book-0"].stage).toBe("waiting");
 });
@@ -95,6 +95,6 @@ it("keeps each book's recording up to date from sync events", async () => {
   for (let i = 0; i < 20 && store.byBook["book-0"].stage !== "ready"; i++) await vi.advanceTimersByTimeAsync(400);
   vi.useRealTimers();
   expect(store.byBook["book-0"].stage).toBe("ready");
-  expect((await mock.bookSettings("book-0")).narration).toBe("recording");
+  expect((await mock.bookSettings({ bookId: "book-0" })).narration).toBe("recording");
   expect(store.syncing).toEqual([]);
 });

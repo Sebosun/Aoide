@@ -89,7 +89,7 @@ export function usePlayerControls() {
     if (!id) return;
     const ui = useUiStore();
     try {
-      await api.addBookmark(id, "");
+      await api.addBookmark({ bookId: id, note: "" });
       ui.toast("Bookmarked");
     } catch (e) {
       ui.toast(String(e), "error");

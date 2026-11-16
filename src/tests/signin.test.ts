@@ -66,7 +66,7 @@ it("shows the sign-in's steps, keeps the choice to stay signed in, and closes wi
     show = vi.spyOn(mock, "showSignInWindow");
   dialog()!.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();
   await flushPromises();
-  expect(stay).toHaveBeenCalledWith(false);
+  expect(stay).toHaveBeenCalledWith({ stay: false });
   buttonIn("Show the window").click();
   await flushPromises();
   expect(show).toHaveBeenCalled();
@@ -89,13 +89,13 @@ it("shows the sign-in's steps, keeps the choice to stay signed in, and closes wi
 
 it("cancels from the dialog or with Escape, leaving the article as it was", async () => {
   const wrapper = await app("?signin=waiting");
-  const before = await mock.article("book-6");
+  const before = await mock.article({ bookId: "book-6" });
   const cancel = vi.spyOn(mock, "cancelSignIn");
   dialog()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   await flushPromises();
   expect(cancel).toHaveBeenCalled();
   expect(dialog()).toBeNull();
   expect(useUiStore().toasts.map((t) => t.text)).toContain("Sign-in cancelled; the article is as it was.");
-  expect(await mock.article("book-6")).toEqual(before);
+  expect(await mock.article({ bookId: "book-6" })).toEqual(before);
   wrapper.unmount();
 });

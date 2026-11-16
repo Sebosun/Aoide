@@ -12,7 +12,7 @@ const details = ref<BookDetails | null>(null),
   error = ref("");
 onMounted(async () => {
   try {
-    details.value = await api.bookDetails(props.bookId);
+    details.value = await api.bookDetails({ bookId: props.bookId });
   } catch (e) {
     error.value = String(e);
   }
@@ -20,7 +20,7 @@ onMounted(async () => {
 async function showInFolder() {
   error.value = "";
   try {
-    await api.showInFolder(props.bookId);
+    await api.showInFolder({ bookId: props.bookId });
   } catch (e) {
     error.value = String(e);
   }

@@ -16,7 +16,7 @@ const marks = ref<Bookmark[]>([]),
   editing = ref<number | null>(null);
 async function load() {
   try {
-    marks.value = await api.bookmarks(props.bookId);
+    marks.value = await api.bookmarks({ bookId: props.bookId });
   } catch (e) {
     error.value = String(e);
   }
@@ -25,7 +25,7 @@ onMounted(load);
 async function add() {
   error.value = "";
   try {
-    await api.addBookmark(props.bookId, note.value.trim());
+    await api.addBookmark({ bookId: props.bookId, note: note.value.trim() });
     note.value = "";
     await load();
   } catch (e) {
@@ -37,7 +37,7 @@ async function saveNote(mark: Bookmark, event: Event) {
   editing.value = null;
   if (next === mark.note) return;
   try {
-    await api.updateBookmarkNote(mark.id, next);
+    await api.updateBookmarkNote({ id: mark.id, note: next });
     mark.note = next;
   } catch (e) {
     error.value = String(e);
@@ -45,7 +45,7 @@ async function saveNote(mark: Bookmark, event: Event) {
 }
 async function remove(mark: Bookmark) {
   try {
-    await api.deleteBookmark(mark.id);
+    await api.deleteBookmark({ id: mark.id });
     await load();
   } catch (e) {
     error.value = String(e);

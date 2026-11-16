@@ -26,7 +26,7 @@ const bookId = ref<string>(pairing.bookId ?? "");
 onMounted(async () => {
   void library.start();
   try {
-    found.value = await api.inspectRecording(pairing.paths);
+    found.value = await api.inspectRecording({ paths: pairing.paths });
     files.value = [...found.value.files];
     if (!bookId.value && found.value.suggestedBook) bookId.value = found.value.suggestedBook;
   } catch (e) {

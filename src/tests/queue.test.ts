@@ -44,8 +44,8 @@ async function openQueue() {
 }
 
 it("shows the books waiting for preparation in queue order, from the sidebar card", async () => {
-  await mock.prepareBook("book-1");
-  await mock.prepareBook("book-0");
+  await mock.prepareBook({ bookId: "book-1" });
+  await mock.prepareBook({ bookId: "book-0" });
   const { wrapper } = await openQueue();
   expect(panel()?.textContent).toContain("Local Chatterbox");
   expect(rows().map((r) => r.querySelector("button")?.textContent?.trim())).toEqual([
@@ -70,34 +70,34 @@ it("offers to start a book left waiting in the queue, as after a start with resu
   expect(document.body.querySelector('[aria-label="Pause preparing A Map of Quiet Places"]')).not.toBeNull();
   button("Start preparing A Map of Quiet Places").click();
   await flushPromises();
-  expect(prepare).toHaveBeenCalledWith("book-1");
+  expect(prepare).toHaveBeenCalledWith({ bookId: "book-1" });
   expect(rows()[0].textContent).toContain("Preparing");
   wrapper.unmount();
 });
 
 it("pauses, resumes and cancels a book from the queue", async () => {
-  await mock.prepareBook("book-1");
-  await mock.prepareBook("book-0");
+  await mock.prepareBook({ bookId: "book-1" });
+  await mock.prepareBook({ bookId: "book-0" });
   const pause = vi.spyOn(mock, "setPreparePaused"),
     cancel = vi.spyOn(mock, "cancelPrepare");
   const { wrapper } = await openQueue();
   button("Pause preparing A Map of Quiet Places").click();
   await flushPromises();
-  expect(pause).toHaveBeenLastCalledWith("book-1", true);
+  expect(pause).toHaveBeenLastCalledWith({ bookId: "book-1", paused: true });
   expect(rows()[0].textContent).toContain("Paused");
   expect(rows()[1].textContent).toContain("Preparing");
   button("Resume preparing A Map of Quiet Places").click();
   await flushPromises();
-  expect(pause).toHaveBeenLastCalledWith("book-1", false);
+  expect(pause).toHaveBeenLastCalledWith({ bookId: "book-1", paused: false });
   button("Cancel preparing The Lantern Keeper").click();
   await flushPromises();
-  expect(cancel).toHaveBeenCalledWith("book-0");
+  expect(cancel).toHaveBeenCalledWith({ bookId: "book-0" });
   expect(rows()).toHaveLength(1);
   wrapper.unmount();
 });
 
 it("shows what is being made for the book playing now", async () => {
-  await mock.prepareBook("book-1");
+  await mock.prepareBook({ bookId: "book-1" });
   const { wrapper } = await openQueue();
   mock.emitGeneration({
     ...initialGeneration(),
@@ -121,11 +121,11 @@ it("shows the engine in the sidebar only while a book is queued or the engine ha
   expect(card().exists()).toBe(false);
   expect(wrapper.text()).not.toContain("Local Chatterbox");
 
-  await mock.prepareBook("book-1");
+  await mock.prepareBook({ bookId: "book-1" });
   await flushPromises();
   expect(card().text()).toContain("Narrating 1 book");
   expect(card().text()).toContain("A Map of Quiet Places · 3 / 120");
-  await mock.cancelPrepare("book-1");
+  await mock.cancelPrepare({ bookId: "book-1" });
   await flushPromises();
   expect(card().exists()).toBe(false);
 
@@ -137,7 +137,7 @@ it("shows the engine in the sidebar only while a book is queued or the engine ha
 });
 
 it("opens a book or the engine settings from the queue, and closes on Escape", async () => {
-  await mock.prepareBook("book-1");
+  await mock.prepareBook({ bookId: "book-1" });
   const { wrapper, pill } = await openQueue();
   button("Speech engine settings").click();
   await flushPromises();

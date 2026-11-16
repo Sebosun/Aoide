@@ -16,7 +16,7 @@ const app = createApp(App).use(createPinia());
 const uncaught = (error: unknown) => {
   console.error(error);
   const msg = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-  report({ level: "error", event: "ui.error", msg, view: useNavigationStore().view }, (entry) => api.logUi(entry));
+  report({ level: "error", event: "ui.error", msg, view: useNavigationStore().view }, (entry) => api.logUi({ entry }));
 };
 app.config.errorHandler = uncaught;
 window.addEventListener("unhandledrejection", (event) => uncaught(event.reason));

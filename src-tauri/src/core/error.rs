@@ -32,9 +32,14 @@ pub enum CoreError {
     Busy { message: String },
     /// Reading or writing a file or the network failed.
     Io { message: String },
+    /// The user stopped it (a scan); nothing to report.
+    Cancelled { message: String },
     /// A failure the user cannot act on.
     Internal { message: String },
 }
+
+/// What a job the user stopped answers with, while its module still answers with `String`.
+pub const CANCELLED: &str = "cancelled";
 
 impl CoreError {
     pub fn not_found(what: impl Into<String>) -> Self {
@@ -76,6 +81,7 @@ impl CoreError {
             | CoreError::EngineUnavailable { message }
             | CoreError::Busy { message }
             | CoreError::Io { message }
+            | CoreError::Cancelled { message }
             | CoreError::Internal { message } => message,
         }
     }
@@ -88,6 +94,7 @@ impl CoreError {
             CoreError::EngineUnavailable { .. } => "engineUnavailable",
             CoreError::Busy { .. } => "busy",
             CoreError::Io { .. } => "io",
+            CoreError::Cancelled { .. } => "cancelled",
             CoreError::Internal { .. } => "internal",
         }
     }
@@ -103,6 +110,9 @@ impl std::error::Error for CoreError {}
 
 impl From<String> for CoreError {
     fn from(message: String) -> Self {
+        if message == CANCELLED {
+            return CoreError::Cancelled { message };
+        }
         CoreError::Internal { message }
     }
 }
@@ -308,5 +318,21 @@ impl Reporter {
         if let Ok(payload) = event.payload() {
             events.emit(event.name(), payload);
         }
+    }
+}
+
+#[cfg(test)]
+mod cancelled_tests {
+    use super::*;
+
+    #[test]
+    fn a_job_the_user_stopped_answers_as_cancelled_not_as_a_failure() {
+        let error = CoreError::from(CANCELLED.to_owned());
+        assert_eq!(error.kind(), "cancelled");
+        assert_eq!(error.message(), "cancelled");
+        assert_eq!(
+            CoreError::from("cancelled by the site".to_owned()).kind(),
+            "internal"
+        );
     }
 }

@@ -13,7 +13,8 @@ pub async fn mark_unread(core: CoreState<'_>, book_id: String) -> Result<(), Cor
     blocking(move || core.mark_unread(&book_id)).await
 }
 
-/// Where the user is reading silently, and the progress it makes; ignored while that book plays.
+/// Where the user is reading silently; returns the book's progress now, or null when ignored
+/// because that book is playing.
 #[tauri::command]
 pub async fn set_reading_place(
     core: CoreState<'_>,
@@ -25,7 +26,7 @@ pub async fn set_reading_place(
     blocking(move || core.set_reading_place(&book_id, chapter, &segment_id)).await
 }
 
-/// The user is reading the book silently now (sent every 15 s at most).
+/// The user is reading the book silently now; send every 15 s at most.
 #[tauri::command]
 pub async fn reading_activity(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
     let core = Arc::clone(&core);
@@ -36,7 +37,8 @@ pub async fn reading_activity(core: CoreState<'_>, book_id: String) -> Result<()
     .await
 }
 
-/// Reads book `book_id` silently or listens to it; reading the playing book pauses it.
+/// Reads the book silently or listens to it. Reading the playing book pauses it; choosing to listen
+/// does not start playback (call play next).
 #[tauri::command]
 pub async fn set_mode(
     core: CoreState<'_>,
@@ -47,6 +49,7 @@ pub async fn set_mode(
     blocking(move || core.set_mode(&book_id, mode)).await
 }
 
+/// Bookmarks of a book, in reading order.
 #[tauri::command]
 pub async fn bookmarks(
     core: CoreState<'_>,
@@ -56,6 +59,7 @@ pub async fn bookmarks(
     blocking(move || core.bookmarks(&book_id)).await
 }
 
+/// Bookmarks the current playhead (or the saved position of bookId when not playing it).
 #[tauri::command]
 pub async fn add_bookmark(
     core: CoreState<'_>,
@@ -76,6 +80,7 @@ pub fn delete_bookmark(core: CoreState<'_>, id: i64) -> Result<(), CoreError> {
     Ok(core.delete_bookmark(id)?)
 }
 
+/// One book's listened time per local day, oldest first.
 #[tauri::command]
 pub async fn book_listening(
     core: CoreState<'_>,

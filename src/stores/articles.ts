@@ -24,13 +24,13 @@ export const useArticlesStore = defineStore("articles", () => {
   }
   async function load(id: string) {
     await start();
-    put(await api.article(id));
+    put(await api.article({ bookId: id }));
   }
   /** Saves `link` as an article; the library opens to show it being fetched. Throws the core's
    *  refusal of a link it does not take. */
   async function save(link: string) {
     await start();
-    const id = await api.saveArticle(link);
+    const id = await api.saveArticle({ url: link });
     const navigation = useNavigationStore();
     navigation.closeAdd();
     navigation.view = "library";
@@ -41,7 +41,7 @@ export const useArticlesStore = defineStore("articles", () => {
    *  as an article and the library opens to show it being fetched. */
   async function add(link: string) {
     await start();
-    const added = await api.addLink(link);
+    const added = await api.addLink({ url: link });
     if (added.kind === "saved") {
       const navigation = useNavigationStore();
       navigation.closeAdd();
@@ -74,15 +74,15 @@ export const useArticlesStore = defineStore("articles", () => {
   }
   /** Keeps an article opened from a feed in the library. */
   async function keep(id: string) {
-    await api.saveToLibrary(id);
+    await api.saveToLibrary({ bookId: id });
     await Promise.all([load(id), useLibraryStore().refresh()]);
   }
   async function refetch(id: string, source: ArticleSource) {
     await start();
-    await api.refetchArticle(id, source);
+    await api.refetchArticle({ bookId: id, source });
   }
   /** Opens the article's page in the system's browser. */
-  const openOriginal = (id: string) => api.openOriginal(id);
+  const openOriginal = (id: string) => api.openOriginal({ bookId: id });
   function dispose() {
     unlisten?.();
     unlisten = undefined;

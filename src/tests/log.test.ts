@@ -48,9 +48,9 @@ it("notes a slow answer, but not from the long jobs that log their own time", as
 
 it("leaves cancelled scans and its own failures out of the log", async () => {
   tauri.invoke.mockImplementation(async (name: string) => {
-    throw name === "scan_for_books" ? "cancelled" : "no window";
+    throw name === "scan_for_books" ? { kind: "cancelled", message: "cancelled" } : "no window";
   });
   await expect(tauriApi.scanForBooks()).rejects.toThrow("cancelled");
-  await expect(tauriApi.logUi({ level: "error", event: "ui.error", msg: "x" })).rejects.toThrow("no window");
+  await expect(tauriApi.logUi({ entry: { level: "error", event: "ui.error", msg: "x" } })).rejects.toThrow("no window");
   expect(logged()).toEqual([{ level: "error", event: "ui.error", msg: "x" }]);
 });

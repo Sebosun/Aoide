@@ -53,7 +53,7 @@ const actions = (feed: FeedView): MenuEntry[] => [
     id: "site",
     label: "Open site",
     icon: ExternalLink,
-    action: () => void api.openFeedSite(feed.id).catch((e) => ui.toast(String(e), "error")),
+    action: () => void api.openFeedSite({ feedId: feed.id }).catch((e) => ui.toast(String(e), "error")),
   },
   { id: "copy", label: "Copy feed address", icon: Copy, action: () => void copyAddress(feed) },
   { kind: "separator" },

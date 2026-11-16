@@ -25,7 +25,7 @@ onMounted(async () => {
   }
 });
 async function saveFolders(folders: Folders, onStartup: boolean) {
-  settings.value = await api.updateAppSettings({ scan: { ...folders, onStartup } });
+  settings.value = await api.updateAppSettings({ patch: { scan: { ...folders, onStartup } } });
 }
 const groups = computed(() =>
   (

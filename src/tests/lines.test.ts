@@ -62,7 +62,7 @@ it("plays a neighbouring sentence when it is clicked", async () => {
   mock.emitPlayer({ ...initialPlayer(), bookId: "book-0", status: "playing", segmentId: "0:1:0", wordIndex: 0 });
   await flushPromises();
   await wrapper.get('[data-segment-id="0:2:0"]').trigger("click");
-  expect(play).toHaveBeenCalledWith("book-0", 0, "0:2:0");
+  expect(play).toHaveBeenCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:2:0" });
   wrapper.unmount();
 });
 
@@ -76,7 +76,7 @@ it("shows the book on the left with a chapter picker", async () => {
   expect(side.get('[aria-haspopup="menu"]').text()).toContain("Chapter 1 · The small light");
   await pickMenuItem("Chapter 2: Across the water");
   await flushPromises();
-  expect(play).toHaveBeenCalledWith("book-0", 1, "1:0:0");
+  expect(play).toHaveBeenCalledWith({ bookId: "book-0", chapter: 1, segmentId: "1:0:0" });
   wrapper.unmount();
 });
 
@@ -132,6 +132,6 @@ it("prepares the chapter being read from the chapter menu", async () => {
   const wrapper = await lines();
   await wrapper.get('[aria-label^="Chapter 1 of"]').trigger("click");
   await pickMenuItem("Prepare this chapter");
-  expect(prepare).toHaveBeenCalledWith("book-0", 0);
+  expect(prepare).toHaveBeenCalledWith({ bookId: "book-0", chapter: 0 });
   wrapper.unmount();
 });

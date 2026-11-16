@@ -75,7 +75,7 @@ it("filters by unread, in progress, finished, can listen and preparing, from the
   await chip("Can listen").trigger("click");
   expect(titles(wrapper)).toEqual(["The Lantern Keeper", "An Unfinished Atlas"]);
   expect(wrapper.find('[aria-label^="Preparing"]').exists()).toBe(false);
-  await mock.prepareBook("book-1");
+  await mock.prepareBook({ bookId: "book-1" });
   await flushPromises();
   await chip("Preparing").trigger("click");
   expect(titles(wrapper)).toEqual(["A Map of Quiet Places"]);
@@ -94,7 +94,7 @@ it("says on each card what it has and how far along it is", async () => {
   expect(line("The Lantern Keeper")).toBe("Text + voice · 12% · <1 min left");
   expect(line("A Map of Quiet Places")).toBe("Text · unread");
   // A book read silently gives the time left to read it.
-  await mock.setReadingPlace("book-1", 1, "1:1:0");
+  await mock.setReadingPlace({ bookId: "book-1", chapter: 1, segmentId: "1:1:0" });
   await flushPromises();
   expect(line("A Map of Quiet Places")).toMatch(/^Text · \d+% · <1 min left to read$/);
   mock.setAudioSourceForTest("book-3", "recording");
@@ -126,7 +126,7 @@ it("sorts the library and remembers the order", async () => {
     "A Map of Quiet Places",
     "An Unfinished Atlas",
   ]);
-  expect(save).toHaveBeenCalledWith(expect.objectContaining({ librarySort: "title" }));
+  expect(save).toHaveBeenCalledWith({ patch: expect.objectContaining({ librarySort: "title" }) });
   wrapper.unmount();
 });
 
@@ -151,7 +151,7 @@ it("removes a book after confirming in a dialog from its card menu", async () =>
   dialog = await ask();
   await dialog.get('[data-confirm="yes"]').trigger("click");
   await flushPromises();
-  expect(remove).toHaveBeenCalledWith("book-3");
+  expect(remove).toHaveBeenCalledWith({ bookId: "book-3" });
   expect(titles(wrapper)).not.toContain("An Unfinished Atlas");
   wrapper.unmount();
   host.unmount();
@@ -163,9 +163,9 @@ it("shows the playing book in the now-playing card, and opens the reader from it
   const wrapper = mount(MiniPlayer);
   await flushPromises();
   expect(wrapper.find('[aria-label="Now playing"]').exists()).toBe(false);
-  await mock.play("book-0", 1, "1:1:0");
-  await mock.setSpeed(1.25);
-  await mock.setSleepTimer(30, false);
+  await mock.play({ bookId: "book-0", chapter: 1, segmentId: "1:1:0" });
+  await mock.setSpeed({ speed: 1.25 });
+  await mock.setSleepTimer({ minutes: 30, endOfChapter: false });
   await flushPromises();
   const card = wrapper.get('[aria-label="Now playing"]');
   expect(card.text()).toContain("The Lantern Keeper");
@@ -188,7 +188,7 @@ it("keeps the playing book in the card when another book is open, and shows erro
   useNavigationStore().view = "library";
   await usePlayerStore().start();
   const wrapper = mount(MiniPlayer);
-  await mock.play("book-0", 1, "1:1:0");
+  await mock.play({ bookId: "book-0", chapter: 1, segmentId: "1:1:0" });
   await flushPromises();
   expect(wrapper.text()).toContain("Across the water");
   mock.emitGeneration({
@@ -226,13 +226,13 @@ it("prepares, pauses, resumes and cancels a whole book from its card menu", asyn
     cancel = vi.spyOn(mock, "cancelPrepare");
   const wrapper = await library();
   await cardAction(wrapper, "A Map of Quiet Places", "Prepare whole book");
-  expect(prepare).toHaveBeenCalledWith("book-1");
+  expect(prepare).toHaveBeenCalledWith({ bookId: "book-1" });
   await cardAction(wrapper, "A Map of Quiet Places", "Pause preparing");
-  expect(pause).toHaveBeenLastCalledWith("book-1", true);
+  expect(pause).toHaveBeenLastCalledWith({ bookId: "book-1", paused: true });
   await cardAction(wrapper, "A Map of Quiet Places", "Resume preparing");
-  expect(pause).toHaveBeenLastCalledWith("book-1", false);
+  expect(pause).toHaveBeenLastCalledWith({ bookId: "book-1", paused: false });
   await cardAction(wrapper, "A Map of Quiet Places", "Cancel preparing");
-  expect(cancel).toHaveBeenCalledWith("book-1");
+  expect(cancel).toHaveBeenCalledWith({ bookId: "book-1" });
   wrapper.unmount();
 });
 
@@ -242,7 +242,7 @@ it("exports a book and deletes its generated audio after confirming, from the ca
   const wrapper = await library();
   const host = mount(UiHost, { attachTo: document.body });
   await cardAction(wrapper, "The Lantern Keeper", "Export as M4B");
-  expect(exportBook).toHaveBeenCalledWith("book-0");
+  expect(exportBook).toHaveBeenCalledWith({ bookId: "book-0" });
   expect(toasts().join(" ")).toContain("Exported to ~/Documents/Aoide/Exports/The Lantern Keeper.m4b");
 
   await cardAction(wrapper, "The Lantern Keeper", "Delete generated audio");
@@ -250,7 +250,7 @@ it("exports a book and deletes its generated audio after confirming, from the ca
   expect(dialog.text()).toContain("Delete the generated audio of The Lantern Keeper?");
   await dialog.get('[data-confirm="yes"]').trigger("click");
   await flushPromises();
-  expect(regenerate).toHaveBeenCalledWith("book-0");
+  expect(regenerate).toHaveBeenCalledWith({ bookId: "book-0" });
   await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
   expect(menuItems().map((m) => m.textContent?.trim())).not.toContain("Delete generated audio");
   wrapper.unmount();
@@ -291,7 +291,7 @@ it("creates a collection in the sidebar, puts a book on it from the card menu, a
   await sidebar(wrapper).get('[aria-label="New collection"]').trigger("click");
   await flushPromises();
   await answerPrompt(wrapper, "Night reading");
-  expect(create).toHaveBeenCalledWith("Night reading");
+  expect(create).toHaveBeenCalledWith({ name: "Night reading" });
   expect(shelf(wrapper, "Night reading").text()).toContain("0");
 
   await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
@@ -299,7 +299,7 @@ it("creates a collection in the sidebar, puts a book on it from the card menu, a
   expect(item.getAttribute("aria-checked")).toBe("false");
   item.click();
   await flushPromises();
-  expect(shelve).toHaveBeenCalledWith("book-0", [expect.any(Number)]);
+  expect(shelve).toHaveBeenCalledWith({ bookId: "book-0", ids: [expect.any(Number)] });
   expect(shelf(wrapper, "Night reading").text()).toContain("1");
 
   await shelf(wrapper, "Night reading").trigger("click");
@@ -324,8 +324,8 @@ it("adds a book to a new collection straight from its card menu", async () => {
 it("renames and deletes a collection from the sidebar", async () => {
   const rename = vi.spyOn(mock, "renameCollection"),
     remove = vi.spyOn(mock, "deleteCollection");
-  const id = await mock.createCollection("Shelf");
-  await mock.setBookCollections("book-1", [id]);
+  const id = await mock.createCollection({ name: "Shelf" });
+  await mock.setBookCollections({ bookId: "book-1", ids: [id] });
   const wrapper = await app();
   await shelf(wrapper, "Shelf").trigger("click");
   await flushPromises();
@@ -333,7 +333,7 @@ it("renames and deletes a collection from the sidebar", async () => {
   await pickMenuItem("Rename…");
   expect((wrapper.get('[role="dialog"] input').element as HTMLInputElement).value).toBe("Shelf");
   await answerPrompt(wrapper, "Favourites");
-  expect(rename).toHaveBeenCalledWith(id, "Favourites");
+  expect(rename).toHaveBeenCalledWith({ id, name: "Favourites" });
   expect(shelf(wrapper, "Favourites").attributes("aria-current")).toBe("page");
 
   await sidebar(wrapper).get('[aria-label="More for Favourites"]').trigger("click");
@@ -341,7 +341,7 @@ it("renames and deletes a collection from the sidebar", async () => {
   expect(wrapper.get('[role="alertdialog"]').text()).toContain("The books stay in your library");
   await wrapper.get('[data-confirm="yes"]').trigger("click");
   await flushPromises();
-  expect(remove).toHaveBeenCalledWith(id);
+  expect(remove).toHaveBeenCalledWith({ id });
   expect(sidebar(wrapper).text()).not.toContain("Favourites");
   expect(wrapper.get(".library__title").text()).toBe("Library");
   expect(titles(wrapper)).toHaveLength(4);
@@ -353,7 +353,7 @@ it("shows a book's file in the file manager from its card menu", async () => {
   const wrapper = await library();
   await wrapper.get('[aria-label="More for A Map of Quiet Places"]').trigger("click");
   await pickMenuItem("Show in folder");
-  expect(show).toHaveBeenCalledWith("book-1");
+  expect(show).toHaveBeenCalledWith({ bookId: "book-1" });
   wrapper.unmount();
 });
 
@@ -366,7 +366,7 @@ it("switches playback to another started book clicked while one is playing", asy
   await wrapper.get('[aria-label="Open A Map of Quiet Places"]').trigger("click");
   await flushPromises();
   expect(useReaderStore().book?.id).toBe("book-1");
-  expect(play).toHaveBeenCalledWith("book-1", null, null);
+  expect(play).toHaveBeenCalledWith({ bookId: "book-1", chapter: null, segmentId: null });
   wrapper.unmount();
 });
 
@@ -411,7 +411,7 @@ it("marks a book finished and unread again from its card menu", async () => {
 it("switches between kinds once there are two, and shows an audiobook square with its audio", async () => {
   const wrapper = await library();
   expect(wrapper.find('[role="group"][aria-label="Kind"]').exists(), "books only").toBe(false);
-  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  await mock.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
   await flushPromises();
   const kinds = wrapper.get('[role="group"][aria-label="Kind"]');
   expect(kinds.findAll("button").map((b) => b.text())).toEqual(["All5", "Books4", "Audiobooks1"]);
@@ -429,7 +429,7 @@ it("switches between kinds once there are two, and shows an audiobook square wit
 });
 
 it("offers no text actions on an audiobook's card", async () => {
-  await mock.addAudiobook(["~/Audiobooks/Winter Radio"]);
+  await mock.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
   const wrapper = await library();
   await wrapper.get('[aria-label="More for Winter Radio"]').trigger("click");
   await flushPromises();

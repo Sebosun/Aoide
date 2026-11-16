@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-/// Writes a line from the window to Aoide's log.
+/// Writes a line to Aoide's log (a failure the window saw).
 #[tauri::command]
 pub fn log_ui(entry: logging::UiLog) {
     logging::ui(entry);
@@ -16,7 +16,7 @@ pub fn app_settings(core: CoreState<'_>) -> AppSettings {
     core.app_settings()
 }
 
-/// Merges a change into the app settings; returns the settings now saved.
+/// Merges a change into the app settings; resolves with the settings now saved.
 #[tauri::command]
 pub async fn update_app_settings(
     core: CoreState<'_>,
@@ -26,6 +26,7 @@ pub async fn update_app_settings(
     blocking(move || core.update_app_settings(patch)).await
 }
 
+/// Appearance, themes and config problems from ~/.config/aoide.
 #[tauri::command]
 pub fn preferences(core: CoreState<'_>) -> PreferencesView {
     core.preferences()

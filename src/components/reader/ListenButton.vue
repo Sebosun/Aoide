@@ -31,7 +31,7 @@ const engineLine = computed(() =>
 );
 async function pair() {
   const id = reader.book?.id;
-  const paths = await api.chooseAudio(false);
+  const paths = await api.chooseAudio({ folder: false });
   if (id && paths?.length) recordings.openPairing(paths, id);
 }
 const choices = computed<MenuEntry[]>(() => [

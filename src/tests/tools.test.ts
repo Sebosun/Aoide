@@ -84,14 +84,17 @@ it("opens the extraction notes in Details from the warning in the margin", async
 });
 
 it("flags a book voice the engine does not offer and opens the Voice tab from the margin", async () => {
-  await mock.saveBookSettings("book-0", {
-    voiceId: "Abigail.wav",
-    params: {},
-    language: null,
-    readNotes: false,
-    narration: null,
-    speakMissing: false,
-    mode: null,
+  await mock.saveBookSettings({
+    bookId: "book-0",
+    settings: {
+      voiceId: "Abigail.wav",
+      params: {},
+      language: null,
+      readNotes: false,
+      narration: null,
+      speakMissing: false,
+      mode: null,
+    },
   });
   const wrapper = await reader("book-0");
   const warning = wrapper.get('[aria-label="About this book"] .book-margin__warning--voice');
@@ -113,7 +116,7 @@ it("shows the book's file in the file manager from Details", async () => {
     .findAll("button")
     .find((b) => b.text() === "Show in folder");
   await button!.trigger("click");
-  expect(show).toHaveBeenCalledWith("book-1");
+  expect(show).toHaveBeenCalledWith({ bookId: "book-1" });
   wrapper.unmount();
 });
 

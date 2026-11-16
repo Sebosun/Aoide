@@ -31,7 +31,7 @@ const prepare = computed(() => library.books.find((b) => b.id === props.bookId)?
 const chapterAudio = ref<ChapterAudioView[]>([]);
 async function loadChapterAudio() {
   try {
-    chapterAudio.value = await api.chapterAudio(props.bookId);
+    chapterAudio.value = await api.chapterAudio({ bookId: props.bookId });
   } catch {
     chapterAudio.value = [];
   }

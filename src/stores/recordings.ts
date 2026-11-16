@@ -39,7 +39,7 @@ export const useRecordingsStore = defineStore("recordings", () => {
     })());
   }
   async function load(bookId: string) {
-    const recording = await api.recording(bookId);
+    const recording = await api.recording({ bookId });
     if (recording) put(recording);
     else if (byBook.value[bookId]) {
       const { [bookId]: _, ...rest } = byBook.value;
@@ -48,20 +48,20 @@ export const useRecordingsStore = defineStore("recordings", () => {
     }
   }
   async function attach(bookId: string, paths: string[], asListed = false) {
-    const recording = await api.attachRecording(bookId, paths, asListed);
+    const recording = await api.attachRecording({ bookId, paths, asListed });
     put(recording);
     return recording;
   }
   async function act(bookId: string, action: SyncAction) {
-    await api.syncAction(bookId, action);
+    await api.syncAction({ bookId, action });
     await load(bookId);
   }
   async function remove(bookId: string) {
-    await api.removeRecording(bookId);
+    await api.removeRecording({ bookId });
     await load(bookId);
   }
   async function setNarration(bookId: string, narration: Narration) {
-    await api.setNarration(bookId, narration);
+    await api.setNarration({ bookId, narration });
     await load(bookId);
     await useReaderStore().refreshBook(bookId);
   }
@@ -72,7 +72,7 @@ export const useRecordingsStore = defineStore("recordings", () => {
    *  on its own, unless its name comes close to a book's, when the pairing dialog offers both. */
   async function receive(paths: string[], bookId: string | null) {
     if (bookId) return openPairing(paths, bookId);
-    const suggested = await api.inspectRecording(paths).then(
+    const suggested = await api.inspectRecording({ paths }).then(
       (found) => found.suggestedBook,
       () => null,
     );
@@ -85,7 +85,7 @@ export const useRecordingsStore = defineStore("recordings", () => {
     const ui = useUiStore(),
       library = useLibraryStore();
     try {
-      const added = await api.addAudiobook(paths);
+      const added = await api.addAudiobook({ paths });
       if (!added.bookId) {
         ui.toast(added.error ?? "Could not add the audiobook.", "error");
         return null;
@@ -108,12 +108,12 @@ export const useRecordingsStore = defineStore("recordings", () => {
     try {
       const paths = await api.chooseBooks();
       if (!paths?.length) return;
-      const [imported] = await api.importFiles(paths.slice(0, 1));
+      const [imported] = await api.importFiles({ paths: paths.slice(0, 1) });
       if (!imported?.bookId) {
         ui.toast(imported?.error ?? "Could not add the EPUB.", "error");
         return;
       }
-      await api.mergeAudiobook(audiobookId, imported.bookId);
+      await api.mergeAudiobook({ audiobookId, bookId: imported.bookId });
       await library.refresh();
       await load(imported.bookId);
       const title = library.books.find((b) => b.id === imported.bookId)?.title ?? "The book";

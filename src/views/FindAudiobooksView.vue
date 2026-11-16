@@ -32,7 +32,7 @@ onMounted(async () => {
   }
 });
 async function saveFolders(folders: Folders, onAdd: boolean) {
-  settings.value = await api.updateAppSettings({ audiobooks: { ...folders, onAdd } });
+  settings.value = await api.updateAppSettings({ patch: { audiobooks: { ...folders, onAdd } } });
 }
 const groups = computed(() =>
   (

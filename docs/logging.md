@@ -79,7 +79,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `config.watch` | warn | `error` | `core/config.rs`, watching settings files |
 | `config.reload` | info | `file` (`site-rules.toml`) | `core/browsing.rs` `reload_rules`, a hand edit read again (a broken file logs `config.problem` and the old rules stay) |
 | **Window** | | | |
-| `ipc.error` | warn | `command`, `took_ms` (`msg` is the error) | `src/api/tauri.ts` `call`; cancelled scans left out |
+| `ipc.error` | warn | `command`, `took_ms` (`msg` is the error) | `src/api/tauri.ts` `call`; errors of kind `cancelled` (a scan the user stopped) left out |
 | `ipc.slow` | info | `command`, `took_ms` | `src/api/tauri.ts`, answers over 2 s (long jobs left out) |
 | `ui.error` | error | `view` | `src/main.ts`, an error no view caught |
 | **Library** | | | |

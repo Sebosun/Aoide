@@ -18,7 +18,7 @@ async function subscribe() {
   if (!feed.value) return;
   busy.value = true;
   try {
-    const result = await api.subscribe(feed.value.url);
+    const result = await api.subscribe({ url: feed.value.url });
     if (result.kind !== "subscribed") throw new Error("No feed was found at that address.");
     ui.toast(`Subscribed to ${result.value.title ?? result.value.url}`);
     await Promise.all([articles.load(props.article.id), useFeedsStore().refresh()]);

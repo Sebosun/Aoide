@@ -88,12 +88,12 @@ it("changes appearance from Settings and saves it to the config file", async () 
     .find((b) => b.text() === "Dark")!
     .trigger("click");
   await flushPromises();
-  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "dark" }));
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ mode: "dark" }) });
   expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
 
   await choose(wrapper, "Colour theme", "dusk");
   await flushPromises();
-  expect(save).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "dark", theme: "dusk" }));
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ mode: "dark", theme: "dusk" }) });
   expect(wrapper.text()).toContain("~/.config/aoide");
   wrapper.unmount();
 });
@@ -120,7 +120,7 @@ it("saves the reading speed used for time left to read", async () => {
   await speed.setValue("300");
   await speed.trigger("change");
   await flushPromises();
-  expect(save).toHaveBeenLastCalledWith({ readingWpm: 300 });
+  expect(save).toHaveBeenLastCalledWith({ patch: { readingWpm: 300 } });
   expect(useLibraryStore().readingWpm).toBe(300);
   wrapper.unmount();
 });

@@ -21,7 +21,7 @@ const ready = computed(() => Boolean(recording.value?.listenable));
 const playing = computed<Narration>(() => (recording.value?.narrates ? "recording" : "speech"));
 onMounted(async () => {
   try {
-    speakMissing.value = (await api.bookSettings(props.bookId)).speakMissing;
+    speakMissing.value = (await api.bookSettings({ bookId: props.bookId })).speakMissing;
   } catch (e) {
     error.value = String(e);
   }
@@ -29,8 +29,8 @@ onMounted(async () => {
 async function setSpeakMissing(on: boolean) {
   error.value = "";
   try {
-    const settings = await api.bookSettings(props.bookId);
-    await api.saveBookSettings(props.bookId, { ...settings, speakMissing: on });
+    const settings = await api.bookSettings({ bookId: props.bookId });
+    await api.saveBookSettings({ bookId: props.bookId, settings: { ...settings, speakMissing: on } });
     speakMissing.value = on;
     // Chapters show which sentences play: read them again.
     await reader.refreshBook(props.bookId);
