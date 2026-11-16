@@ -367,33 +367,22 @@ impl Settings {
         lock(&self.config).preferences()
     }
 
-    /// Watches the config folder and applies each change through [`Settings::apply_edits`].
-    /// Returns only if the folder cannot be watched.
+    /// Watches the config folder and applies each change through [`Settings::apply_edits`]
+    /// (reading the settings is not a change). Returns only if the folder cannot be watched.
     pub fn watch(&self, host: &dyn ConfigHost, runtime: &tokio::runtime::Handle) {
-        use notify::{RecursiveMode, Watcher};
         let dir = lock(&self.config).dir().to_path_buf();
         if let Err(error) = std::fs::create_dir_all(dir.join(aoide_config::THEMES_DIR)) {
             tracing::warn!(event = "config.watch", %error, "Cannot create the themes folder");
             return;
         }
-        let (tx, rx) = std::sync::mpsc::channel();
-        let mut watcher = match notify::recommended_watcher(tx) {
-            Ok(w) => w,
-            Err(error) => {
-                tracing::warn!(event = "config.watch", %error, "Cannot watch the settings folder");
-                return;
-            }
-        };
-        if let Err(error) = watcher.watch(&dir, RecursiveMode::Recursive) {
-            tracing::warn!(event = "config.watch", %error, "Cannot watch the settings folder");
-            return;
-        }
-        while rx.recv().is_ok() {
-            // Editors save in several steps (temporary file, rename, chmod).
-            while rx.recv_timeout(Duration::from_millis(250)).is_ok() {}
+        // Editors save in several steps (temporary file, rename, chmod).
+        let watched = super::watching::watch_folder(&dir, Duration::from_millis(250), || {
             self.apply_edits(host, runtime);
+            std::ops::ControlFlow::Continue(())
+        });
+        if let Err(error) = watched {
+            tracing::warn!(event = "config.watch", %error, "Cannot watch the settings folder");
         }
-        drop(watcher);
     }
 }
 

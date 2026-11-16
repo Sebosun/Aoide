@@ -258,29 +258,23 @@ impl Shelf {
         }
     }
 
-    /// Scans again whenever the library folder changes; returns only if it cannot watch.
+    /// Scans again whenever what the library folder holds changes (reading a book is not a
+    /// change); returns only if it cannot watch.
     pub fn watch(&self) {
-        use notify::{RecursiveMode, Watcher};
-        let (tx, rx) = std::sync::mpsc::channel();
-        let mut watcher = match notify::recommended_watcher(tx) {
-            Ok(w) => w,
-            Err(error) => {
-                tracing::warn!(event = "library.watch", %error, "Cannot watch the library folder");
-                return;
-            }
-        };
-        if let Err(error) = watcher.watch(&self.library_dir, RecursiveMode::Recursive) {
+        // A copy comes as a burst of events: scan once it has settled.
+        let watched = super::watching::watch_folder(
+            &self.library_dir,
+            Duration::from_millis(1200),
+            || {
+                if let Err(error) = self.rescan() {
+                    tracing::warn!(event = "library.scan", outcome = "failed", %error, "Library rescan failed");
+                }
+                std::ops::ControlFlow::Continue(())
+            },
+        );
+        if let Err(error) = watched {
             tracing::warn!(event = "library.watch", %error, "Cannot watch the library folder");
-            return;
         }
-        while rx.recv().is_ok() {
-            // Debounce bursts (copies emit many events).
-            while rx.recv_timeout(Duration::from_millis(1200)).is_ok() {}
-            if let Err(error) = self.rescan() {
-                tracing::warn!(event = "library.scan", outcome = "failed", %error, "Library rescan failed");
-            }
-        }
-        drop(watcher);
     }
 
     pub fn import_files(&self, paths: Vec<String>) -> Vec<ImportResult> {

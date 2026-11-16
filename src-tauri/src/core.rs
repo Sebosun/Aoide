@@ -84,6 +84,7 @@ pub use syncing::Stage as SyncStage;
 mod session;
 mod timeline;
 mod voicing;
+mod watching;
 mod wire;
 pub use wire::*;
 
