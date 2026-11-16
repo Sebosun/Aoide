@@ -102,6 +102,7 @@ fn contract() -> String {
         // Settings and storage
         super::settings::LibrarySort,
         super::settings::TagFilter,
+        super::settings::PauseSettings,
         super::TaggingSettings,
         super::TaggingRun,
         super::settings::AlignerSettings,

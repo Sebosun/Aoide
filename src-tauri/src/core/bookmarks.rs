@@ -158,7 +158,7 @@ mod tests {
     use super::*;
 
     fn book() -> BookModel {
-        BookModel::parse("b", &epub(), false).unwrap()
+        BookModel::parse("b", &epub(), &Default::default()).unwrap()
     }
 
     #[test]

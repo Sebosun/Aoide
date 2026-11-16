@@ -36,6 +36,48 @@ pub struct AppSettings {
     pub feeds: super::feeds::FeedSettings,
     /// Whether and how a browser fetches articles plain HTTP cannot read.
     pub browser: super::browsing::BrowserSettings,
+    /// The silences narration leaves between paragraphs, at scene breaks and after headings.
+    pub pauses: PauseSettings,
+}
+
+/// The silences narration leaves, in milliseconds (each within [`PAUSE_MS`]). The largest that
+/// applies after a sentence is the one heard; they never add up.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct PauseSettings {
+    /// After each paragraph.
+    pub paragraph_ms: u32,
+    /// At a scene break (`* * *`, a rule).
+    pub break_ms: u32,
+    /// After a heading, and at a chapter's end.
+    pub heading_ms: u32,
+}
+
+/// Lengths a pause can be set to, in milliseconds.
+pub const PAUSE_MS: std::ops::RangeInclusive<u32> = 0..=3000;
+
+impl Default for PauseSettings {
+    fn default() -> Self {
+        let options = aoide_text::SegmentOptions::default();
+        Self {
+            paragraph_ms: options.paragraph_pause_ms,
+            break_ms: options.break_pause_ms,
+            heading_ms: options.heading_pause_ms,
+        }
+    }
+}
+
+impl PauseSettings {
+    /// How books are split into segments with these pauses.
+    pub fn segment_options(&self) -> aoide_text::SegmentOptions {
+        aoide_text::SegmentOptions {
+            paragraph_pause_ms: self.paragraph_ms,
+            break_pause_ms: self.break_ms,
+            heading_pause_ms: self.heading_ms,
+            ..Default::default()
+        }
+    }
 }
 
 /// Reading speeds Settings offers, in words per minute.
@@ -78,6 +120,8 @@ pub struct AppSettingsPatch {
     pub feeds: Option<super::feeds::FeedSettings>,
     #[cfg_attr(test, ts(optional))]
     pub browser: Option<super::browsing::BrowserSettings>,
+    #[cfg_attr(test, ts(optional))]
+    pub pauses: Option<PauseSettings>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -111,6 +155,7 @@ impl AppSettingsPatch {
         set(&mut settings.reading_wpm, self.reading_wpm);
         set(&mut settings.feeds, self.feeds);
         set(&mut settings.browser, self.browser);
+        set(&mut settings.pauses, self.pauses);
         settings
     }
 }
@@ -133,6 +178,7 @@ impl From<AppSettings> for AppSettingsPatch {
             reading_wpm,
             feeds,
             browser,
+            pauses,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -149,6 +195,7 @@ impl From<AppSettings> for AppSettingsPatch {
             reading_wpm: Some(reading_wpm),
             feeds: Some(feeds),
             browser: Some(browser),
+            pauses: Some(pauses),
         }
     }
 }
@@ -194,6 +241,7 @@ impl Default for AppSettings {
             reading_wpm: 230,
             feeds: Default::default(),
             browser: Default::default(),
+            pauses: Default::default(),
         }
     }
 }

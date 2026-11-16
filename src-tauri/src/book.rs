@@ -106,22 +106,30 @@ pub fn parse_document(bytes: &[u8]) -> Result<ParsedBook, String> {
     }
 }
 
+/// How a book's text is laid out for listening, beyond the text itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Layout {
+    /// A spoken segment for each referenced note, after its paragraph.
+    pub read_notes: bool,
+    /// How sentences are split, and the pauses after them.
+    pub segments: SegmentOptions,
+}
+
 impl BookModel {
     /// An EPUB's or a PDF's text (told apart by its content).
-    pub fn parse(id: &str, bytes: &[u8], read_notes: bool) -> Result<Self, String> {
-        Ok(Self::from_parsed(id, parse_document(bytes)?, read_notes))
+    pub fn parse(id: &str, bytes: &[u8], layout: &Layout) -> Result<Self, String> {
+        Ok(Self::from_parsed(id, parse_document(bytes)?, layout))
     }
 
-    /// `read_notes` inserts a spoken segment for each referenced note after its paragraph.
-    pub fn from_parsed(id: &str, parsed: ParsedBook, read_notes: bool) -> Self {
-        let options = SegmentOptions::default();
+    pub fn from_parsed(id: &str, parsed: ParsedBook, layout: &Layout) -> Self {
+        let options = &layout.segments;
         let mut first_entry = 0;
         let chapters: Vec<ChapterModel> = parsed
             .chapters
             .iter()
             .enumerate()
             .map(|(index, chapter)| {
-                let segments = segment_chapter(index as u32, &chapter.blocks, &options);
+                let segments = segment_chapter(index as u32, &chapter.blocks, options);
                 let offsets = aoide_text::block_offsets(&chapter.blocks);
                 let mut notes = vec![Vec::new(); segments.len()];
                 for note_ref in &chapter.note_refs {
@@ -151,7 +159,7 @@ impl BookModel {
                             .map(|n| n.text.clone()),
                     });
                 }
-                let (segments, notes) = if read_notes {
+                let (segments, notes) = if layout.read_notes {
                     with_note_segments(index, segments, notes)
                 } else {
                     (segments, notes)
@@ -551,6 +559,13 @@ mod tests {
         }
     }
 
+    fn notes_read() -> Layout {
+        Layout {
+            read_notes: true,
+            ..Layout::default()
+        }
+    }
+
     fn block(kind: BlockKind, text: &str) -> Block {
         Block {
             kind,
@@ -593,7 +608,7 @@ mod tests {
             warnings: vec![Warning::MissingNavigation],
             excluded: vec![],
         };
-        BookModel::from_parsed("bk", parsed, false)
+        BookModel::from_parsed("bk", parsed, &Layout::default())
     }
 
     #[test]
@@ -637,7 +652,7 @@ mod tests {
             warnings: vec![],
             excluded: vec![],
         };
-        let view = BookModel::from_parsed("bk", parsed, false)
+        let view = BookModel::from_parsed("bk", parsed, &Layout::default())
             .chapter_view(0)
             .unwrap();
         let notes = &view.blocks[0].segments[0].notes;
@@ -686,7 +701,7 @@ mod tests {
             warnings: vec![],
             excluded: vec![],
         };
-        let book = BookModel::from_parsed("bk", parsed, true);
+        let book = BookModel::from_parsed("bk", parsed, &notes_read());
         assert_eq!(book.total_entries(), 3);
         assert_eq!(book.segment(1).unwrap().speech, "Note 1. Built in 1820.");
         assert_eq!(book.index_of("0:0:n0"), Some(1));
@@ -729,7 +744,7 @@ mod tests {
             warnings: vec![],
             excluded: vec![],
         };
-        let book = BookModel::from_parsed("bk", parsed, true);
+        let book = BookModel::from_parsed("bk", parsed, &notes_read());
         let chapter_end = SegmentOptions::default().heading_pause_ms;
         assert_eq!(book.segment(0).unwrap().pause_after_ms, 400);
         assert_eq!(book.segment(1).unwrap().pause_after_ms, chapter_end);

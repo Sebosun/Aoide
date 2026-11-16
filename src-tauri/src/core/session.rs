@@ -244,7 +244,9 @@ mod tests {
     /// The test book (four entries: heading, paragraph, heading, paragraph) with entry 2's audio
     /// not made yet.
     fn session() -> Session {
-        let book = Arc::new(BookModel::parse("b", &crate::core::tests::epub(), false).unwrap());
+        let book = Arc::new(
+            BookModel::parse("b", &crate::core::tests::epub(), &Default::default()).unwrap(),
+        );
         let items = (0..book.total_entries())
             .map(|i| PlanItem {
                 key: format!("k{i}"),

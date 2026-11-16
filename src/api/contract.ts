@@ -499,6 +499,20 @@ export type LibrarySort = "title" | "author" | "progress" | "recent";
 
 export type TagFilter = { include: Array<string>, exclude: Array<string>, };
 
+export type PauseSettings = { 
+/**
+ * After each paragraph.
+ */
+paragraphMs: number, 
+/**
+ * At a scene break (`* * *`, a rule).
+ */
+breakMs: number, 
+/**
+ * After a heading, and at a chapter's end.
+ */
+headingMs: number, };
+
 export type TaggingSettings = { 
 /**
  * Off until the user turns it on.
@@ -596,9 +610,13 @@ feeds: FeedSettings,
 /**
  * Whether and how a browser fetches articles plain HTTP cannot read.
  */
-browser: BrowserSettings, };
+browser: BrowserSettings, 
+/**
+ * The silences narration leaves between paragraphs, at scene breaks and after headings.
+ */
+pauses: PauseSettings, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**

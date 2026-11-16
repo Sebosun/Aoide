@@ -69,7 +69,7 @@ fn the_sync_job_runs_on_its_own_and_tells_its_host_how_far_it_got() {
     };
     library.upsert_book(&book, 0).unwrap();
     let host = TestHost {
-        book: Arc::new(crate::book::BookModel::parse(&id, &bytes, false).unwrap()),
+        book: Arc::new(crate::book::BookModel::parse(&id, &bytes, &Default::default()).unwrap()),
         events: Mutex::default(),
         synced: Mutex::default(),
         removed: Mutex::default(),
@@ -143,7 +143,7 @@ fn synced() -> (tempfile::TempDir, String, TestHost, Recordings) {
         )
         .unwrap();
     let host = TestHost {
-        book: Arc::new(crate::book::BookModel::parse(&id, &bytes, false).unwrap()),
+        book: Arc::new(crate::book::BookModel::parse(&id, &bytes, &Default::default()).unwrap()),
         events: Mutex::default(),
         synced: Mutex::default(),
         removed: Mutex::default(),

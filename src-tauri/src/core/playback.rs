@@ -988,7 +988,9 @@ mod tests {
 
     /// The test book (four entries) read by the speech engine, with entries `made` made.
     fn speech(made: &[usize]) -> Target {
-        let book = Arc::new(BookModel::parse("b", &crate::core::tests::epub(), false).unwrap());
+        let book = Arc::new(
+            BookModel::parse("b", &crate::core::tests::epub(), &Default::default()).unwrap(),
+        );
         let requests: Vec<Option<SynthesisRequest>> = (0..book.total_entries())
             .map(|i| {
                 Some(SynthesisRequest {
@@ -1157,7 +1159,9 @@ mod tests {
 
     #[test]
     fn playback_waiting_for_the_sync_passes_over_what_it_finds_missing() {
-        let book = Arc::new(BookModel::parse("b", &crate::core::tests::epub(), false).unwrap());
+        let book = Arc::new(
+            BookModel::parse("b", &crate::core::tests::epub(), &Default::default()).unwrap(),
+        );
         let clip = |audio: std::ops::Range<u64>| aoide_sync::Clip {
             text: (!audio.is_empty()).then(|| audio.clone()),
             audio,

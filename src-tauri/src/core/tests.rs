@@ -1115,3 +1115,62 @@ async fn a_prepared_book_with_a_sentence_said_again_still_exports() {
     );
     core.stop();
 }
+
+#[tokio::test]
+async fn a_pause_changed_replans_the_book_listened_to_without_asking_for_speech_again() {
+    use super::settings::PauseSettings;
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let second = spoken(&core, &id, 1);
+    core.prepare_book(&id).await.unwrap();
+    until("the whole short book to be made", || {
+        stage(&core, &id) == Some(PrepareStage::Done) && audio_files(dir.path()).len() == 4
+    })
+    .await;
+    core.play(&id, Some(1), Some(second[1].clone()))
+        .await
+        .unwrap();
+    core.pause();
+    let pauses = |core: &Core| -> Vec<u32> {
+        let book = core.playback.book().unwrap();
+        (0..book.total_entries())
+            .map(|i| book.segment(i).unwrap().pause_after_ms)
+            .collect()
+    };
+    assert_eq!(pauses(&core), [700, 700, 700, 700]);
+    let asked = engine.requests().len();
+
+    let change = |pauses| AppSettingsPatch {
+        pauses: Some(pauses),
+        ..Default::default()
+    };
+    let longer = PauseSettings {
+        paragraph_ms: 900,
+        break_ms: 2000,
+        heading_ms: 400,
+    };
+    core.update_app_settings(change(longer.clone())).unwrap();
+
+    assert_eq!(core.app_settings().pauses, longer);
+    assert_eq!(pauses(&core), [900, 900, 900, 900]);
+    let state = core.player_state();
+    assert_eq!(state.segment_id.as_deref(), Some(second[1].as_str()));
+    assert_eq!(state.status, super::PlaybackStatus::Paused, "pause is kept");
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(engine.requests().len(), asked, "{:?}", engine.calls());
+    assert_eq!(stage(&core, &id), Some(PrepareStage::Done));
+
+    let too_long = PauseSettings {
+        break_ms: 3001,
+        ..longer.clone()
+    };
+    assert!(core.update_app_settings(change(too_long)).is_err());
+    assert_eq!(core.app_settings().pauses, longer);
+    core.stop();
+}

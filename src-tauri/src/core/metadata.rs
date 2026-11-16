@@ -269,7 +269,7 @@ mod tests {
     }
 
     fn book() -> BookModel {
-        BookModel::parse("b", &epub(), false).unwrap()
+        BookModel::parse("b", &epub(), &Default::default()).unwrap()
     }
 
     fn found(key: &str) -> Match {

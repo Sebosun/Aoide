@@ -21,8 +21,8 @@ use crate::book::BookModel;
 
 /// What the shelf asks of the rest of the app.
 pub(super) trait ShelfHost {
-    /// Whether book `id` is read with its notes.
-    fn reads_notes(&self, id: &str) -> bool;
+    /// How book `id`'s text is laid out: with its notes read or not, and the pauses.
+    fn layout(&self, id: &str) -> crate::book::Layout;
     /// The book being listened to; it stays parsed.
     fn playing(&self) -> Option<String>;
     /// Book `id`'s preparation, as its summary shows it.
@@ -565,10 +565,10 @@ impl Shelf {
         }
         let book = if record.kind == aoide_library::ItemKind::Article {
             let document = host.article_document(id)?;
-            Arc::new(BookModel::from_parsed(id, document, host.reads_notes(id)))
+            Arc::new(BookModel::from_parsed(id, document, &host.layout(id)))
         } else {
             let bytes = std::fs::read(&record.path).map_err(|e| e.to_string())?;
-            Arc::new(BookModel::parse(id, &bytes, host.reads_notes(id))?)
+            Arc::new(BookModel::parse(id, &bytes, &host.layout(id))?)
         };
         // Its length, for reading-time estimates in lists that do not parse it.
         let words = u32::try_from(book.word_count()).unwrap_or(u32::MAX);
@@ -709,6 +709,11 @@ impl Shelf {
         lock(&self.books).remove(id);
     }
 
+    /// Forgets every parsed book, so each is read again (how all of them are laid out changed).
+    pub fn unload_all(&self) {
+        lock(&self.books).clear();
+    }
+
     fn emit(&self, event: CoreEvent) {
         let name = event.name();
         match event.payload() {
@@ -721,10 +726,13 @@ impl Shelf {
 }
 
 impl ShelfHost for super::Core {
-    fn reads_notes(&self, id: &str) -> bool {
+    fn layout(&self, id: &str) -> crate::book::Layout {
         let settings = self.book_settings(id);
-        // A recording is laid onto the book's own text, without footnotes read in between.
-        settings.read_notes && !self.plays_recording(id, &settings)
+        crate::book::Layout {
+            // A recording is laid onto the book's own text, without footnotes read in between.
+            read_notes: settings.read_notes && !self.plays_recording(id, &settings),
+            segments: self.app_settings().pauses.segment_options(),
+        }
     }
 
     fn playing(&self) -> Option<String> {
@@ -938,8 +946,8 @@ mod tests {
     struct Host;
 
     impl ShelfHost for Host {
-        fn reads_notes(&self, _: &str) -> bool {
-            false
+        fn layout(&self, _: &str) -> crate::book::Layout {
+            crate::book::Layout::default()
         }
         fn playing(&self) -> Option<String> {
             None

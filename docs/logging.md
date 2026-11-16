@@ -204,6 +204,7 @@ from it:
 | `library.save` | saving the books left out, or when a book was opened | `core.rs` |
 | `listening.save` | saving listening time | `core/listening.rs` |
 | `narration.save` | saving that a book plays its recording | `core/recording.rs` |
+| `playback.restart` | playing on in the book listened to after its pauses changed | `core.rs` `text_laid_out_again` |
 | `discovery.save` | forgetting found books no longer on disk | `core/discovery.rs` |
 | `library.read`, `book.read`, `prep.read` | reading a stored value that does not parse (the default is used) | `core.rs`, `core/preparation.rs` |
 

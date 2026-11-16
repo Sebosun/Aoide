@@ -259,6 +259,18 @@ fn check_app(settings: &AppSettings) -> Result<(), String> {
             super::browsing::IDLE_SECONDS.end()
         ));
     }
+    let pauses = &settings.pauses;
+    let range = super::settings::PAUSE_MS;
+    if [pauses.paragraph_ms, pauses.break_ms, pauses.heading_ms]
+        .iter()
+        .any(|ms| !range.contains(ms))
+    {
+        return Err(format!(
+            "Pauses are {} to {} milliseconds long",
+            range.start(),
+            range.end()
+        ));
+    }
     if let Some(aligner) = &settings.aligner {
         aoide_aligner::Aligner::new(aoide_aligner::Options {
             base_url: aligner.base_url.clone(),
@@ -430,6 +442,9 @@ impl ConfigHost for Core {
         }
         if before.feeds != after.feeds {
             self.feeds.settings_changed();
+        }
+        if before.pauses != after.pauses {
+            self.text_laid_out_again();
         }
     }
 

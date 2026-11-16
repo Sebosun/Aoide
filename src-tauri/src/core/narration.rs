@@ -390,7 +390,7 @@ mod tests {
 
     /// The test book: four entries (heading, paragraph, heading, paragraph).
     fn book() -> BookModel {
-        BookModel::parse("b", &crate::core::tests::epub(), false).unwrap()
+        BookModel::parse("b", &crate::core::tests::epub(), &Default::default()).unwrap()
     }
 
     /// A speech plan for the book with entry `silent` having nothing to say and only the entries

@@ -519,25 +519,76 @@ impl Core {
             }
             self.ensure_model().await;
         }
-        let recorded = if recording {
-            self.build_recording_target(Arc::clone(&book), &settings)
-                .map_err(|error| {
-                    tracing::warn!(event = "narration.fallback", %error, "Reading with the speech engine instead of the recording")
-                })
-                .ok()
-        } else {
-            None
-        };
-        if let Some(target) = recorded {
+        if let Some(target) = self.recorded_target(&book, &settings, recording) {
             return Ok(target);
         }
         self.ensure_voice().await?;
         self.ensure_model().await;
+        self.speech_target(book)
+    }
+
+    /// `book` narrated by its synced recording, when `recording` says it is and it can be.
+    fn recorded_target(
+        &self,
+        book: &Arc<BookModel>,
+        settings: &BookSettings,
+        recording: bool,
+    ) -> Option<Target> {
+        if !recording {
+            return None;
+        }
+        self.build_recording_target(Arc::clone(book), settings)
+            .map_err(|error| {
+                tracing::warn!(event = "narration.fallback", %error, "Reading with the speech engine instead of the recording")
+            })
+            .ok()
+    }
+
+    /// `book` read by the speech engine.
+    fn speech_target(&self, book: Arc<BookModel>) -> Result<Target, String> {
         let plan = self.speech_plan(&book)?;
         Ok(Target {
             narration: narration::NarrationPlan::speech(&book, plan),
             book,
         })
+    }
+
+    /// How every book's text is laid out changed (its pauses): each is read again when next
+    /// loaded, and the book listened to at once, playing on from the same sentence (paused if
+    /// it was) and planned again. Nothing it says changes, so no speech is asked for again.
+    fn text_laid_out_again(&self) {
+        self.shelf.unload_all();
+        let Some(old) = self.playback.book() else {
+            return;
+        };
+        let restarted = (|| {
+            let book = self.load_book(&old.id)?;
+            let settings = self.book_settings(&book.id);
+            let recording = self.plays_recording(&book.id, &settings);
+            let index = old
+                .segment(self.playback.position().index)
+                .and_then(|segment| book.index_of(&segment.id))
+                .or_else(|| book.chapter_start(0))
+                .ok_or("the book has no readable text")?;
+            let target = match self.recorded_target(&book, &settings, recording) {
+                Some(target) => target,
+                None => self.speech_target(book)?,
+            };
+            let playing = self.playback.is_playing();
+            drop(self.playback.stop());
+            self.follow_through(self.playback.start(target, index))?;
+            if !playing {
+                drop(self.playback.pause());
+            }
+            Ok::<_, String>(())
+        })();
+        if let Err(error) = restarted {
+            self.report(
+                "playback.restart",
+                "Could not play on with the new pauses",
+                error,
+            );
+        }
     }
 
     // ------------------------------------------------------------ settings
