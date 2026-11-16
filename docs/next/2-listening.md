@@ -138,6 +138,7 @@ that steps back. New row in `docs/logging.md`.
 ## 2.2 Time left in the book
 
 **Size:** S
+**Built:** 2026-11-16 (3ad0853..5bfcc1d)
 
 ### Outcome
 
@@ -192,7 +193,13 @@ a little: the core estimates from characters, the interface from words.
 **Interface.** `PlayerDock`, `PlayerTransport` and `MiniPlayer` show `timeLeft` from
 `usePlayerControls`; the label toggles chapter and book. The choice is
 `Appearance.time_left: TimeLeft { Chapter, Book }` (default `Chapter`). The tooltip gives the
-end time by the wall clock.
+end time by the wall clock. As built: the scrubber's end label is a button in the dock and
+the Lines transport ("3 min left", "3 h 10 min left in book"); the mini player shows the
+chosen figure but its card opens the reader, so it does not switch. The tooltip reads
+"Chapter ends 21:05 · book ends 23:40 · click for the time left in the book" (`endsAt` in
+`src/estimate.ts`, with the weekday when it is not today). The audiobook reader's "left" line
+uses `book_left_ms` while it plays. The reader's margin still estimates a chapter that is open
+but not playing, from its words.
 
 **Mock.** The mock's player sends `bookLeftMs` and `chapterLeftMs` from the durations in its
 fixtures (`player.json` gains the core-made figures for its scripted positions) rather than
