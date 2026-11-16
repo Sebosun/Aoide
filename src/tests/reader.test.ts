@@ -227,7 +227,7 @@ it("lists footnotes in the margin beside their paragraph on wide windows", async
 
 it("docks the transport: progress, time left, buffer status and errors", async () => {
   const wrapper = await openReader();
-  mock.emitPlayer(playing({ status: "buffering", chapterFraction: 0.4 }));
+  mock.emitPlayer(playing({ status: "buffering", chapterFraction: 0.4, chapterLeftMs: 180_000, chapterMs: 50_000 }));
   mock.emitGeneration({
     bookId: "book-0",
     generatingSegmentId: "0:2:0",
@@ -240,7 +240,8 @@ it("docks the transport: progress, time left, buffer status and errors", async (
   const dock = wrapper.get('[aria-label="Player"]');
   expect(dock.get('[role="slider"]').attributes("aria-valuenow")).toBe("40");
   expect(dock.text()).toContain("40%");
-  expect(dock.text()).toMatch(/min left/);
+  expect(dock.text(), "the core's figure").toContain("3 min left");
+  expect(dock.get(".scrubber__ahead").attributes("style"), "12.5 s of a 50 s chapter").toContain("width: 25%");
   expect(dock.text()).toContain("Buffering…");
   expect(dock.text(), "buffer numbers stay off the bar").not.toContain("buffered");
   expect(dock.get('[role="slider"]').attributes("title")).toBe("12.5 s buffered · 3 pending");

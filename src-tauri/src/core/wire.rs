@@ -123,12 +123,16 @@ pub struct PlayerStateView {
     pub source: Narration,
     /// The recording is playing narration that is not in the text (credits, a dedication…).
     pub off_text: bool,
-    /// Listening time left in the chapter at this speed, when it is known exactly (a
-    /// recording); otherwise the interface estimates it from the words left.
+    /// Listening time left in the chapter at this speed, in whole seconds (rounded down, so
+    /// the state changes once a second); `None` while part of it waits for the recording's
+    /// sync. Exact for made speech and a recording, estimated for speech not made yet.
     pub chapter_left_ms: Option<u64>,
-    /// Listening time left in the book at this speed, from the playhead to the end; `None`
-    /// while part of the rest waits for the recording's sync.
+    /// Listening time left in the book at this speed, from the playhead to the end, in whole
+    /// seconds like `chapter_left_ms`; `None` while part of the rest waits for the sync.
     pub book_left_ms: Option<u64>,
+    /// The whole chapter's playing length at 1x (for the buffered-ahead bar); `None` while
+    /// part of it waits for the sync.
+    pub chapter_ms: Option<u64>,
     /// The recording is being listened to while it syncs, and the sync has not reached the
     /// playhead yet: playback waits for it.
     pub waiting_for_sync: bool,

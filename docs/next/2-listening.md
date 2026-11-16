@@ -196,7 +196,11 @@ end time by the wall clock.
 
 **Mock.** The mock's player sends `bookLeftMs` and `chapterLeftMs` from the durations in its
 fixtures (`player.json` gains the core-made figures for its scripted positions) rather than
-estimating from words.
+estimating from words. As built: `player.json` is `{stopped, at}`, where `at` holds the core's
+three figures at 1x at the start of each sentence of each preview book read by speech (before
+any speech is made, so the file is the same on every run); the mock divides by the speed and
+rounds down to whole seconds as the core does. `mock.emitPlayer` (for tests) sends a state as
+given.
 
 ### Slices
 

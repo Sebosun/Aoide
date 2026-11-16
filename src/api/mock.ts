@@ -551,15 +551,37 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   };
   const generationHandlers = new Set<(s: GenerationState) => void>();
   const libraryHandlers = new Set<() => void>();
-  let state = structuredClone(fixturePlayer) as PlayerState;
+  let state = structuredClone(fixturePlayer.stopped) as PlayerState;
   let timer: ReturnType<typeof setInterval> | undefined;
   /** A sentence said again is made after this long in the preview. */
   const REMAKE_MS = 1_800;
   let remaking: ReturnType<typeof setTimeout> | undefined;
-  const emitPlayer = (next: PlayerState) => {
+  /** Times left as the core's state gives them, at 1x at the start of each sentence of each
+   *  book (player.json's `at`). */
+  const times = fixturePlayer.at as Record<
+    string,
+    Record<string, { chapterLeftMs: number | null; bookLeftMs: number | null; chapterMs: number | null }>
+  >;
+  /** A time left at `speed`, in whole seconds rounded down, as the core gives it. */
+  const leftAt = (ms: number | null, speed: number) =>
+    ms === null ? null : Math.floor(ms / Math.max(0.1, speed) / 1000) * 1000;
+  /** The core's times left for the sentence `next` is at (a timeline brings its own). */
+  const withTimes = (next: PlayerState): PlayerState => {
+    if (next.positionMs !== null) return next;
+    const at = next.bookId && next.segmentId ? times[next.bookId]?.[next.segmentId] : undefined;
+    return {
+      ...next,
+      chapterLeftMs: leftAt(at?.chapterLeftMs ?? null, next.speed),
+      bookLeftMs: leftAt(at?.bookLeftMs ?? null, next.speed),
+      chapterMs: at?.chapterMs ?? null,
+    };
+  };
+  /** Sends `next` as it is (tests set any state with it). */
+  const sendPlayer = (next: PlayerState) => {
     state = { ...next };
     playerHandlers.forEach((h) => h({ ...state }));
   };
+  const emitPlayer = (next: PlayerState) => sendPlayer(withTimes(next));
   const emitGeneration = (next: GenerationState) => generationHandlers.forEach((h) => h({ ...next }));
   const changed = () => libraryHandlers.forEach((h) => h());
   /** Saved articles, like the app (core/articles.rs): the preview's article (`article.json`,
@@ -841,8 +863,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       error: null,
       source: "recording",
       offText: false,
-      chapterLeftMs: Math.round((part.end - position) / state.speed),
-      bookLeftMs: Math.round((total - position) / state.speed),
+      chapterLeftMs: leftAt(part.end - position, state.speed),
+      bookLeftMs: leftAt(total - position, state.speed),
+      chapterMs: part.end - part.start,
       waitingForSync: false,
       positionMs: position,
       durationMs: total,
@@ -1157,8 +1180,6 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         error: null,
         source,
         offText: false,
-        chapterLeftMs: null,
-        bookLeftMs: null,
         waitingForSync: false,
         positionMs: null,
         durationMs: null,
@@ -2194,7 +2215,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       clearTimeout(remaking);
       clearInterval(syncTimer);
     },
-    emitPlayer,
+    emitPlayer: sendPlayer,
     emitGeneration,
     emitConfig,
     emitProblem: (p: ProblemView) => problemHandlers.forEach((h) => h({ ...p })),

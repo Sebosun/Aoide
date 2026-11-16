@@ -16,6 +16,7 @@ export const initialPlayer = (): PlayerState => ({
   offText: false,
   chapterLeftMs: null,
   bookLeftMs: null,
+  chapterMs: null,
   waitingForSync: false,
   positionMs: null,
   durationMs: null,

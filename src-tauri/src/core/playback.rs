@@ -770,6 +770,7 @@ impl Playback {
             off_text: false,
             chapter_left_ms: None,
             book_left_ms: None,
+            chapter_ms: None,
             waiting_for_sync: false,
             position_ms: None,
             duration_ms: None,
@@ -802,18 +803,17 @@ impl Playback {
         let word = (position.status == Status::Playing && !off_text)
             .then(|| session.word_at(index, heard_at))
             .flatten();
-        let chapter_left_ms = recording.and_then(|_| {
-            let entries = book
-                .chapters
-                .get(chapter)
-                .map_or(index..index, |c| index..c.first_entry + c.segments.len());
-            let audio = narration.playing_ms(entries)?;
-            let left = audio.saturating_sub(u64::from(position.offset_ms));
-            Some(at_speed(left, speed))
+        let chapter_entries = book.chapters.get(chapter).map_or(index..index, |c| {
+            c.first_entry..c.first_entry + c.segments.len()
         });
-        let book_left_ms = narration
-            .playing_ms(index..book.total_entries())
-            .map(|audio| at_speed(audio.saturating_sub(u64::from(position.offset_ms)), speed));
+        let left = |end: usize| {
+            let audio = narration.playing_ms(index..end)?;
+            let left = audio.saturating_sub(u64::from(position.offset_ms));
+            Some(seconds(at_speed(left, speed)))
+        };
+        let chapter_left_ms = left(chapter_entries.end);
+        let book_left_ms = left(book.total_entries());
+        let chapter_ms = narration.playing_ms(chapter_entries);
         PlayerStateView {
             book_id: Some(book.id.clone()),
             status: status_of(position.status),
@@ -829,6 +829,7 @@ impl Playback {
             off_text,
             chapter_left_ms,
             book_left_ms,
+            chapter_ms,
             waiting_for_sync: narration.waits_for_sync(index),
             ..base
         }
@@ -884,8 +885,15 @@ fn timeline_state(
             into as f64 / length as f64
         },
         source: Narration::Recording,
-        chapter_left_ms: Some(at_speed(part.end_ms.saturating_sub(at), base.speed)),
-        book_left_ms: Some(at_speed(timeline.total_ms.saturating_sub(at), base.speed)),
+        chapter_left_ms: Some(seconds(at_speed(
+            part.end_ms.saturating_sub(at),
+            base.speed,
+        ))),
+        book_left_ms: Some(seconds(at_speed(
+            timeline.total_ms.saturating_sub(at),
+            base.speed,
+        ))),
+        chapter_ms: Some(length),
         position_ms: Some(at),
         duration_ms: Some(timeline.total_ms),
         part_position_ms: Some(into),
@@ -905,6 +913,12 @@ fn status_of(status: Status) -> PlaybackStatus {
 /// How long `ms` of audio takes to play at `speed`.
 fn at_speed(ms: u64, speed: f32) -> u64 {
     (ms as f64 / f64::from(speed.max(0.1))) as u64
+}
+
+/// `ms` in whole seconds, rounded down: a time left that falls by the millisecond would change
+/// the player's state, and so send it, on every tick.
+fn seconds(ms: u64) -> u64 {
+    ms / 1_000 * 1_000
 }
 
 /// Made speech, read from the library's audio files.
@@ -1185,10 +1199,41 @@ mod tests {
         // Entry 1 made (1 s), entry 2 made shorter (0.4 s), entry 3 estimated (1 s).
         let pause = |i| u64::from(playback.book().unwrap().segment(i).unwrap().pause_after_ms);
         let rest = 1_000 + pause(1) + 400 + pause(2) + 1_000 + pause(3) - offset;
+        let state = playback.state();
+        assert_eq!(state.book_left_ms, Some(whole_seconds(rest as f64 / 1.5)));
+        // The playhead is in the first chapter's second (and last) entry.
+        let chapter_rest = 1_000 + pause(1) - offset;
         assert_eq!(
-            playback.state().book_left_ms,
-            Some((rest as f64 / 1.5) as u64)
+            state.chapter_left_ms,
+            Some(whole_seconds(chapter_rest as f64 / 1.5))
         );
+        assert_eq!(
+            state.chapter_ms,
+            Some(1_000 + pause(0) + 1_000 + pause(1)),
+            "the whole chapter at 1x"
+        );
+    }
+
+    /// `ms` in whole seconds, rounded down, as the player's state gives a time left.
+    fn whole_seconds(ms: f64) -> u64 {
+        ms as u64 / 1_000 * 1_000
+    }
+
+    #[test]
+    fn the_time_left_falls_by_whole_seconds_so_the_state_changes_once_a_second() {
+        let playback = Playback::new(PlayerCore::new(RATE));
+        let _ = playback.start(speech(&[0, 1, 2, 3]), 0);
+        let audio = memory(&["k0", "k1", "k2", "k3"]);
+        playback.tick(&audio).unwrap();
+        let before = playback.state();
+        listen(&playback, 20);
+        playback.tick(&audio).unwrap();
+        listen(&playback, 20);
+        playback.tick(&audio).unwrap();
+        let after = playback.state();
+        assert!(after.book_left_ms.unwrap() % 1_000 == 0);
+        assert!(after.chapter_left_ms.unwrap() % 1_000 == 0);
+        assert_eq!(before, after, "nothing to send within the second");
     }
 
     #[test]
@@ -1332,7 +1377,11 @@ mod tests {
         let _ = playback.follow("b", recorded(4));
         playback.set_speed(2.0);
         // Three clips of a second (entry 1 is not in the recording), their pauses in them.
-        assert_eq!(playback.state().book_left_ms, Some(3_000 / 2));
+        assert_eq!(
+            playback.state().book_left_ms,
+            Some(1_000),
+            "1.5 s, in whole seconds"
+        );
     }
 
     #[test]

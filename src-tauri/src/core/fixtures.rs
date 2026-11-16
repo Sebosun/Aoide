@@ -395,7 +395,14 @@ async fn fixtures_for_the_ui_mock() {
         .collect();
     write("book-views", &views, &renames);
 
-    write("player", &core.player_state(), &renames);
+    write(
+        "player",
+        &serde_json::json!({
+            "stopped": core.player_state(),
+            "at": listening_times(&core, &books),
+        }),
+        &renames,
+    );
     write("generation", &core.generation_state(), &renames);
 
     let first = &books[0].id;
@@ -441,6 +448,41 @@ async fn fixtures_for_the_ui_mock() {
         &renames,
     );
     tokio::time::sleep(Duration::from_millis(50)).await;
+}
+
+/// The times left the player's state gives at the start of each sentence of each book read by
+/// the speech engine, at 1x and before any speech is made: `{book: {segment: {chapterLeftMs,
+/// bookLeftMs, chapterMs}}}`. The mock plays books with them instead of estimating.
+fn listening_times(core: &Core, books: &[super::BookSummary]) -> Value {
+    let mut times = serde_json::Map::new();
+    for summary in books {
+        let Ok(book) = core.load_book(&summary.id) else {
+            continue;
+        };
+        let Ok(target) = core.speech_target(Arc::clone(&book)) else {
+            continue;
+        };
+        let playback = super::playback::Playback::new(aoide_audio::PlayerCore::new(24_000));
+        let _ = playback.start(target, 0);
+        let mut at = serde_json::Map::new();
+        for index in 0..book.total_entries() {
+            let _ = playback.seek(index, Some(0));
+            let state = playback.state();
+            let Some(segment) = state.segment_id else {
+                continue;
+            };
+            at.insert(
+                segment,
+                serde_json::json!({
+                    "chapterLeftMs": state.chapter_left_ms,
+                    "bookLeftMs": state.book_left_ms,
+                    "chapterMs": state.chapter_ms,
+                }),
+            );
+        }
+        times.insert(summary.id.clone(), Value::Object(at));
+    }
+    Value::Object(times)
 }
 
 /// An article saved and fetched, which the mock adds when a link is saved: its summary, its

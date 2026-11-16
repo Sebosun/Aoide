@@ -1,6 +1,6 @@
 import { computed, ref, watch } from "vue";
 import { api } from "@/api";
-import { chapterWords, formatDuration, segmentAt, speechMs, wordsLeft } from "@/estimate";
+import { formatDuration, segmentAt } from "@/estimate";
 import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { useReaderStore } from "@/stores/reader";
@@ -41,21 +41,14 @@ export function usePlayerControls() {
   const playingChapter = computed(() =>
     player.state.bookId ? reader.cache[`${player.state.bookId}:${player.state.chapter}`] : undefined,
   );
-  const timeLeftMs = computed(() => {
-    // A recording knows it exactly; speech is estimated from the words left.
-    if (player.state.chapterLeftMs !== null) return player.state.chapterLeftMs;
-    const chapter = playingChapter.value;
-    return chapter
-      ? speechMs(wordsLeft(chapter, player.state.segmentId, player.state.wordIndex), player.state.speed)
-      : null;
-  });
+  /** Listening time left in the playing chapter, as the core counts it. */
+  const timeLeftMs = computed(() => player.state.chapterLeftMs);
   const timeLeft = computed(() => (timeLeftMs.value === null ? "" : `${formatDuration(timeLeftMs.value)} left`));
-  /** Generated audio ahead of the playhead, as a share of the chapter (estimated). */
+  /** Generated audio ahead of the playhead, as a share of the chapter's playing length. */
   const ahead = computed(() => {
-    const chapter = playingChapter.value;
-    if (!chapter || player.generation.bookId !== player.state.bookId) return 0;
-    const total = speechMs(chapterWords(chapter), 1);
-    return total ? Math.min(1 - player.state.chapterFraction, player.generation.bufferedAheadMs / total) : 0;
+    const total = player.state.chapterMs;
+    if (!total || player.generation.bookId !== player.state.bookId) return 0;
+    return Math.min(1 - player.state.chapterFraction, player.generation.bufferedAheadMs / total);
   });
   async function toggle() {
     if (active.value) await player.pause();

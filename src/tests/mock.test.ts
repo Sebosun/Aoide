@@ -5,10 +5,11 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createMockApi } from "@/api/mock";
 import { ApiError } from "@/api/errors";
-import type { RecordingView, SyncStage } from "@/api/types";
+import type { PlayerState, RecordingView, SyncStage } from "@/api/types";
 import scenarios from "@/tests/fixtures/scenarios.json";
 import stages from "@/tests/fixtures/stages.json";
 import home from "@/tests/fixtures/home.json";
+import player from "@/tests/fixtures/player.json";
 
 let mock: ReturnType<typeof createMockApi> | null = null;
 afterEach(() => mock?.dispose());
@@ -109,4 +110,20 @@ it("refuses with an error of a kind, as the core does", async () => {
   const refused = await mock.saveArticle({ url: "harbour notes" }).catch((e: unknown) => e);
   expect(refused).toBeInstanceOf(ApiError);
   expect((refused as ApiError).kind).toBe("internal");
+});
+
+it("plays a book with the times left the core gave for its sentences, at the speed", async () => {
+  mock = createMockApi();
+  const seen: PlayerState[] = [];
+  await mock.onPlayerState((s) => seen.push(s));
+  await mock.play({ bookId: "book-0", chapter: 1, segmentId: "1:1:0" });
+  await mock.pause();
+  const core = player.at["book-0"]["1:1:0"];
+  expect(seen.at(-1)).toMatchObject(core);
+  await mock.setSpeed({ speed: 2 });
+  expect(seen.at(-1)).toMatchObject({
+    chapterLeftMs: Math.floor(core.chapterLeftMs / 2000) * 1000,
+    bookLeftMs: Math.floor(core.bookLeftMs / 2000) * 1000,
+    chapterMs: core.chapterMs,
+  });
 });

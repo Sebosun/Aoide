@@ -173,7 +173,8 @@ it("shows the playing book in the now-playing card, and opens the reader from it
   await card.get('[aria-label="Pause The Lantern Keeper"]').trigger("click");
   await flushPromises();
   expect(usePlayerStore().state.status).toBe("paused");
-  expect(card.text()).toContain("Paused · 1.25×");
+  // The core's time left in the chapter (player.json), at 1.25×.
+  expect(card.text()).toContain("Paused · <1 min left · 1.25×");
   await card.get('[aria-label="Open The Lantern Keeper in the reader"]').trigger("click");
   await flushPromises();
   expect(useNavigationStore().view).toBe("reader");
