@@ -26,8 +26,12 @@ needs normal mode; once voices exist, `--fast` (CUDA graphs, about 11 GB) is abo
 API (loopback only by default):
     GET  /v1/audio/voices -> {"voices": [{"id": "Mara", "name": "Mara"}, ...]}
     POST /v1/audio/speech {"input": "...", "voice": "Mara",
-                           "instructions": "optional direction, e.g. Speak softly."}
+                           "instructions": "optional direction, e.g. Speak softly.",
+                           "seed": optional integer, 42 when left out}
                           -> audio/wav (mono, 16-bit, 24 kHz)
+
+The same request with the same seed gives the same audio. Aoide sends a seed when a sentence is
+said again ("Say this again"), so the new take is read differently.
 """
 
 import argparse
@@ -133,7 +137,17 @@ def load(breeze_dir, model_dir, fast):
     }
 
 
-def generate(text, reference=None, instruction=None):
+def seed_of(body):
+    """The request's seed: its `seed` (a whole number from 0 to 2^32 - 1), else SEED."""
+    seed = body.get("seed")
+    if seed is None:
+        return SEED
+    if isinstance(seed, bool) or not isinstance(seed, int) or not 0 <= seed < 2**32:
+        raise ValueError("seed must be a whole number from 0 to 4294967295")
+    return seed
+
+
+def generate(text, reference=None, instruction=None, seed=SEED):
     """Returns (float32 samples, sample rate) for one request."""
     import numpy as np
     from breeze_infer.runtime import set_all_seeds
@@ -146,13 +160,13 @@ def generate(text, reference=None, instruction=None):
         request["ref_audio_path"], request["ref_text"] = reference
     cfg = DIRECT_CFG if instruction else CLONE_CFG
     with _lock:
-        set_all_seeds(SEED)
+        set_all_seeds(seed)
         inputs = templates.prepare_inputs(
             _runtime["tokenizer"], _runtime["audio_tokenizer"], _runtime["model"], [request],
             templates.get_template(templates.select_template_name(request)),
             guidance_scale=cfg, guidance_scale_ref=None, guidance_scale_ins=None,
         )
-        chunks = [c.audio for c in _runtime["streaming"].iter_audio_chunks(inputs, request_id="aoide", seed=SEED)]
+        chunks = [c.audio for c in _runtime["streaming"].iter_audio_chunks(inputs, request_id="aoide", seed=seed)]
     audio = np.concatenate(chunks) if chunks else np.zeros(0, dtype="float32")
     return audio, _runtime["streaming"].sample_rate
 
@@ -244,7 +258,11 @@ class Handler(BaseHTTPRequestHandler):
         if instruction and _fast:
             return self.error(400, "instructions need the server started without --fast")
         try:
-            samples, rate = generate(text, reference, instruction)
+            seed = seed_of(body)
+        except ValueError as exc:
+            return self.error(400, str(exc))
+        try:
+            samples, rate = generate(text, reference, instruction, seed)
         except Exception as exc:  # Report model failures to Aoide instead of dropping the connection.
             return self.error(500, f"generation failed: {exc}")
         self.reply(200, to_wav(samples, rate), "audio/wav")
