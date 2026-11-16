@@ -92,9 +92,14 @@ impl ChatterboxEngine {
         settings.exaggeration = float("exaggeration");
         settings.cfg_weight = float("cfg_weight");
         settings.speed_factor = float("speed_factor");
-        settings.seed = match request.params.get("seed") {
+        let seed = match request.params.get("seed") {
             Some(ParamValue::Int(v)) => u32::try_from(*v).ok(),
             _ => None,
+        };
+        // A take said again moves the seed on, so a fixed seed gives a different reading.
+        settings.seed = match (seed, request.take) {
+            (seed, 0) => seed,
+            (seed, take) => Some(seed.unwrap_or(0).wrapping_add(take)),
         };
         speech
     }

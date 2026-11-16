@@ -175,6 +175,10 @@ impl OpenAiSpeechEngine {
         if let Some(language) = &request.language {
             body["language"] = serde_json::Value::String(language.clone());
         }
+        // A take said again asks for another seed; servers that sample anyway ignore it.
+        if request.take > 0 {
+            body["seed"] = request.take.into();
+        }
         let response = self
             .http
             .post(self.endpoint("/v1/audio/speech"))

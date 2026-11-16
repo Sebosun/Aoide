@@ -65,6 +65,7 @@ fn request(text: &str) -> SynthesisRequest {
         voice_id: "Emily.wav".into(),
         language: Some("en".into()),
         params: resolve_params(&descriptor(), &Params::new()).unwrap(),
+        take: 0,
     }
 }
 
@@ -352,4 +353,26 @@ fn profiles_and_descriptors_round_trip_through_json() {
         serde_json::from_str::<EngineDescriptor>(&serde_json::to_string(&d).unwrap()).unwrap(),
         d
     );
+}
+
+#[test]
+fn a_take_changes_the_key_only_above_zero() {
+    let d = descriptor();
+    // Keys made before takes existed stay the same: take 0 leaves the key as it was.
+    assert_eq!(
+        cache_key(&d, Some("turbo"), &request("Hello there.")),
+        "22e9da7f71a147b45e11af92966a3dc750dbb4d1f9b60dccd707a25ceea068e5"
+    );
+    let mut first = request("Hello there.");
+    first.take = 1;
+    let mut second = request("Hello there.");
+    second.take = 2;
+    let keys = [
+        cache_key(&d, Some("turbo"), &request("Hello there.")),
+        cache_key(&d, Some("turbo"), &first),
+        cache_key(&d, Some("turbo"), &second),
+    ];
+    assert_ne!(keys[0], keys[1]);
+    assert_ne!(keys[1], keys[2]);
+    assert_ne!(keys[0], keys[2]);
 }

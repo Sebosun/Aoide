@@ -982,6 +982,7 @@ mod tests {
                     voice_id: "v".into(),
                     language: None,
                     params: Default::default(),
+                    take: 0,
                 })
             })
             .collect();

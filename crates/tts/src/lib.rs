@@ -104,6 +104,10 @@ pub struct SynthesisRequest {
     pub language: Option<String>,
     /// Complete parameter set, normally produced by [`resolve_params`].
     pub params: Params,
+    /// Which attempt at this sentence: 0 for the first, counted up each time the user asks for
+    /// it to be said again. Each adapter decides how a take varies the audio (a seed, usually).
+    #[serde(default)]
+    pub take: u32,
 }
 
 /// Mono audio for one request.
@@ -290,7 +294,7 @@ pub fn cache_key(
 ) -> String {
     use sha2::{Digest, Sha256};
     // Canonical JSON: struct field order is fixed and params are a sorted BTreeMap.
-    let canonical = serde_json::json!({
+    let mut canonical = serde_json::json!({
         "v": 1,
         "kind": descriptor.kind,
         "adapter": descriptor.adapter_version,
@@ -300,6 +304,10 @@ pub fn cache_key(
         "language": request.language,
         "params": request.params,
     });
+    // Only a later take joins the key, so every key made before takes existed stays the same.
+    if request.take > 0 {
+        canonical["take"] = request.take.into();
+    }
     format!("{:x}", Sha256::digest(canonical.to_string().as_bytes()))
 }
 

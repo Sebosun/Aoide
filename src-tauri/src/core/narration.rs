@@ -372,6 +372,7 @@ mod tests {
                     voice_id: "v".into(),
                     language: None,
                     params: Default::default(),
+                    take: 0,
                 })
             })
             .collect();
@@ -581,6 +582,7 @@ mod tests {
             voice_id: "v".into(),
             language: None,
             params: Default::default(),
+            take: 0,
         };
         let unmade = Fate::Speech {
             request: request.clone(),

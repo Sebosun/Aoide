@@ -61,12 +61,15 @@ impl Voicing {
         })
     }
 
-    pub fn request(&self, text: String) -> SynthesisRequest {
+    /// The request for `text`, said for the `take`th time (0 for the first; see
+    /// [`SynthesisRequest::take`]).
+    pub fn request(&self, text: String, take: u32) -> SynthesisRequest {
         SynthesisRequest {
             text,
             voice_id: self.voice_id.clone(),
             language: self.language.clone(),
             params: self.params.clone(),
+            take,
         }
     }
 }
@@ -148,7 +151,7 @@ mod tests {
                 missing_voice: None,
             }
         );
-        assert_eq!(voicing.request("Hello.".into()).voice_id, "Book.wav");
+        assert_eq!(voicing.request("Hello.".into(), 0).voice_id, "Book.wav");
     }
 
     #[test]

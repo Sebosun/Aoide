@@ -26,6 +26,7 @@ fn request(text: &str, language: Option<&str>) -> SynthesisRequest {
         voice_id: "af_bella".into(),
         language: language.map(Into::into),
         params: resolve_params(&descriptor(), &overrides).unwrap(),
+        take: 0,
     }
 }
 
@@ -82,6 +83,16 @@ async fn synthesis_posts_openai_body_and_decodes_wav() {
     assert_eq!(body["response_format"], "wav");
     assert_eq!(body["speed"], 1.5);
     assert!(body.get("language").is_none());
+    assert!(body.get("seed").is_none(), "no seed for the first take");
+}
+
+#[tokio::test]
+async fn a_take_above_zero_is_sent_as_the_seed() {
+    let mut server = Server::start(Response::wav(support::wav())).await;
+    let mut req = request("A sentence said again.", None);
+    req.take = 2;
+    engine(&server.url, None).synthesize(&req).await.unwrap();
+    assert_eq!(json(&server.request().await.body)["seed"], 2);
 }
 
 #[tokio::test]

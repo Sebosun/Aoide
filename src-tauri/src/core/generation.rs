@@ -167,7 +167,7 @@ impl Generation {
                 requests.push(None);
                 continue;
             }
-            let request = voicing.request(segment.speech.clone());
+            let request = voicing.request(segment.speech.clone(), 0);
             keys.push(cache_key(&descriptor, model.as_deref(), &request));
             requests.push(Some(request));
         }
@@ -704,6 +704,7 @@ mod tests {
                             voice_id: voice.clone(),
                             language: None,
                             params: Default::default(),
+                            take: 0,
                         })
                     })
                     .collect(),

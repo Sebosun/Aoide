@@ -430,7 +430,7 @@ impl Engine {
             fallback.as_deref(),
             None, // The settings form previews exactly the voice it names.
         )?
-        .request(PREVIEW_TEXT.into());
+        .request(PREVIEW_TEXT.into(), 0);
         let audio = engine
             .synthesize(&request)
             .await

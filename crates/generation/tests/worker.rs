@@ -107,6 +107,7 @@ fn work(keys: &[&str]) -> Vec<WorkItem> {
                 voice_id: "v".into(),
                 language: None,
                 params: Params::new(),
+                take: 0,
             },
         })
         .collect()

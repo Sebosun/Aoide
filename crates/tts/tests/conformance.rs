@@ -30,6 +30,7 @@ fn request() -> SynthesisRequest {
         voice_id: "v".into(),
         language: None,
         params: Params::new(),
+        take: 0,
     }
 }
 

@@ -28,6 +28,7 @@ fn request(text: &str) -> SynthesisRequest {
         voice_id: "Emily.wav".into(),
         language: Some("en".into()),
         params: resolve_params(&descriptor(), &overrides).unwrap(),
+        take: 0,
     }
 }
 
@@ -74,6 +75,17 @@ async fn short_segments_are_sent_unsplit_with_all_settings() {
     assert_eq!(body["language"], "en");
     assert_eq!(body["output_format"], "wav");
     assert_eq!(body["stream"], false);
+}
+
+#[tokio::test]
+async fn a_take_adds_to_the_profile_seed() {
+    let mut server = Server::start(Response::wav(support::wav())).await;
+    let engine = engine(&server.url);
+    let mut req = request("A sentence said again.");
+    req.take = 3;
+    engine.synthesize(&req).await.unwrap();
+    let body: serde_json::Value = serde_json::from_slice(&server.request().await.body).unwrap();
+    assert_eq!(body["seed"], 45);
 }
 
 #[tokio::test]

@@ -54,6 +54,7 @@ async fn engine_adapter_reports_status_and_synthesizes_one_sentence() {
         voice_id: voice,
         language: Some("en".into()),
         params: resolve_params(&descriptor(), &Params::new()).unwrap(),
+        take: 0,
     };
     let started = std::time::Instant::now();
     let synthesis = engine.synthesize(&request).await.unwrap();
