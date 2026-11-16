@@ -54,7 +54,7 @@ an open design question.
 | 6.1 | Open with Aoide, one running copy | [6-desktop.md](6-desktop.md#61-open-with-aoide-one-running-copy) | M | |
 | 6.2 | Notifications | [6-desktop.md](6-desktop.md#62-notifications) | S | |
 | 6.3 | Keep working in the background | [6-desktop.md](6-desktop.md#63-keep-working-in-the-background) | M | |
-| 6.4 | The speech server Aoide starts | [6-desktop.md](6-desktop.md#64-the-speech-server-aoide-starts) | M | |
+| 6.4 | The speech server Aoide starts | [6-desktop.md](6-desktop.md#64-the-speech-server-aoide-starts) | M–L (with the aligner) | |
 | 6.5 | Releases, Windows and macOS | [6-desktop.md](6-desktop.md#65-releases-windows-and-macos) | not planned for now | |
 | 6.6 | Listening on a phone | [6-desktop.md](6-desktop.md#66-listening-on-a-phone) | direction only | |
 

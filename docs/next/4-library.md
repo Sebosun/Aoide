@@ -128,7 +128,7 @@ Option<String>` opens the file chooser, beside `choose_books` in `commands/disco
 ### Settled
 
 - A changed file is a new item and does not carry the edit over, as it does not carry voice
-  settings or the place (plan's default: the book's id is its content hash).
+  settings or the place (decided 2026-11-16: the book's id is its content hash).
 
 ---
 
@@ -303,7 +303,7 @@ collections.
 
 ### Settled
 
-- The quick picker is for collections; tags keep `TagsDialog.vue` (plan's default; tags came
+- The quick picker is for collections; tags keep `TagsDialog.vue` (decided 2026-11-16; tags came
   after the plan, and their dialog already filters as you type).
 
 ---

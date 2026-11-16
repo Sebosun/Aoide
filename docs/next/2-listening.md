@@ -652,3 +652,11 @@ Rules:
 
 - Every row works in the reader and from the library while something plays.
 - README's shortcut table matches `shortcuts.ts`.
+
+### Settled
+
+- Volume is on Shift+↑ / Shift+↓; plain ↑ and ↓ keep scrolling the reader and the library
+  (decided 2026-11-16).
+- Ctrl+← / Ctrl+→ move 30 s in an audiobook without text, where plain ← and → already move
+  10 s (decided 2026-11-16).
+

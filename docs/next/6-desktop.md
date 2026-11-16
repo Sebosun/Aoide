@@ -739,18 +739,22 @@ original plan's `engine.idle_stop` is replaced by `engine.server.stop` with `why
 - A server Aoide did not start is never stopped. A profile switch stops ours only when the
   launch command or address changed.
 
-### Open questions
+### Also settled (decided 2026-11-16)
 
-- **Idle default:** on at 30 minutes, or off until chosen (as the original 6.4 had it)?
-- **Listing voices as a want:** should opening a voice menu start a GPU server, or should
-  menus show the saved voice names until something plays?
-- **Stop now:** add a button in Settings or the engine card that frees the GPU at once?
-- **The aligner** (`core/align.rs`) has the same spawn and kill problems. Should
-  `ServerProcess` be made generic over the program now and used by both, or should the aligner
-  wait for a follow-up?
-- **Port check before launch:** today the plan learns "port taken" only from the server's own
-  exit message. Should a plain TCP connect to the profile's address before launching also
-  report "something else listens here" when the engine does not answer as an engine?
+- **Idle stop is on by default, at 30 minutes.** The setting turns it off or changes the time.
+- **Listing voices is not a want.** Voice menus show the voices last seen until something
+  plays, prepares or previews; opening a menu never starts a stopped server.
+- **The aligner uses the same component.** `ServerProcess` is written for any program; the
+  speech server and the aligner (`core/align.rs`) both run through it, so the aligner gets the
+  same exit notice, process-group stop and no-leftover rules. Add a slice after slice 5 that
+  moves the aligner onto it.
+- **Stop now.** The engine card and Settings › Speech engine offer **Stop now** for a server
+  Aoide started: it frees the graphics card at once, as an idle stop does, and the next want
+  starts it again.
+- **Port check before launch.** Before launching, a plain TCP connect to the profile's address:
+  if something accepts the connection but does not answer as the engine, the server is not
+  launched and the state is `Failed(PortTaken)` with "something else listens at this address".
+  The server's own "Address already in use" message stays a second way to reach that state.
 
 ---
 
