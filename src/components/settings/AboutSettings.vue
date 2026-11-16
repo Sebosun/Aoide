@@ -7,7 +7,7 @@ import SettingsSection from "@/components/settings/SettingsSection.vue";
 import SettingsField from "@/components/settings/SettingsField.vue";
 import SettingsNote from "@/components/settings/SettingsNote.vue";
 import { TOKENS } from "@/theme";
-import { SHORTCUTS } from "@/shortcuts";
+import { SHORTCUTS, keyLabels } from "@/shortcuts";
 import { usePreferencesStore } from "@/stores/preferences";
 import { useUiStore } from "@/stores/ui";
 
@@ -74,14 +74,14 @@ ground = "#101326"</code></pre>
     </SettingsSection>
     <SettingsSection title="Keyboard shortcuts" :icon="Keyboard">
       <dl class="about-settings__keys" aria-label="Keyboard shortcuts">
-        <div v-for="shortcut in SHORTCUTS" :key="shortcut.action" class="about-settings__shortcut">
+        <div v-for="shortcut in SHORTCUTS" :key="shortcut.id" class="about-settings__shortcut">
           <dt>
             <template v-for="(combo, i) in shortcut.keys" :key="i"
               ><span v-if="i" class="about-settings__or">or</span
-              ><kbd v-for="key in combo" :key="key">{{ key }}</kbd></template
+              ><kbd v-for="key in keyLabels(combo)" :key="key">{{ key }}</kbd></template
             >
           </dt>
-          <dd>{{ shortcut.action }}</dd>
+          <dd>{{ shortcut.label }}</dd>
         </div>
       </dl>
     </SettingsSection>

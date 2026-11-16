@@ -5,6 +5,7 @@ import { createMockApi } from "@/api/mock";
 import App from "@/App.vue";
 import { useNavigationStore } from "@/stores/navigation";
 import { usePlayerStore } from "@/stores/player";
+import { SHORTCUTS, keyLabels, matchShortcut } from "@/shortcuts";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("@/api", () => ({
@@ -165,4 +166,21 @@ it("leaves the reader with Escape, unless Escape is closing something over it", 
   await flushPromises();
   expect(useNavigationStore().view).toBe("library");
   wrapper.unmount();
+});
+
+it("finds each listed shortcut from its keys, so the list and the handler share one table", () => {
+  for (const shortcut of SHORTCUTS)
+    for (const combo of shortcut.keys) {
+      const event = new KeyboardEvent("keydown", { key: combo.key, ctrlKey: combo.ctrl, shiftKey: combo.shift });
+      expect(matchShortcut(event)?.shortcut.id, keyLabels(combo).join(" ")).toBe(shortcut.id);
+    }
+  // Ctrl with a letter ignores the letter's case; Shift is part of a key, except on a symbol it types.
+  expect(matchShortcut(new KeyboardEvent("keydown", { key: "F", ctrlKey: true }))?.shortcut.id).toBe("find");
+  expect(matchShortcut(new KeyboardEvent("keydown", { key: " ", shiftKey: true }))).toBeNull();
+  expect(matchShortcut(new KeyboardEvent("keydown", { key: "+", ctrlKey: true, shiftKey: true }))?.shortcut.id).toBe(
+    "zoomIn",
+  );
+  expect(matchShortcut(new KeyboardEvent("keydown", { key: "=", ctrlKey: true }))?.shortcut.id).toBe("zoomIn");
+  expect(keyLabels({ key: " " })).toEqual(["Space"]);
+  expect(keyLabels({ key: "-", ctrl: true })).toEqual(["Ctrl", "−"]);
 });

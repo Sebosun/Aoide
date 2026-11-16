@@ -4,6 +4,7 @@ import { usePreferencesStore } from "@/stores/preferences";
 import { useUiStore } from "@/stores/ui";
 import { stepZoom, zoomLabel } from "@/zoom";
 import { usePlayerControls } from "@/composables/usePlayerControls";
+import { matchShortcut, type ShortcutId } from "@/shortcuts";
 
 /** Pixels of Ctrl + wheel per zoom step: one notch of a mouse wheel, or a short pinch. */
 const WHEEL_STEP = 40;
@@ -16,8 +17,9 @@ const OVERLAYS = '[aria-modal="true"], [role="dialog"], [role="menu"], [role="li
 /** Things that use the arrow keys themselves. */
 const ARROWS = '[role="slider"], [role="tablist"], [role="menu"], [role="listbox"]';
 
-/** App-wide keys, listened for on the window (mounted once by App); src/shortcuts.ts lists them
- *  for Settings › About.
+/** App-wide keys, listened for on the window (mounted once by App). Which keys there are comes
+ *  from the table in src/shortcuts.ts, which Settings › About also lists; this says what each does.
+ *  - Keys that do not work while typing are also left alone under a dialog.
  *  - Space plays or pauses and ← / → move a sentence. Both are left alone while typing, on a
  *    control that uses the key (for Space: one reached with the keyboard), under a dialog, and
  *    when a component already handled the key.
@@ -50,62 +52,61 @@ export function useShortcuts() {
     if (to !== preferences.appearance.zoom) void preferences.update({ zoom: to });
     ui.toast(`Zoom ${zoomLabel(to)}`, "info", "zoom");
   }
-  function withCtrl(event: KeyboardEvent) {
-    const current = preferences.appearance.zoom,
-      key = event.key.toLowerCase();
-    if (key === "+" || key === "=") zoom(stepZoom(current, 1));
-    else if (key === "-" || key === "_") zoom(stepZoom(current, -1));
-    else if (key === "0") zoom(1);
-    else if (key === "n") {
-      if (document.querySelector('[aria-modal="true"]')) return false;
-      navigation.openAdd();
-    } else if (key === "," || key === "f") {
-      // Not over another dialog: Settings only toggles itself, search only reaches book tools.
-      const dialog = document.querySelector('[aria-modal="true"]')?.getAttribute("aria-label") ?? null;
-      const field = document.querySelector<HTMLElement>('[aria-label="Search library"]');
-      if (key === "," && navigation.settingsOpen) navigation.closeSettings();
-      else if (key === "," && !dialog) navigation.openSettings();
-      else if (key === "f" && navigation.view === "reader" && (!dialog || dialog === "Book tools"))
-        navigation.findInBook();
-      else if (key === "f" && navigation.view === "library" && !dialog && field) field.focus();
-      else return false;
-    } else return false;
-    return true;
-  }
-  function plain(event: KeyboardEvent) {
-    const target = event.target instanceof Element ? event.target : null;
-    if (target?.matches(TYPING) || (target as HTMLElement | null)?.isContentEditable) return false;
-    if (event.key === "Escape") {
-      if (navigation.view !== "reader" || document.querySelector(OVERLAYS)) return false;
-      navigation.leaveReader();
-      return true;
-    }
-    if (document.querySelector('[aria-modal="true"]')) return false;
-    const pressable = target?.closest(PRESSABLE);
-    if (event.key === " " && controls.bookId.value && !(pressable && keyboardFocus)) {
+  let spaceHeld = false;
+  const dialogOpen = () => document.querySelector('[aria-modal="true"]');
+  /** What each shortcut does, given its combination's `arg` and the focused element. One that
+   *  returns false did nothing, and leaves the key to the page. */
+  const actions: Record<ShortcutId, (arg: number, target: Element | null) => boolean | void> = {
+    playPause(_, target) {
+      if (!controls.bookId.value || (target?.closest(PRESSABLE) && keyboardFocus)) return false;
       spaceHeld = true;
       void controls.toggle();
-    } else if (
-      (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
-      controls.player.state.bookId &&
-      !target?.closest(ARROWS)
-    )
-      void controls.step(event.key === "ArrowRight" ? 1 : -1);
-    else return false;
-    return true;
+    },
+    sentence(arg, target) {
+      if (!controls.player.state.bookId || target?.closest(ARROWS)) return false;
+      void controls.step(arg);
+    },
+    find() {
+      // Search only reaches book tools, never past another dialog.
+      const dialog = dialogOpen()?.getAttribute("aria-label") ?? null;
+      const field = document.querySelector<HTMLElement>('[aria-label="Search library"]');
+      if (navigation.view === "reader" && (!dialog || dialog === "Book tools")) navigation.findInBook();
+      else if (navigation.view === "library" && !dialog && field) field.focus();
+      else return false;
+    },
+    add() {
+      if (dialogOpen()) return false;
+      navigation.openAdd();
+    },
+    settings() {
+      // Settings toggles itself, and does not open over another dialog.
+      if (navigation.settingsOpen) navigation.closeSettings();
+      else if (!dialogOpen()) navigation.openSettings();
+      else return false;
+    },
+    zoomIn: () => zoom(stepZoom(preferences.appearance.zoom, 1)),
+    zoomOut: () => zoom(stepZoom(preferences.appearance.zoom, -1)),
+    zoomReset: () => zoom(1),
+    back() {
+      if (navigation.view !== "reader" || document.querySelector(OVERLAYS)) return false;
+      navigation.leaveReader();
+    },
+  };
+  function onKeydown(event: KeyboardEvent) {
+    if (event.defaultPrevented || event.altKey) return;
+    const found = matchShortcut(event);
+    if (!found) return;
+    const target = event.target instanceof Element ? event.target : null;
+    const typing = target?.matches(TYPING) || (target as HTMLElement | null)?.isContentEditable;
+    if (!found.shortcut.typing && (typing || dialogOpen())) return;
+    if (actions[found.shortcut.id](found.combo.arg ?? 0, target) !== false) event.preventDefault();
   }
   // A button acts on Space when the key comes up, so that is swallowed too.
-  let spaceHeld = false;
   function onKeyup(event: KeyboardEvent) {
     if (event.key === " " && spaceHeld) {
       spaceHeld = false;
       event.preventDefault();
     }
-  }
-  function onKeydown(event: KeyboardEvent) {
-    if (event.defaultPrevented || event.altKey) return;
-    const ctrl = event.ctrlKey || event.metaKey;
-    if (ctrl ? withCtrl(event) : !event.shiftKey && plain(event)) event.preventDefault();
   }
   let travelled = 0,
     lastWheel = 0;
