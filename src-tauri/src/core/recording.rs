@@ -453,6 +453,21 @@ impl SyncHost for Core {
         self.follow_sync(id, ready);
     }
 
+    fn removed(&self, id: &str) {
+        self.audiobook_unpaired(id);
+        let mut settings = self.book_settings(id);
+        if settings.narration.take().is_some() {
+            if let Err(error) = self.shelf.save_settings(id, &settings) {
+                self.report(
+                    "narration.save",
+                    "Could not save that the book has no recording",
+                    error,
+                );
+            }
+            self.plan(PlanEvent::BookSettingsChanged(id.into()));
+        }
+    }
+
     fn checked(&self, id: &str, passed: bool) {
         self.audiobook_checked(id, passed);
     }
@@ -558,17 +573,11 @@ impl Core {
     pub async fn remove_recording(&self, id: &str) -> Result<(), String> {
         // An audiobook is its recording: it goes with the item.
         self.require_text(id)?;
-        self.forget_recording(id);
-        lock(&self.library)
-            .remove_recording(&BookId(id.into()))
-            .map_err(|e| e.to_string())?;
-        self.audiobook_unpaired(id);
-        let mut settings = self.book_settings(id);
-        if settings.narration.is_some() {
-            settings.narration = None;
-            self.save_book_settings(id, settings).await?;
+        self.recordings.remove(self, id)?;
+        // What it was listened to with is gone: the speech engine reads it from here on.
+        if self.playback.is_book(id) {
+            self.restart_session().await?;
         }
-        self.emit(CoreEvent::LibraryChanged);
         Ok(())
     }
 

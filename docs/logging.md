@@ -137,6 +137,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `sync.stage` | info | `book`, `cause`, `from`, `to`, `took_ms` | `sync_event`, each transition |
 | `sync.work` | debug | `kind`, `book` | each piece of work the job picks |
 | `sync.transcriber` | info | `engine`, `model`, `gpu`, `threads`, `took_ms` | a transcriber loaded |
+| `sync.removed` | info | `book` | `Recordings::remove`, a recording removed or unpaired (its files stay) |
 | `sync.check` | info | `book`, `found`, `of`, `passed` | the quick check |
 | `sync.block` | info | `book`, `from_ms`, `to_ms`, `of_ms`, `words`, `took_ms`, `rtf` | each transcribed block; `rtf` = audio time / wall time |
 | `sync.abort` | info | `book`, `from_ms` | Pause or Remove during a block |

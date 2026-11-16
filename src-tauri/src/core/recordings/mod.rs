@@ -25,7 +25,11 @@ mod live;
 mod speech_models;
 mod steps;
 
-use super::recording::*;
+use super::recording::{
+    ChapterMatchView, DownloadStage, MatchSummaryView, ModelDownloadView, ModelSizeChoice,
+    ModelView, OffTextView, RecognitionDevice, RecognitionEngine, RecognitionSettings,
+    RecordingFileView, RecordingPlan, RecordingProblemView, TranscriberChoice, TranscriberFactory,
+};
 use super::syncing::{self, Event as SyncEvent, Found, Stage as SyncStage};
 use super::*;
 use live::*;
@@ -229,6 +233,9 @@ pub(super) trait SyncHost: Sync {
     fn synced(&self, id: &str, ready: bool);
     /// Whether book `id`'s recording passed the quick check; false too when it failed before.
     fn checked(&self, id: &str, passed: bool);
+    /// Book `id`'s recording was removed (by the user, or unpaired after no audiobook passed the
+    /// quick check): it is not the book's narration any more.
+    fn removed(&self, id: &str);
 }
 
 /// Every recording paired with a book, its sync and the transcriber it uses.
@@ -488,6 +495,24 @@ impl Recordings {
             .collect()
     }
 
+    /// Removes book `id`'s recording: its sync stops, its row goes, and the host is told. The
+    /// audio files are left as they are. The one way a recording is removed from a book that
+    /// stays in the library.
+    pub(super) fn remove(&self, host: &dyn SyncHost, id: &str) -> Result<(), String> {
+        self.forget_recording(id);
+        lock(&self.library)
+            .remove_recording(&BookId(id.into()))
+            .map_err(|e| e.to_string())?;
+        tracing::info!(
+            event = "sync.removed",
+            book = crate::logging::book(id),
+            "Recording removed"
+        );
+        host.removed(id);
+        host.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+
     /// Stops any work on a book's recording and forgets it in memory.
     pub(super) fn forget_recording(&self, id: &str) {
         let mut state = lock(&self.state);
@@ -676,6 +701,9 @@ impl Recordings {
         lock(&self.state).live.get(id).is_some_and(Live::listenable)
     }
 }
+
+#[cfg(test)]
+mod tests;
 
 /// Lower-case letters and digits only, for comparing titles.
 fn simplify(text: &str) -> String {

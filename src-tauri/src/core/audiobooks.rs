@@ -708,16 +708,13 @@ impl FinderHost for Core {
     }
 
     fn unpair(&self, id: &str) {
-        self.forget_recording(id);
-        let removed = lock(&self.library).remove_recording(&BookId(id.into()));
-        if let Err(error) = removed {
+        if let Err(error) = self.recordings.remove(self, id) {
             self.report(
                 "audiobooks.pair",
                 "Could not unpair an audiobook none of whose files passed",
                 error,
             );
         }
-        self.emit(CoreEvent::LibraryChanged);
     }
 }
 
