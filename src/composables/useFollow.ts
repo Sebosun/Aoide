@@ -1,4 +1,5 @@
 import { onUnmounted, ref, type Ref } from "vue";
+import { matchShortcut } from "@/shortcuts";
 
 const CURRENT = ".chapter-segment--current";
 
@@ -64,7 +65,9 @@ export function useFollow(container: Ref<HTMLElement | undefined>, active: () =>
     onKeydown: (event: KeyboardEvent) => {
       if ((event.target as HTMLElement)?.matches?.('input, select, textarea, button, [role="button"], [role="slider"]'))
         return;
-      if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(event.key)) manual();
+      // A shortcut (Shift ↑ / ↓ set the volume) does not scroll.
+      if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(event.key) && !matchShortcut(event))
+        manual();
     },
   };
   onUnmounted(() => clearTimeout(timer));

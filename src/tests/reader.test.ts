@@ -104,6 +104,20 @@ it("follows the playhead, stops when the reader scrolls away, and comes back on 
   wrapper.unmount();
 });
 
+it("keeps following the playhead when Shift ↑ / ↓ set the volume", async () => {
+  HTMLElement.prototype.scrollTo = vi.fn() as unknown as HTMLElement["scrollTo"];
+  const wrapper = await openReader({ attach: true });
+  mock.emitPlayer(playing());
+  await flushPromises();
+  await wrapper.get('[aria-label="Chapter text"]').trigger("keydown", { key: "ArrowDown", shiftKey: true });
+  await flushPromises();
+  expect(wrapper.find('[aria-label="Back to playhead"]').exists()).toBe(false);
+  await wrapper.get('[aria-label="Chapter text"]').trigger("keydown", { key: "ArrowDown" });
+  await flushPromises();
+  expect(wrapper.find('[aria-label="Back to playhead"]').exists()).toBe(true);
+  wrapper.unmount();
+});
+
 it("starts the next or previous chapter at its top, following again", async () => {
   const scroll = vi.fn();
   HTMLElement.prototype.scrollTo = scroll as unknown as HTMLElement["scrollTo"];
