@@ -118,6 +118,7 @@ impl Environment {
     /// The desktop app: Tauri events, the built-in engines, the system's audio player.
     pub fn desktop(app: AppHandle) -> Self {
         Self {
+            notifier: Arc::new(crate::notify::Desktop::new(app.clone())),
             events: Arc::new(app),
             engines: registry(),
             audio: OutputCommand::candidates(OUTPUT_RATE),
@@ -132,7 +133,6 @@ impl Environment {
             fetcher: super::articles::web_fetcher(),
             browser: Arc::new(super::browsing::ChromeDriver::default()),
             browser_download: super::browser_download::Source::pinned(),
-            notifier: Arc::new(super::notices::Unsent),
             clock: Clock::default(),
         }
     }

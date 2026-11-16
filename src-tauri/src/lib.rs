@@ -3,6 +3,7 @@ mod commands;
 mod core;
 mod logging;
 mod media;
+mod notify;
 mod rename;
 #[cfg(debug_assertions)]
 mod smoke;

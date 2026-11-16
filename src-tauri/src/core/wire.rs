@@ -264,6 +264,8 @@ pub enum CoreEvent {
     BrowserDownload(super::browser_download::BrowserDownloadView),
     /// A sign-in moved on.
     SignInState(super::signin::SignInView),
+    /// Open this item's page (a desktop notification about it was clicked).
+    OpenItem(String),
 }
 
 impl CoreEvent {
@@ -285,6 +287,7 @@ impl CoreEvent {
     pub const FEEDS_CHANGED: &'static str = "feeds://changed";
     pub const BROWSER_DOWNLOAD: &'static str = "browser://download";
     pub const SIGN_IN_STATE: &'static str = "signin://state";
+    pub const OPEN_ITEM: &'static str = "item://open";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -306,10 +309,11 @@ impl CoreEvent {
             Self::FeedsChanged => Self::FEEDS_CHANGED,
             Self::BrowserDownload(_) => Self::BROWSER_DOWNLOAD,
             Self::SignInState(_) => Self::SIGN_IN_STATE,
+            Self::OpenItem(_) => Self::OPEN_ITEM,
         }
     }
 
-    pub(super) fn payload(&self) -> serde_json::Result<serde_json::Value> {
+    pub(crate) fn payload(&self) -> serde_json::Result<serde_json::Value> {
         match self {
             Self::LibraryChanged => Ok(serde_json::Value::Null),
             Self::ConfigChanged(p) => serde_json::to_value(p),
@@ -329,6 +333,7 @@ impl CoreEvent {
             Self::FeedsChanged => Ok(serde_json::Value::Null),
             Self::BrowserDownload(p) => serde_json::to_value(p),
             Self::SignInState(p) => serde_json::to_value(p),
+            Self::OpenItem(p) => serde_json::to_value(p),
         }
     }
 }

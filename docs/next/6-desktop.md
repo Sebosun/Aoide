@@ -234,11 +234,16 @@ export's and discovery's hosts gain `fn happened(&self, happened: Happened, took
 
 **Sending.** A host trait `Notifier { fn focused(&self) -> bool; fn send(&self, notice:
 Notice) -> Result<(), String>; }` in `Environment`, so the rule and the wiring are tested with
-a recording notifier. The desktop one reads `is_focused()` of the `main` window and sends with
-`notify-rust` (Linux; elsewhere it does nothing until 6.5), on a thread that waits for the
-`default` action. Clicking shows, unminimises and focuses the window and emits 6.1's
-`CoreEvent::OpenItem`. Where the desktop has no notification service the send fails quietly
-and is logged once per run.
+a recording notifier. The desktop one (`src-tauri/src/notify.rs`) keeps the `main` window's
+focus from its `Focused` window events (read once with `is_focused()` at start), so asking never
+waits on the main thread, and sends over the session bus with `zbus` directly (the
+freedesktop `Notify` call with a `default` action; Linux, elsewhere it does nothing until
+6.5): `notify-rust` would add a crate for one method call and a signal, and `zbus` is already
+there for MPRIS. One thread listens for `ActionInvoked` and `NotificationClosed`. Clicking
+shows, unminimises and focuses the window and emits `CoreEvent::OpenItem` (`"item://open"`),
+added here ahead of 6.1, which reuses it; `src/opening.ts` opens the item. Where the desktop
+has no notification service the send fails quietly and is logged once per run. Jobs are timed
+by a `Clock` the `Environment` gives (the system's in the app; tests move it on).
 
 **Settings.** `AppSettings.notices: bool`, on by default, one switch (with its
 `AppSettingsPatch` field and `From` arm in `core/settings.rs`). Per-kind switches only if

@@ -2150,6 +2150,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       browserDownload = null;
     },
     onProblem: (h) => subscribe(problemHandlers, h),
+    // The browser preview has no desktop notifications to click.
+    onOpenItem: (h) => subscribe(new Set<(id: string) => void>(), h),
   };
   /** Test hooks: put a book at a share of its length, or give it generated audio. */
   const setProgressForTest = (id: string, fraction: number) => {

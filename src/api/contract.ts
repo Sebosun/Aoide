@@ -1133,6 +1133,7 @@ export type CoreEvents = {
   "generation://state": GenerationState,
   "discovery://progress": ScanProgress,
   "discovery://details": string,
+  "item://open": string,
   "discovery://import": DiscoveryImportProgress,
   "export://progress": ExportProgress,
   "sync://state": RecordingView,

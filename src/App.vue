@@ -25,6 +25,7 @@ import { usePlayerStore } from "@/stores/player";
 import { useNavigationStore } from "@/stores/navigation";
 import { usePreferencesStore } from "@/stores/preferences";
 import { listenForProblems } from "@/problems";
+import { listenForOpenItems } from "@/opening";
 import { api } from "@/api";
 import { useRecordingsStore } from "@/stores/recordings";
 import { useArticlesStore } from "@/stores/articles";
@@ -99,6 +100,7 @@ const settle = () => {
 const native = isTauri();
 let unlisten: (() => void) | undefined,
   unlistenProblems: (() => void) | undefined,
+  unlistenOpening: (() => void) | undefined,
   disposed = false;
 onMounted(async () => {
   void library.start();
@@ -109,6 +111,10 @@ onMounted(async () => {
   void listenForProblems(api).then((off) => {
     if (disposed) off();
     else unlistenProblems = off;
+  });
+  void listenForOpenItems(api).then((off) => {
+    if (disposed) off();
+    else unlistenOpening = off;
   });
   if (native) {
     try {
@@ -129,6 +135,7 @@ onUnmounted(() => {
   disposed = true;
   unlisten?.();
   unlistenProblems?.();
+  unlistenOpening?.();
   window.removeEventListener("blur", endDrag);
   window.removeEventListener("paste", pasted);
   void Promise.all([library.start(), player.start()]).then(() => {

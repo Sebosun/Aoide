@@ -214,6 +214,7 @@ fn contract() -> String {
             name::<super::discovery::ScanProgress>(&config),
         ),
         (CoreEvent::DISCOVERY_DETAILS, name::<String>(&config)),
+        (CoreEvent::OPEN_ITEM, name::<String>(&config)),
         (
             CoreEvent::DISCOVERY_IMPORT,
             name::<super::discovery::ImportProgress>(&config),

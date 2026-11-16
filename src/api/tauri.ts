@@ -94,4 +94,5 @@ export const tauriApi: AoideApi = {
   onArticleState: (h) => on("article://state", h),
   onModelDownload: (h) => on("model://download", h),
   onProblem: (h) => on("core://problem", h),
+  onOpenItem: (h) => on("item://open", h),
 };

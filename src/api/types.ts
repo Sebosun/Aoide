@@ -150,4 +150,6 @@ export interface AoideApi extends Omit<CommandApi, "listBooks" | "scanForBooks" 
   onModelDownload(handler: (download: ModelDownloadView) => void): Promise<() => void>;
   /** A failure in the background the user should know about. */
   onProblem(handler: (problem: ProblemView) => void): Promise<() => void>;
+  /** Asks for an item's page (a desktop notification about it was clicked). */
+  onOpenItem(handler: (id: string) => void): Promise<() => void>;
 }

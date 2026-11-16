@@ -67,6 +67,7 @@ mod listening;
 mod metadata;
 mod narration;
 mod notices;
+pub use notices::{Notice, Notifier};
 mod playback;
 mod preparation;
 mod read_along;

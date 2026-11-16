@@ -134,20 +134,6 @@ pub trait Notifier: Send + Sync {
     fn send(&self, notice: Notice) -> Result<(), String>;
 }
 
-/// Sends nothing, as if the window were always in front: where the desktop has no
-/// notifications Aoide can send.
-pub struct Unsent;
-
-impl Notifier for Unsent {
-    fn focused(&self) -> bool {
-        true
-    }
-
-    fn send(&self, _: Notice) -> Result<(), String> {
-        Ok(())
-    }
-}
-
 /// Decides and sends notices: one per long job that ended, or one that needs the user.
 pub struct Notices {
     notifier: Arc<dyn Notifier>,
