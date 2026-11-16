@@ -374,6 +374,9 @@ impl BookModel {
     }
 }
 
+/// Silence before and between notes read after their paragraph.
+const NOTE_PAUSE_MS: u32 = 400;
+
 /// Appends a spoken segment per referenced note after the last segment of its block.
 fn with_note_segments(
     chapter: usize,
@@ -388,12 +391,21 @@ fn with_note_segments(
         pending.extend(markers.iter().filter(|m| m.text.is_some()).cloned());
         let block = segment.block;
         let end = segment.range.end;
+        let mut segment = segment;
+        // The pause after the paragraph (a scene break's, the chapter end's) moves after the
+        // last note read there.
+        let after = segment.pause_after_ms.max(NOTE_PAUSE_MS);
+        if !pending.is_empty() && blocks.get(i + 1) != Some(&block) {
+            segment.pause_after_ms = NOTE_PAUSE_MS;
+        }
         out_segments.push(segment);
         out_notes.push(markers);
         if blocks.get(i + 1) == Some(&block) {
             continue;
         }
+        let count = pending.len();
         for (n, marker) in pending.drain(..).enumerate() {
+            let pause = if n + 1 == count { after } else { NOTE_PAUSE_MS };
             let display = format!("Note {}. {}", marker.label, marker.text.unwrap_or_default());
             out_segments.push(Segment {
                 id: format!("{chapter}:{block}:n{n}"),
@@ -403,7 +415,7 @@ fn with_note_segments(
                 display,
                 sentences: vec![],
                 words: vec![],
-                pause_after_ms: 400,
+                pause_after_ms: pause,
             });
             out_notes.push(vec![]);
         }
@@ -681,6 +693,45 @@ mod tests {
         assert!(view.blocks[0].segments[1].note);
         assert!(!view.blocks[1].segments[0].note);
         assert_eq!(book.index_at(0, 60), Some(2));
+    }
+
+    #[test]
+    fn a_note_read_after_the_chapters_last_paragraph_keeps_the_chapter_end_pause() {
+        let mut parsed_chapter = chapter(
+            "Notes",
+            vec![block(
+                BlockKind::Paragraph,
+                "The harbour was quiet when the boats came in.",
+            )],
+        );
+        parsed_chapter.note_refs = vec![aoide_epub::NoteRef {
+            block: 0,
+            offset: 11,
+            label: "1".into(),
+            note: Some(0),
+        }];
+        let parsed = ParsedBook {
+            title: None,
+            authors: vec![],
+            language: None,
+            publisher: None,
+            description: None,
+            identifiers: vec![],
+            isbn: None,
+            subjects: Vec::new(),
+            cover: None,
+            notes: vec![aoide_epub::Note {
+                id: "a#n".into(),
+                text: "Built in 1820.".into(),
+            }],
+            chapters: vec![parsed_chapter],
+            warnings: vec![],
+            excluded: vec![],
+        };
+        let book = BookModel::from_parsed("bk", parsed, true);
+        let chapter_end = SegmentOptions::default().heading_pause_ms;
+        assert_eq!(book.segment(0).unwrap().pause_after_ms, 400);
+        assert_eq!(book.segment(1).unwrap().pause_after_ms, chapter_end);
     }
 
     #[test]

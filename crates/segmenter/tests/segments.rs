@@ -80,8 +80,62 @@ fn headings_get_a_pause_and_terminal_punctuation_in_speech_only() {
     assert_eq!(segments[0].display, "Chapter One");
     assert_eq!(segments[0].speech, "Chapter One.");
     assert_eq!(segments[0].pause_after_ms, 700);
-    assert_eq!(segments[1].pause_after_ms, 0);
     assert_eq!(segments[1].speech, "It began.");
+}
+
+fn pauses(blocks: &[Block], options: &SegmentOptions) -> Vec<u32> {
+    segment_chapter(0, blocks, options)
+        .into_iter()
+        .map(|s| s.pause_after_ms)
+        .collect()
+}
+
+#[test]
+fn a_paragraphs_last_segment_is_followed_by_the_paragraph_pause() {
+    let options = SegmentOptions {
+        min_chars: 0,
+        ..Default::default()
+    };
+    assert_eq!(options.paragraph_pause_ms, 250);
+    let blocks = [
+        p("One sentence here. Another one."),
+        p("Then more."),
+        p("End."),
+    ];
+    let [first, second, third, last] = pauses(&blocks, &options)[..] else {
+        panic!("four segments");
+    };
+    assert_eq!((first, second, third), (0, 250, 250));
+    assert_eq!(last, 700, "the chapter's end pauses like a heading");
+}
+
+#[test]
+fn a_scene_break_without_letters_carries_the_break_pause_itself() {
+    let options = SegmentOptions::default();
+    assert_eq!(options.break_pause_ms, 1200);
+    let blocks = [p("Before."), p("* * *"), p("After."), p("The end.")];
+    assert_eq!(pauses(&blocks, &options), vec![250, 1200, 250, 700]);
+    let segments = segment_chapter(0, &blocks, &options);
+    assert!(segments[1].speech.is_empty(), "the break stays silent");
+}
+
+#[test]
+fn the_largest_pause_applies_and_pauses_never_add_up() {
+    let options = SegmentOptions {
+        paragraph_pause_ms: 900,
+        heading_pause_ms: 300,
+        break_pause_ms: 100,
+        ..Default::default()
+    };
+    let blocks = [h("Title"), p("Text."), p("⁂"), p("Last.")];
+    assert_eq!(pauses(&blocks, &options), vec![900, 900, 900, 900]);
+    let none = SegmentOptions {
+        paragraph_pause_ms: 0,
+        heading_pause_ms: 0,
+        break_pause_ms: 0,
+        ..Default::default()
+    };
+    assert_eq!(pauses(&blocks, &none), vec![0, 0, 0, 0]);
 }
 
 #[test]

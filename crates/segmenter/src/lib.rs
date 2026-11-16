@@ -16,8 +16,13 @@ pub struct SegmentOptions {
     /// Sentences shorter than this are grouped with a neighbour in the same block when the
     /// result still fits `max_chars`.
     pub min_chars: usize,
-    /// Silence to insert after a heading segment.
+    /// Silence to insert after a heading segment, and after the chapter's last segment (before
+    /// the next chapter's title).
     pub heading_pause_ms: u32,
+    /// Silence after the last segment of a paragraph (of any block).
+    pub paragraph_pause_ms: u32,
+    /// Silence at a scene break: a block with no letter or digit (`* * *`) carries it.
+    pub break_pause_ms: u32,
 }
 
 impl Default for SegmentOptions {
@@ -26,6 +31,8 @@ impl Default for SegmentOptions {
             max_chars: 250,
             min_chars: 40,
             heading_pause_ms: 700,
+            paragraph_pause_ms: 250,
+            break_pause_ms: 1200,
         }
     }
 }
@@ -66,7 +73,10 @@ pub fn segment_chapter(chapter: u32, blocks: &[Block], options: &SegmentOptions)
             .flat_map(|sentence| split_long(&chars, sentence, options.max_chars))
             .collect();
         let heading = matches!(block.kind, BlockKind::Heading { .. });
-        for (n, group) in group(&units, options).into_iter().enumerate() {
+        let scene_break = !block.text.chars().any(char::is_alphanumeric);
+        let groups = group(&units, options);
+        let last = groups.len().saturating_sub(1);
+        for (n, group) in groups.into_iter().enumerate() {
             let range = group[0].start..group[group.len() - 1].end;
             let display: String = chars[range.clone()].iter().collect();
             let base = offsets[index];
@@ -84,7 +94,19 @@ pub fn segment_chapter(chapter: u32, blocks: &[Block], options: &SegmentOptions)
                 words: words(&chars, &range).iter().map(shift).collect(),
                 display,
                 speech,
-                pause_after_ms: if heading { options.heading_pause_ms } else { 0 },
+                pause_after_ms: [
+                    (heading, options.heading_pause_ms),
+                    (n == last, options.paragraph_pause_ms),
+                    (n == last && scene_break, options.break_pause_ms),
+                    (
+                        n == last && index + 1 == blocks.len(),
+                        options.heading_pause_ms,
+                    ),
+                ]
+                .into_iter()
+                .filter_map(|(applies, ms)| applies.then_some(ms))
+                .max()
+                .unwrap_or(0),
             });
         }
     }
