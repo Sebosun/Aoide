@@ -778,16 +778,13 @@ fn describe_file(found: &aoide_discovery::Found, covers: &Path, seen_at: i64) ->
     match aoide_epub::read_metadata(&bytes, &aoide_epub::ParseOptions::default()) {
         Ok(meta) => {
             if let Some(cover) = &meta.cover {
-                let ext = match cover.media_type.as_str() {
-                    "image/png" => "png",
-                    "image/gif" => "gif",
-                    "image/webp" => "webp",
-                    _ => "jpg",
-                };
-                let path = covers.join(format!("{hash}.{ext}"));
-                if path.exists() || std::fs::write(&path, &cover.bytes).is_ok() {
-                    record.cover_path = Some(path);
-                }
+                record.cover_path = super::item::store_cover(
+                    covers,
+                    &hash,
+                    &cover.media_type,
+                    &cover.bytes,
+                    super::item::Untyped::Jpeg,
+                );
             }
             record.title = meta.title;
             record.authors = meta.authors;

@@ -92,11 +92,16 @@ const authors = computed(
     (summary.value?.kind === "article" ? "" : "Unknown author"),
 );
 const progress = computed(() => summary.value?.progress ?? overview.value?.progress ?? null);
+/** What the item is, as the core says: from its view, else (while it has none, such as an
+ *  article not fetched yet) from its summary. */
+const kind = computed(() => overview.value?.kind ?? summary.value?.kind ?? null);
 /** An audiobook on its own: no text, so Listen is its only way in and its parts its contents. */
-const audiobook = computed(() => summary.value?.kind === "audiobook" || overview.value?.shape === "listen");
+const audiobook = computed(() => kind.value === "audiobook");
 /** An article: from the web, in one chapter; its fetch decides what there is to read. */
 const article = computed(() => articles.byId[props.bookId] ?? null);
-const isArticle = computed(() => summary.value?.kind === "article" || Boolean(article.value));
+// An article on a feed is not in the library's list and has no view until fetched; its article
+// view says what it is.
+const isArticle = computed(() => kind.value === "article" || Boolean(article.value));
 watch(
   isArticle,
   (yes) => {

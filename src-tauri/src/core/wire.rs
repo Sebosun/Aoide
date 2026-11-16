@@ -57,6 +57,8 @@ pub struct BookSummary {
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct BookView {
     pub id: String,
+    /// A book, an article or an audiobook: what the item is, decided once here.
+    pub kind: aoide_library::ItemKind,
     pub title: String,
     pub authors: Vec<String>,
     pub language: Option<String>,

@@ -50,6 +50,7 @@ pub use fetching::Stage as FetchStage;
 pub use signin::SignInView;
 pub use sites::SiteView;
 mod generation;
+mod item;
 mod shelf;
 use generation::PlanEvent;
 mod storage;
@@ -436,7 +437,7 @@ impl Core {
         chapter: Option<usize>,
         segment_id: Option<String>,
     ) -> Result<(), String> {
-        if self.kind_of(book_id) == Some(aoide_library::ItemKind::Audiobook) {
+        if self.item_kind(book_id) == Some(aoide_library::ItemKind::Audiobook) {
             return self.play_timeline(book_id, chapter);
         }
         let book = self.load_book(book_id)?;

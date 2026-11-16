@@ -209,6 +209,15 @@ impl Library {
         Ok(())
     }
 
+    /// Sets (or with `None`, clears) item `id`'s cover file, leaving the rest of it as it is.
+    pub fn set_cover(&self, id: &BookId, cover: Option<&Path>) -> Result<()> {
+        self.conn.execute(
+            "UPDATE books SET cover_path = ?2 WHERE id = ?1",
+            rusqlite::params![id.0, cover.map(store::path_text).transpose()?],
+        )?;
+        Ok(())
+    }
+
     /// All books, most recently opened first, then most recently added.
     /// The items in the library: not those on the feed shelf.
     pub fn books(&self) -> Result<Vec<BookRecord>> {

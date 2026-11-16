@@ -234,6 +234,7 @@
     ],
     "excluded": [],
     "id": "book-6",
+    "kind": "article",
     "language": "en",
     "languageWarning": null,
     "mode": "read",

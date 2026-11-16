@@ -1,20 +1,13 @@
 import { computed, watch } from "vue";
 import { useArticlesStore } from "@/stores/articles";
-import { useLibraryStore } from "@/stores/library";
 import { useReaderStore } from "@/stores/reader";
 
 /** The reader's item when it is an article: its source and fetch, loaded when it opens and
- *  kept current from "article://state". `isArticle` holds as soon as the library knows. */
+ *  kept current from "article://state". What the item is comes with its view from the core. */
 export function useOpenArticle() {
   const reader = useReaderStore(),
-    library = useLibraryStore(),
     articles = useArticlesStore();
-  // An item opened from a feed is not on the library's lists; its article view says what it is.
-  const isArticle = computed(
-    () =>
-      !!reader.book &&
-      (library.books.find((b) => b.id === reader.book!.id)?.kind === "article" || !!articles.byId[reader.book.id]),
-  );
+  const isArticle = computed(() => reader.book?.kind === "article");
   watch(
     () => (isArticle.value ? reader.book?.id : undefined),
     (id) => {

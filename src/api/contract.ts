@@ -170,7 +170,11 @@ export type SearchHit = { chapter: number, chapterTitle: string, segmentId: stri
  */
 snippet: string, matchStart: number, matchEnd: number, };
 
-export type BookView = { id: string, title: string, authors: Array<string>, language: string | null, chapters: Array<ChapterSummary>, warnings: Array<string>, excluded: Array<ExcludedView>, languageWarning: string | null, 
+export type BookView = { id: string, 
+/**
+ * A book, an article or an audiobook: what the item is, decided once here.
+ */
+kind: ItemKind, title: string, authors: Array<string>, language: string | null, chapters: Array<ChapterSummary>, warnings: Array<string>, excluded: Array<ExcludedView>, languageWarning: string | null, 
 /**
  * The book's voice is not offered by the active engine, so another one reads it.
  */

@@ -11,7 +11,7 @@ use std::time::Instant;
 use aoide_audio::Entry;
 use aoide_recording::AudioFile;
 
-use aoide_library::{BookId, ItemKind};
+use aoide_library::BookId;
 
 use super::feeder::{Fed, Feeder};
 use super::playback::Place;
@@ -224,12 +224,6 @@ impl TimelineSession {
 }
 
 impl Core {
-    /// What item `id` is; `None` when it is not in the library.
-    pub(super) fn kind_of(&self, id: &str) -> Option<ItemKind> {
-        let record = lock(&self.library).book(&BookId(id.into())).ok()??;
-        Some(record.kind)
-    }
-
     /// Audiobook `id` laid out for the player.
     pub(super) fn timeline_of(&self, id: &str) -> Result<Timeline, String> {
         let record = lock(&self.library)
@@ -351,6 +345,7 @@ impl Core {
         let mode = self.mode_of(id);
         Ok(super::BookView {
             id: id.to_owned(),
+            kind: aoide_library::ItemKind::Audiobook,
             title: record.title.unwrap_or_default(),
             authors: record.authors,
             language: record.language,

@@ -129,7 +129,7 @@ impl Core {
 
     /// Bookmarks the playhead when `id` is playing, else the book's saved position.
     pub fn add_bookmark(&self, id: &str, note: &str) -> Result<Bookmark, String> {
-        if self.kind_of(id) == Some(aoide_library::ItemKind::Audiobook) {
+        if self.item_kind(id) == Some(aoide_library::ItemKind::Audiobook) {
             let (part, position_ms, title) = self.audiobook_place(id)?;
             return self
                 .bookmarks

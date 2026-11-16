@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use aoide_library::{BookId, BookKey, ItemKind, NewBook};
 
+use super::item::Untyped;
 use super::recordings::Recordings;
 use super::{lock, now_ms, Core, CoreEvent, ImportResult};
 
@@ -21,42 +22,13 @@ fn item_path(chosen: &[PathBuf], files: &[PathBuf]) -> PathBuf {
     }
 }
 
-/// What a text-only operation says about an audiobook.
-pub(super) const NO_TEXT: &str = "Not available for an audiobook: it has no text.";
-
-/// Keeps audiobook `id`'s embedded `cover` in `dir` as `<id>.<ext>`, as an EPUB's cover is
-/// kept; `None` when it cannot be written.
+/// Keeps audiobook `id`'s embedded `cover` in `dir`, as an EPUB's cover is kept; `None` when
+/// it cannot be written.
 fn save_cover(dir: &Path, id: &str, cover: &aoide_recording::Cover) -> Option<PathBuf> {
-    let ext = match cover.media_type.as_str() {
-        "image/png" => "png",
-        "image/gif" => "gif",
-        "image/webp" => "webp",
-        "image/bmp" => "bmp",
-        _ => "jpg",
-    };
-    let target = dir.join(format!("{id}.{ext}"));
-    std::fs::write(&target, &cover.data).ok().map(|()| target)
+    super::item::store_cover(dir, id, &cover.media_type, &cover.data, Untyped::Jpeg)
 }
 
 impl Core {
-    /// Refuses item `id` when it is an audiobook, which has no text.
-    pub(super) fn require_text(&self, id: &str) -> Result<(), String> {
-        match self.kind_of(id) {
-            Some(ItemKind::Audiobook) => Err(NO_TEXT.into()),
-            _ => Ok(()),
-        }
-    }
-
-    /// Refuses item `id` unless it is a book (an EPUB): only a book is paired with a
-    /// recording or looked up in a book catalogue.
-    pub(super) fn require_book(&self, id: &str) -> Result<(), String> {
-        match self.kind_of(id) {
-            Some(ItemKind::Audiobook) => Err(NO_TEXT.into()),
-            Some(ItemKind::Article) => Err(super::articles::NOT_FOR_ARTICLES.into()),
-            _ => Ok(()),
-        }
-    }
-
     /// Adds the audiobook at `paths` (an M4B, audio files, or a folder of them) as an item with
     /// no text. DRM-protected and unreadable audio is refused with the reasons the pairing
     /// gives. The same files added again, from anywhere, are the same item.
@@ -86,10 +58,10 @@ impl Core {
     /// bookmarks, collections and listening time, and keeps its place until the sync reaches
     /// it; the audiobook item is removed.
     pub fn merge_audiobook(&self, audiobook: &str, book: &str) -> Result<(), String> {
-        if self.kind_of(audiobook) != Some(ItemKind::Audiobook) {
+        if self.item_kind(audiobook) != Some(ItemKind::Audiobook) {
             return Err("That is not an audiobook on its own.".into());
         }
-        if self.kind_of(book) != Some(ItemKind::Book) {
+        if self.item_kind(book) != Some(ItemKind::Book) {
             return Err("That is not a book with text.".into());
         }
         if self.recording_stage(book).is_some() {
@@ -346,14 +318,15 @@ pub(super) mod tests {
         let path = super::save_cover(dir.path(), "abc", &cover).unwrap();
         assert_eq!(path, dir.path().join("abc.png"));
         assert_eq!(std::fs::read(path).unwrap(), b"png bytes");
-        let gone = dir.path().join("gone");
-        assert_eq!(super::save_cover(&gone, "abc", &cover), None);
+        // A folder that cannot be made (a file is in its way): not kept.
+        let blocked = dir.path().join("abc.png").join("covers");
+        assert_eq!(super::save_cover(&blocked, "abc", &cover), None);
     }
 
     #[tokio::test]
     async fn text_only_operations_refuse_an_audiobook_and_change_nothing() {
+        use super::super::item::NO_TEXT;
         use super::super::recording::Narration;
-        use super::NO_TEXT;
 
         let dir = tempfile::tempdir().unwrap();
         let core = core(dir.path()).await;

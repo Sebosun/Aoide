@@ -419,7 +419,7 @@ const EVICTION_BATCH: usize = 400;
 impl super::Core {
     /// Deletes a book's generated audio; it will be regenerated on demand.
     pub async fn regenerate_book(&self, id: &str) -> Result<(), String> {
-        self.require_text(id)?;
+        self.require(id, super::item::Needs::Text)?;
         let keys = self
             .load_book(id)
             .and_then(|book| self.speech_plan(&book))

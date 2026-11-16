@@ -226,15 +226,13 @@ impl Shelf {
         match parsed {
             Ok(book) => {
                 let cover_path = book.cover.as_ref().and_then(|cover| {
-                    let ext = match cover.media_type.as_str() {
-                        "image/png" => "png",
-                        "image/gif" => "gif",
-                        "image/webp" => "webp",
-                        "image/svg+xml" => "svg",
-                        _ => "jpg",
-                    };
-                    let target = self.covers_dir.join(format!("{}.{ext}", id.0));
-                    std::fs::write(&target, &cover.bytes).ok().map(|_| target)
+                    super::item::store_cover(
+                        &self.covers_dir,
+                        &id.0,
+                        &cover.media_type,
+                        &cover.bytes,
+                        super::item::Untyped::Jpeg,
+                    )
                 });
                 NewBook {
                     id: id.clone(),
@@ -512,7 +510,7 @@ impl Shelf {
             .map_err(|e| e.to_string())?
             .ok_or("book not found")?;
         if record.kind == aoide_library::ItemKind::Audiobook {
-            return Err(super::audiobook::NO_TEXT.into());
+            return Err(super::item::NO_TEXT.into());
         }
         match record.status {
             BookStatus::Present => {}
@@ -761,12 +759,15 @@ impl super::Core {
 
     /// The same view as [`Core::open_book`], without marking the book as opened.
     pub fn book_overview(&self, id: &str) -> Result<super::BookView, String> {
-        if self.kind_of(id) == Some(aoide_library::ItemKind::Audiobook) {
+        let kind = self.item_kind(id).unwrap_or(aoide_library::ItemKind::Book);
+        if kind == aoide_library::ItemKind::Audiobook {
             return self.audiobook_overview(id);
         }
         let book = self.load_book(id)?;
+        let mode = self.mode_of(id);
         Ok(super::BookView {
             id: book.id.clone(),
+            kind,
             title: book.title.clone(),
             authors: book.authors.clone(),
             language: book.language.clone(),
@@ -777,8 +778,8 @@ impl super::Core {
             voice_warning: self.voice_warning(&book),
             progress: self.shelf.progress(&BookId(id.into())),
             word_count: book.word_count(),
-            mode: self.mode_of(id),
-            shape: reading::shape(true, self.mode_of(id)),
+            mode,
+            shape: reading::shape(true, mode),
         })
     }
 

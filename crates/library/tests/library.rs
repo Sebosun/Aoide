@@ -54,6 +54,25 @@ fn upserted_books_round_trip_with_status_and_authors() {
 }
 
 #[test]
+fn an_items_cover_is_set_and_cleared_without_touching_the_rest_of_it() {
+    let library = Library::open_in_memory().unwrap();
+    library.upsert_book(&book("a", "/books/a.epub"), 1).unwrap();
+    library
+        .set_cover(
+            &BookId("a".into()),
+            Some(std::path::Path::new("/covers/a.png")),
+        )
+        .unwrap();
+    let record = library.book(&BookId("a".into())).unwrap().unwrap();
+    assert_eq!(record.cover_path, Some(PathBuf::from("/covers/a.png")));
+    assert_eq!(record.title.as_deref(), Some("Title a"));
+    assert_eq!(record.authors.len(), 2);
+    library.set_cover(&BookId("a".into()), None).unwrap();
+    let record = library.book(&BookId("a".into())).unwrap().unwrap();
+    assert_eq!(record.cover_path, None);
+}
+
+#[test]
 fn upsert_updates_path_and_keeps_added_at() {
     let lib = Library::open_in_memory().unwrap();
     lib.upsert_book(&book("a", "/books/a.epub"), 100).unwrap();

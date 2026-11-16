@@ -489,13 +489,13 @@ impl Encoder {
 impl Core {
     /// Exports `id` as an M4B into the Exports folder next to the library folder.
     pub async fn export_book(&self, id: &str) -> Result<String, String> {
-        self.require_text(id)?;
+        self.require(id, super::item::Needs::Text)?;
         self.exports.audiobook(id, self).await
     }
 
     /// Exports `id` with its synced recording as a read-along EPUB into the Exports folder.
     pub async fn export_read_along(&self, id: &str) -> Result<String, String> {
-        self.require_text(id)?;
+        self.require(id, super::item::Needs::Text)?;
         self.exports.read_along(id, self).await
     }
 }

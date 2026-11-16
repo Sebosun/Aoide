@@ -210,9 +210,6 @@ pub(super) struct Articles {
     feeds: Mutex<HashMap<String, Vec<DiscoveredFeed>>>,
 }
 
-/// The formats a lead image is kept in.
-const COVER_EXTENSIONS: [&str; 4] = ["jpg", "png", "webp", "gif"];
-
 /// A saved link as a web address: trimmed, and `https://` when it names no scheme.
 pub fn parse_link(link: &str) -> Result<Url, String> {
     let link = link.trim();
@@ -441,14 +438,7 @@ impl Articles {
                 tracing::warn!(event = "article.forget", book = crate::logging::book(id), %error, "Could not delete the article's folder");
             }
         }
-        self.drop_covers(id);
-    }
-
-    /// Deletes article `id`'s lead image, in whichever format it was stored.
-    fn drop_covers(&self, id: &str) {
-        for ext in COVER_EXTENSIONS {
-            let _ = std::fs::remove_file(self.covers.join(format!("{id}.{ext}")));
-        }
+        super::item::drop_covers(&self.covers, id);
     }
 
     fn store_stage(&self, book: &BookId, from: &str, to: Stage, error: Option<&str>) {
@@ -757,37 +747,18 @@ impl Articles {
                 return;
             }
         };
-        // One of COVER_EXTENSIONS.
-        let ext = match image.media_type.as_str() {
-            "image/jpeg" | "image/jpg" => "jpg",
-            "image/png" => "png",
-            "image/webp" => "webp",
-            "image/gif" => "gif",
-            _ => return,
-        };
-        let path = self.covers.join(format!("{id}.{ext}"));
-        self.drop_covers(id);
-        if let Err(error) =
-            std::fs::create_dir_all(&self.covers).and_then(|()| std::fs::write(&path, &image.bytes))
-        {
-            tracing::warn!(event = "article.cover", book = crate::logging::book(id), outcome = "failed", %error, "Could not store the article's image");
+        let Some(path) = super::item::store_cover(
+            &self.covers,
+            id,
+            &image.media_type,
+            &image.bytes,
+            super::item::Untyped::Refused,
+        ) else {
+            tracing::warn!(event = "article.cover", book = crate::logging::book(id), outcome = "failed", media_type = %image.media_type, "Could not store the article's image");
             return;
-        }
+        };
         let library = lock(&self.library);
-        let Ok(Some(book)) = library.book(&BookId(id.into())) else {
-            return;
-        };
-        let stored = NewBook {
-            id: book.id,
-            kind: book.kind,
-            path: book.path,
-            title: book.title,
-            authors: book.authors,
-            language: book.language,
-            cover_path: Some(path),
-            error: None,
-        };
-        if let Err(error) = library.upsert_book(&stored, super::now_ms()) {
+        if let Err(error) = library.set_cover(&BookId(id.into()), Some(&path)) {
             tracing::warn!(event = "article.cover", book = crate::logging::book(id), outcome = "failed", %error, "Could not store the article's image");
         } else {
             tracing::info!(

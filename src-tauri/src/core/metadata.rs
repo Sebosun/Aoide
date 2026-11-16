@@ -223,7 +223,7 @@ impl Metadata {
 impl Core {
     /// Candidate matches for the book from Open Library.
     pub async fn lookup_metadata(&self, id: &str, refresh: bool) -> Result<Vec<Match>, String> {
-        self.require_book(id)?;
+        self.require(id, super::item::Needs::Book)?;
         let book = self.load_book(id)?;
         let allowed = self.app_settings().metadata_lookup;
         self.metadata.lookup(&book, allowed, refresh).await
@@ -231,7 +231,7 @@ impl Core {
 
     /// Stores the picked match.
     pub async fn apply_metadata(&self, id: &str, picked: Match) -> Result<BookDetails, String> {
-        self.require_book(id)?;
+        self.require(id, super::item::Needs::Book)?;
         let book = self.load_book(id)?;
         let allowed = self.app_settings().metadata_lookup;
         let details = self.metadata.apply(&book, picked, allowed).await?;
@@ -241,7 +241,7 @@ impl Core {
 
     /// Stored details over the EPUB's own metadata.
     pub fn book_details(&self, id: &str) -> Result<BookDetails, String> {
-        if self.kind_of(id) == Some(aoide_library::ItemKind::Audiobook) {
+        if self.item_kind(id) == Some(aoide_library::ItemKind::Audiobook) {
             return self.metadata.details(id, None);
         }
         self.metadata.details(id, Some(&*self.load_book(id)?))

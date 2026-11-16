@@ -119,7 +119,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `browser.proxy` | debug | `error` (a proxied connection that ended badly) | `crates/browser` `proxy.rs` |
 | `feed.clean` | info / warn | `removed` (entries), `orphans` (items no entry needs), `book`, `error` | `core/feeds.rs` `clean`, daily and after Check now |
 | `feed.stage` | info | `feed`, `from`, `to` (`idle`, `checking`, `failing`) | `core/feeds.rs` `check`: a feed starts or stops failing |
-| `article.cover` | info / warn | `book`, `outcome` (`ok`, `failed`), `error` | `core/articles.rs` `keep_cover`: the page's lead image stored as the cover |
+| `article.cover` | info / warn | `book`, `outcome` (`ok`, `failed`), `media_type` (an image it would not keep) or `error` | `core/articles.rs` `keep_cover`: the page's lead image stored as the cover |
 | `library.word_count` | warn | `book`, `error` | `core/shelf.rs` `load`, storing a parsed book's length |
 | `reading.mode` | info | `book`, `from`, `to` | `core/reading.rs` `choose_mode`, a book switched between read and listen |
 | `reading.state` | info | `book`, `from`, `to` | `core/reading.rs` `Reading::apply`, unread / in progress / finished |

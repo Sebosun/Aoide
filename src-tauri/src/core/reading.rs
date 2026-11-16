@@ -307,7 +307,7 @@ impl super::Core {
     /// playing pauses it; choosing to listen does not start playback by itself.
     pub fn set_mode(&self, id: &str, mode: ReadingMode) -> Result<BookView, String> {
         if mode == ReadingMode::Read {
-            self.require_text(id)?;
+            self.require(id, super::item::Needs::Text)?;
         }
         let event = match mode {
             ReadingMode::Read => ModeEvent::ReadChosen,

@@ -17,6 +17,7 @@
     ],
     "excluded": [],
     "id": "book-0",
+    "kind": "book",
     "language": "en",
     "languageWarning": null,
     "mode": "listen",
@@ -55,6 +56,7 @@
       }
     ],
     "id": "book-1",
+    "kind": "book",
     "language": "en",
     "languageWarning": null,
     "mode": "read",
@@ -80,6 +82,7 @@
     ],
     "excluded": [],
     "id": "book-3",
+    "kind": "book",
     "language": "en",
     "languageWarning": null,
     "mode": "read",
