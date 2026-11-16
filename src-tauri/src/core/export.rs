@@ -597,6 +597,76 @@ mod tests {
 
     use super::super::tests::{library_with, paths, Recorder};
 
+    #[test]
+    fn an_export_leaves_the_pauses_set_after_paragraphs_breaks_and_chapters() {
+        let dir = tempfile::tempdir().unwrap();
+        let chapter = |body: &str| {
+            format!(r#"<html xmlns="http://www.w3.org/1999/xhtml"><body>{body}</body></html>"#)
+        };
+        let bytes = super::super::tests::epub_with(
+            chapter("<h1>The Quay</h1><p>Gulls argued over the nets all morning.</p><hr/><p>The tide came in slowly that evening.</p>"),
+            chapter("<h1>The Lamp</h1><p>Someone lit the lamp at dusk, as always.</p><p>It burned until the grey morning came.</p>"),
+        );
+        let pauses = crate::core::settings::PauseSettings {
+            paragraph_ms: 300,
+            break_ms: 2000,
+            heading_ms: 1000,
+        };
+        let layout = crate::book::Layout {
+            read_notes: false,
+            segments: pauses.segment_options(),
+        };
+        let book = BookModel::parse("b", &bytes, &layout).unwrap();
+        assert_eq!(book.total_entries(), 6);
+        let paths = paths(dir.path());
+        std::fs::create_dir_all(&paths.audio_dir).unwrap();
+        let second = aoide_audio::Pcm {
+            sample_rate: EXPORT_RATE,
+            samples: vec![0.25; EXPORT_RATE as usize],
+        };
+        std::fs::write(
+            paths.audio_dir.join("s.wav"),
+            aoide_audio::codec::encode(&second).unwrap(),
+        )
+        .unwrap();
+        let segments: Vec<Option<CachedSegment>> = (0..6)
+            .map(|i| {
+                Some(CachedSegment {
+                    key: format!("k{i}"),
+                    book_id: BookId("b".into()),
+                    file: "s.wav".into(),
+                    duration_ms: 1000,
+                    bytes: 0,
+                    word_timings: None,
+                    created_at: 0,
+                })
+            })
+            .collect();
+
+        // Heading, the paragraph before the rule, the chapter's last paragraph.
+        let one = 3 * 1000 + 1000 + 2000 + 1000;
+        // Heading, a paragraph, the chapter's last paragraph.
+        let two = 3 * 1000 + 1000 + 300 + 1000;
+        let marks = chapter_marks(&book, &segments);
+        assert_eq!(
+            marks
+                .iter()
+                .map(|m| (m.start_ms, m.end_ms))
+                .collect::<Vec<_>>(),
+            [(0, one), (one, one + two)]
+        );
+        let exports = Exports::new(library_with(&["b"]), &paths, Arc::new(Recorder::default()));
+        for (chapter, ms) in book.chapters.iter().zip([one, two]) {
+            let pcm = exports.encoder.chapter_pcm(chapter, &segments).unwrap();
+            assert_eq!(pcm.len(), samples_for(ms));
+            let pause = samples_for(1000);
+            assert!(
+                pcm[pcm.len() - pause..].iter().all(|s| *s == 0),
+                "the chapter ends in silence"
+            );
+        }
+    }
+
     struct Waiting;
 
     impl ExportHost for Waiting {
