@@ -1,0 +1,24 @@
+{
+  "byline": "Nikhil Marathe",
+  "canonicalUrl": "https://hacks.mozilla.org/2015/03/this-api-is-so-fetching/",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "For more than a decade the Web has used XMLHttpRequest (XHR) to achieve asynchronous requests in JavaScript. While very useful, XHR is not a very ...",
+  "feeds": [
+    {
+      "title": "Mozilla Hacks – the Web developer blog RSS Feed",
+      "url": "https://hacks.mozilla.org/feed/"
+    },
+    {
+      "title": "Mozilla Hacks - the Web developer blog » This API is so Fetching! Comments Feed",
+      "url": "https://hacks.mozilla.org/2015/03/this-api-is-so-fetching/feed/"
+    }
+  ],
+  "language": "en-US",
+  "leadImage": null,
+  "published": null,
+  "siteName": "Mozilla Hacks – the Web developer blog",
+  "title": "This API is so Fetching!",
+  "warnings": [],
+  "wordCount": 2140
+}

@@ -1,0 +1,20 @@
+{
+  "byline": "Contributors to Wikimedia projects",
+  "canonicalUrl": "https://en.wikipedia.org/wiki/List_of_films_featuring_time_loops",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [],
+  "language": "en",
+  "leadImage": null,
+  "published": {
+    "atMs": 1395947484000,
+    "text": "2014-03-27T19:11:24Z"
+  },
+  "siteName": "Wikimedia Foundation, Inc.",
+  "title": "List of films featuring time loops",
+  "warnings": [
+    "LeftOut { what: Table, count: 1 }"
+  ],
+  "wordCount": 1670
+}

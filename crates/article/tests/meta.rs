@@ -248,3 +248,99 @@ fn a_short_title_loses_its_sites_name_when_a_heading_says_it_alone() {
     let meta = extract(&html, &url(), &ExtractOptions::default()).meta;
     assert_eq!(meta.title.as_deref(), Some("Night Ferry 2.0"));
 }
+
+fn meta_of(head: &str) -> aoide_article::ArticleMeta {
+    extract(&page(head), &url(), &ExtractOptions::default()).meta
+}
+
+#[test]
+fn a_meta_tag_may_name_several_keys_and_a_property_wins_over_a_name() {
+    let meta = meta_of(
+        r#"<title>Ferries | Harbour</title>
+<meta property="og:title twitter:title" content="The Night Ferry Crosses">
+<meta name="og:site_name" content="Harbour (a name, not the property)">
+<meta property="og:site_name" content="Harbour Online">"#,
+    );
+    assert_eq!(meta.title.as_deref(), Some("The Night Ferry Crosses"));
+    assert_eq!(meta.site_name.as_deref(), Some("Harbour Online"));
+}
+
+#[test]
+fn json_ld_kept_in_a_cdata_section_is_read() {
+    let meta = meta_of(
+        r#"<script type="application/ld+json">//<![CDATA[
+{"@context": "https://schema.org", "@type": "Article", "headline": "The Night Ferry",
+ "author": {"name": "Ada Brightwater"}, "datePublished": "2026-03-04"}
+//]]></script>"#,
+    );
+    assert_eq!(meta.byline.as_deref(), Some("Ada Brightwater"));
+    assert_eq!(
+        meta.published.map(|p| p.text).as_deref(),
+        Some("2026-03-04")
+    );
+}
+
+#[test]
+fn a_social_media_posting_is_an_article() {
+    let meta = meta_of(
+        r#"<script type="application/ld+json">{"@type": "SocialMediaPosting",
+ "headline": "The Night Ferry", "datePublished": "2026-03-04"}</script>"#,
+    );
+    assert_eq!(
+        meta.published.map(|p| p.text).as_deref(),
+        Some("2026-03-04")
+    );
+}
+
+#[test]
+fn parsely_tags_give_what_the_page_does_not_say_otherwise() {
+    let meta = meta_of(
+        r#"<meta name="parsely-title" content="The Night Ferry">
+<meta name="parsely-author" content="Ada Brightwater">
+<meta name="parsely-pub-date" content="2026-03-04T05:06:07Z">"#,
+    );
+    assert_eq!(meta.title.as_deref(), Some("The Night Ferry"));
+    assert_eq!(meta.byline.as_deref(), Some("Ada Brightwater"));
+    assert_eq!(
+        meta.published.map(|p| p.text).as_deref(),
+        Some("2026-03-04T05:06:07Z")
+    );
+}
+
+#[test]
+fn a_json_ld_headline_the_page_shows_as_its_heading_wins_over_a_social_title() {
+    let meta = meta_of(
+        r#"<meta property="og:title" content="You will never guess who crosses at night">
+<script type="application/ld+json">{"@type": "NewsArticle", "headline": "The Night Ferry"}</script>"#,
+    );
+    assert_eq!(meta.title.as_deref(), Some("The Night Ferry"));
+}
+
+/// The byline of a page that names its author only in the article, as `line`.
+fn in_page_byline(line: &str) -> Option<String> {
+    let body = BODY.replace(
+        "<h1>The Night Ferry</h1>",
+        &format!("<h1>The Night Ferry</h1>{line}"),
+    );
+    let html = format!("<!doctype html><html><head><title>The Night Ferry</title></head><body>{body}</body></html>");
+    extract(&html, &url(), &ExtractOptions::default())
+        .meta
+        .byline
+}
+
+#[test]
+fn a_byline_the_article_shows_names_its_author_when_the_metadata_does_not() {
+    assert_eq!(
+        in_page_byline(r#"<p class="byline">By  Ada Brightwater</p>"#).as_deref(),
+        Some("Ada Brightwater")
+    );
+    // Near misses: a date, or a button, where the byline would be.
+    assert_eq!(
+        in_page_byline(r#"<p class="byline">Updated March 4, 2026</p>"#),
+        None
+    );
+    assert_eq!(
+        in_page_byline(r#"<p class="byline">Follow Author</p>"#),
+        None
+    );
+}

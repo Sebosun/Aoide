@@ -1,0 +1,22 @@
+{
+  "byline": "Tariq Panja",
+  "canonicalUrl": "https://www.nytimes.com/es/",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Entérate de lo que está pasando en el mundo y de las noticias económicas, de negocios, tecnología, arte, estilos de vida, deporte, ciencia y opiniones. No importa cuáles sean tus intereses: el Times lo cubre con inmejorable calidad, profundidad e independencia.",
+  "feeds": [
+    {
+      "title": "RSS",
+      "url": "https://rss.nytimes.com/services/xml/rss/nyt/es.xml"
+    }
+  ],
+  "language": "es",
+  "leadImage": "https://static01.nyt.com/newsgraphics/images/icons/defaultPromoCrop.png",
+  "published": null,
+  "siteName": null,
+  "title": "The New York Times en Español",
+  "warnings": [
+    "LeftOut { what: Figure, count: 22 }"
+  ],
+  "wordCount": 268
+}

@@ -68,26 +68,36 @@ Rules, each with fixtures in `crates/article/tests/`:
 
 - **Main content**: found by a readability-style extractor (evaluate the candidates in
   plan.md; wrap the chosen one behind this crate's API). Then converted to blocks by this
-  crate: `h1`–`h6` → heading with level, `p` and `blockquote` → paragraph, `li` → list item,
-  `pre` → preformatted. Inline markup is flattened to text; links keep their text.
+  crate: `h1`–`h6` → heading with level, `p` and `blockquote` → paragraph, `li` → list item
+  (its first block, when it wraps its text in `p`; later blocks of the item are paragraphs),
+  `pre` → preformatted. Inline markup is flattened to text; links keep their text. MathML is
+  read inline as its symbols, spaced, without its `annotation` (the TeX it was written in).
 - **Left out, with a warning each**: images, figures, tables, embeds, forms. "3 images were
   left out." Preserve uncertain text and warn, as the EPUB parser does.
-- **Metadata precedence**: JSON-LD `Article`/`NewsArticle` → Open Graph and `article:*` meta →
-  `<title>`, `<meta name="author">`, `<html lang>`, `<link rel="canonical">`. The title block
-  is not repeated at the top of the body when the body starts with the same heading.
-- **JSON-LD body**: when JSON-LD carries `articleBody` and it is longer than the extracted
-  body, the body is built from it (paragraphs split on blank lines) and a warning says so.
+- **Metadata precedence**: JSON-LD `Article`/`NewsArticle` (and `SocialMediaPosting`, also
+  inside a CDATA section) → Open Graph and `article:*` meta, with Dublin Core `dc:*` and
+  Parse.ly `parsely-*` where those are silent → `<title>`, `<meta name="author">`, the byline
+  the article shows ("By …" taken off; none when it holds a date or a button's words),
+  `<html lang>`, `<link rel="canonical">`. A meta's `property` wins over a `name`, and either
+  may list several keys. A title the page shows as a heading wins over the levels. The title
+  block is not repeated at the top of the body when the body starts with the same heading.
+- **JSON-LD body**: when JSON-LD carries `articleBody` and the extracted body falls short of it
+  (under 60 % of its words, as for `CutShort`), the body is built from it (paragraphs split on
+  blank lines) and a warning says so. A body a little longer is the same text with captions.
+- **Words**: what spaces separate; in Chinese and Japanese each character is a word.
 - **Completeness**:
   - `declared_words` comes from JSON-LD `wordCount`, else from `articleBody` length;
   - `CutShort` when declared is at least 300 and captured is under 60 % of it;
-  - `Wall(Paywall)` when JSON-LD says `isAccessibleForFree: false` and the body is short, or a
-    known paywall container is present;
+  - `Wall(Paywall)` when JSON-LD says `isAccessibleForFree: false`, or a known paywall
+    container is present, and the body is short (under 300 words, or cut short);
   - `Wall(SignIn)` when the page is a login form with almost no text;
   - `Wall(Check)` for challenge pages (a short page whose title or body matches the known
     "checking your browser" patterns);
   - `Empty` when fewer than 40 words were found.
   The patterns are data in one file of the crate, each with a fixture that triggers it and one
   that looks similar and must not.
+- **Crawled pages**: `crates/article/tests/pages/<corpus>/<page>/` keeps real pages with what
+  Aoide reads from them, reviewed (`tests/pages/README.md`); a change shows as a diff.
 - **URL normalisation**: lower-case scheme and host, drop the fragment, drop tracking
   parameters (`utm_*`, `fbclid`, `gclid`, ... from a list in the crate), keep other query
   parameters in their original order, drop a trailing slash only on an empty path.
@@ -296,8 +306,8 @@ Update `README.md` and `docs/roadmap.md`.
   feeds }`; an empty page is `Completeness::Empty`, not an error. dom_smoothie is pinned at
   0.18 (0.19 needs Rust 1.85; the MSRV is 1.77). html5ever and dom_smoothie are super-linear
   in nesting depth, so a page nested deeper than `ExtractOptions.max_depth` (256, measured by a
-  linear lexical scan first) is read as plain text with its chrome skipped. A JSON-LD
-  `headline` is used only when it shares most words with `og:title` or `<title>` (an
+  linear lexical scan first) is read as plain text with its chrome skipped. A title shown as
+  an `h1`/`h2` on the page wins; otherwise a JSON-LD `headline` is used only when it shares most words with `og:title` or `<title>` (an
   encyclopedia puts a description there); else its `name`, else the page's title. A site's
   name after the title ("Title | Site") is taken off when another level's title or an
   `h1`/`h2` on the page is the same without it. The fetcher follows a page that only

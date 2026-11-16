@@ -88,11 +88,11 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
         let signs = completeness::Signs::default();
         (scan::plain(html, options), read, signs, Vec::new())
     } else {
-        let (content, found_title) = readable(html, url, options);
+        let found = readable(html, url, options);
         let page = scraper::Html::parse_document(html);
         (
-            blocks::from_html(&content, options),
-            meta::read(&page, url, found_title),
+            blocks::from_html(&found.content, options),
+            meta::read(&page, url, found.title, found.byline),
             completeness::Signs::of(&page),
             meta::feeds(&page, url),
         )
@@ -101,10 +101,12 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
     let mut warnings = body.warnings;
     let mut meta = read.meta;
     let declared = read.declared;
-    // A page whose metadata carries more of the text than its markup: read the metadata's.
+    // A page whose markup falls short of the text its metadata carries (as a capture is judged
+    // cut short): read the metadata's. A body a little longer (captions, a credit line) is the
+    // same text, and the markup keeps its headings and lists.
     if let Some(full) = &declared.body {
         let captured: usize = blocks.iter().map(|b| words(&b.text)).sum();
-        if words(full) > captured {
+        if captured * 100 < words(full) * patterns::CUT_SHORT_PERCENT {
             blocks = paragraphs(full, options);
             warnings.push(Warning::BodyFromMetadata);
         }
@@ -203,22 +205,73 @@ fn config(options: &ExtractOptions) -> dom_smoothie::Config {
     }
 }
 
-/// The page narrowed to its main content, as HTML (empty when none was found), and the
-/// page's `<title>` with the site's name taken off.
-fn readable(html: &str, url: &Url, options: &ExtractOptions) -> (String, Option<String>) {
+/// What the content finder found.
+#[derive(Default)]
+struct Found {
+    /// The page narrowed to its main content, as HTML (empty when none was found).
+    content: String,
+    /// The page's `<title>` with the site's name taken off.
+    title: Option<String>,
+    /// The byline, from the page's metadata or else from the article ("By …" near its top).
+    byline: Option<String>,
+}
+
+fn readable(html: &str, url: &Url, options: &ExtractOptions) -> Found {
     let Ok(mut reader) =
         dom_smoothie::Readability::new(html, Some(url.as_str()), Some(config(options)))
     else {
-        return (String::new(), None);
+        return Found::default();
     };
     let title = Some(blocks::collapse(&reader.get_article_title())).filter(|t| !t.is_empty());
-    let content = reader
-        .parse()
-        .map(|article| article.content.to_string())
-        .unwrap_or_default();
-    (content, title)
+    let Ok(article) = reader.parse() else {
+        return Found {
+            title,
+            ..Found::default()
+        };
+    };
+    Found {
+        content: article.content.to_string(),
+        title,
+        byline: article.byline,
+    }
 }
 
-fn words(text: &str) -> usize {
-    text.split_whitespace().count()
+/// Words in `text`: what spaces separate, except in Chinese and Japanese, which are written
+/// without them; there each character counts as a word (as reading-time estimates count them),
+/// and so does each run of other letters or digits beside them ("DeepMind开发" is three).
+pub(crate) fn words(text: &str) -> usize {
+    text.split_whitespace()
+        .map(|token| {
+            if !token.chars().any(spaceless) {
+                return 1;
+            }
+            let mut count = 0;
+            let mut in_run = false;
+            for c in token.chars() {
+                if spaceless(c) {
+                    count += 1;
+                    in_run = false;
+                } else if c.is_alphanumeric() {
+                    count += usize::from(!in_run);
+                    in_run = true;
+                } else {
+                    in_run = false;
+                }
+            }
+            count
+        })
+        .sum()
+}
+
+/// A character of a script written without spaces between words: Han (CJK ideographs and their
+/// extensions), Hiragana and Katakana.
+fn spaceless(c: char) -> bool {
+    matches!(c,
+        '\u{3040}'..='\u{30ff}'
+        | '\u{31f0}'..='\u{31ff}'
+        | '\u{3400}'..='\u{4dbf}'
+        | '\u{4e00}'..='\u{9fff}'
+        | '\u{f900}'..='\u{faff}'
+        | '\u{ff66}'..='\u{ff9f}'
+        | '\u{20000}'..='\u{3134f}')
 }

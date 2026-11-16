@@ -1,0 +1,33 @@
+{
+  "byline": null,
+  "canonicalUrl": "https://www.seattletimes.com/business/amazon/alaskan-halibut-caught-by-a-century-old-seattle-boat-provides-a-glimpse-of-amazons-strategy-with-whole-foods/",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "The story of Whole Foods’ halibut deal opens a window into Amazon’s grocery strategy and draws a line from a Seattle industry with roots in the 19th century to the dominant economic force of the 21st.",
+  "feeds": [
+    {
+      "title": "The Seattle Times » Feed",
+      "url": "https://www.seattletimes.com/feed/"
+    },
+    {
+      "title": "The Seattle Times » Comments Feed",
+      "url": "https://www.seattletimes.com/comments/feed/"
+    },
+    {
+      "title": "The Seattle Times » Alaskan halibut, caught by a century-old Seattle boat, provides a glimpse of Amazon’s strategy with Whole Foods Comments Feed",
+      "url": "https://www.seattletimes.com/business/amazon/alaskan-halibut-caught-by-a-century-old-seattle-boat-provides-a-glimpse-of-amazons-strategy-with-whole-foods/feed/"
+    }
+  ],
+  "language": "en-US",
+  "leadImage": "https://static.seattletimes.com/wp-content/uploads/2019/04/120028-1200x630.jpg",
+  "published": {
+    "atMs": 1556431267000,
+    "text": "2019-04-28 06:01:07"
+  },
+  "siteName": "The Seattle Times",
+  "title": "Alaskan halibut, caught by a century-old Seattle boat, provides a glimpse of Amazon’s strategy with Whole Foods",
+  "warnings": [
+    "LeftOut { what: Figure, count: 1 }"
+  ],
+  "wordCount": 2052
+}

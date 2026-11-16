@@ -1,0 +1,18 @@
+{
+  "byline": "Alex Perry",
+  "canonicalUrl": "http://www.msn.com/en-us/news/technology/nintendos-first-iphone-game-will-launch-in-december-for-dollar10/ar-AAkm7Xj",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Nintendo and Apple shocked the world earlier this year by announcing \"Super Mario Run,\" the legendary gaming company's first foray into mobile gaming.",
+  "feeds": [],
+  "language": "en-US",
+  "leadImage": "http://img-s-msn-com.akamaized.net/tenant/amp/entityid/AAkk5fh.img",
+  "published": null,
+  "siteName": "MSN",
+  "title": "Nintendo's first iPhone game will launch in December for $10",
+  "warnings": [
+    "LeftOut { what: Image, count: 1 }",
+    "LeftOut { what: Embed, count: 1 }"
+  ],
+  "wordCount": 277
+}

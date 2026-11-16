@@ -1,0 +1,17 @@
+{
+  "byline": null,
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [],
+  "language": null,
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "Base URL with base relative test",
+  "warnings": [
+    "LeftOut { what: Image, count: 5 }"
+  ],
+  "wordCount": 139
+}

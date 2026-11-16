@@ -6,6 +6,10 @@
 //! AOIDE_TEST_ARTICLE_URL=https://example.org/some-article \
 //! cargo test -p aoide-fetch --test live_page -- --ignored --nocapture
 //! ```
+//!
+//! With `AOIDE_SAVE_PAGE=<corpus>/<name>` it also keeps the page as fetched, with its address,
+//! in `crates/article/tests/pages/<corpus>/<name>/` for the crawled-page regression tests
+//! (`crates/article/tests/pages/README.md` says how to review and add one).
 use aoide_article::{extract, ExtractOptions};
 use aoide_fetch::{FetchOptions, HttpFetcher, Via};
 use url::Url;
@@ -33,6 +37,15 @@ async fn a_real_page_is_fetched_and_extracted() {
         extracted.meta.word_count,
         extracted.completeness
     );
+    if let Ok(name) = std::env::var("AOIDE_SAVE_PAGE") {
+        let folder = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../article/tests/pages")
+            .join(name.trim_matches('/'));
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("source.html"), &snapshot.html).unwrap();
+        std::fs::write(folder.join("url"), format!("{}\n", snapshot.final_url)).unwrap();
+        println!("kept in {}", folder.display());
+    }
     assert_eq!(extracted.document.chapters.len(), 1);
     assert!(extracted.meta.word_count > 0, "no text was found");
 }

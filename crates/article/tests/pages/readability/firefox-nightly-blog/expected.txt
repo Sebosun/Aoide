@@ -1,0 +1,204 @@
+### Highlights
+
+- Here’s our Firefox Year in Review!
+
+- Here’s our Performance Year in Review!
+
+- We’ve just landed Bug 1553982, which aims to prevent starting an update while another Firefox instance is running (the cause of that about:restartrequired error page you may have seen).
+
+- Users who run multiple user profiles concurrently will probably see this less!
+
+- Also just about to land is Bug 353804, which provides some support for downloading new updates when we already have an update downloaded but haven’t installed it yet. That should prevent many cases of restarting to finish an update and then immediately being notified about another one.
+
+- Thanks to evilpie, users can now import logins from Keepass(XC) into Firefox
+
+- From Firefox 85 it’s now possible to disable tab-to-search on a per-engine basis, by unchecking a search engine in Search Preferences. That will both hide the shortcut button and disable tab-to-search for the engine. (Bug 1681512)
+
+- From Firefox 85 it’s also possible to disable tab-to-search globally by unchecking the Search Engines checkbox in the Address Bar Preferences, under Privacy & Security.
+
+- Firefox now supports printing non-contiguous page ranges (e.g. 1-3, 6, 7) – Bug 499640
+
+- DevTools and Marionette are now fully Fission compatible! Congratulations to those teams!
+
+- Reminder: Nightly users can help us test Fission by enabling it in about:preferences#experimental, and filing bugs here
+
+### Friends of the Firefox team
+
+#### Introductions/Shout-Outs
+
+- [harry] Amy Churchwell joins the Search & Navigation team today. She transferred internally from Marketing Engineering. Welcome Amy!
+
+#### Resolved bugs (excluding employees)
+
+#### Fixed more than one bug
+
+- Masatoshi Kimura [:emk]
+
+- Michelle Goossens [:masterwayz]
+
+- Sonia
+
+- Tim Nguyen :ntim
+
+#### New contributors (🌟 = first patch)
+
+- 🌟 Ankush Dua fixed an issue with revoked devtools_page permissions for WebExtensions
+
+- 🌟 gero removed the windowtype attribute from dialogs where we didn’t need it anymore
+
+- manekenpix converted some DevTools code to use DOM Promises instead of the defer library
+
+### Project Updates
+
+#### Add-ons / Web Extensions
+
+##### Addon Manager & about:addons
+
+- Starting from Firefox 85, Mozilla-signed privileged addons can be installed from a third party website without triggering the “third party addon install doorhanger” (and without having to add new “install” site permission for those hosts, e.g. as we had to do for fpn.firefox.com) – Bug 1681331
+
+- Fixed addon startup issue when an extension sideloaded in the profile is updated on disk (Bug 1664144)
+
+- Some more small about:addons cleanup from ntim (Bug 1678173, Bug 1678865, Bug 1678866). Thanks a lot, ntim!
+
+##### WebExtensions Framework
+
+- Ankush Dua contributed a fix for the devtools optional_permission (the devtools optional_permission can be used by extension, like ABP, that provides a devtools panel as a secondary feature of the addon) – Bug 1671579
+
+- Fixed content scripts applied to webpages loaded as subframes of an extension browserAction/pageAction popup when Fission is enabled – Bug 1680877
+
+- Fixed addon startup issue when webRequest is moved from permissions to optional_permissions in an addon update (regression from Bug 1624235) – Bug 1637059
+
+#### Developer Tools
+
+- DevTools Fission M2 – Making DevTools Fission compatible DONE.
+
+- Our DevTools are ready for Fission (out-of-process iframes)!
+
+- Marionette Fission – Making Marionette Fission compatible DONE
+
+- Marionette, the framework that allows Firefox to be tested with automation, is now Fission compatible too!
+
+#### Fission
+
+- Neil has patches up to improve the behaviour of the tab unloader, and show UI when subframes crash
+
+#### Installer & Updater
+
+- Background updater work is also proceeding, with Bug 1676296 landing last week to support managing scheduled tasks in Gecko, and more development still also happening on the background task framework.
+
+#### New Tab Page and Pocket
+
+- We’re running three experiments:
+
+- Newtab Pocket stories in AU and NZ
+
+- New signup/login call-to-action in the Pocket doorhanger
+
+- We’re testing some changes to newtab story personalization
+
+#### Password Manager
+
+- Dimi fixed Bug 1677710 The password manager code triggers main thread sqlite disk I/O off of the gather-telemetry notification
+
+- And Bug 1678200 Remove or update probes expiring in Firefox 86: pwmgr.doorhanger_submitted#doorhanger_submitted
+
+- Thanks for Kenrick95 for fixing Bug 1678616 about:logins menu problem
+
+- 2021 Planning underway
+
+#### PDFs & Printing
+
+- mstriemer put a Printing… message in the dialog and hid the popup dialog which showed progress, the cancel button on that dialog caused problems and it looked dated Bug 1679133
+
+- mstriemer hid the print setting that don’t relate to PDFs when a PDF is being printed Bug 1669725
+
+- mstriemer updated the form to be disabled when loading a printer’s settings. Sometimes loading a physical printer’s settings can take a few settings and changes could be lost in this time Bug 1676388
+
+- emalysz made a change to avoid updating the preview for some settings that can’t change the preview output Bug 1676199
+
+- sfoster added a paginator to the preview when it’s hovered to show current page, next/prev/first/last buttons Bug 1654684
+
+- emalysz added support for non-contiguous page ranges (ex: 1-3, 6, 7) Bug 499640
+
+- emalysz fixed an issue where the form could get disabled with custom margins interactions Bug 1674106
+
+#### Performance
+
+- emalysz continues to make progress leading the charge migrating us from OS.File to IOUtils
+
+- Shout out to barret for landing necessary changes to IOUtils to support the migration!
+
+- Currently investigating a bizarre ts_paint_webext regression caused by one of these conversions
+
+- emalysz fixed a performance issue with the Screenshots feature, and made it more compatible with Fission
+
+- bigiri has a patch to move SharedDataMap.jsm off of OSFile
+
+- florian’s team has landed some great documentation for the new profiler marker API
+
+- florian has some new visualization variations up for the BHR dashboard
+
+- showFrames
+
+- onlyXulLeaf
+
+- skipKnownBugs
+
+- This BHR dashboard helped identify a hang caused by the password manager code, which has been recently fixed! Thanks, dimi!
+
+- Gijs made the Bookmarks Toolbar initialization occur later in the startup window
+
+- Gijs fixed some flicker that occurred when launching the browser with the Bookmarks Toolbar enabled
+
+- mconley fixed an AsyncShutdown hang caused by the about:home startup cache
+
+- mconley re-enabled TART
+
+- dthayer has some fixes and polish for the pre-XUL skeleton UI
+
+#### Picture-in-Picture
+
+- We’ve got the green light for another round of MSU students hacking on Picture-in-Picture next semester! mhowell and mtigley will be mentoring them.
+
+- In progress:
+
+- Bug 1677080 – Fullscreen PiP window is affected by switching video source
+
+- Bug 1677107 – Add Telemetry for tracking multiple PiP support usage
+
+- Bug 1681796 – Prevent superfluous PictureInPictureParent actors from being associated with each tab
+
+- Bug 1680796 – Ensure that the tab’s Toolkit:PictureInPicture actor is destroyed before moving to next test
+
+- Bug 1678390 – Prevent Picture-in-Picture windows from opening on top of one another
+
+#### Search and Navigation
+
+- Fixed regressions related to Input Method Editor, in particular loss of the last token (Bug 1673669) and race conditions causing the wrong search engine to be used or Search Mode to be lost (Bug 1679697, Bug 1678647)
+
+- Introduced a new advanced preference to keep the Address Bar results panel open during IME composition. This provides a better experience for keyboard layouts that don’t open a picker panel. In the future we hope to be able to auto-detect that situation, but in the meanwhile, you can flip browser.urlbar.imeCompositionClosesPanel to false and test the alternative behavior (Bug 1673971)
+
+- URL canonization (www.*.com) now uses https by default, the protocol can be customized through the browser.fixup.alternate.protocol advanced pref (Bug 1638215)
+
+- Work continued on the weather QuickSuggest experiment, but its release has been moved to January.
+
+- Region.jsm now can use a Geolocation monitor to update without hitting the network (Bug 1663501)
+
+- Fixed a bug where search engines were being re-added on startup after their removal, when using a language pack (Bug 1675624)
+
+### 2 comments on “These Weeks in Firefox: Issue 85”
+
+Post a comment
+
+#### Alan Goodale wrote on December 24, 2020 at 3:53 am:
+
+Enhancement: Are there plans to provide a “collections” functionality for the desktop similar to what was released on Android? I need to be able to group the current instance of tabs into common “themes”. Close and open entire collections (themes) independently, with a single click. Read and update those same tabs, and then close them again with the latest URL of each tab being saved, rather than just the original seed URL. It’s similar to the “Restore previous session” functionality currently under Options\General\Startup, but different in that there would be multiple named “sessions” that could be restored individually, rather than just the one. It would also be helpful if the original seed URL for each tab could still be accessible, perhaps through a right click on the tab, but the latest viewed instance is the most important. Sync to Android would be a very desirable bonus.
+
+Reply
+
+#### John Doe wrote on February 9, 2021 at 10:16 pm:
+
+Thank you for fixing Bug 1553982! I have moved most of my work to another browser due to the need to restart so often but will try Firefox again now.
+
+Reply
+

@@ -1,0 +1,22 @@
+{
+  "byline": null,
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [
+    {
+      "title": null,
+      "url": "http://fakehost/feeds/main"
+    }
+  ],
+  "language": "en",
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "Daring Fireball: Colophon",
+  "warnings": [
+    "LeftOut { what: Image, count: 1 }"
+  ],
+  "wordCount": 202
+}

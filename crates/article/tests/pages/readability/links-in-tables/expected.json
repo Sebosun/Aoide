@@ -1,0 +1,31 @@
+{
+  "byline": null,
+  "canonicalUrl": "https://android-developers.googleblog.com/2016/12/saving-data-reducing-the-size-of-app-updates-by-65-percent.html",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Posted by Andrew Hayden, Software Engineer on Google Play Android users are downloading tens of billions of apps and games on Google Pla...",
+  "feeds": [
+    {
+      "title": "Android Developers Blog - Atom",
+      "url": "https://android-developers.googleblog.com/feeds/posts/default"
+    },
+    {
+      "title": "Android Developers Blog - RSS",
+      "url": "https://android-developers.googleblog.com/feeds/posts/default?alt=rss"
+    },
+    {
+      "title": "Android Developers Blog - Atom",
+      "url": "https://android-developers.googleblog.com/feeds/2701400044422363572/comments/default"
+    }
+  ],
+  "language": null,
+  "leadImage": "https://2.bp.blogspot.com/-chCZZinlUTg/WEcxvJo9gdI/AAAAAAAADnk/3ND_BspqN6Y2j5xxkLFW3RyS2Ig0NHZpQCLcB/w1200-h630-p-k-nu/ipsum-opsum.gif",
+  "published": null,
+  "siteName": null,
+  "title": "Saving Data: Reducing the size of App Updates by 65%",
+  "warnings": [
+    "LeftOut { what: Image, count: 2 }",
+    "LeftOut { what: Table, count: 1 }"
+  ],
+  "wordCount": 905
+}

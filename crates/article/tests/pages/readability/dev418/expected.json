@@ -1,0 +1,18 @@
+{
+  "byline": null,
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [],
+  "language": null,
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "Readability Test",
+  "warnings": [
+    "LeftOut { what: Image, count: 4 }",
+    "LeftOut { what: Figure, count: 4 }"
+  ],
+  "wordCount": 192
+}

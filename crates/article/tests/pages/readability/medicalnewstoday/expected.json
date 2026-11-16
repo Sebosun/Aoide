@@ -1,0 +1,22 @@
+{
+  "byline": "Ana Sandoiu",
+  "canonicalUrl": "https://www.medicalnewstoday.com/articles/318674.php",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "New research investigates the neurobiological timing of the so-called a-ha! moment that occurs we have come up with the solution to a complex problem.",
+  "feeds": [
+    {
+      "title": "Medical News Today - Health News Headlines RSS Feed",
+      "url": "https://rss.medicalnewstoday.com/featurednews.xml"
+    }
+  ],
+  "language": "en",
+  "leadImage": "https://cdn1.medicalnewstoday.com/content/images/headlines/318/318674/hand-holding-brain-lightbulb.jpg",
+  "published": null,
+  "siteName": "Medical News Today",
+  "title": "How does the brain turn unconscious information into conscious thought?",
+  "warnings": [
+    "LeftOut { what: Image, count: 1 }"
+  ],
+  "wordCount": 953
+}

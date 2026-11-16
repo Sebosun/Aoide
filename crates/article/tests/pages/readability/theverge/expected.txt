@@ -1,0 +1,44 @@
+I still remember using the iPhone 4 for the first time in 2010. That was when Apple shipped its first-ever Retina display and Steve Jobs said that, once you use it, “you can’t go back.” It was something I couldn’t unsee, like looking through prescription glasses for the first time.
+
+That’s exactly how I felt after a demo of the Apple Vision Pro yesterday at the company’s headquarters in Cupertino, California. A computer you strap to your face should be primarily judged not only by what you can do with it but also by the quality of what you can see through it. The Vision Pro blows away every other headset in this regard. It’s the industry’s Retina display moment. There’s no going back.
+
+The headset packs an insane 23 megapixels into dual MicroOLED panels, meaning that each eye looks through a roughly 4K display. The $1,000 Meta Quest Pro, by contrast, has a resolution of 1800 x 1920 per eye. For those who need vision correction like me, Apple has partnered with Zeiss to sell prescription inserts that clip onto the inner-facing displays. That helps make the headset not only thinner but, in my experience, also much more comfortable to wear.
+
+After scanning my face and ears on an iPhone to calibrate the device to my head (the experience will be immediately familiar to anyone who has set up Face ID), I handed my glasses to an optometrist Apple had on-site to have my prescription made for the demo. After a few minutes, I was whisked into another brightly lit, temperature-controlled room with a headset that had my prescription inserted.
+
+I wasn’t allowed to record or capture footage of my Vision Pro demo, so this photo from Apple will have to do.
+
+Visually, the most memorable experience of my roughly 30-minute, highly controlled demo wasn’t the butterfly landing on my finger, the 3D Avatar clip, or even viewing Apple’s new surreal 3D photos and videos. It was when I had three windows open at once for Messages, Safari, and Photos. I used the headset’s eye tracking and pinching gesture to quickly (and I do mean quickly — navigating this way is incredibly intuitive) place each window at a different depth in the room.
+
+I placed Messages to my immediate right and almost uncomfortably close to my face, Safari in the middle of the room, and Photos against the wall I was facing. I could see Messages up close just as clearly as the text in the Photos app more than eight feet away. There were no discernible pixels anywhere.
+
+My colleague David Pierce, who also tried the Vision Pro this week, has already pointed out that it will be a great TV. I agree and could see myself actually watching a movie in it, which is something I’d never say about the other headsets out there. It’s clear that Apple chose not to compromise on the quality of the visual experience, even if it means that buying the Vision Pro with prescription inserts will likely cost as much as a used Ford Focus.
+
+There’s plenty about the Vision Pro that remains to be seen, namely the front face display that can show where the wearer’s eyes are looking. It wasn’t turned on for my demo and appears to not be finished. I wasn’t allowed to use the virtual keyboard, and the ability to take what Apple is calling “spatial” photos and videos through a dedicated button on the headset wasn’t enabled. I fully expect the software I experienced to change a lot before the device ships next year, which makes it easiest to judge the Vision Pro on what won’t change.
+
+It’s easiest to judge the Vision Pro on what won’t change
+
+Apple’s goal for the Vision Pro is clearly to get developers building for the headset and figuring out its killer apps for future, cheaper versions, so not compromising on the display initially is the right call. It’s a compelling enough leap forward for headset optics alone to make the device worth trying. Like that first Retina display, it’s something you can’t unsee.
+
+Sign up for Command Line, a paid weekly newsletter from Alex Heath about the tech industry’s inside conversation. Your first month is free!
+
+## Monthly
+
+$7/month
+
+A flexible plan you can cancel anytime.
+
+## Annual
+
+$70/year
+
+A discounted plan to keep you up to date all year.
+
+## Corporate
+
+$60/person/year
+
+Keep your team informed on the inside conversation.
+
+We accept credit card, Apple Pay and Google Pay.
+

@@ -1,0 +1,23 @@
+{
+  "byline": null,
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [
+    {
+      "title": "LWN.net headlines",
+      "url": "http://lwn.net/headlines/newrss"
+    }
+  ],
+  "language": null,
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "LWN.net Weekly Edition for March 26, 2015 [LWN.net]",
+  "warnings": [
+    "LeftOut { what: Image, count: 4 }",
+    "LeftOut { what: Table, count: 4 }"
+  ],
+  "wordCount": 3603
+}

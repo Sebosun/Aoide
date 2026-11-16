@@ -1,0 +1,26 @@
+{
+  "byline": "Mac & i",
+  "canonicalUrl": "http://www.heise.de/mac-and-i/meldung/1Password-fuer-Mac-generiert-Einmal-Passwoerter-2596987.html",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Das in der iOS-Version bereits enthaltene TOTP-Feature ist nun auch für OS X 10.10 verfügbar. Zudem gibt es neue Zusatzfelder in der Datenbank und weitere Verbesserungen.",
+  "feeds": [
+    {
+      "title": "Aktuelle News von Mac & i",
+      "url": "http://www.heise.de/mac-and-i/news-atom.xml"
+    },
+    {
+      "title": "Aktuelle News von Mac & i (für ältere RSS-Reader)",
+      "url": "http://www.heise.de/mac-and-i/news.rdf"
+    }
+  ],
+  "language": "de-DE",
+  "leadImage": "http://www.heise.de/imgs/18/1/4/6/2/3/5/1/Barcode-Scanner-With-Border-f0c62350bd8d9d96.jpeg",
+  "published": null,
+  "siteName": "Mac & i",
+  "title": "1Password für Mac generiert Einmal-Passwörter",
+  "warnings": [
+    "LeftOut { what: Figure, count: 1 }"
+  ],
+  "wordCount": 246
+}

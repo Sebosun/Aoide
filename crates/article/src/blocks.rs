@@ -25,7 +25,7 @@ const INLINE: &[&str] = &[
 
 /// Elements that carry nothing to read.
 const SILENT: &[&str] = &[
-    "script", "style", "noscript", "template", "head", "svg", "math", "canvas", "button", "select",
+    "script", "style", "noscript", "template", "head", "svg", "canvas", "button", "select",
     "textarea", "input", "map",
 ];
 
@@ -51,6 +51,8 @@ enum Step<'a> {
     Visit(NodeRef<'a, Node>, BlockKind),
     /// The end of a block element: what ran on inside it is one block.
     Close,
+    /// The end of a list item.
+    EndItem,
 }
 
 struct Builder<'o> {
@@ -60,6 +62,9 @@ struct Builder<'o> {
     left_out: BTreeMap<LeftOut, usize>,
     running: String,
     running_kind: BlockKind,
+    /// For each list item being read, how many blocks there were when it began: its first
+    /// block is the item, later ones are paragraphs that continue it.
+    items: Vec<usize>,
 }
 
 impl Builder<'_> {
@@ -71,6 +76,14 @@ impl Builder<'_> {
         if text.is_empty() || self.full() {
             return;
         }
+        let continues = self
+            .items
+            .last()
+            .is_some_and(|&start| self.blocks.len() > start);
+        let kind = match kind {
+            BlockKind::ListItem if continues => BlockKind::Paragraph,
+            kind => kind,
+        };
         self.bytes += text.len();
         self.blocks.push(Block { kind, text });
     }
@@ -97,6 +110,7 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
         left_out: BTreeMap::new(),
         running: String::new(),
         running_kind: BlockKind::Paragraph,
+        items: Vec::new(),
     };
     let mut steps = vec![Step::Visit(fragment.tree.root(), BlockKind::Paragraph)];
     while let Some(step) = steps.pop() {
@@ -107,6 +121,10 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
             Step::Visit(node, kind) => (node, kind),
             Step::Close => {
                 builder.flush();
+                continue;
+            }
+            Step::EndItem => {
+                builder.items.pop();
                 continue;
             }
         };
@@ -134,6 +152,10 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
             builder.run_on(" ", kind);
             continue;
         }
+        if name == "math" {
+            builder.run_on(&formula(node), kind);
+            continue;
+        }
         if INLINE.contains(&name) {
             steps.extend(node.children().rev().map(|c| Step::Visit(c, kind)));
             continue;
@@ -147,10 +169,16 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
         let inner = match (heading(name), name) {
             (Some(level), _) => BlockKind::Heading { level },
             (None, "li") => BlockKind::ListItem,
+            // A paragraph in a list item is the item (or continues it).
+            (None, "p" | "blockquote") if kind == BlockKind::ListItem => kind,
             (None, "p" | "blockquote") => BlockKind::Paragraph,
             // Any other block keeps the kind it sits in, so a `div` in a list item is the item.
             (None, _) => kind,
         };
+        if name == "li" {
+            builder.items.push(builder.blocks.len());
+            steps.push(Step::EndItem);
+        }
         steps.push(Step::Close);
         steps.extend(node.children().rev().map(|c| Step::Visit(c, inner)));
     }
@@ -187,6 +215,24 @@ fn preformatted(node: NodeRef<'_, Node>, left: &mut BTreeMap<LeftOut, usize>) ->
     let text = text.replace("\r\n", "\n");
     let text = text.strip_prefix('\n').unwrap_or(&text);
     text.trim_end().to_owned()
+}
+
+/// A formula's text as it reads in its sentence: its symbols with a space between them, without
+/// the source it was written in (TeX in an `annotation`), as EPUBs and Readability read MathML.
+fn formula(node: NodeRef<'_, Node>) -> String {
+    let mut text = String::new();
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        match node.value() {
+            Node::Text(t) => text.push_str(t),
+            Node::Element(e) if !e.name().starts_with("annotation") => {
+                text.push(' ');
+                stack.extend(node.children().rev());
+            }
+            _ => {}
+        }
+    }
+    collapse(&text)
 }
 
 /// Runs of whitespace as one space, none at either end.

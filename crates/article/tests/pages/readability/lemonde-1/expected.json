@@ -1,0 +1,22 @@
+{
+  "byline": "Martin Untersinger (avec Damien Leloup et Morgane Tual)",
+  "canonicalUrl": "http://www.lemonde.fr/pixels/article/2015/05/04/que-contient-la-loi-sur-le-renseignement_4627068_4408996.html",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Largement approuvé par les députés, le texte sera désormais examiné par le Sénat, puis le Conseil constitutionnel.",
+  "feeds": [
+    {
+      "title": "Le Monde.fr : Pixels",
+      "url": "http://www.lemonde.fr/pixels/rss_full.xml"
+    }
+  ],
+  "language": "fr-FR",
+  "leadImage": "http://s1.lemde.fr/image/2015/05/05/600x315/4628128_3_47fc_projet-de-loi-renseignement_aeba800424730d672d1bd08faf203438.jpg",
+  "published": null,
+  "siteName": "Le Monde.fr",
+  "title": "Le projet de loi sur le renseignement massivement approuvé à l'Assemblée",
+  "warnings": [
+    "LeftOut { what: Embed, count: 1 }"
+  ],
+  "wordCount": 1540
+}

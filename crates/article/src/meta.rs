@@ -1,6 +1,7 @@
 //! What the page says about itself. Three levels, each field taken from the first that has it:
-//! JSON-LD `Article` (or a kind of it), then Open Graph and `article:*` meta, then the plain page
-//! (`<title>`, `<meta name="author">`, `<html lang>`, `<link rel="canonical">`).
+//! JSON-LD `Article` (or a kind of it), then Open Graph and `article:*` meta (with Dublin Core
+//! `dc:*` and Parse.ly `parsely-*` where those say nothing), then the plain page (`<title>`,
+//! `<meta name="author">`, `<html lang>`, `<link rel="canonical">`).
 
 use scraper::{Html, Selector};
 use serde_json::Value;
@@ -23,6 +24,7 @@ const ARTICLE_TYPES: &[&str] = &[
     "Report",
     "ScholarlyArticle",
     "TechArticle",
+    "SocialMediaPosting",
 ];
 
 /// One level's answers.
@@ -55,10 +57,20 @@ pub(crate) struct Read {
 }
 
 /// Reads the page's metadata. `found_title` is the content finder's title, which has the
-/// site's name taken off; it stands in for `<title>` when there is one.
-pub(crate) fn read(page: &Html, url: &Url, found_title: Option<String>) -> Read {
+/// site's name taken off; it stands in for `<title>` when there is one. `found_byline` is the
+/// content finder's byline, the last one to fall back on.
+pub(crate) fn read(
+    page: &Html,
+    url: &Url,
+    found_title: Option<String>,
+    found_byline: Option<String>,
+) -> Read {
     let (json, declared) = json_ld(page);
-    let levels = [json, open_graph(page), plain(page, found_title)];
+    let levels = [
+        json,
+        open_graph(page),
+        plain(page, found_title, found_byline),
+    ];
     let pick = |field: fn(&Level) -> &Option<String>| levels.iter().find_map(|l| field(l).clone());
     let link = |field: fn(&Level) -> &Option<String>| {
         levels
@@ -87,18 +99,32 @@ pub(crate) fn read(page: &Html, url: &Url, found_title: Option<String>) -> Read 
     }
 }
 
-/// JSON-LD's `headline`, else its `name`, when it agrees with the page's own titles (some
-/// sites put a description of the subject in `headline`); else the first page title. A site's
+/// The title one of the page's `headings` shows, from any level (social titles are often
+/// rewritten for sharing); else JSON-LD's `headline`, else its `name`, when it agrees with the
+/// page's own titles (some sites put a description of the subject in `headline`); else the
+/// first page title. A site's
 /// name after it ("Title | Site") is taken off when another level's title or one of the page's
 /// `headings` is the same without it.
 fn title(levels: &[Level; 3], headings: &[String]) -> Option<String> {
     let [json, rest @ ..] = levels;
     let page: Vec<&str> = rest.iter().filter_map(|l| l.title.as_deref()).collect();
     let agrees = |title: &str| page.is_empty() || page.iter().any(|p| alike(title, p));
-    let chosen = [&json.title, &json.other_title]
+    let shown = [&json.title, &json.other_title]
         .into_iter()
+        .chain(rest.iter().map(|l| &l.title))
         .flatten()
-        .find(|t| agrees(t))
+        .find(|t| {
+            headings
+                .iter()
+                .any(|h| h.to_lowercase() == t.to_lowercase())
+        });
+    let chosen = shown
+        .or_else(|| {
+            [&json.title, &json.other_title]
+                .into_iter()
+                .flatten()
+                .find(|t| agrees(t))
+        })
         .cloned()
         .or_else(|| rest.iter().find_map(|l| l.title.clone()))?;
     let shorter = levels
@@ -162,7 +188,9 @@ fn json_ld(page: &Html) -> (Level, Declared) {
                 .attr("type")
                 .is_some_and(|t| t.trim().eq_ignore_ascii_case("application/ld+json"))
         })
-        .filter_map(|s| serde_json::from_str::<Value>(s.text().collect::<String>().trim()).ok())
+        .filter_map(|s| {
+            serde_json::from_str::<Value>(without_cdata(&s.text().collect::<String>())).ok()
+        })
         .find_map(|value| article_node(&value).cloned());
     let Some(node) = node else {
         return Default::default();
@@ -211,6 +239,21 @@ fn json_ld(page: &Html) -> (Level, Declared) {
         }),
     };
     (level, declared)
+}
+
+/// A script's text without the CDATA section some pages wrap it in (`//<![CDATA[ … //]]>`).
+fn without_cdata(text: &str) -> &str {
+    let text = text.trim();
+    let Some(inner) = text
+        .strip_prefix("//")
+        .map(str::trim_start)
+        .unwrap_or(text)
+        .strip_prefix("<![CDATA[")
+    else {
+        return text;
+    };
+    let inner = inner.strip_suffix("]]>").unwrap_or(inner).trim_end();
+    inner.strip_suffix("//").unwrap_or(inner).trim()
 }
 
 /// The first node in `value` (an object, an array, or a `@graph`) typed as an article.
@@ -280,39 +323,42 @@ fn image(value: &Value) -> Option<String> {
 
 // --- Open Graph and article:* -----------------------------------------------------------------
 
+/// The content of the first `<meta>` whose `property` names `key`, else of the first whose
+/// `name` does; either may name several keys, separated by spaces. Empty contents do not count.
 fn meta_content(page: &Html, key: &str) -> Option<String> {
     let metas = selector("meta[content]");
-    page.select(&metas)
-        .find(|m| {
-            let e = m.value();
-            [e.attr("property"), e.attr("name")]
-                .into_iter()
-                .flatten()
-                .any(|k| k.trim().eq_ignore_ascii_case(key))
-        })
-        .and_then(|m| m.value().attr("content"))
-        .and_then(clean)
+    let names_key = |keys: Option<&str>| {
+        keys.is_some_and(|keys| keys.split_whitespace().any(|k| k.eq_ignore_ascii_case(key)))
+    };
+    ["property", "name"].into_iter().find_map(|attr| {
+        page.select(&metas)
+            .filter(|m| names_key(m.value().attr(attr)))
+            .find_map(|m| m.value().attr("content").and_then(clean))
+    })
 }
 
 fn open_graph(page: &Html) -> Level {
     let get = |key: &str| meta_content(page, key);
+    let first = |keys: &[&str]| keys.iter().find_map(|k| get(k));
     Level {
-        title: get("og:title"),
+        title: first(&["og:title", "dc:title", "parsely-title"]),
         // `article:author` is often a profile link rather than a name.
-        byline: get("article:author").filter(|a| !a.starts_with("http")),
+        byline: get("article:author")
+            .filter(|a| !a.starts_with("http"))
+            .or_else(|| first(&["dc:creator", "parsely-author"])),
         site_name: get("og:site_name"),
-        published: get("article:published_time"),
+        published: first(&["article:published_time", "parsely-pub-date"]),
         language: get("og:locale").map(|l| l.replace('_', "-")),
         canonical: get("og:url"),
         image: get("og:image").or_else(|| get("og:image:url")),
-        description: get("og:description"),
+        description: first(&["og:description", "dc:description"]),
         other_title: None,
     }
 }
 
 // --- The plain page ---------------------------------------------------------------------------
 
-fn plain(page: &Html, found_title: Option<String>) -> Level {
+fn plain(page: &Html, found_title: Option<String>, found_byline: Option<String>) -> Level {
     let title = found_title.or_else(|| {
         page.select(&selector("title"))
             .next()
@@ -330,7 +376,8 @@ fn plain(page: &Html, found_title: Option<String>) -> Level {
         .map(str::to_owned);
     Level {
         title,
-        byline: meta_content(page, "author"),
+        byline: meta_content(page, "author")
+            .or_else(|| found_byline.as_deref().and_then(byline_shown)),
         site_name: None,
         published: None,
         language: page
@@ -343,6 +390,41 @@ fn plain(page: &Html, found_title: Option<String>) -> Level {
         description: meta_content(page, "description"),
         other_title: None,
     }
+}
+
+/// Words that mark a line near the top of an article as something other than its byline.
+const NOT_A_BYLINE: &[&str] = &[
+    "follow",
+    "updated",
+    "published",
+    "posted",
+    "share",
+    "subscribe",
+    "comments",
+];
+
+/// The author's name in a byline taken from the article: "By" (and its kin) taken off, and none
+/// when what was taken holds a date, a button's words or several credits ("… Edited by …").
+fn byline_shown(line: &str) -> Option<String> {
+    let line = clean(line)?;
+    let name = ["written by ", "by ", "par ", "por ", "von ", "door ", "di "]
+        .iter()
+        .find_map(|p| {
+            let head = line.get(..p.len())?;
+            head.eq_ignore_ascii_case(p)
+                .then(|| line[p.len()..].trim_start())
+        })
+        .unwrap_or(&line);
+    let words: Vec<String> = name
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .map(str::to_lowercase)
+        .collect();
+    let refused = name.chars().any(|c| c.is_ascii_digit())
+        || words
+            .iter()
+            .any(|w| w == "by" || NOT_A_BYLINE.contains(&w.as_str()));
+    (!refused && !name.is_empty()).then(|| name.to_owned())
 }
 
 // --- Feeds ----------------------------------------------------------------------------------

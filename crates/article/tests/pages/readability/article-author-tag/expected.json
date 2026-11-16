@@ -1,0 +1,25 @@
+{
+  "byline": "Laura June Topolsky",
+  "canonicalUrl": "https://www.atlasobscura.com/articles/the-deck-of-cards-that-made-tarot-a-global-phenomenon",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Picture a deck of tarot cards. What do you see? Maybe the Magician in his rich red robes, right arm raised high above him. Or the skeleton on horseback for...",
+  "feeds": [
+    {
+      "title": "Atlas Obscura - Latest Articles and Places",
+      "url": "https://www.atlasobscura.com/feeds/latest"
+    }
+  ],
+  "language": "en",
+  "leadImage": "https://img.atlasobscura.com/OEucPy3pcH9bHEfBRUULlpmXIlbyr_fWB91trfww4JI/rs:fill:780:520:1/g:ce/q:81/sm:1/scp:1/ar:1/aHR0cHM6Ly9hdGxh/cy1kZXYuczMuYW1h/em9uYXdzLmNvbS91/cGxvYWRzL2Fzc2V0/cy8wMzc0MWMyZGYx/MWJmNTFjOTdfSU1H/XzI3MDB2MS5qcGc.jpg",
+  "published": {
+    "atMs": 1436536380000,
+    "text": "2015-07-10T09:53:00-04:00"
+  },
+  "siteName": "Atlas Obscura",
+  "title": "The Deck of Cards That Made Tarot A Global Phenomenon",
+  "warnings": [
+    "LeftOut { what: Image, count: 6 }"
+  ],
+  "wordCount": 2518
+}

@@ -1,0 +1,26 @@
+{
+  "byline": "Contributors to Wikimedia projects",
+  "canonicalUrl": "https://en.wikipedia.org/wiki/Hermitian_matrix",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [
+    {
+      "title": "Wikipedia Atom feed",
+      "url": "http://fakehost/w/index.php?title=Special:RecentChanges&feed=atom"
+    }
+  ],
+  "language": "en",
+  "leadImage": null,
+  "published": {
+    "atMs": 1046469068000,
+    "text": "2003-02-28T21:51:08Z"
+  },
+  "siteName": "Wikimedia Foundation, Inc.",
+  "title": "Hermitian matrix",
+  "warnings": [
+    "LeftOut { what: Image, count: 61 }",
+    "LeftOut { what: Table, count: 1 }"
+  ],
+  "wordCount": 1283
+}

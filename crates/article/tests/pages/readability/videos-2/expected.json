@@ -1,0 +1,20 @@
+{
+  "byline": "Alexandre Hervaud, Jérémy Piette",
+  "canonicalUrl": "https://next.liberation.fr/culture/2017/11/24/screenshot-vape-wave-6-days-alphonse-president_1612047",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Séries, documentaires, programmes jeunesse… Retrouvez les recommandations de Libération pour savoir quoi regarder sur vos écrans cette semaine. Pour dépasser...",
+  "feeds": [],
+  "language": "fr",
+  "leadImage": "https://statics.liberation.fr/newnext/images/social-placeholder.jpg",
+  "published": {
+    "atMs": 1511548940314,
+    "text": "2017-11-24T18:42:20.314667"
+  },
+  "siteName": "Libération",
+  "title": "Screenshot : «Vape Wave», «6 Days», «Alphonse Président»…",
+  "warnings": [
+    "LeftOut { what: Embed, count: 7 }"
+  ],
+  "wordCount": 1478
+}

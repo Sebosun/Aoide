@@ -1,0 +1,18 @@
+{
+  "byline": null,
+  "canonicalUrl": "https://en.wikipedia.org/wiki/Mozilla",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [],
+  "language": "en",
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "Mozilla",
+  "warnings": [
+    "LeftOut { what: Image, count: 6 }",
+    "LeftOut { what: Table, count: 2 }"
+  ],
+  "wordCount": 4209
+}

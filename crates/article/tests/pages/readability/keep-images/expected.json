@@ -1,0 +1,20 @@
+{
+  "byline": "Joseph Cox",
+  "canonicalUrl": "https://medium.com/backchannel/inside-the-deep-web-drug-lab-9718cd0fe504",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Welcome to DoctorX’s Barcelona lab, where the drugs you bought online are tested for safety and purity. No questions ask…",
+  "feeds": [],
+  "language": null,
+  "leadImage": "https://d262ilb51hltx0.cloudfront.net/max/800/1*sLDnS1UWEFIS33uLMxq3cw.jpeg",
+  "published": {
+    "atMs": 1427461675096,
+    "text": "2015-03-27T13:07:55.096Z"
+  },
+  "siteName": "Medium",
+  "title": "Inside the Deep Web Drug Lab",
+  "warnings": [
+    "LeftOut { what: Figure, count: 16 }"
+  ],
+  "wordCount": 3191
+}

@@ -1,0 +1,18 @@
+{
+  "byline": null,
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [],
+  "language": null,
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "linux video",
+  "warnings": [
+    "LeftOut { what: Image, count: 1 }",
+    "LeftOut { what: Table, count: 1 }"
+  ],
+  "wordCount": 1169
+}

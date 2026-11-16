@@ -1,0 +1,18 @@
+{
+  "byline": "Arun Sai Krishnan",
+  "canonicalUrl": "https://dropbox.tech/infrastructure/asynchronous-task-scheduling-at-dropbox",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [],
+  "language": "en",
+  "leadImage": "https://aem.dropbox.com/cms/content/dam/dropbox/tech-blog/en-us/2020/11/atf/diagrams/Techblog-ATF-Social.png",
+  "published": null,
+  "siteName": null,
+  "title": "How we designed Dropbox ATF: an async task framework",
+  "warnings": [
+    "LeftOut { what: Figure, count: 2 }",
+    "LeftOut { what: Table, count: 1 }"
+  ],
+  "wordCount": 2748
+}

@@ -1,0 +1,29 @@
+{
+  "byline": "James Akinaka",
+  "canonicalUrl": "http://fandom.wikia.com/articles/star-wars-original-cuts-might-get-released-40th-anniversary",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "As a 40th birthday present to the Star Wars Saga and its fans, Lucasfilm could re-release the original versions of the original trilogy films.",
+  "feeds": [
+    {
+      "title": "Fandom powered by Wikia » Feed",
+      "url": "http://fandom.wikia.com/feed"
+    },
+    {
+      "title": "Fandom powered by Wikia » Comments Feed",
+      "url": "http://fandom.wikia.com/comments/feed"
+    }
+  ],
+  "language": "en-US",
+  "leadImage": "https://vignette.wikia.nocookie.net/1fb5ee36-d9ae-4125-96d9-f52eb403f1c9/thumbnail-down/width/1280/height/720",
+  "published": {
+    "atMs": 1487899093000,
+    "text": "2017-02-23T17:18:13-08:00"
+  },
+  "siteName": "Fandom powered by Wikia",
+  "title": "'Star Wars' Original Cuts Might Get Released for 40th Anniversary",
+  "warnings": [
+    "LeftOut { what: Image, count: 3 }"
+  ],
+  "wordCount": 608
+}

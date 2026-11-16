@@ -1,0 +1,18 @@
+{
+  "byline": "Corey Kilgannon",
+  "canonicalUrl": "https://www.nytimes.com/2019/02/21/nyregion/winter-weather-manholes-pipes.html",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "New York’s aging below-street infrastructure is tough to maintain, and the corrosive rock salt and “freeze-thaw” cycles of winter make it even worse.",
+  "feeds": [],
+  "language": "en",
+  "leadImage": "https://static01.nyt.com/images/2019/02/21/nyregion/21winterutilities1/00winterutilities1-facebookJumbo.jpg",
+  "published": null,
+  "siteName": null,
+  "title": "Manhole Fires and Burst Pipes: How Winter Wreaks Havoc on What’s Underneath N.Y.C.",
+  "warnings": [
+    "LeftOut { what: Image, count: 1 }",
+    "LeftOut { what: Figure, count: 7 }"
+  ],
+  "wordCount": 1394
+}

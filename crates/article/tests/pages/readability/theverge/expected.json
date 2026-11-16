@@ -1,0 +1,25 @@
+{
+  "byline": "Alex Heath",
+  "canonicalUrl": "https://www.theverge.com/23752959/apple-vision-pro-headset-hands-on-demo-impressions",
+  "completeness": "Complete",
+  "declaredWords": 687,
+  "description": "I tried Apple’s new Vision Pro headset, and just like the introduction of the iPhone 4 over a decade ago, there’s no going back from here.",
+  "feeds": [
+    {
+      "title": "The Verge",
+      "url": "http://fakehost/rss/index.xml"
+    }
+  ],
+  "language": "en",
+  "leadImage": "https://cdn.vox-cdn.com/thumbor/drivgX7R6Ch6WYFWEHgrgiFhCZ8=/0x0:2040x1360/1400x788/filters:focal(1046x614:1047x615)/cdn.vox-cdn.com/uploads/chorus_asset/file/24709755/DSC00889.jpg",
+  "published": {
+    "atMs": 1686171266829,
+    "text": "2023-06-07T20:54:26.829Z"
+  },
+  "siteName": "The Verge",
+  "title": "Apple’s Vision Pro is the Retina display moment for headsets",
+  "warnings": [
+    "LeftOut { what: Figure, count: 1 }"
+  ],
+  "wordCount": 749
+}

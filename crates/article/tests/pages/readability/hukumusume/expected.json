@@ -1,0 +1,18 @@
+{
+  "byline": null,
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [],
+  "language": null,
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "欲張りなイヌ ＜福娘童話集 きょうのイソップ童話＞",
+  "warnings": [
+    "LeftOut { what: Image, count: 3 }",
+    "LeftOut { what: Table, count: 7 }"
+  ],
+  "wordCount": 336
+}

@@ -131,6 +131,30 @@ fn a_longer_body_in_json_ld_is_used_and_said() {
         .contains(&Warning::BodyFromMetadata));
     assert!(extracted.document.chapters[0].blocks.len() > 1);
     assert_eq!(extracted.meta.declared_words, Some(6));
+
+    // Near miss: an articleBody a little longer than the page's text (the same story with its
+    // captions) leaves the page's text, and its headings, alone.
+    let story = prose(300);
+    let plain = story.replace("<p>", "").replace("</p>", " ");
+    let field = format!(
+        r#""articleBody": {}"#,
+        serde_json::to_string(&format!(
+            "{plain} Photograph: the harbour at dawn, from the quay."
+        ))
+        .unwrap()
+    );
+    let extracted = read(&page(
+        &json_ld(&field),
+        &format!("<article><h2>The harbour</h2>{story}</article>"),
+    ));
+    assert!(!extracted
+        .document
+        .warnings
+        .contains(&Warning::BodyFromMetadata));
+    assert!(extracted.document.chapters[0]
+        .blocks
+        .iter()
+        .any(|b| b.text == "The harbour"));
 }
 
 #[test]
@@ -222,5 +246,16 @@ fn too_few_words_is_empty() {
 
     // Near miss: a short but real piece.
     let html = page("", &format!("<article>{}</article>", prose(45)));
+    assert_eq!(completeness(&html), Completeness::Complete);
+}
+
+#[test]
+fn a_whole_article_on_a_site_that_has_a_paywall_is_complete() {
+    // The site marks every page (a class on `body`); this article came through whole.
+    let html = format!(
+        "<!doctype html><html lang=\"en\"><head><title>Life on the Quay at Porthallow</title></head>\
+         <body class=\"story user-anonymous paywall\"><article>{}</article></body></html>",
+        prose(800)
+    );
     assert_eq!(completeness(&html), Completeness::Complete);
 }

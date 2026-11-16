@@ -1,0 +1,17 @@
+{
+  "byline": null,
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [],
+  "language": null,
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "Bartleby the Scrivener Web Study Text",
+  "warnings": [
+    "LeftOut { what: Image, count: 1 }"
+  ],
+  "wordCount": 14325
+}

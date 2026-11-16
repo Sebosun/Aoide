@@ -108,3 +108,76 @@ fn deep_nesting_and_huge_pages_stay_within_bounds() {
     assert!(chapter.blocks.len() <= 100);
     assert!(chapter.text.len() <= 64 * 1024 + sentence.len() * 40);
 }
+
+/// The blocks of a page whose article is `body`, as (kind, text).
+fn blocks_of(body: &str) -> Vec<(BlockKind, String)> {
+    let html = format!(
+        "<html><head><title>Notes</title></head><body><article>{body}</article></body></html>"
+    );
+    extract(&html, &url(), &ExtractOptions::default())
+        .document
+        .chapters[0]
+        .blocks
+        .iter()
+        .map(|b| (b.kind, b.text.clone()))
+        .collect()
+}
+
+const FILLER: &str =
+    "<p>Every spring the allotment wakes slowly, and the first job is always the same: \
+    clear the paths, turn the beds and see what the winter left behind for the season ahead.</p>";
+
+#[test]
+fn a_list_item_written_as_paragraphs_is_one_item_and_what_follows_it() {
+    let blocks = blocks_of(&format!(
+        "{FILLER}<ol><li><p>Turn the compost before the frost.</p><p>Give it a week to settle.</p></li>\
+         <li><p>Sow the broad beans.</p></li></ol>{FILLER}"
+    ));
+    assert_eq!(
+        blocks[1..4],
+        [
+            (
+                BlockKind::ListItem,
+                "Turn the compost before the frost.".into()
+            ),
+            (BlockKind::Paragraph, "Give it a week to settle.".into()),
+            (BlockKind::ListItem, "Sow the broad beans.".into()),
+        ]
+    );
+}
+
+#[test]
+fn a_formula_is_read_in_its_sentence_without_its_source_annotation() {
+    let blocks = blocks_of(&format!(
+        "{FILLER}<p>When <math><semantics><mrow><mi>a</mi><mo>≠</mo><mn>0</mn></mrow>\
+         <annotation encoding=\"application/x-tex\">a \\neq 0</annotation></semantics></math>, \
+         there are two solutions.</p>{FILLER}"
+    ));
+    assert_eq!(
+        blocks[1],
+        (
+            BlockKind::Paragraph,
+            "When a ≠ 0, there are two solutions.".into()
+        )
+    );
+}
+
+#[test]
+fn chinese_and_japanese_are_counted_by_their_characters() {
+    // Original Chinese text: 55 characters, and three Latin words.
+    let chinese = "<p>春天来了，花园里的蜜蜂开始忙碌起来。它们从早到晚在花丛中飞来飞去。</p>\
+        <p>养蜂人说，今年的蜂蜜会比去年更甜，因为雨水来得正是时候。 Apis mellifera ligustica</p>";
+    let html = format!(
+        "<html><head><title>蜜蜂</title></head><body><article>{chinese}</article></body></html>"
+    );
+    let extracted = extract(&html, &url(), &ExtractOptions::default());
+    let han = chinese
+        .chars()
+        .filter(|c| ('\u{4e00}'..='\u{9fff}').contains(c))
+        .count();
+    assert_eq!(extracted.meta.word_count, han + 3);
+    assert_eq!(
+        extracted.completeness,
+        aoide_article::Completeness::Complete
+    );
+}

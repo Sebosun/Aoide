@@ -1,0 +1,26 @@
+{
+  "byline": "Scott Cunningham",
+  "canonicalUrl": "http://www.iab.com/news/lean",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "We messed up. As technologists, tasked with delivering content and services to users, we lost track of the user experience. Twenty years ago we saw an explosion of websites, built by developers around the world, providing all forms of content. This was the beginning of an age of enlightenment, the intersection of content and technology. … Continued",
+  "feeds": [
+    {
+      "title": "IAB Feed",
+      "url": "http://www.iab.com/feed/"
+    }
+  ],
+  "language": "en-US",
+  "leadImage": "http://www.iab.com/wp-content/uploads/2015/10/getting-lean-with-digital-ad-ux-300x250.jpg",
+  "published": {
+    "atMs": 1444896026000,
+    "text": "2015-10-15T08:00:26+00:00"
+  },
+  "siteName": "IAB",
+  "title": "Getting LEAN with Digital Ad UX",
+  "warnings": [
+    "LeftOut { what: Image, count: 1 }",
+    "LeftOut { what: Figure, count: 1 }"
+  ],
+  "wordCount": 937
+}

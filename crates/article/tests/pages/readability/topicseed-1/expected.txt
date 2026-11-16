@@ -1,0 +1,58 @@
+- Assess How Deep Is Your Content
+
+- Rewrite With Content Depth In Mind
+
+- Yes, Content Depth and Breadth Overlap
+
+- Depth of Content = Quality + Frequency
+
+Content depth is an arbitrary score or rating of how comprehensive the coverage of a specific topic is within a piece of content. Content breadth is an arbitrary grading of how many related subjects are you covering within your content.
+
+And this distinction is important to make and establish from the beginning. Effective topical authority can only be gained when you use both content depth and content breadth in your overall content strategy for rapid search engine optimization gains. However, because most content writers prefer to write a little bit about many things rather than write a lot about one thing, you end up with a too little substance spread very thin.
+
+Content depth should be the urgent priority for your content marketing strategy, and clearly defined in your content briefs. Start by dominating your own core topics, before venturing across the pond and write about linked subject matters. Otherwise, you are the opposite of an authority as the definition states that an authority is “a person with extensive or specialized knowledge about a subject; an expert”. Lastly, do not mistake article depth vs. article length: a blog post’s extreme wordcount has nothing to do with its content depth.
+
+## Assess How Deep Is Your Content
+
+The first task on your list, right now, is to shortlist your core topics. What are you trying to be an expert on? Then, go through each one of your pieces of content and understand how well each blog post is covering its focus topic(s). Not how many times specific keywords appear, or how well the article is outlined and structured.
+
+Put yourself in the shoes of an ignorant reader who seeks information. Read your article. And ask yourself how in-depth was the content you have written? I know the excuse you will come up with: this was written for beginners, therefore, it shouldn’t be too in-depth. And you are correct. Not every blog post is about absolute content depth otherwise we would only write one 10,000-word-long article, once and for all. But then, how well your beginner-level content pointing to your expert-level content?
+
+In other words, each article should reach an incredible level of content depth for its expertise level. And then, provide further reading (i.e. links) to gain more knowledge, and depth. A lot of content editors write a beginner’s blog post and wait to see it perform well in order to write a more advanced sequel. Wrong. Give all the value so search engines can grade you highly on their authority scale for your core topics. Yes, it is a risk and you may write a dozen of articles on a specific topic that will never really rank at the top of SERPs, but reaching content depth is the first step towards SEO gains.
+
+Remember that skyscraper content and 10x content are not necessarily the answer. These content writing strategies state that in order to beat another piece of content, you need to write 10x more. Either in quantity with a 10x word count or in quality by putting times more information within your own piece of content. Such articles often become unreadable and discourage visitors from absorbing all the knowledge. The best alternative is the create pillar pages centered around core topics, and several articles dealing with each specific section in depth. This is deep content powered by a smart internal linking strategy and search engines love that in this day and age where attention spans are short! With that being said, avoid writing 600-word articles!
+
+## Rewrite With Content Depth In Mind
+
+Once you know which articles are lacking depth of knowledge and information, it is time to rethink each one. For each article, make a list of what essential pieces of information or data are missing. Then decide where to fit them, and decide whether the article would benefit from a full rewrite or not. As a rule of thumb, if you need to change a third of your article, you may need to rewrite it entirely. Of course, this does not mean erasing all work done prior, but it means starting afresh! Trying to fit deep content into an existing blog post gives you constraints so doing it from scratch can actually be easier to fight thin content.
+
+As explained above, make sure you do not force yourself to write a much longer article to reach a magic word count. And if you do, it has to be natural. In many cases, articles written months or years ago may need some upkeeping: trimming the fat and removing parts that are not bringing much value. Replace these with your newer and deeper content.
+
+All content writers know that when you open Google Docs, WordPress, or your text editor of choice, you will inevitably count your focus keywords’ frequency. Although I understand (yet question) the value of keywords in modern SEO, do not become obsessed with reaching a magic number for your keywords. No reader coming from Google is out there counting how often your keywords are appearing. And search engine algorithms will penalize you for writing for robots, rather than humans.
+
+With the massive rise of voice searches, users tend to use full questions for their search queries. What used to be top bottled water brands is now OK google, what is the best bottled-water brand in Texas? The point being, keywords are losing traction to leave space for a more natural language understanding of a blog post’s textual content, and meaning.
+
+## Yes, Content Depth and Breadth Overlap
+
+“A topic can be defined as the company it keeps.” A very accurate saying loved by ontologists within the fields of computational linguistics, and information science. In simpler terms, a topic and all the terminology it is encompassing will inevitably overlap with related topics. Which, in turn, will form topic clusters.
+
+For example, it is obvious that despite being two different topics, digital advertising and content marketing share some common phrases and terms. Inevitably, a website picking one as its core topic will use words in some blog posts that will identify the article as belonging to both topics, with a specific weight for each.
+
+A keyword, phrase, or term, is not a prisoner to a single concept at all. This is how algorithms in natural language understanding can understand how two topics are related (e.g. read about topic modeling). Each topic has a specific vocabulary, a list of words and phrases commonly used in its context, and some of these terms are present in different vocabularies.
+
+Therefore, content depth and content breadth are not to be opposed. Content marketers should use both strategies in order to reach ultimate topical authority over their choice of subject matters.
+
+## Depth of Content = Quality + Frequency
+
+Up until recently, long-form blog posts generally were evergreen articles that generated a constant stream of organic traffic for a website. This was a lead magnet generation strategy which worked well: hire a writer, include the right keywords, reach over a 5,000-word word count, and hit publish. Then, wait.
+
+Nowadays, in-depth content requires more effort over time in order to pay off. Writing a big article, as good as it is, will not get your anywhere near the level of topical breadth required by Google to rank you first. Instead, your content marketing plan should be about having:
+
+- a comprehensive pillar page covering a unique topic, and
+
+- narrow-focused children articles to dig deeper.
+
+Search engines also look at how often you publish about a specific topic, and when was the last time it was written about. Nobody likes a graveyard blog, it just makes the reader lose trust; as if the writer was not good enough, therefore had no traffic, before entirely giving up. Deep content requires a sustained effort on your part to always new find ways to write about a specific subject. Sure, it will be easy at first. But what about five years later? Well, you will still need to hit publish, all about the very same topics you already covered years ago.
+
+Tools and platforms such as topicseed are here to help you find new article ideas pertaining to your core topics within a few clicks and a few minutes. The number of web pages, Wikipedia articles, and pieces of content, our machine-learning algorithms can analyze in seconds would take you months to digest. Our topicgraph finds closely related concepts in order for your domain to reach topical authority through content depth and content breadth.
+

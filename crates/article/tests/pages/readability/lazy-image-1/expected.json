@@ -1,0 +1,21 @@
+{
+  "byline": "Vincent Vallet",
+  "canonicalUrl": "https://medium.com/voodoo-engineering/node-js-and-cpu-profiling-on-production-in-real-time-without-downtime-d6e62af173e2",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "How to run a CPU profiling with Node.js on your production in real-time and without interruption of service.",
+  "feeds": [],
+  "language": "en",
+  "leadImage": "https://miro.medium.com/max/1200/1*EO-pr4RolgcAOj_Uk1rpDA.png",
+  "published": {
+    "atMs": 1571419414816,
+    "text": "2019-10-18T17:23:34.816Z"
+  },
+  "siteName": "Voodoo Engineering",
+  "title": "Node.js and CPU profiling on production (in real-time without downtime)",
+  "warnings": [
+    "LeftOut { what: Image, count: 1 }",
+    "LeftOut { what: Figure, count: 13 }"
+  ],
+  "wordCount": 1546
+}

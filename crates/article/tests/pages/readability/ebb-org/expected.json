@@ -1,0 +1,24 @@
+{
+  "byline": "Bradley M. Kuhn (http://ebb.org/bkuhn/)",
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "The website of Bradley M. Kuhn, aka Brad, aka bkuhn. This site includes his GPG keys, resume, blog, projects list, software, interviews, speeches and writing.",
+  "feeds": [
+    {
+      "title": "Whole Website RSS for Bradley M. Kuhn",
+      "url": "http://ebb.org/bkuhn/rss.xml"
+    },
+    {
+      "title": "Blog RSS for Bradley M. Kuhn",
+      "url": "http://ebb.org/bkuhn/blog/rss.xml"
+    }
+  ],
+  "language": "en-US",
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "On Recent Controversial Events",
+  "warnings": [],
+  "wordCount": 1830
+}

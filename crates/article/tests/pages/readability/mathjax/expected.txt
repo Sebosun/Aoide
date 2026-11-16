@@ -1,0 +1,56 @@
+When
+
+a ≠ 0
+
+, there are two solutions to
+
+a x 2 + b x + c = 0
+
+and they are
+
+x = − b ± b 2 − 4 a c 2 a .
+
+## The Lorenz Equations
+
+x ˙ = σ ( y − x ) y ˙ = ρ x − y − x z z ˙ = − β z + x y
+
+## The Cauchy-Schwarz Inequality
+
+( ∑ k = 1 n a k b k ) 2 ≤ ( ∑ k = 1 n a k 2 ) ( ∑ k = 1 n b k 2 )
+
+## A Cross Product Formula
+
+V 1 × V 2 = | i j k ∂ X ∂ u ∂ Y ∂ u 0 ∂ X ∂ v ∂ Y ∂ v 0 |
+
+## The probability of getting
+
+k
+
+heads when flipping
+
+n
+
+coins is:
+
+P ( E ) = ( n k ) p k ( 1 − p ) n − k
+
+## An Identity of Ramanujan
+
+1 ( ϕ 5 − ϕ ) e 2 5 π = 1 + e − 2 π 1 + e − 4 π 1 + e − 6 π 1 + e − 8 π 1 + …
+
+## A Rogers-Ramanujan Identity
+
+1 + q 2 ( 1 − q ) + q 6 ( 1 − q ) ( 1 − q 2 ) + ⋯ = ∏ j = 0 ∞ 1 ( 1 − q 5 j + 2 ) ( 1 − q 5 j + 3 ) , for | q | < 1 .
+
+## Maxwell's Equations
+
+∇ × B → − 1 c ∂ E → ∂ t = 4 π c j → ∇ ⋅ E → = 4 π ρ ∇ × E → + 1 c ∂ B → ∂ t = 0 → ∇ ⋅ B → = 0
+
+## In-line Mathematics
+
+Finally, while display equations look good for a page of samples, the ability to mix math and text in a paragraph is also important. This expression
+
+3 x − 1 + ( 1 + x ) 2
+
+is an example of an inline equation. As you see, MathJax equations can be used this way as well, without unduly disturbing the spacing between lines.
+

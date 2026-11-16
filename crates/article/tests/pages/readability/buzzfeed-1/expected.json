@@ -1,0 +1,26 @@
+{
+  "byline": "Mark Di Stefano",
+  "canonicalUrl": "http://www.buzzfeed.com/markdistefano/diet-pills-burns-up",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "An inquest into Eloise Parry's death has been adjourned until July.",
+  "feeds": [
+    {
+      "title": "Mark Di Stefano's Buzz",
+      "url": "http://fakehost/markdistefano.xml"
+    },
+    {
+      "title": "Buzz",
+      "url": "http://fakehost/tag/.xml"
+    }
+  ],
+  "language": "en",
+  "leadImage": "http://s3-static-ak.buzzfed.com/static/2015-04/22/5/campaign_images/webdr03/student-dies-after-diet-pills-she-bought-online-b-2-28712-1429696299-24_dblbig.jpg",
+  "published": null,
+  "siteName": "BuzzFeed",
+  "title": "Student Dies After Diet Pills She Bought Online \"Burned Her Up From Within\"",
+  "warnings": [
+    "LeftOut { what: Image, count: 2 }"
+  ],
+  "wordCount": 305
+}

@@ -65,7 +65,7 @@ impl Signs {
                     PAYWALL_MARKERS.iter().any(|m| value.contains(m))
                 })
         });
-        let words = text.split_whitespace().count();
+        let words = crate::words(&text);
         Signs {
             text: text.to_lowercase(),
             words,
@@ -99,7 +99,9 @@ pub(crate) fn judge(
         return Completeness::Wall(WallKind::SignIn);
     }
     let short_body = captured < PAYWALL_SHORT_WORDS || declared.is_some_and(falls_short);
-    if (free == Some(false) && short_body) || signs.paywall_container {
+    // A paywall's marks (a page that is not free, a paywall's container) count only when the
+    // text that came through is short: sites mark whole articles they let through too.
+    if (free == Some(false) || signs.paywall_container) && short_body {
         return Completeness::Wall(WallKind::Paywall);
     }
     if captured < EMPTY_WORDS {

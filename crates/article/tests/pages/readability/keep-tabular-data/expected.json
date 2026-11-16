@@ -1,0 +1,23 @@
+{
+  "byline": null,
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [
+    {
+      "title": "Recent Blog Posts",
+      "url": "http://fakehost/blog/rss"
+    }
+  ],
+  "language": null,
+  "leadImage": "http://www.factorio.com/static/img/factorio-wheel.png",
+  "published": null,
+  "siteName": "Factorio.com",
+  "title": "Friday Facts #282 - 0.17 in sight",
+  "warnings": [
+    "LeftOut { what: Image, count: 13 }",
+    "LeftOut { what: Table, count: 1 }"
+  ],
+  "wordCount": 2367
+}

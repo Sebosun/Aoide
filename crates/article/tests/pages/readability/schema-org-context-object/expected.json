@@ -1,0 +1,20 @@
+{
+  "byline": "Stella Kim, Jennifer Jett",
+  "canonicalUrl": "https://www.nbcnews.com/news/world/south-korea-martial-law-president-yoon-suk-yeol-impeachment-vote-rcna183138",
+  "completeness": "Complete",
+  "declaredWords": 1046,
+  "description": "South Korean President Yoon Suk Yeol apologized on Saturday for declaring martial law but did not say he would resign as he faces an impeachment vote.",
+  "feeds": [],
+  "language": "en-US",
+  "leadImage": "https://media-cldnry.s-nbcnews.com/image/upload/t_fit-1500w,f_auto,q_auto:best/rockcms/2024-12/241206-yoon-south-korea-mb-0824-656188.jpg",
+  "published": {
+    "atMs": 1733522440000,
+    "text": "2024-12-06T22:00:40.000Z"
+  },
+  "siteName": "NBC News",
+  "title": "South Korean president’s impeachment fails after ruling party lawmakers walk out",
+  "warnings": [
+    "LeftOut { what: Figure, count: 3 }"
+  ],
+  "wordCount": 1081
+}

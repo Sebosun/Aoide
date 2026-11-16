@@ -1,0 +1,29 @@
+{
+  "byline": "AFP",
+  "canonicalUrl": "http://www.liberation.fr/monde/2015/04/30/un-troisieme-francais-mort-dans-le-seisme-au-nepal_1278483",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Laurent Fabius a accueilli jeudi matin à Roissy un premier avion spécial ramenant des rescapés.",
+  "feeds": [
+    {
+      "title": "Monde",
+      "url": "http://rss.liberation.fr/rss/10/"
+    },
+    {
+      "title": "A la une sur Libération",
+      "url": "http://rss.liberation.fr/rss/latest/"
+    }
+  ],
+  "language": "fr",
+  "leadImage": "http://md1.libe.com/photo/755923-000_hkg10175905.jpg?modified_at=1430371146&width=750",
+  "published": {
+    "atMs": 1430378398000,
+    "text": "2015-04-30T07:19:58"
+  },
+  "siteName": "Libération.fr",
+  "title": "Un troisième Français mort dans le séisme au Népal",
+  "warnings": [
+    "LeftOut { what: Embed, count: 1 }"
+  ],
+  "wordCount": 283
+}

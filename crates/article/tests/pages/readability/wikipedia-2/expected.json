@@ -1,0 +1,21 @@
+{
+  "byline": "Contributors to Wikimedia projects",
+  "canonicalUrl": "https://en.wikipedia.org/wiki/New_Zealand",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [],
+  "language": "en",
+  "leadImage": "https://upload.wikimedia.org/wikipedia/commons/3/3e/Flag_of_New_Zealand.svg",
+  "published": {
+    "atMs": 1004320754000,
+    "text": "2001-10-29T01:59:14Z"
+  },
+  "siteName": "Wikimedia Foundation, Inc.",
+  "title": "New Zealand",
+  "warnings": [
+    "LeftOut { what: Image, count: 32 }",
+    "LeftOut { what: Table, count: 4 }"
+  ],
+  "wordCount": 17214
+}

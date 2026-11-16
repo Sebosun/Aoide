@@ -1,0 +1,24 @@
+{
+  "byline": null,
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Emscripten now supports standalone Wasm files, which do not need JavaScript.",
+  "feeds": [
+    {
+      "title": "V8 Atom feed",
+      "url": "http://fakehost/blog.atom"
+    },
+    {
+      "title": "V8 JS/Wasm features Atom feed",
+      "url": "http://fakehost/features.atom"
+    }
+  ],
+  "language": "en",
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "standalone WebAssembly binaries using Emscripten · V8",
+  "warnings": [],
+  "wordCount": 2448
+}

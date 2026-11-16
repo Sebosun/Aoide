@@ -1,0 +1,17 @@
+{
+  "byline": "Nelson D. Schwartz",
+  "canonicalUrl": "https://www.nytimes.com/2018/09/25/business/economy/us-government-debt-interest.html",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Tax cuts, spending increases and higher interest rates could make it harder to respond to future recessions and deal with other needs.",
+  "feeds": [],
+  "language": "en",
+  "leadImage": "https://static01.nyt.com/images/2018/09/15/business/15DEBTS01/15DEBTS01-facebookJumbo.jpg",
+  "published": null,
+  "siteName": null,
+  "title": "As Debt Rises, the Government Will Soon Spend More on Interest Than on the Military",
+  "warnings": [
+    "LeftOut { what: Figure, count: 1 }"
+  ],
+  "wordCount": 1627
+}

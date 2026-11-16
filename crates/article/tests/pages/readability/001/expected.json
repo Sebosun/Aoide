@@ -1,0 +1,38 @@
+{
+  "byline": "Nicolas Perriault",
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Nicolas Perriault's homepage.",
+  "feeds": [
+    {
+      "title": "Code (RSS)",
+      "url": "http://fakehost/code/feed/"
+    },
+    {
+      "title": "Photography (RSS)",
+      "url": "http://fakehost/photography/feed/"
+    },
+    {
+      "title": "Talks (RSS)",
+      "url": "http://fakehost/talks/feed/"
+    },
+    {
+      "title": "Carnet (RSS)",
+      "url": "http://fakehost/carnet/feed/"
+    },
+    {
+      "title": "Everything (RSS)",
+      "url": "http://fakehost/feed/"
+    }
+  ],
+  "language": "en",
+  "leadImage": null,
+  "published": null,
+  "siteName": null,
+  "title": "Get your Frontend JavaScript Code Covered",
+  "warnings": [
+    "LeftOut { what: Image, count: 1 }"
+  ],
+  "wordCount": 560
+}

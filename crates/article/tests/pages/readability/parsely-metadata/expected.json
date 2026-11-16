@@ -1,0 +1,18 @@
+{
+  "byline": "Jane Doe",
+  "canonicalUrl": null,
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": null,
+  "feeds": [],
+  "language": null,
+  "leadImage": null,
+  "published": {
+    "atMs": 1713586800000,
+    "text": "2024-04-20T04:20:00.000Z"
+  },
+  "siteName": null,
+  "title": "Some Other Title",
+  "warnings": [],
+  "wordCount": 141
+}

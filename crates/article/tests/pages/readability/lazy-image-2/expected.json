@@ -1,0 +1,25 @@
+{
+  "byline": "Mama Robotnik",
+  "canonicalUrl": "https://kotaku.com/the-spectacular-story-of-metroid-one-of-gamings-riche-1284029577",
+  "completeness": "Complete",
+  "declaredWords": 8165,
+  "description": "Nothing beats the passion of a true fan writing about something they love. That's what you're about to see here: one of the richest, most amazing tributes to a great gaming series that we've ever run on Kotaku. Warning #1: this one might make your browser chug, so close your other tabs. Warning #2: This piece might make it hurt a little more than there are no new Metroid games from Nintendo on the horizon.",
+  "feeds": [
+    {
+      "title": "Kotaku - All stories",
+      "url": "https://kotaku.com/rss"
+    }
+  ],
+  "language": "en-US",
+  "leadImage": "https://i.kinja-img.com/gawker-media/image/upload/c_fill,f_auto,fl_progressive,g_center,h_675,pg_1,q_80,w_1200/18zu12g5xzyxojpg.jpg",
+  "published": {
+    "atMs": 1378908000000,
+    "text": "2013-09-11T10:00:00-04:00"
+  },
+  "siteName": "Kotaku",
+  "title": "The Spectacular Story Of Metroid, One Of Gaming's Richest Universes",
+  "warnings": [
+    "LeftOut { what: Figure, count: 57 }"
+  ],
+  "wordCount": 8165
+}

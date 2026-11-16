@@ -1,0 +1,20 @@
+{
+  "byline": "BBC News",
+  "canonicalUrl": "http://www.bbc.com/news/world-us-canada-33646704",
+  "completeness": "Complete",
+  "declaredWords": 22,
+  "description": "President Barack Obama tells the BBC his failure to pass \"common sense gun safety laws\" is the greatest frustration of his presidency.",
+  "feeds": [],
+  "language": "en-GB",
+  "leadImage": "http://ichef.bbci.co.uk/news/1024/cpsprodpb/3D8B/production/_84455751_84455749.jpg",
+  "published": {
+    "atMs": 1437712569000,
+    "text": "2015-07-24T05:36:09+01:00"
+  },
+  "siteName": "BBC News",
+  "title": "Obama admits US gun laws are his 'biggest frustration'",
+  "warnings": [
+    "LeftOut { what: Figure, count: 5 }"
+  ],
+  "wordCount": 835
+}

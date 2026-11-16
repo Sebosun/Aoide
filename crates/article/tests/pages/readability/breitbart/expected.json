@@ -1,0 +1,25 @@
+{
+  "byline": null,
+  "canonicalUrl": "http://www.breitbart.com/tech/2016/12/22/neutral-snopes-fact-checker-david-emery-un-angry-trump-supporters/",
+  "completeness": "Complete",
+  "declaredWords": null,
+  "description": "Snopes fact checker and staff writer David Emery posted to Twitter asking if there were “any un-angry Trump supporters?”",
+  "feeds": [
+    {
+      "title": "Breitbart News Feed",
+      "url": "http://feeds.feedburner.com/breitbart"
+    }
+  ],
+  "language": "en-US",
+  "leadImage": "http://media.breitbart.com/media/2016/11/GettyImages-621866810.jpg",
+  "published": {
+    "atMs": 1482432217000,
+    "text": "2016-12-22T10:43:37-08:00"
+  },
+  "siteName": "Breitbart",
+  "title": "'Neutral' Snopes Fact-Checker David Emery: 'Are There Any Un-Angry Trump Supporters?'",
+  "warnings": [
+    "LeftOut { what: Figure, count: 1 }"
+  ],
+  "wordCount": 286
+}
