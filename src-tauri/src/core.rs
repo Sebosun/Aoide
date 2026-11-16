@@ -495,17 +495,23 @@ impl Core {
             self.follow_through(self.playback.seek(index, None))?;
             return self.follow_through(self.playback.play());
         }
+        // From the saved place, a little earlier the longer ago it was saved.
+        let mut away = None;
         let start = start
             .or_else(|| {
                 let progress = lock(&self.library)
                     .progress(&BookId(book_id.into()))
                     .ok()
                     .flatten()?;
+                away = Some(resuming::Away::since(progress.updated_at, now_ms()));
                 book.index_at(progress.chapter as usize, progress.char_offset as usize)
             })
             .or_else(|| book.chapter_start(0))
             .ok_or("the book has no readable text")?;
         let target = self.narration_target(book).await?;
+        let start = away
+            .and_then(|away| playback::step_back_in(&target, start, away, "saved"))
+            .unwrap_or(start);
         self.follow_through(self.playback.start(target, start))
     }
 

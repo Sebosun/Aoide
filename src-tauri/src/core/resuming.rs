@@ -7,6 +7,15 @@ use std::time::Duration;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Away(pub Duration);
 
+impl Away {
+    /// Away since `then`, `now` (both ms since the epoch); a time ahead of now is no time.
+    pub fn since(then_ms: i64, now_ms: i64) -> Self {
+        Away(Duration::from_millis(
+            now_ms.saturating_sub(then_ms).max(0) as u64
+        ))
+    }
+}
+
 /// How far a book with text steps back (speech, or a synced recording).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StepBack {

@@ -915,6 +915,50 @@ async fn reading_silently_saves_the_place_and_the_last_sentence_finishes_the_boo
     assert_eq!(read_state(&core), ReadState::Finished);
 }
 
+/// Saves the second spoken sentence of chapter 1 as book `id`'s place, `ago_ms` ago.
+fn saved_place_ago(core: &Core, id: &str, ago_ms: i64) -> Vec<String> {
+    let second = spoken(core, id, 1);
+    let book = core.load_book(id).unwrap();
+    let index = book.index_of(&second[1]).unwrap();
+    let segment = book.segment(index).unwrap();
+    super::lock(&core.library)
+        .save_progress(
+            &aoide_library::BookId(id.into()),
+            &aoide_library::Progress {
+                chapter: 1,
+                char_offset: segment.range.start as u32,
+                segment_id: Some(second[1].clone()),
+                updated_at: super::now_ms() - ago_ms,
+                position_ms: None,
+            },
+        )
+        .unwrap();
+    second
+}
+
+#[tokio::test]
+async fn a_place_saved_hours_ago_is_played_from_a_little_earlier_and_one_just_saved_as_it_is() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let playing = |core: &Core| core.player_state().segment_id;
+
+    let second = saved_place_ago(&core, &id, 2 * 60 * 60 * 1_000);
+    core.play(&id, None, None).await.unwrap();
+    assert_eq!(playing(&core).as_ref(), Some(&second[0]), "a sentence back");
+    core.stop();
+
+    saved_place_ago(&core, &id, 2_000);
+    core.play(&id, None, None).await.unwrap();
+    assert_eq!(playing(&core).as_ref(), Some(&second[1]), "where it was");
+    core.stop();
+}
+
 #[tokio::test]
 async fn the_playing_book_keeps_its_place_and_playing_it_to_the_end_finishes_it() {
     use super::ReadState;

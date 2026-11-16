@@ -334,9 +334,8 @@ impl Playback {
     /// [`resuming::step_back`]).
     pub fn resume_at(&self, now: Instant) -> Moved {
         let paused_at = lock(&self.paused_at).take();
-        let stepped = paused_at.and_then(|at| {
-            self.step_back(Away(now.saturating_duration_since(at)), "pause")
-        });
+        let stepped = paused_at
+            .and_then(|at| self.step_back(Away(now.saturating_duration_since(at)), "pause"));
         let played = self.play();
         match stepped {
             Some(moved) => Moved {
@@ -351,28 +350,10 @@ impl Playback {
     /// when it stays. `from` is what `away` was measured from, for the log.
     fn step_back(&self, away: Away, from: &'static str) -> Option<Moved> {
         let index = self.position().index;
-        let (id, target) = match lock(&self.playing).as_ref()? {
-            Playing::Entries(session) => {
-                let book = &session.target.book;
-                let (chapter, _) = book.locate(index)?;
-                let narration = &session.target.narration;
-                let spoken = |i| matches!(narration.fate(i), Some(Fate::Speech { .. } | Fate::Clip));
-                let first = book.chapters[chapter].first_entry;
-                let target =
-                    resuming::entry_back(index, resuming::step_back(away), first, spoken)?;
-                (book.id.clone(), target)
-            }
+        let target = match lock(&self.playing).as_ref()? {
+            Playing::Entries(session) => step_back_in(&session.target, index, away, from)?,
             Playing::Timeline(_) => return None,
         };
-        tracing::info!(
-            event = "playback.resumed",
-            book = crate::logging::book(&id),
-            away_s = away.0.as_secs(),
-            stepped_back = index - target,
-            unit = "entries",
-            from,
-            "Stepped back on resume"
-        );
         Some(self.seek(target, None))
     }
 
@@ -834,6 +815,33 @@ impl Playback {
             ..base
         }
     }
+}
+
+/// The entry `target` plays from, stepping back from entry `index` for a listener `away` (see
+/// [`resuming`]): never before the chapter's start, counting only entries said or recorded. A
+/// step back is logged with `from`, what `away` was measured from. `None` plays on.
+pub(super) fn step_back_in(
+    target: &Target,
+    index: usize,
+    away: Away,
+    from: &'static str,
+) -> Option<usize> {
+    let book = &target.book;
+    let (chapter, _) = book.locate(index)?;
+    let narration = &target.narration;
+    let spoken = |i| matches!(narration.fate(i), Some(Fate::Speech { .. } | Fate::Clip));
+    let first = book.chapters[chapter].first_entry;
+    let back = resuming::entry_back(index, resuming::step_back(away), first, spoken)?;
+    tracing::info!(
+        event = "playback.resumed",
+        book = crate::logging::book(&book.id),
+        away_s = away.0.as_secs(),
+        stepped_back = index - back,
+        unit = "entries",
+        from,
+        "Stepped back on resume"
+    );
+    Some(back)
 }
 
 /// Where an audiobook with no text is: a time in its recording.
