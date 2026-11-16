@@ -4,7 +4,7 @@ use std::path::Path;
 
 use aoide_config::{
     config_dir, is_colour, load_themes, Appearance, ConfigError, Mode, ReaderMode, SettingsFile,
-    SETTINGS_FILE,
+    TimeLeft, SETTINGS_FILE,
 };
 use serde::{Deserialize, Serialize};
 
@@ -102,6 +102,17 @@ fn missing_file_loads_as_none() {
 }
 
 #[test]
+fn the_time_left_shown_is_read_from_appearance_and_defaults_to_the_chapter() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(SETTINGS_FILE);
+    std::fs::write(&path, "[appearance]\ntimeLeft = \"book\"\n").unwrap();
+    let file = SettingsFile::load(&path).unwrap().unwrap();
+    let appearance = file.section::<Appearance>("appearance").unwrap().unwrap();
+    assert_eq!(appearance.time_left, TimeLeft::Book);
+    assert_eq!(Appearance::default().time_left, TimeLeft::Chapter);
+}
+
+#[test]
 fn sections_round_trip_through_the_file() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("nested").join(SETTINGS_FILE);
@@ -112,6 +123,7 @@ fn sections_round_trip_through_the_file() {
         text_size: 3,
         reader_mode: ReaderMode::Lines,
         zoom: 1.1,
+        time_left: TimeLeft::Book,
     };
     file.set_section("appearance", &appearance).unwrap();
     file.set_section("engine", &engine()).unwrap();

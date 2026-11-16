@@ -249,6 +249,27 @@ it("docks the transport: progress, time left, buffer status and errors", async (
   wrapper.unmount();
 });
 
+it("switches the time left between the chapter and the book, says when it ends, and keeps the choice", async () => {
+  const wrapper = await openReader();
+  const save = vi.spyOn(mock, "saveAppearance");
+  mock.emitPlayer(playing({ chapterLeftMs: 180_000, bookLeftMs: 3 * 3_600_000 + 600_000 }));
+  await flushPromises();
+  const end = () => wrapper.get('[aria-label="Player"] .scrubber__end');
+  expect(end().text()).toBe("3 min left");
+  expect(end().attributes("title")).toMatch(/^Chapter ends .+ · book ends .+ · click for the time left in the book$/);
+  await end().trigger("click");
+  await flushPromises();
+  expect(end().text()).toBe("3 h 10 min left in book");
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ timeLeft: "book" }) });
+  expect(end().attributes("title")).toMatch(/click for the time left in the chapter$/);
+
+  // While the rest of the book waits for the sync, the chapter's is shown.
+  mock.emitPlayer(playing({ chapterLeftMs: 180_000, bookLeftMs: null }));
+  await flushPromises();
+  expect(end().text()).toBe("3 min left");
+  wrapper.unmount();
+});
+
 it("plays from the saved position, pauses, resumes, changes speed, skips chapters and stops", async () => {
   const wrapper = await openReader();
   const play = vi.spyOn(mock, "play"),

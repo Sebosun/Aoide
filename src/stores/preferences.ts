@@ -6,7 +6,14 @@ import { applyAppearance } from "@/theme";
 
 /** Appearance settings from ~/.config/aoide, applied to the document as they change. */
 export const usePreferencesStore = defineStore("preferences", () => {
-  const appearance = ref<Appearance>({ mode: "auto", theme: "default", textSize: 2, readerMode: "page", zoom: 1 });
+  const appearance = ref<Appearance>({
+    mode: "auto",
+    theme: "default",
+    textSize: 2,
+    readerMode: "page",
+    zoom: 1,
+    timeLeft: "chapter",
+  });
   const themes = ref<Theme[]>([]),
     problems = ref<string[]>([]),
     configDir = ref(""),

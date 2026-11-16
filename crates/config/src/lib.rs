@@ -199,6 +199,16 @@ pub enum ReaderMode {
     Lines,
 }
 
+/// Which time left the player shows: in the playing chapter or in the whole book.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub enum TimeLeft {
+    #[default]
+    Chapter,
+    Book,
+}
+
 /// The `[appearance]` section.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -212,6 +222,8 @@ pub struct Appearance {
     pub reader_mode: ReaderMode,
     /// Interface zoom (Ctrl + / Ctrl −), 1.0 is 100%. The UI keeps it between 0.67 and 1.5.
     pub zoom: f64,
+    /// The player's time left, switched by clicking it.
+    pub time_left: TimeLeft,
 }
 
 impl Default for Appearance {
@@ -222,6 +234,7 @@ impl Default for Appearance {
             text_size: 2,
             reader_mode: ReaderMode::Page,
             zoom: 1.0,
+            time_left: TimeLeft::Chapter,
         }
     }
 }

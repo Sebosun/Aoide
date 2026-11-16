@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import type { ChapterView } from "@/api/types";
-import { formatDuration, speechMs, wordsLeft, segmentAt, chapterWords } from "@/estimate";
+import { endsAt, formatDuration, speechMs, wordsLeft, segmentAt, chapterWords } from "@/estimate";
 
 const chapter: ChapterView = {
   index: 0,
@@ -41,6 +41,15 @@ const chapter: ChapterView = {
 it("estimates speech time from words and speed", () => {
   expect(speechMs(160, 1)).toBe(60_000);
   expect(speechMs(160, 2)).toBe(30_000);
+});
+
+it("says when a time left runs out by the clock, with the weekday when that is not today", () => {
+  const now = new Date(2026, 10, 16, 21, 0);
+  const at = (h: number, m: number) =>
+    new Date(2026, 10, 16, h, m).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  expect(endsAt(2 * 3_600_000 + 40 * 60_000, now)).toBe(at(23, 40));
+  expect(endsAt(5 * 3_600_000, now)).toMatch(/^\S+ \S/);
+  expect(endsAt(5 * 3_600_000, now)).not.toBe(at(2, 0));
 });
 
 it("formats durations for labels", () => {

@@ -12,7 +12,21 @@ import { usePlayerControls } from "@/composables/usePlayerControls";
  *  errors under it), then one row: speed, sleep and volume; previous, a 66px play button and
  *  next; stop. Bookmarks and the book tools are at the top of the reader. */
 const controls = usePlayerControls();
-const { player, active, timeLeft, ahead, percent, toggle, seek, step, status, detail, error } = controls;
+const {
+  player,
+  active,
+  timeLeft,
+  timeLeftTitle,
+  toggleTimeLeft,
+  ahead,
+  percent,
+  toggle,
+  seek,
+  step,
+  status,
+  detail,
+  error,
+} = controls;
 const canPlay = computed(() => Boolean(controls.bookId.value));
 </script>
 
@@ -23,10 +37,12 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
       :ahead="ahead"
       :start="`${percent}%`"
       :end="timeLeft"
+      :end-title="timeLeftTitle"
       :detail="detail"
       :disabled="!player.state.bookId"
       @seek="seek"
       @step="step"
+      @switch-end="toggleTimeLeft"
     />
     <p class="transport__status" aria-live="polite">
       <span v-if="error" class="transport__error" role="alert">{{ error }}</span><span v-if="status">{{ status }}</span>

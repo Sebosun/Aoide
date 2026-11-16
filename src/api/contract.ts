@@ -901,6 +901,8 @@ export type AppearanceMode = "auto" | "light" | "dark";
 
 export type ReaderMode = "page" | "lines";
 
+export type TimeLeft = "chapter" | "book";
+
 export type Appearance = { mode: AppearanceMode, 
 /**
  * A theme file name without `.toml`, or [`DEFAULT_THEME`].
@@ -913,7 +915,11 @@ textSize: number, readerMode: ReaderMode,
 /**
  * Interface zoom (Ctrl + / Ctrl −), 1.0 is 100%. The UI keeps it between 0.67 and 1.5.
  */
-zoom: number, };
+zoom: number, 
+/**
+ * The player's time left, switched by clicking it.
+ */
+timeLeft: TimeLeft, };
 
 export type Theme = { 
 /**

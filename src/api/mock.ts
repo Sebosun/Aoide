@@ -393,6 +393,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       textSize: 2,
       readerMode: query.get("mode") === "lines" ? "lines" : "page",
       zoom: Number(query.get("zoom")) || 1,
+      timeLeft: query.get("timeleft") === "book" ? "book" : "chapter",
     },
     themes: [
       ...(structuredClone(fixtureThemes) as Theme[]),

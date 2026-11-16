@@ -12,8 +12,23 @@ import { usePlayerControls } from "@/composables/usePlayerControls";
 /** One-row transport docked under the page (Sheet reader). Bookmarks and the book tools are at
  *  the top of the reader. */
 const controls = usePlayerControls();
-const { player, active, recording, book, timeLeft, ahead, percent, toggle, seek, step, status, detail, error } =
-  controls;
+const {
+  player,
+  active,
+  recording,
+  book,
+  timeLeft,
+  timeLeftTitle,
+  toggleTimeLeft,
+  ahead,
+  percent,
+  toggle,
+  seek,
+  step,
+  status,
+  detail,
+  error,
+} = controls;
 const canPlay = computed(() => Boolean(controls.bookId.value));
 </script>
 
@@ -64,10 +79,12 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
         :ahead="ahead"
         :start="`${percent}%`"
         :end="timeLeft"
+        :end-title="timeLeftTitle"
         :detail="detail"
         :disabled="!player.state.bookId"
         @seek="seek"
         @step="step"
+        @switch-end="toggleTimeLeft"
       />
       <p class="dock__status" aria-live="polite">
         <span v-if="recording" class="dock__source" title="The narrator's recording is playing"

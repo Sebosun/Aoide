@@ -10,10 +10,12 @@ const props = withDefaults(
     disabled?: boolean;
     detail?: string;
     label?: string;
+    /** Makes the end label a button with this tooltip, which emits `switch-end`. */
+    endTitle?: string;
   }>(),
-  { ahead: 0, start: "", end: "", disabled: false, detail: "", label: "Chapter position" },
+  { ahead: 0, start: "", end: "", disabled: false, detail: "", label: "Chapter position", endTitle: "" },
 );
-const emit = defineEmits<{ seek: [fraction: number]; step: [delta: number] }>();
+const emit = defineEmits<{ seek: [fraction: number]; step: [delta: number]; "switch-end": [] }>();
 function click(event: MouseEvent) {
   if (props.disabled) return;
   const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
@@ -57,7 +59,16 @@ function key(event: KeyboardEvent) {
       <i class="scrubber__played" :style="{ width: `${played * 100}%` }" />
       <i class="scrubber__ahead" :style="{ left: `${played * 100}%`, width: `${ahead * 100}%` }" />
     </span>
-    <span class="scrubber__label scrubber__label--end">{{ end }}</span>
+    <button
+      v-if="endTitle && end"
+      type="button"
+      class="scrubber__label scrubber__label--end scrubber__end"
+      :title="endTitle"
+      @click="emit('switch-end')"
+    >
+      {{ end }}
+    </button>
+    <span v-else class="scrubber__label scrubber__label--end">{{ end }}</span>
   </div>
 </template>
 
@@ -78,6 +89,17 @@ function key(event: KeyboardEvent) {
 }
 .scrubber__label--end {
   text-align: right;
+}
+.scrubber__end {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.scrubber__end:hover {
+  color: var(--ink);
 }
 .scrubber__track {
   position: relative;

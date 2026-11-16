@@ -35,6 +35,16 @@ export function formatDuration(ms: number): string {
   return h ? `${h} h ${m} min` : `${m} min`;
 }
 
+/** The wall-clock time `leftMs` after `now`, as "ends …" says it: "23:40", with the weekday
+ *  when that is not today. */
+export function endsAt(leftMs: number, now = new Date()): string {
+  const end = new Date(now.getTime() + leftMs);
+  const time = end.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return end.toDateString() === now.toDateString()
+    ? time
+    : `${end.toLocaleDateString(undefined, { weekday: "short" })} ${time}`;
+}
+
 /** A time as a clock reads it: "4:05", or "1:02:09" from an hour; `up` rounds a part of a
  *  second up (for time left). */
 export function formatClock(ms: number, up = false): string {

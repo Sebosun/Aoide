@@ -30,7 +30,7 @@ const emit = defineEmits<{ tools: [tab?: "details"] }>();
 const reader = useReaderStore(),
   library = useLibraryStore(),
   navigation = useNavigationStore();
-const { player, timeLeftMs } = usePlayerControls();
+const { player } = usePlayerControls();
 const wide = useMediaQuery("(min-width: 1000px)");
 const scroller = ref<HTMLElement>();
 const { article, openOriginal } = useOpenArticle();
@@ -102,7 +102,8 @@ watch(
 
 const coverUrl = computed(() => library.books.find((b) => b.id === reader.book?.id)?.coverUrl ?? null);
 const chapterLeft = computed(() => {
-  if (onPage.value && timeLeftMs.value !== null) return `${formatDuration(timeLeftMs.value)} left`;
+  const playing = player.state.chapterLeftMs;
+  if (onPage.value && playing !== null) return `${formatDuration(playing)} left`;
   if (!reader.chapter) return "";
   const words = wordsLeft(reader.chapter, null, null);
   return along.value

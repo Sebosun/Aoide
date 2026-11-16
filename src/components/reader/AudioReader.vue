@@ -49,7 +49,12 @@ const played = computed(() => (partLength.value ? Math.min(1, into.value / partL
 const speed = computed(() => player.state.speed);
 const overall = computed(() => {
   const percent = total.value ? Math.round((position.value / total.value) * 100) : 0;
-  const left = formatDuration((total.value - position.value) / Math.max(0.1, speed.value));
+  // While it plays, as the core counts it; before, from the saved place.
+  const leftMs =
+    here.value && player.state.bookLeftMs !== null
+      ? player.state.bookLeftMs
+      : (total.value - position.value) / Math.max(0.1, speed.value);
+  const left = formatDuration(leftMs);
   return `${percent}% of the book · ${left} left${speed.value === 1 ? "" : ` at ${speed.value}×`}`;
 });
 

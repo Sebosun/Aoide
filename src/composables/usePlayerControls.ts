@@ -1,7 +1,8 @@
 import { computed, ref, watch } from "vue";
 import { api } from "@/api";
-import { formatDuration, segmentAt } from "@/estimate";
+import { endsAt, formatDuration, segmentAt } from "@/estimate";
 import { useLibraryStore } from "@/stores/library";
+import { usePreferencesStore } from "@/stores/preferences";
 import { usePlayerStore } from "@/stores/player";
 import { useReaderStore } from "@/stores/reader";
 import { useUiStore } from "@/stores/ui";
@@ -41,9 +42,27 @@ export function usePlayerControls() {
   const playingChapter = computed(() =>
     player.state.bookId ? reader.cache[`${player.state.bookId}:${player.state.chapter}`] : undefined,
   );
-  /** Listening time left in the playing chapter, as the core counts it. */
-  const timeLeftMs = computed(() => player.state.chapterLeftMs);
-  const timeLeft = computed(() => (timeLeftMs.value === null ? "" : `${formatDuration(timeLeftMs.value)} left`));
+  const preferences = usePreferencesStore();
+  /** The book's time left is shown: chosen, and known (the rest may wait for the sync). */
+  const showsBook = computed(() => preferences.appearance.timeLeft === "book" && player.state.bookLeftMs !== null);
+  /** Listening time left in the playing chapter or book, as the core counts it. */
+  const timeLeftMs = computed(() => (showsBook.value ? player.state.bookLeftMs : player.state.chapterLeftMs));
+  const timeLeft = computed(() =>
+    timeLeftMs.value === null ? "" : `${formatDuration(timeLeftMs.value)} left${showsBook.value ? " in book" : ""}`,
+  );
+  /** The time left's tooltip: when the chapter and the book end by the clock, and what a click
+   *  shows instead. */
+  const timeLeftTitle = computed(() => {
+    const { chapterLeftMs, bookLeftMs } = player.state;
+    if (chapterLeftMs === null) return "";
+    const ends = [`Chapter ends ${endsAt(chapterLeftMs)}`];
+    if (bookLeftMs !== null) ends.push(`book ends ${endsAt(bookLeftMs)}`);
+    return [...ends, `click for the time left in the ${showsBook.value ? "chapter" : "book"}`].join(" · ");
+  });
+  /** Shows the other time left, and keeps the choice. */
+  function toggleTimeLeft() {
+    void preferences.update({ timeLeft: preferences.appearance.timeLeft === "book" ? "chapter" : "book" });
+  }
   /** Generated audio ahead of the playhead, as a share of the chapter's playing length. */
   const ahead = computed(() => {
     const total = player.state.chapterMs;
@@ -169,6 +188,8 @@ export function usePlayerControls() {
     playingChapter,
     timeLeftMs,
     timeLeft,
+    timeLeftTitle,
+    toggleTimeLeft,
     ahead,
     percent,
     toggle,
