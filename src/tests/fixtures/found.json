@@ -108,7 +108,7 @@
         "~/Documents/Books/tide.epub",
         "~/Downloads/notes-on-the-tide.epub"
       ],
-      "size": 1235,
+      "size": 1254,
       "status": "new",
       "suggestion": null,
       "title": "Notes on the Tide"
@@ -126,7 +126,7 @@
       "paths": [
         "~/Downloads/glass-meridian.epub"
       ],
-      "size": 1227,
+      "size": 1247,
       "status": "new",
       "suggestion": null,
       "title": "The Glass Meridian"
@@ -146,27 +146,13 @@
       "paths": [
         "~/Documents/lantern.epub"
       ],
-      "size": 1812,
+      "size": 1854,
       "status": "inLibrary",
       "suggestion": null,
       "title": "The Lantern Keeper"
     }
   ],
   "details": {
-    "h-tide": {
-      "authors": [
-        "Ines Morrow"
-      ],
-      "coverUrl": null,
-      "isbn": null,
-      "key": "/works/h-tide",
-      "published": "2018",
-      "publisher": "Preview Press",
-      "subjects": [
-        "Fiction"
-      ],
-      "title": "Notes on the Tide"
-    },
     "h-glass": {
       "authors": [
         "Oren Vale"
@@ -180,6 +166,20 @@
         "Fiction"
       ],
       "title": "The Glass Meridian"
+    },
+    "h-tide": {
+      "authors": [
+        "Ines Morrow"
+      ],
+      "coverUrl": null,
+      "isbn": null,
+      "key": "/works/h-tide",
+      "published": "2018",
+      "publisher": "Preview Press",
+      "subjects": [
+        "Fiction"
+      ],
+      "title": "Notes on the Tide"
     }
   },
   "unmatched": [

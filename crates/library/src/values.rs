@@ -19,6 +19,9 @@ pub enum GlobalKey {
     OldEngineProfile,
     OldPlayerSpeed,
     OldAppSettings,
+    /// The library's books have had their subjects read for tags (books listed before tags
+    /// came have theirs read once).
+    SubjectsRead,
 }
 
 impl GlobalKey {
@@ -31,6 +34,7 @@ impl GlobalKey {
             GlobalKey::OldEngineProfile => "engine.profile",
             GlobalKey::OldPlayerSpeed => "player.speed",
             GlobalKey::OldAppSettings => "app.settings",
+            GlobalKey::SubjectsRead => "tags.subjects-read",
         }
     }
 }

@@ -10,7 +10,7 @@ fn a_version_12_library_sums_each_books_audio_from_an_index() {
     conn.execute_batch(
         "DROP INDEX segments_book_audio;
          CREATE INDEX segments_book_id ON segments(book_id);
-         PRAGMA user_version = 12;",
+         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; PRAGMA user_version = 12;",
     )
     .unwrap();
     drop(conn);

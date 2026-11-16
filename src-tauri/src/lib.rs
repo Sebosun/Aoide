@@ -60,6 +60,8 @@ pub fn run() {
             commands::library::rename_collection,
             commands::library::delete_collection,
             commands::library::set_book_collections,
+            commands::library::tags,
+            commands::library::set_book_tags,
             commands::library::storage_report,
             commands::library::clean_unused_files,
             commands::speech::preview_voice,

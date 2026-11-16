@@ -14,6 +14,8 @@ pub struct ParsedBook {
     pub identifiers: Vec<String>,
     /// First identifier that is a checksum-valid ISBN-10/13, digits only (with `X` check digit).
     pub isbn: Option<String>,
+    /// Its subjects as the source lists them (`dc:subject`), for tags.
+    pub subjects: Vec<String>,
     pub cover: Option<Cover>,
     /// Footnote/endnote bodies detached from the narration, in document order.
     pub notes: Vec<Note>,

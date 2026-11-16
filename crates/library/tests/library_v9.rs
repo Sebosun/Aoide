@@ -46,7 +46,7 @@ fn a_version_8_library_opens_with_every_item_a_book() {
         "DROP TABLE IF EXISTS sites; DROP TABLE IF EXISTS feed_entries; DROP TABLE IF EXISTS feeds; ALTER TABLE books DROP COLUMN shelf; DROP TABLE IF EXISTS articles; ALTER TABLE books DROP COLUMN kind;
          ALTER TABLE progress DROP COLUMN position_ms;
          ALTER TABLE bookmarks DROP COLUMN position_ms;
-         PRAGMA user_version = 8;",
+         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; PRAGMA user_version = 8;",
     )
     .unwrap();
     drop(conn);

@@ -157,9 +157,20 @@ impl Metadata {
             subjects: picked.subjects.clone(),
             open_library_key: Some(picked.key.clone()),
         };
-        lock(&self.library)
-            .set_book_details(&id, &details)
-            .map_err(|e| e.to_string())?;
+        {
+            let library = lock(&self.library);
+            library
+                .set_book_details(&id, &details)
+                .map_err(|e| e.to_string())?;
+            // The record's subjects are the book's tags too (those the user removed stay so).
+            library
+                .add_tags(
+                    &id,
+                    &aoide_library::tidy_tags(&picked.subjects),
+                    aoide_library::TagSource::Metadata,
+                )
+                .map_err(|e| e.to_string())?;
+        }
         let record = lock(&self.library).book(&id).map_err(|e| e.to_string())?;
         if let (Some(record), Some(url)) = (record, picked.cover_url.as_deref()) {
             if record.cover_path.is_none() {
@@ -318,6 +329,9 @@ mod tests {
             metadata.details(&book.id, Some(&book)).unwrap().subjects,
             ["Rivers"]
         );
+        // Its subjects are the book's tags too.
+        let tags = lock(&metadata.library).book_tags().unwrap();
+        assert_eq!(tags[&BookId(book.id.clone())], ["Rivers"]);
     }
 
     #[test]

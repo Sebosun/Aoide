@@ -46,6 +46,8 @@ pub struct BookSummary {
     pub last_opened_at: Option<i64>,
     /// Ids of the collections the book is on.
     pub collections: Vec<i64>,
+    /// Its tags, by name: from its subjects or genre, the user, or a classifier.
+    pub tags: Vec<String>,
     /// The sync stage of the book's recording, if it has one.
     pub recording: Option<syncing::Stage>,
     /// An article's site and fetch.

@@ -31,6 +31,8 @@ pub struct Inspection {
     pub title: Option<String>,
     /// The album artist or artist tag of the first file.
     pub author: Option<String>,
+    /// The genre tag of the first file that has one.
+    pub genre: Option<String>,
     /// The first file's embedded picture: its front cover, else the first one.
     pub cover: Option<Cover>,
 }

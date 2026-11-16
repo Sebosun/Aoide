@@ -40,6 +40,7 @@ pub(super) trait ShelfHost {
 /// What listing the library shows of every book, read at once rather than book by book.
 struct Stored {
     collections: HashMap<BookId, Vec<i64>>,
+    tags: HashMap<BookId, Vec<String>>,
     /// Books listened to at all.
     listened: HashSet<BookId>,
     audio_bytes: HashMap<BookId, u64>,
@@ -54,6 +55,7 @@ impl Stored {
     fn read(library: &Library) -> aoide_library::Result<Self> {
         Ok(Self {
             collections: library.book_collections()?,
+            tags: library.book_tags()?,
             listened: library
                 .listening_stats()?
                 .by_book
@@ -148,6 +150,11 @@ impl Shelf {
         let (mut new, mut read) = (0usize, 0usize);
         let ignored = self.ignored();
         let mut present = Vec::new();
+        // Books listed before tags came have their subjects read once.
+        let subjects_read = matches!(
+            lock(&self.library).value::<bool>(GlobalKey::SubjectsRead),
+            Ok(Some(true))
+        );
         for file in files {
             if ignored.contains(&file.id.0) {
                 continue;
@@ -156,17 +163,32 @@ impl Shelf {
             let existing = lock(&self.library)
                 .book(&file.id)
                 .map_err(|e| e.to_string())?;
-            let book = match existing {
-                Some(record) if !matches!(record.status, BookStatus::Error(_)) => NewBook {
-                    id: record.id,
-                    path: file.path.clone(),
-                    title: record.title,
-                    authors: record.authors,
-                    language: record.language,
-                    cover_path: record.cover_path,
-                    error: None,
-                    kind: aoide_library::ItemKind::Book,
-                },
+            let (book, subjects) = match existing {
+                Some(record) if !matches!(record.status, BookStatus::Error(_)) => {
+                    let subjects = if subjects_read {
+                        Vec::new()
+                    } else {
+                        // Its EPUB's, and those of a record looked up before tags came.
+                        let looked_up = lock(&self.library)
+                            .book_details(&record.id)
+                            .ok()
+                            .flatten()
+                            .map(|d| d.subjects)
+                            .unwrap_or_default();
+                        [subjects_of(&file.path), looked_up].concat()
+                    };
+                    let record = NewBook {
+                        id: record.id,
+                        path: file.path.clone(),
+                        title: record.title,
+                        authors: record.authors,
+                        language: record.language,
+                        cover_path: record.cover_path,
+                        error: None,
+                        kind: aoide_library::ItemKind::Book,
+                    };
+                    (record, subjects)
+                }
                 existing => {
                     if existing.is_none() {
                         new += 1;
@@ -175,9 +197,25 @@ impl Shelf {
                     self.describe(&file.path, &file.id)
                 }
             };
-            lock(&self.library)
+            let library = lock(&self.library);
+            library
                 .upsert_book(&book, now_ms())
                 .map_err(|e| e.to_string())?;
+            let tags = aoide_library::tidy_tags(&subjects);
+            if !tags.is_empty() {
+                library
+                    .add_tags(&book.id, &tags, aoide_library::TagSource::Metadata)
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        if !subjects_read {
+            if let Err(error) = lock(&self.library).set_value(GlobalKey::SubjectsRead, &true) {
+                self.reporter.report(
+                    "library.save",
+                    "Could not note that the books' subjects were read",
+                    error,
+                );
+            }
         }
         {
             let library = lock(&self.library);
@@ -207,7 +245,8 @@ impl Shelf {
     }
 
     /// Parses a new book's metadata and extracts its cover.
-    fn describe(&self, path: &Path, id: &BookId) -> NewBook {
+    /// The book's record from its file, and its subjects.
+    fn describe(&self, path: &Path, id: &BookId) -> (NewBook, Vec<String>) {
         let fallback_title = path.file_stem().map(|s| s.to_string_lossy().into_owned());
         let parsed = std::fs::read(path)
             .map_err(|e| e.to_string())
@@ -234,7 +273,7 @@ impl Shelf {
                         super::item::Untyped::Jpeg,
                     )
                 });
-                NewBook {
+                let record = NewBook {
                     id: id.clone(),
                     path: path.to_path_buf(),
                     title: book.title.or(fallback_title),
@@ -243,18 +282,22 @@ impl Shelf {
                     cover_path,
                     error: None,
                     kind: aoide_library::ItemKind::Book,
-                }
+                };
+                (record, book.subjects)
             }
-            Err(error) => NewBook {
-                id: id.clone(),
-                path: path.to_path_buf(),
-                title: fallback_title,
-                authors: vec![],
-                language: None,
-                cover_path: None,
-                error: Some(error),
-                kind: aoide_library::ItemKind::Book,
-            },
+            Err(error) => {
+                let record = NewBook {
+                    id: id.clone(),
+                    path: path.to_path_buf(),
+                    title: fallback_title,
+                    authors: vec![],
+                    language: None,
+                    cover_path: None,
+                    error: Some(error),
+                    kind: aoide_library::ItemKind::Book,
+                };
+                (record, Vec::new())
+            }
         }
     }
 
@@ -482,6 +525,7 @@ impl Shelf {
                 .flatten(),
             progress,
             collections: stored.collections.remove(id).unwrap_or_default(),
+            tags: stored.tags.remove(id).unwrap_or_default(),
             id: record.id.0,
             title: record.title.unwrap_or_else(|| "Untitled".into()),
             authors: record.authors,
@@ -638,6 +682,16 @@ impl Shelf {
     }
 
     /// Runs a change to the collections.
+    /// Every tag on some item, with how many have it, by name.
+    pub fn tags(&self) -> Result<Vec<aoide_library::TagCount>, String> {
+        self.shelve(|library| library.tags())
+    }
+
+    /// The user's tags for an item: exactly these are shown.
+    pub fn set_tags(&self, id: &str, tags: &[String]) -> Result<(), String> {
+        self.shelve(|library| library.set_tags(&BookId(id.into()), tags))
+    }
+
     pub fn shelve<T>(
         &self,
         change: impl FnOnce(&Library) -> aoide_library::Result<T>,
@@ -741,6 +795,18 @@ impl super::Core {
         Ok(())
     }
 
+    /// Every tag on some item, with how many items have it.
+    pub fn tags(&self) -> Result<Vec<aoide_library::TagCount>, String> {
+        self.shelf.tags()
+    }
+
+    /// The user's tags for an item: exactly these are shown, the others stay removed.
+    pub fn set_book_tags(&self, book_id: &str, tags: &[String]) -> Result<(), String> {
+        self.shelf.set_tags(book_id, tags)?;
+        self.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+
     pub fn set_book_collections(&self, book_id: &str, ids: &[i64]) -> Result<(), String> {
         self.shelf
             .shelve(|library| library.set_book_collections(&BookId(book_id.into()), ids))?;
@@ -829,6 +895,17 @@ impl super::Core {
     }
 }
 
+/// An EPUB's subjects, from its package alone; none when it cannot be read.
+fn subjects_of(path: &Path) -> Vec<String> {
+    std::fs::read(path)
+        .ok()
+        .and_then(|bytes| {
+            aoide_epub::read_metadata(&bytes, &aoide_epub::ParseOptions::default()).ok()
+        })
+        .map(|meta| meta.subjects)
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -915,6 +992,80 @@ mod tests {
         shelf.rescan().unwrap();
 
         assert_eq!(listed(&shelf), [(id, BookStatus::Missing)]);
+    }
+
+    #[test]
+    fn a_books_subjects_become_its_tags_and_the_users_edit_holds_over_rescans() {
+        let dir = tempfile::tempdir().unwrap();
+        let shelf = shelf(dir.path());
+        let one = "<html><body><p>The quay lights came on one by one.</p></body></html>";
+        std::fs::write(
+            dir.path().join("books/Tagged.epub"),
+            super::super::tests::epub_with_subjects(
+                one.into(),
+                one.into(),
+                &["Fiction / Sea Stories / General", "Lighthouses"],
+            ),
+        )
+        .unwrap();
+        shelf.rescan().unwrap();
+        let tags = || shelf.list(&Host).unwrap()[0].tags.clone();
+        assert_eq!(tags(), ["Fiction", "Lighthouses", "Sea Stories"]);
+        assert_eq!(
+            shelf
+                .tags()
+                .unwrap()
+                .iter()
+                .map(|t| &t.name)
+                .collect::<Vec<_>>(),
+            ["Fiction", "Lighthouses", "Sea Stories"]
+        );
+
+        let id = shelf.list(&Host).unwrap()[0].id.clone();
+        shelf
+            .set_tags(&id, &["Lighthouses".into(), "To read".into()])
+            .unwrap();
+        shelf.rescan().unwrap();
+        assert_eq!(tags(), ["Lighthouses", "To read"]);
+    }
+
+    #[test]
+    fn books_listed_before_tags_get_their_subjects_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let shelf = shelf(dir.path());
+        let one = "<html><body><p>The quay lights came on one by one.</p></body></html>";
+        std::fs::write(
+            dir.path().join("books/Older.epub"),
+            super::super::tests::epub_with_subjects(one.into(), one.into(), &["Lighthouses"]),
+        )
+        .unwrap();
+        shelf.rescan().unwrap();
+        let id = shelf.list(&Host).unwrap()[0].id.clone();
+        // As a library from before tags: the book without tags, its subjects never read.
+        shelf
+            .shelve(|library| {
+                let id = BookId(id.clone());
+                let record = library.book(&id)?.unwrap();
+                library.remove_book(&id)?;
+                library.upsert_book(
+                    &NewBook {
+                        id,
+                        path: record.path,
+                        title: record.title,
+                        authors: record.authors,
+                        language: record.language,
+                        cover_path: record.cover_path,
+                        error: None,
+                        kind: record.kind,
+                    },
+                    1,
+                )?;
+                library.remove_value(GlobalKey::SubjectsRead)
+            })
+            .unwrap();
+        assert!(shelf.list(&Host).unwrap()[0].tags.is_empty());
+        shelf.rescan().unwrap();
+        assert_eq!(shelf.list(&Host).unwrap()[0].tags, ["Lighthouses"]);
     }
 
     #[test]

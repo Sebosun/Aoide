@@ -248,6 +248,21 @@ const MIGRATIONS: &[Step] = &[
         add_column_if_missing(tx, "articles", "lead", "TEXT")?;
         add_column_if_missing(tx, "feeds", "failing_since", "INTEGER")
     }),
+    // Version 16.
+    // Tags on items, and where each came from. A tag the user removed stays as `removed`, so
+    // reading the item's subjects again or a classifier's guess does not bring it back.
+    Step::Sql("CREATE TABLE tags (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL UNIQUE COLLATE NOCASE
+                );
+                CREATE TABLE book_tags (
+                    book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+                    tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+                    source TEXT NOT NULL
+                        CHECK(source IN ('user', 'metadata', 'classifier', 'removed')),
+                    PRIMARY KEY (book_id, tag_id)
+                );
+                CREATE INDEX book_tags_tag ON book_tags(tag_id);"),
 ];
 
 fn add_column_if_missing(

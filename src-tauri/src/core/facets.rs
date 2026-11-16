@@ -184,6 +184,7 @@ mod tests {
             added_at,
             last_opened_at: opened,
             collections: vec![],
+            tags: Vec::new(),
             recording: None,
             article: None,
         }

@@ -71,7 +71,9 @@ fn lay_out(files: Vec<Probed>, problems: Vec<FileProblem>) -> Inspection {
         .map(|f| f.file.tags.clone())
         .unwrap_or_default();
     let cover = files.first().and_then(|f| f.cover.clone());
+    let genre = files.iter().find_map(|f| f.file.tags.genre.clone());
     Inspection {
+        genre,
         cover,
         files: files.into_iter().map(|f| f.file).collect(),
         problems,

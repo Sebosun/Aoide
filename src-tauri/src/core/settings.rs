@@ -15,6 +15,8 @@ pub struct AppSettings {
     pub aligner: Option<AlignerSettings>,
     /// Library order: "recent", "title", "author" or "progress".
     pub library_sort: LibrarySort,
+    /// The tags the library shows only, and those it leaves out.
+    pub library_tags: TagFilter,
     /// Folders searched by "Find books".
     pub scan: super::discovery::ScanSettings,
     /// Carry on preparing queued books when Aoide starts.
@@ -55,6 +57,8 @@ pub struct AppSettingsPatch {
     #[cfg_attr(test, ts(optional))]
     pub library_sort: Option<LibrarySort>,
     #[cfg_attr(test, ts(optional))]
+    pub library_tags: Option<TagFilter>,
+    #[cfg_attr(test, ts(optional))]
     pub scan: Option<super::discovery::ScanSettings>,
     #[cfg_attr(test, ts(optional))]
     pub resume_prepare: Option<bool>,
@@ -93,6 +97,7 @@ impl AppSettingsPatch {
         set(&mut settings.cache_limit_bytes, self.cache_limit_bytes);
         set(&mut settings.aligner, self.aligner);
         set(&mut settings.library_sort, self.library_sort);
+        set(&mut settings.library_tags, self.library_tags);
         set(&mut settings.scan, self.scan);
         set(&mut settings.resume_prepare, self.resume_prepare);
         set(&mut settings.recognition, self.recognition);
@@ -113,6 +118,7 @@ impl From<AppSettings> for AppSettingsPatch {
             cache_limit_bytes,
             aligner,
             library_sort,
+            library_tags,
             scan,
             resume_prepare,
             recognition,
@@ -127,6 +133,7 @@ impl From<AppSettings> for AppSettingsPatch {
             cache_limit_bytes: Some(cache_limit_bytes),
             aligner: Some(aligner),
             library_sort: Some(library_sort),
+            library_tags: Some(library_tags),
             scan: Some(scan),
             resume_prepare: Some(resume_prepare),
             recognition: Some(recognition),
@@ -137,6 +144,16 @@ impl From<AppSettings> for AppSettingsPatch {
             browser: Some(browser),
         }
     }
+}
+
+/// The library by its items' tags: with `include`, only items with one of them; never items
+/// with one of `exclude`. Names compare ignoring case.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct TagFilter {
+    pub include: Vec<String>,
+    pub exclude: Vec<String>,
 }
 
 /// Library order.
@@ -160,6 +177,7 @@ impl Default for AppSettings {
             cache_limit_bytes: None,
             aligner: None,
             library_sort: LibrarySort::Recent,
+            library_tags: TagFilter::default(),
             scan: Default::default(),
             resume_prepare: true,
             recognition: Default::default(),

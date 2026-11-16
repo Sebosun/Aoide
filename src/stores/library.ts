@@ -2,8 +2,18 @@ import { defineStore } from "pinia";
 import { computed, ref, toRaw } from "vue";
 import { api } from "@/api";
 import { useNavigationStore } from "@/stores/navigation";
-import type { BookProgress, BookSummary, Collection, ImportResult, ItemKind, LibrarySort } from "@/api/types";
+import type {
+  BookProgress,
+  BookSummary,
+  Collection,
+  ImportResult,
+  ItemKind,
+  LibrarySort,
+  TagFilter,
+} from "@/api/types";
 
+/** How a tag filters the library. */
+export type TagState = "include" | "exclude" | "off";
 export type BuiltInFilter = "all" | "unread" | "progress" | "finished" | "listen" | "preparing";
 /** A built-in filter, or one collection. */
 export type LibraryFilter = BuiltInFilter | `collection:${number}`;
@@ -43,6 +53,8 @@ export const useLibraryStore = defineStore("library", () => {
   /** Which kind of item the library shows; "all" for every kind. */
   const kind = ref<ItemKind | "all">("all");
   const collections = ref<Collection[]>([]);
+  /** The tags the library shows only, and those it leaves out (an app setting). */
+  const tagFilter = ref<TagFilter>({ include: [], exclude: [] });
   /** Reading speed for time estimates, in words a minute (an app setting). */
   const readingWpm = ref(230);
   /** Books whose file could not be read: listed apart, never among the books to open. */
@@ -54,11 +66,64 @@ export const useLibraryStore = defineStore("library", () => {
       ? (collections.value.find((c) => `collection:${c.id}` === filter.value) ?? null)
       : null,
   );
-  /** What the library is showing from: the open collection's items, else every item. Counts
-   *  are of these, so a collection's switch counts what it holds. */
-  const scope = computed(() =>
+  const named = (list: string[], tag: string) => list.some((t) => t.toLowerCase() === tag.toLowerCase());
+  /** Whether the tag filter lets an item through: none of the tags left out, and one of those
+   *  shown only, if any are. */
+  const tagged = (book: BookSummary) =>
+    !book.tags.some((t) => named(tagFilter.value.exclude, t)) &&
+    (!tagFilter.value.include.length || book.tags.some((t) => named(tagFilter.value.include, t)));
+  /** The open collection's items, else every item, before the tag filter. */
+  const pool = computed(() =>
     collection.value ? usable.value.filter((b) => b.collections.includes(collection.value!.id)) : usable.value,
   );
+  /** What the library is showing from: the pool, through the tag filter. Counts are of these, so
+   *  a collection's switch counts what it holds. */
+  const scope = computed(() => pool.value.filter(tagged));
+  /** Each tag on the pool's items with how many have it, the most used first. A tag the filter
+   *  names stays listed (at no items, once nothing has it), so it can be cleared. */
+  const tagCounts = computed(() => {
+    const counts = new Map<string, { name: string; books: number }>();
+    for (const book of pool.value)
+      for (const tag of book.tags) {
+        const key = tag.toLowerCase();
+        const entry = counts.get(key) ?? { name: tag, books: 0 };
+        entry.books++;
+        counts.set(key, entry);
+      }
+    for (const tag of [...tagFilter.value.include, ...tagFilter.value.exclude])
+      if (!counts.has(tag.toLowerCase())) counts.set(tag.toLowerCase(), { name: tag, books: 0 });
+    return [...counts.values()].sort(
+      (a, b) => b.books - a.books || a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
+  });
+  const tagState = (tag: string): TagState =>
+    named(tagFilter.value.include, tag) ? "include" : named(tagFilter.value.exclude, tag) ? "exclude" : "off";
+  /** Shows only the items with the tag, then leaves them out, then neither; saved. */
+  async function cycleTag(tag: string) {
+    const state = tagState(tag),
+      without = (list: string[]) => list.filter((t) => t.toLowerCase() !== tag.toLowerCase());
+    const next: TagFilter = {
+      include: state === "off" ? [...without(tagFilter.value.include), tag] : without(tagFilter.value.include),
+      exclude: state === "include" ? [...without(tagFilter.value.exclude), tag] : without(tagFilter.value.exclude),
+    };
+    tagFilter.value = next;
+    try {
+      await api.updateAppSettings({ patch: { libraryTags: next } });
+    } catch (e) {
+      error.value = String(e);
+    }
+  }
+  /** Every tag on some item, by name: offered when tagging. */
+  const allTags = computed(() =>
+    [...new Map(usable.value.flatMap((b) => b.tags).map((t) => [t.toLowerCase(), t])).values()].sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" }),
+    ),
+  );
+  /** The user's tags for an item: exactly these. */
+  async function setBookTags(bookId: string, tags: string[]) {
+    await api.setBookTags({ bookId, tags });
+    await refresh();
+  }
   const counts = computed(
     () =>
       Object.fromEntries(
@@ -86,7 +151,10 @@ export const useLibraryStore = defineStore("library", () => {
   const visible = computed(() => {
     const q = query.value.trim().toLowerCase();
     const shown = usable.value.filter(
-      (b) => matchesFilter(b) && (kind.value === "all" || kinds.value.length < 2 || isKind(b, kind.value as ItemKind)),
+      (b) =>
+        matchesFilter(b) &&
+        tagged(b) &&
+        (kind.value === "all" || kinds.value.length < 2 || isKind(b, kind.value as ItemKind)),
     );
     const matches = q
       ? shown.filter((b) => b.title.toLowerCase().includes(q) || b.authors.some((a) => a.toLowerCase().includes(q)))
@@ -175,6 +243,7 @@ export const useLibraryStore = defineStore("library", () => {
         folder.value = (await api.appInfo()).libraryFolder;
         const settings = await api.appSettings();
         sort.value = settings.librarySort ?? "recent";
+        tagFilter.value = settings.libraryTags ?? { include: [], exclude: [] };
         readingWpm.value = settings.readingWpm ?? 230;
         await refresh();
       } catch (e) {
@@ -237,6 +306,12 @@ export const useLibraryStore = defineStore("library", () => {
     renameCollection,
     deleteCollection,
     setBookCollections,
+    tagFilter,
+    tagCounts,
+    tagState,
+    cycleTag,
+    allTags,
+    setBookTags,
     loading,
     folder,
     error,

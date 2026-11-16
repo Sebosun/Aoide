@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UiCard from "@/components/ui/UiCard.vue";
 import UiSegmented from "@/components/ui/UiSegmented.vue";
+import LibraryTags from "@/components/library/LibraryTags.vue";
 import { computed } from "vue";
 import { BookOpen, Search, Trash2, TriangleAlert } from "@lucide/vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
@@ -140,6 +141,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
         </button>
       </div>
     </div>
+    <LibraryTags v-if="library.books.length" class="library__tags" />
     <ul v-if="!library.ready" class="library__grid" aria-hidden="true">
       <li v-for="n in 12" :key="n" class="library__ghost">
         <UiSkeleton class="library__ghost-cover" /><UiSkeleton class="library__ghost-line" /><UiSkeleton
@@ -267,6 +269,9 @@ const SORTS: { value: LibrarySort; label: string }[] = [
 }
 .library__bar:empty {
   display: none;
+}
+.library__tags {
+  margin-top: calc(-1 * var(--space-2));
 }
 .library__chips {
   display: flex;

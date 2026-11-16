@@ -542,6 +542,7 @@ mod tests {
             description: None,
             identifiers: vec![],
             isbn: None,
+            subjects: Vec::new(),
             cover: None,
             notes: vec![],
             chapters: vec![
@@ -600,6 +601,7 @@ mod tests {
             description: None,
             identifiers: vec![],
             isbn: None,
+            subjects: Vec::new(),
             cover: None,
             notes: vec![aoide_epub::Note {
                 id: "a#n".into(),
@@ -648,6 +650,7 @@ mod tests {
             description: None,
             identifiers: vec![],
             isbn: None,
+            subjects: Vec::new(),
             cover: None,
             notes: vec![aoide_epub::Note {
                 id: "a#n".into(),

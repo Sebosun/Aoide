@@ -23,6 +23,7 @@ pub fn read_metadata(bytes: &[u8], options: &ParseOptions) -> Result<BookMetadat
         language: package.language,
         publisher: package.publisher,
         description: package.description,
+        subjects: package.subjects,
         cover: package.cover,
     })
 }
@@ -47,6 +48,7 @@ pub fn parse_epub(bytes: &[u8], options: &ParseOptions) -> Result<ParsedBook, Pa
         publisher: package.publisher,
         description: package.description,
         identifiers: package.identifiers,
+        subjects: package.subjects,
         cover: package.cover,
         notes: extraction.notes,
         chapters,

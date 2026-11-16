@@ -105,6 +105,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     cacheLimitBytes: 2 * 1024 ** 3,
     aligner: null,
     librarySort: "recent",
+    libraryTags: { include: [], exclude: [] },
     scan: { roots: [], exclude: [], includeHidden: [], onStartup: false },
     resumePrepare: true,
     recognition: {

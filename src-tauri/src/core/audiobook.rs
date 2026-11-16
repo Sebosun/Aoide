@@ -157,7 +157,8 @@ impl Core {
             .clone()
             .filter(|t| !t.trim().is_empty())
             .unwrap_or_else(|| aoide_discovery::title_from_name(&path));
-        lock(&self.library)
+        let library = lock(&self.library);
+        library
             .upsert_book(
                 &NewBook {
                     id: BookId(id.clone()),
@@ -175,6 +176,15 @@ impl Core {
                 now_ms(),
             )
             .map_err(|e| e.to_string())?;
+        // Its genre is a tag (unless it only says audiobook: the library's kinds say that).
+        library
+            .add_tags(
+                &BookId(id.clone()),
+                &aoide_library::tidy_tags(&found.genre.iter().cloned().collect::<Vec<_>>()),
+                aoide_library::TagSource::Metadata,
+            )
+            .map_err(|e| e.to_string())?;
+        drop(library);
         self.shelf.prefer_recording(&id)?;
         self.recordings.add_standalone(self, &id, found)?;
         self.emit(CoreEvent::LibraryChanged);

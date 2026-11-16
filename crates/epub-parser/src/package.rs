@@ -9,6 +9,8 @@ pub(crate) struct Package {
     pub publisher: Option<String>,
     pub description: Option<String>,
     pub identifiers: Vec<String>,
+    /// `dc:subject` entries, in order.
+    pub subjects: Vec<String>,
     pub cover: Option<crate::Cover>,
     pub spine: Vec<String>,
     pub navigation: Option<Navigation>,
@@ -117,6 +119,7 @@ pub(crate) fn read(archive: &mut Archive<'_>) -> Result<Package, ParseError> {
             .map(|d| strip_markup(&d))
             .filter(|d| !d.is_empty()),
         identifiers: all("identifier"),
+        subjects: all("subject"),
         cover,
         spine,
         navigation,

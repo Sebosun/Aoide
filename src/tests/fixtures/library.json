@@ -28,6 +28,11 @@
     "addedAt": 100,
     "lastOpenedAt": 500,
     "collections": [],
+    "tags": [
+      "Fiction",
+      "Lighthouses",
+      "Sea Stories"
+    ],
     "recording": null,
     "article": null
   },
@@ -55,6 +60,11 @@
     "addedAt": 101,
     "lastOpenedAt": null,
     "collections": [],
+    "tags": [
+      "Cities",
+      "Fiction",
+      "Literary"
+    ],
     "recording": null,
     "article": null
   },
@@ -82,6 +92,10 @@
     "addedAt": 102,
     "lastOpenedAt": null,
     "collections": [],
+    "tags": [
+      "Fiction",
+      "Literary"
+    ],
     "recording": null,
     "article": null
   },
@@ -109,6 +123,9 @@
     "addedAt": 103,
     "lastOpenedAt": null,
     "collections": [],
+    "tags": [
+      "Travel"
+    ],
     "recording": null,
     "article": null
   },
@@ -135,6 +152,7 @@
     "addedAt": 104,
     "lastOpenedAt": null,
     "collections": [],
+    "tags": [],
     "recording": null,
     "article": null
   }

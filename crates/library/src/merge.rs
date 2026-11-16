@@ -5,7 +5,7 @@ use crate::{BookId, Library, Result};
 
 impl Library {
     /// Moves audiobook `audiobook`'s recording (with any transcript and sync map), bookmarks
-    /// (kept as times), collections and listening and reading time to book `book`, keeps the
+    /// (kept as times), collections, tags and listening and reading time to book `book`, keeps the
     /// earlier of their `added_at`, keeps the audiobook's place on its timeline as the book's
     /// [`crate::BookKey::PendingPlace`] (when it had one), and removes the audiobook. All or
     /// nothing. The caller checks that one is an audiobook, the other a book with no recording.
@@ -34,6 +34,12 @@ impl Library {
         tx.execute(
             "INSERT OR IGNORE INTO book_collections (book_id, collection_id)
              SELECT ?2, collection_id FROM book_collections WHERE book_id = ?1",
+            [from, to],
+        )?;
+        // The book keeps what it has (its own tags, those the user removed from it).
+        tx.execute(
+            "INSERT OR IGNORE INTO book_tags (book_id, tag_id, source)
+             SELECT ?2, tag_id, source FROM book_tags WHERE book_id = ?1",
             [from, to],
         )?;
         for table in ["listening", "reading"] {

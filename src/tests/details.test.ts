@@ -287,3 +287,26 @@ it("says an article was rendered in the browser, which the mock, like the core, 
   expect(about().get('[aria-labelledby="item-text"]').text()).toContain("rendered in the browser");
   wrapper.unmount();
 });
+
+it("lists an item's tags on its page and edits them there", async () => {
+  useNavigationStore().openItem("book-1");
+  const wrapper = await app();
+  const tags = () => page(wrapper).get('[aria-label="Tags"]');
+  expect(
+    tags()
+      .findAll("li")
+      .map((t) => t.text()),
+  ).toEqual(["Cities", "Fiction", "Literary"]);
+  await page(wrapper).get('[aria-label="Edit tags"]').trigger("click");
+  await flushPromises();
+  const dialog = document.body.querySelector('[role="dialog"][aria-label="Tags for A Map of Quiet Places"]');
+  expect(dialog).not.toBeNull();
+  dialog!.querySelector<HTMLButtonElement>('[aria-label="Remove the tag Cities"]')!.click();
+  await flushPromises();
+  expect(
+    tags()
+      .findAll("li")
+      .map((t) => t.text()),
+  ).toEqual(["Fiction", "Literary"]);
+  wrapper.unmount();
+});

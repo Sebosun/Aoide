@@ -34,6 +34,8 @@ pub(super) fn write(name: &str, value: &impl Serialize, renames: &[(String, Stri
 struct Book {
     title: &'static str,
     author: &'static str,
+    /// Its `dc:subject` entries (they become its tags).
+    subjects: &'static [&'static str],
     chapters: &'static [&'static [&'static str]],
     /// Adds a copyright page (left out) and an empty section (skipped), for extraction notes.
     notes: bool,
@@ -47,6 +49,7 @@ const BOOKS: [Book; 4] = [
     Book {
         title: "The Lantern Keeper",
         author: "Mira Vale",
+        subjects: &["Fiction / Sea Stories / General", "Lighthouses"],
         chapters: &[
             &[
                 "The small light",
@@ -65,6 +68,7 @@ const BOOKS: [Book; 4] = [
     Book {
         title: "A Map of Quiet Places",
         author: "Ellis Reed",
+        subjects: &["Fiction / Literary", "Cities"],
         chapters: &[
             &[
                 "An ordinary discovery",
@@ -88,6 +92,7 @@ const BOOKS: [Book; 4] = [
     Book {
         title: "The Absent Orchard",
         author: "Ellis Reed",
+        subjects: &["Fiction / Literary"],
         chapters: &[&[
             "The gate",
             "The orchard had been sold twice, and neither owner had ever seen it.",
@@ -98,6 +103,7 @@ const BOOKS: [Book; 4] = [
     Book {
         title: "An Unfinished Atlas",
         author: "Ellis Reed",
+        subjects: &["Travel"],
         chapters: &[&[
             "Blank pages",
             "Half the atlas was empty, and the cartographer liked it best that way.",
@@ -113,6 +119,7 @@ const FOUND: [Book; 2] = [
     Book {
         title: "Notes on the Tide",
         author: "Ines Morrow",
+        subjects: &["Sea Stories"],
         chapters: &[&[
             "High water",
             "The tide came in twice a day, and twice a day she wrote it down.",
@@ -123,6 +130,7 @@ const FOUND: [Book; 2] = [
     Book {
         title: "The Glass Meridian",
         author: "Oren Vale",
+        subjects: &["Science Fiction"],
         chapters: &[&[
             "Noon",
             "At noon the meridian line burned white across the floor.",
@@ -249,8 +257,13 @@ fn epub(book: &Book) -> Vec<u8> {
     files.push((
         "OPS/book.opf".into(),
         format!(
-            r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{}</dc:title><dc:creator>{}</dc:creator><dc:language>en</dc:language></metadata><manifest>{manifest}</manifest><spine>{spine}</spine></package>"#,
-            book.title, book.author
+            r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{}</dc:title><dc:creator>{}</dc:creator><dc:language>en</dc:language>{}</metadata><manifest>{manifest}</manifest><spine>{spine}</spine></package>"#,
+            book.title,
+            book.author,
+            book.subjects
+                .iter()
+                .map(|s| format!("<dc:subject>{s}</dc:subject>"))
+                .collect::<String>()
         ),
     ));
     let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));

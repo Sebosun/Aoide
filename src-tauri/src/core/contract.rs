@@ -35,6 +35,7 @@ fn contract() -> String {
         aoide_library::BookStatus,
         aoide_library::ItemKind,
         aoide_library::Collection,
+        aoide_library::TagCount,
         super::BookProgressView,
         super::facets::AudioSource,
         super::ReadingMode,
@@ -96,6 +97,7 @@ fn contract() -> String {
         aoide_metadata::Match,
         // Settings and storage
         super::settings::LibrarySort,
+        super::settings::TagFilter,
         super::settings::AlignerSettings,
         super::discovery::ScanSettings,
         super::settings::AppSettings,

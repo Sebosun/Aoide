@@ -1066,15 +1066,15 @@
         "call": "scanForBooks",
         "error": null,
         "expect": {
+          "[id=book-0].audiobook.0": "~/Documents/The Lantern Keeper.m4b",
+          "[id=book-0].status": "inLibrary",
+          "[id=h-glass].audiobook.length": 0,
+          "[id=h-glass].status": "new",
           "[id=h-tide].audiobook.length": 1,
           "[id=h-tide].paths.length": 2,
           "[id=h-tide].status": "new",
           "[id=h-tide].suggestion": null,
           "[id=h-tide].title": "Notes on the Tide",
-          "[id=book-0].audiobook.0": "~/Documents/The Lantern Keeper.m4b",
-          "[id=book-0].status": "inLibrary",
-          "[id=h-glass].audiobook.length": 0,
-          "[id=h-glass].status": "new",
           "[status=unreadable].error": "not a readable EPUB: invalid EPUB: invalid Zip archive: Could not find EOCD",
           "length": 4
         }
@@ -1095,9 +1095,9 @@
         "call": "discoveredBooks",
         "error": null,
         "expect": {
+          "[id=h-glass].suggestion.publisher": "Preview Press",
           "[id=h-tide].suggestion.publisher": "Preview Press",
-          "[id=h-tide].suggestion.title": "Notes on the Tide",
-          "[id=h-glass].suggestion.publisher": "Preview Press"
+          "[id=h-tide].suggestion.title": "Notes on the Tide"
         }
       },
       {
@@ -1132,8 +1132,8 @@
         "call": "discoveredBooks",
         "error": null,
         "expect": {
-          "[id=h-tide].status": "inLibrary",
           "[id=h-glass].status": "new",
+          "[id=h-tide].status": "inLibrary",
           "length": 4
         }
       }

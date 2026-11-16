@@ -79,10 +79,19 @@ pub(super) fn epub() -> Vec<u8> {
 
 /// The test book's package with these two chapter documents.
 pub(super) fn epub_with(one: String, two: String) -> Vec<u8> {
+    epub_with_subjects(one, two, &[])
+}
+
+/// [`epub_with`], its package listing `subjects`.
+pub(super) fn epub_with_subjects(one: String, two: String, subjects: &[&str]) -> Vec<u8> {
+    let subjects: String = subjects
+        .iter()
+        .map(|s| format!("<dc:subject>{s}</dc:subject>"))
+        .collect();
     let files = [
         ("mimetype", "application/epub+zip".to_string()),
         ("META-INF/container.xml", r#"<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#.into()),
-        ("OPS/book.opf", r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Quay Lights</dc:title><dc:creator>Test Author</dc:creator><dc:language>en</dc:language></metadata><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="one"/><itemref idref="two"/></spine></package>"#.into()),
+        ("OPS/book.opf", format!(r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Quay Lights</dc:title><dc:creator>Test Author</dc:creator><dc:language>en</dc:language>{subjects}</metadata><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="one"/><itemref idref="two"/></spine></package>"#)),
         ("OPS/one.xhtml", one),
         ("OPS/two.xhtml", two),
     ];

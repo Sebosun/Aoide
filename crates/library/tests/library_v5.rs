@@ -101,7 +101,7 @@ fn version_four_databases_gain_collections_and_keep_their_books() {
         book(&lib, "kept");
     }
     let conn = rusqlite::Connection::open(&path).unwrap();
-    conn.execute_batch("DROP TABLE IF EXISTS sites; DROP TABLE IF EXISTS feed_entries; DROP TABLE IF EXISTS feeds; ALTER TABLE books DROP COLUMN shelf; DROP TABLE IF EXISTS articles; ALTER TABLE books DROP COLUMN kind; ALTER TABLE progress DROP COLUMN position_ms; ALTER TABLE bookmarks DROP COLUMN position_ms; DROP TABLE IF EXISTS reading; ALTER TABLE books DROP COLUMN finished_at; ALTER TABLE books DROP COLUMN word_count; DROP TABLE IF EXISTS book_values; DROP TABLE IF EXISTS sync_maps; DROP TABLE IF EXISTS recording_blocks; DROP TABLE IF EXISTS recordings; DROP TABLE IF EXISTS book_collections; DROP TABLE IF EXISTS collections; PRAGMA user_version = 4;")
+    conn.execute_batch("DROP TABLE IF EXISTS sites; DROP TABLE IF EXISTS feed_entries; DROP TABLE IF EXISTS feeds; ALTER TABLE books DROP COLUMN shelf; DROP TABLE IF EXISTS articles; ALTER TABLE books DROP COLUMN kind; ALTER TABLE progress DROP COLUMN position_ms; ALTER TABLE bookmarks DROP COLUMN position_ms; DROP TABLE IF EXISTS reading; ALTER TABLE books DROP COLUMN finished_at; ALTER TABLE books DROP COLUMN word_count; DROP TABLE IF EXISTS book_values; DROP TABLE IF EXISTS sync_maps; DROP TABLE IF EXISTS recording_blocks; DROP TABLE IF EXISTS recordings; DROP TABLE IF EXISTS book_collections; DROP TABLE IF EXISTS collections; DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; PRAGMA user_version = 4;")
         .unwrap();
     drop(conn);
     let lib = Library::open(&path).unwrap();

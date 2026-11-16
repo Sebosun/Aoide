@@ -17,7 +17,7 @@ fn a_version_11_library_gains_an_empty_sites_table() {
     let path = dir.path().join("library.sqlite");
     drop(Library::open(&path).unwrap());
     let conn = rusqlite::Connection::open(&path).unwrap();
-    conn.execute_batch("DROP TABLE sites; PRAGMA user_version = 11;")
+    conn.execute_batch("DROP TABLE sites; DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; PRAGMA user_version = 11;")
         .unwrap();
     drop(conn);
     let lib = Library::open(&path).unwrap();
@@ -26,7 +26,7 @@ fn a_version_11_library_gains_an_empty_sites_table() {
     let version: i64 = conn
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 15);
+    assert_eq!(version, 16);
 }
 
 #[test]

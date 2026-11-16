@@ -46,7 +46,7 @@ fn a_version_7_library_keeps_its_books_progress_and_listening() {
          DROP TABLE reading;
          ALTER TABLE books DROP COLUMN finished_at;
          ALTER TABLE books DROP COLUMN word_count;
-         PRAGMA user_version = 7;",
+         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; PRAGMA user_version = 7;",
     )
     .unwrap();
     drop(conn);

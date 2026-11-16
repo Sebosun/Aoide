@@ -164,3 +164,15 @@ fn read_metadata_matches_the_full_parse_without_reading_chapters() {
 fn read_metadata_rejects_non_epub_bytes() {
     assert!(aoide_epub::read_metadata(b"not a zip", &ParseOptions::default()).is_err());
 }
+
+#[test]
+fn subjects_are_read_in_order_without_blanks() {
+    let bytes = book(
+        r#"<dc:title>Tagged</dc:title><dc:subject>Fiction / Sea Stories</dc:subject>
+           <dc:subject>  </dc:subject><dc:subject>Lighthouses</dc:subject>"#,
+        "",
+        &[],
+    );
+    let quick = aoide_epub::read_metadata(&bytes, &ParseOptions::default()).unwrap();
+    assert_eq!(quick.subjects, ["Fiction / Sea Stories", "Lighthouses"]);
+}

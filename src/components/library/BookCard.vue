@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { ITEM_DRAG } from "@/drag";
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import {
   BookDown,
   CircleCheck,
@@ -13,6 +13,7 @@ import {
   Headphones,
   Info,
   RotateCcw,
+  Tag,
   Trash2,
   TriangleAlert,
 } from "@lucide/vue";
@@ -26,6 +27,7 @@ import type { BookSummary } from "@/api/types";
 import CoverArt from "@/components/CoverArt.vue";
 import ArticleTile from "@/components/article/ArticleTile.vue";
 import UiMenu from "@/components/ui/UiMenu.vue";
+import TagsDialog from "@/components/library/TagsDialog.vue";
 import type { MenuEntry } from "@/components/ui/types";
 import { useUiStore } from "@/stores/ui";
 import { formatBytes } from "@/bytes";
@@ -140,6 +142,8 @@ function textActions(book: BookSummary): MenuEntry[] {
   else list.push({ id: "export", label: "Export as M4B", icon: Download, action: () => act(exportBook) });
   return list;
 }
+/** The item's tags are being edited, in a dialog of their own. */
+const editingTags = ref(false);
 const items = computed<MenuEntry[]>(() => {
   const book = props.book,
     list: MenuEntry[] = [];
@@ -168,6 +172,7 @@ const items = computed<MenuEntry[]>(() => {
     if (!audiobook.value) list.push(...textActions(book));
     if (book.audioBytes)
       list.push({ id: "audio", label: "Delete generated audio", icon: Eraser, action: () => act(deleteAudio) });
+    list.push({ id: "tags", label: "Tags…", icon: Tag, action: () => (editingTags.value = true) });
     list.push({ kind: "separator" }, { kind: "heading", label: "Collections" });
     for (const c of library.collections)
       list.push({
@@ -291,6 +296,10 @@ function dragged(event: DragEvent) {
         <Ellipsis :size="16" />
       </UiButton>
     </UiMenu>
+    <!-- Out of the card: a card is dragged and never selected, and a dialog's field must be. -->
+    <Teleport to="body">
+      <TagsDialog v-if="editingTags" :book-id="book.id" :title="book.title" @close="editingTags = false" />
+    </Teleport>
   </li>
 </template>
 

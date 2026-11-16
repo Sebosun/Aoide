@@ -106,6 +106,23 @@ pub fn delete_collection(core: CoreState<'_>, id: i64) -> Result<(), CoreError> 
     Ok(core.delete_collection(id)?)
 }
 
+/// Every tag on some item, with how many items have it, by name.
+#[tauri::command]
+pub fn tags(core: CoreState<'_>) -> Result<Vec<aoide_library::TagCount>, CoreError> {
+    Ok(core.tags()?)
+}
+
+/// The user's tags for an item: exactly these are shown; the others stay removed (reading its
+/// subjects again does not bring them back).
+#[tauri::command]
+pub fn set_book_tags(
+    core: CoreState<'_>,
+    book_id: String,
+    tags: Vec<String>,
+) -> Result<(), CoreError> {
+    Ok(core.set_book_tags(&book_id, &tags)?)
+}
+
 /// Puts the book on exactly these collections.
 #[tauri::command]
 pub fn set_book_collections(

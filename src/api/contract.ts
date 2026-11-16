@@ -13,6 +13,8 @@ export type Collection = { id: number, name: string, createdAt: number,
  */
 books: number, };
 
+export type TagCount = { name: string, books: number, };
+
 export type BookProgress = { chapter: number, segmentId: string | null, fraction: number, 
 /**
  * An audiobook's place on its timeline (`chapter` is its part).
@@ -60,6 +62,10 @@ prepare: PrepareView | null, addedAt: number, lastOpenedAt: number | null,
  * Ids of the collections the book is on.
  */
 collections: Array<number>, 
+/**
+ * Its tags, by name: from its subjects or genre, the user, or a classifier.
+ */
+tags: Array<string>, 
 /**
  * The sync stage of the book's recording, if it has one.
  */
@@ -425,6 +431,8 @@ coverUrl: string | null, };
 
 export type LibrarySort = "title" | "author" | "progress" | "recent";
 
+export type TagFilter = { include: Array<string>, exclude: Array<string>, };
+
 export type AlignerSettings = { baseUrl: string, network: NetworkScope, 
 /**
  * Optional command that starts the aligner when it is not running.
@@ -459,6 +467,10 @@ aligner: AlignerSettings | null,
  */
 librarySort: LibrarySort, 
 /**
+ * The tags the library shows only, and those it leaves out.
+ */
+libraryTags: TagFilter, 
+/**
  * Folders searched by "Find books".
  */
 scan: ScanSettings, 
@@ -492,7 +504,7 @@ feeds: FeedSettings,
  */
 browser: BrowserSettings, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -1159,6 +1171,13 @@ export type Commands = {
   "rename_collection": { args: { id: number; name: string }; result: void };
   /** The books stay in the library. */
   "delete_collection": { args: { id: number }; result: void };
+  /** Every tag on some item, with how many items have it, by name. */
+  "tags": { args: Record<string, never>; result: TagCount[] };
+  /**
+   * The user's tags for an item: exactly these are shown; the others stay removed (reading its
+   * subjects again does not bring them back).
+   */
+  "set_book_tags": { args: { bookId: string; tags: string[] }; result: void };
   /** Puts the book on exactly these collections. */
   "set_book_collections": { args: { bookId: string; ids: number[] }; result: void };
   "storage_report": { args: Record<string, never>; result: StorageReport };
@@ -1432,6 +1451,13 @@ export interface CommandApi {
   renameCollection(args: { id: number; name: string }): Promise<void>;
   /** The books stay in the library. */
   deleteCollection(args: { id: number }): Promise<void>;
+  /** Every tag on some item, with how many items have it, by name. */
+  tags(): Promise<TagCount[]>;
+  /**
+   * The user's tags for an item: exactly these are shown; the others stay removed (reading its
+   * subjects again does not bring them back).
+   */
+  setBookTags(args: { bookId: string; tags: string[] }): Promise<void>;
   /** Puts the book on exactly these collections. */
   setBookCollections(args: { bookId: string; ids: number[] }): Promise<void>;
   storageReport(): Promise<StorageReport>;
@@ -1619,6 +1645,8 @@ export const COMMANDS = {
   createCollection: "create_collection",
   renameCollection: "rename_collection",
   deleteCollection: "delete_collection",
+  tags: "tags",
+  setBookTags: "set_book_tags",
   setBookCollections: "set_book_collections",
   storageReport: "storage_report",
   cleanUnusedFiles: "clean_unused_files",

@@ -147,6 +147,7 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
             description: read.description,
             identifiers: vec![address.as_str().into()],
             isbn: None,
+            subjects: Vec::new(),
             cover: None,
             notes: Vec::new(),
             chapters: vec![chapter],

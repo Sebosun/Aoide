@@ -230,6 +230,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     cacheLimitBytes: null,
     aligner: null,
     librarySort: "recent",
+    libraryTags: { include: [], exclude: [] },
     scan: { roots: [], exclude: [], includeHidden: [], onStartup: false },
     resumePrepare: true,
     recognition: {
@@ -929,6 +930,22 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       books.forEach((b) => {
         b.collections = b.collections.filter((c) => c !== id);
       });
+      changed();
+    },
+    /** Like the core (library/tags.rs): every tag on some item, by name, with its count. */
+    async tags() {
+      const counts = new Map<string, number>();
+      for (const book of books) for (const tag of book.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      return [...counts]
+        .map(([name, n]) => ({ name, books: n }))
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+    },
+    /** Exactly these, trimmed, one of each ignoring case, by name. */
+    async setBookTags({ bookId: id, tags }) {
+      const kept: string[] = [];
+      for (const tag of tags.map((t) => t.trim().replace(/\s+/g, " ")))
+        if (tag && !kept.some((k) => k.toLowerCase() === tag.toLowerCase())) kept.push(tag);
+      getBook(id).tags = kept.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
       changed();
     },
     async setBookCollections({ bookId: id, ids }) {

@@ -16,7 +16,9 @@ import {
   RotateCcw,
   Settings2,
   TriangleAlert,
+  Tag,
 } from "@lucide/vue";
+import TagsDialog from "@/components/library/TagsDialog.vue";
 import { api } from "@/api";
 import type { BookDetails, BookSettings, BookView, DayListening } from "@/api/types";
 import CoverArt from "@/components/CoverArt.vue";
@@ -84,6 +86,8 @@ async function load() {
 onMounted(load);
 
 const summary = computed(() => library.books.find((b) => b.id === props.bookId) ?? null);
+/** The item's tags are being edited. */
+const editingTags = ref(false);
 const title = computed(() => summary.value?.title ?? overview.value?.title ?? "");
 /** An article without a byline names no one. */
 const authors = computed(
@@ -330,9 +334,21 @@ const collectionItems = computed<MenuEntry[]>(() => {
             {{ expanded ? "Less" : "More" }}
           </button>
         </div>
-        <ul v-if="details?.subjects.length" class="item-page__subjects" aria-label="Subjects">
-          <li v-for="subject in details.subjects.slice(0, 10)" :key="subject">{{ subject }}</li>
-        </ul>
+        <!-- Its tags (its subjects, looked-up ones among them, and the user's), to edit here. -->
+        <div v-if="summary" class="item-page__tags">
+          <ul v-if="summary.tags.length" class="item-page__subjects" aria-label="Tags">
+            <li v-for="tag in summary.tags" :key="tag">{{ tag }}</li>
+          </ul>
+          <button type="button" class="item-page__edit-tags" aria-label="Edit tags" @click="editingTags = true">
+            <Tag :size="13" aria-hidden="true" /> {{ summary.tags.length ? "Edit" : "Add tags" }}
+          </button>
+        </div>
+        <TagsDialog
+          v-if="editingTags && summary"
+          :book-id="summary.id"
+          :title="summary.title"
+          @close="editingTags = false"
+        />
       </div>
     </div>
 
@@ -590,6 +606,25 @@ const collectionItems = computed<MenuEntry[]>(() => {
   background: var(--glass);
   font-size: 12px;
   color: var(--dim);
+}
+.item-page__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.item-page__edit-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  color: var(--dim);
+}
+.item-page__edit-tags:hover {
+  background: var(--glass);
+  color: var(--ink);
 }
 .item-page__cards {
   display: flex;
