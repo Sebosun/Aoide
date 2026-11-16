@@ -503,7 +503,9 @@ impl Core {
                     .progress(&BookId(book_id.into()))
                     .ok()
                     .flatten()?;
-                away = Some(resuming::Away::since(progress.updated_at, now_ms()));
+                away = self
+                    .steps_back()
+                    .then(|| resuming::Away::since(progress.updated_at, now_ms()));
                 book.index_at(progress.chapter as usize, progress.char_offset as usize)
             })
             .or_else(|| book.chapter_start(0))

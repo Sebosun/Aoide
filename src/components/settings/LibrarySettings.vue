@@ -119,6 +119,21 @@ function findBooks() {
         preferred. A tag you remove stays removed.</SettingsNote
       >
     </SettingsSection>
+    <SettingsSection title="Listening">
+      <label v-if="settings" class="library-settings__check"
+        ><input
+          :checked="settings.stepBackOnResume"
+          type="checkbox"
+          aria-label="Step back a little when playing after a break"
+          @change="save({ stepBackOnResume: ($event.target as HTMLInputElement).checked })"
+        />
+        Step back a little when playing after a break</label
+      >
+      <SettingsNote
+        >After ten seconds or more, playback starts again from the start of the sentence; after five minutes, a
+        sentence earlier; after an hour, two. An audiobook without text goes back 3, 10 or 20 seconds.</SettingsNote
+      >
+    </SettingsSection>
     <SettingsSection title="Preparing audio">
       <label v-if="settings" class="library-settings__check"
         ><input

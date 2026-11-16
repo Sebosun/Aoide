@@ -299,7 +299,10 @@ impl Core {
                 .filter(|(at, _)| at + AT_END_MS < timeline.total_ms)
                 .map_or(0, |(at, saved_at)| {
                     let away = Away::since(saved_at, super::now_ms());
-                    step_back_on(&timeline, at, away, "saved").unwrap_or(at)
+                    self.steps_back()
+                        .then(|| step_back_on(&timeline, at, away, "saved"))
+                        .flatten()
+                        .unwrap_or(at)
                 }),
         };
         self.follow_through(self.playback.start_timeline(Arc::new(timeline), at))

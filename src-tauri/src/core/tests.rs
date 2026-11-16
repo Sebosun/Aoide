@@ -960,6 +960,29 @@ async fn a_place_saved_hours_ago_is_played_from_a_little_earlier_and_one_just_sa
 }
 
 #[tokio::test]
+async fn with_stepping_back_turned_off_a_place_saved_hours_ago_is_played_as_it_is() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    assert!(core.app_settings().step_back_on_resume, "on by default");
+    core.update_app_settings(AppSettingsPatch {
+        step_back_on_resume: Some(false),
+        ..Default::default()
+    })
+    .unwrap();
+
+    let second = saved_place_ago(&core, &id, 2 * 60 * 60 * 1_000);
+    core.play(&id, None, None).await.unwrap();
+    assert_eq!(core.player_state().segment_id.as_ref(), Some(&second[1]));
+    core.stop();
+}
+
+#[tokio::test]
 async fn the_playing_book_keeps_its_place_and_playing_it_to_the_end_finishes_it() {
     use super::ReadState;
     let dir = tempfile::tempdir().unwrap();

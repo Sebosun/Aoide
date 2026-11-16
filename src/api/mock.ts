@@ -296,6 +296,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       idleSeconds: 60,
     },
     pauses: { paragraphMs: 250, breakMs: 1200, headingMs: 700 },
+    stepBackOnResume: true,
   };
   /** The browser for articles, as the core finds it (core/browsing.rs). `?browser=off|missing|ready`:
    *  off (the default) finds Chromium but does not run it; missing finds none; ready finds one. */

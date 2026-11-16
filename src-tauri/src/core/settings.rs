@@ -38,6 +38,9 @@ pub struct AppSettings {
     pub browser: super::browsing::BrowserSettings,
     /// The silences narration leaves between paragraphs, at scene breaks and after headings.
     pub pauses: PauseSettings,
+    /// After a break, play on a little earlier: from the sentence's start, or a sentence or two
+    /// back, the longer the break.
+    pub step_back_on_resume: bool,
 }
 
 /// The silences narration leaves, in milliseconds (each within [`PAUSE_MS`]). The largest that
@@ -122,6 +125,8 @@ pub struct AppSettingsPatch {
     pub browser: Option<super::browsing::BrowserSettings>,
     #[cfg_attr(test, ts(optional))]
     pub pauses: Option<PauseSettings>,
+    #[cfg_attr(test, ts(optional))]
+    pub step_back_on_resume: Option<bool>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -156,6 +161,7 @@ impl AppSettingsPatch {
         set(&mut settings.feeds, self.feeds);
         set(&mut settings.browser, self.browser);
         set(&mut settings.pauses, self.pauses);
+        set(&mut settings.step_back_on_resume, self.step_back_on_resume);
         settings
     }
 }
@@ -179,6 +185,7 @@ impl From<AppSettings> for AppSettingsPatch {
             feeds,
             browser,
             pauses,
+            step_back_on_resume,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -196,6 +203,7 @@ impl From<AppSettings> for AppSettingsPatch {
             feeds: Some(feeds),
             browser: Some(browser),
             pauses: Some(pauses),
+            step_back_on_resume: Some(step_back_on_resume),
         }
     }
 }
@@ -242,6 +250,7 @@ impl Default for AppSettings {
             feeds: Default::default(),
             browser: Default::default(),
             pauses: Default::default(),
+            step_back_on_resume: true,
         }
     }
 }
@@ -302,5 +311,6 @@ mod tests {
         assert!(!old.metadata_lookup);
         let off: super::AppSettings = serde_json::from_str(r#"{"resumePrepare":false}"#).unwrap();
         assert!(!off.resume_prepare);
+        assert!(old.step_back_on_resume && off.step_back_on_resume);
     }
 }

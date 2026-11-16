@@ -973,9 +973,19 @@ impl super::Core {
         let _ = self.follow_through(self.playback.pause());
     }
 
-    /// Plays on after a pause, a little earlier after a break.
+    /// Plays on after a pause, a little earlier after a break unless that is turned off.
     pub fn resume(&self) -> Result<(), String> {
-        self.follow_through(self.playback.resume_at(Instant::now()))
+        let moved = if self.steps_back() {
+            self.playback.resume_at(Instant::now())
+        } else {
+            self.playback.play()
+        };
+        self.follow_through(moved)
+    }
+
+    /// Whether playback steps back a little after a break (a setting).
+    pub(super) fn steps_back(&self) -> bool {
+        self.app_settings().step_back_on_resume
     }
 
     pub fn stop(&self) {

@@ -123,6 +123,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     feeds: { checkMinutes: 60, keepReadDays: 30, keepUnreadDays: 90 },
     browser: { use: "off", path: null, idleSeconds: 60 },
     pauses: { paragraphMs: 250, breakMs: 1200, headingMs: 700 },
+    stepBackOnResume: true,
   });
   wrapper.unmount();
 });
@@ -323,6 +324,18 @@ it("reuses cached lookups unless asked to search again", async () => {
   await wrapper.get('[aria-label="Search again"]').trigger("click");
   await flushPromises();
   expect(lookup).toHaveBeenLastCalledWith({ bookId: "book-0", refresh: true });
+  wrapper.unmount();
+});
+
+it("turns off stepping back after a break from Library", async () => {
+  const save = vi.spyOn(mock, "updateAppSettings");
+  const wrapper = await settings("Library");
+  const box = wrapper.get<HTMLInputElement>('[aria-label="Step back a little when playing after a break"]');
+  expect(box.element.checked).toBe(true);
+  await box.setValue(false);
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ patch: { stepBackOnResume: false } });
+  expect(await mock.appSettings()).toEqual(expect.objectContaining({ stepBackOnResume: false }));
   wrapper.unmount();
 });
 
