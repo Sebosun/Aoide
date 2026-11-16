@@ -159,7 +159,6 @@ impl Shelf {
             if ignored.contains(&file.id.0) {
                 continue;
             }
-            present.push(file.id.clone());
             let existing = lock(&self.library)
                 .book(&file.id)
                 .map_err(|e| e.to_string())?;
@@ -190,13 +189,19 @@ impl Shelf {
                     (record, subjects)
                 }
                 existing => {
+                    let described = self.describe(&file.path, &file.id);
+                    // A PDF that cannot be read (a scan has no text) is passed over, not listed.
+                    if described.0.error.is_some() && is_pdf_file(&file.path) {
+                        continue;
+                    }
                     if existing.is_none() {
                         new += 1;
                     }
                     read += 1;
-                    self.describe(&file.path, &file.id)
+                    described
                 }
             };
+            present.push(file.id.clone());
             let library = lock(&self.library);
             library
                 .upsert_book(&book, now_ms())
@@ -328,6 +333,10 @@ impl Shelf {
                         return Err("not an .epub or .pdf file".into());
                     }
                     let bytes = std::fs::read(&source).map_err(|e| e.to_string())?;
+                    // A PDF with no text to read (a scan) is not taken in at all.
+                    if aoide_pdf::is_pdf(&bytes) {
+                        aoide_pdf::check_text(&bytes).map_err(|e| e.to_string())?;
+                    }
                     let id = content_hash(&bytes);
                     ignored.remove(&id.0);
                     if !source.starts_with(&self.library_dir) {
@@ -891,6 +900,11 @@ impl super::Core {
     }
 }
 
+fn is_pdf_file(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
+}
+
 /// A book's subjects, from an EPUB's package or a PDF's keywords alone; none when it cannot be
 /// read.
 fn subjects_of(path: &Path) -> Vec<String> {
@@ -1019,13 +1033,23 @@ mod tests {
         assert_eq!(quay.tags, ["Sea"]);
         let book = shelf.load(&id, &Host).unwrap();
         assert!(book.chapters[0].text.contains("The ferry left at dawn."));
-        // A scan has no text: listed, with the reason.
-        let scanned = books.iter().find(|b| b.title == "Scanned").unwrap();
-        assert!(
-            matches!(&scanned.status, BookStatus::Error(e) if e.contains("no text")),
-            "{:?}",
-            scanned.status
-        );
+        // A scan has no text to read: not listed.
+        assert!(!books.iter().any(|b| b.title == "Scanned"));
+    }
+
+    #[test]
+    fn a_pdf_with_no_text_to_read_is_not_imported() {
+        let dir = tempfile::tempdir().unwrap();
+        let shelf = shelf(dir.path());
+        let outside = dir.path().join("Scan.pdf");
+        std::fs::write(&outside, aoide_pdf::testing::pdf(&[Vec::new()], &[], &[])).unwrap();
+
+        let results = shelf.import_files(vec![outside.to_string_lossy().into_owned()]);
+
+        assert_eq!(results[0].book_id, None);
+        assert!(results[0].error.as_deref().unwrap().contains("no text"));
+        assert!(!dir.path().join("books/Scan.pdf").exists());
+        assert!(listed(&shelf).is_empty());
     }
 
     #[test]

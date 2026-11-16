@@ -58,6 +58,20 @@ pub fn read_pdf_metadata(bytes: &[u8]) -> Result<PdfMetadata, PdfError> {
     Ok(metadata(&open(bytes)?))
 }
 
+/// Whether the PDF has text to read, looking only as far as its first page with some (a scan
+/// has none, and is refused as [`parse_pdf`] would refuse it).
+pub fn check_text(bytes: &[u8]) -> Result<(), PdfError> {
+    let doc = open(bytes)?;
+    let pages = doc
+        .page_count()
+        .map_err(|e| PdfError::Unreadable(e.to_string()))?;
+    if (0..pages).any(|page| !page_lines(&doc, page).is_empty()) {
+        Ok(())
+    } else {
+        Err(PdfError::NoText)
+    }
+}
+
 /// The PDF's text as chapters of paragraphs and headings.
 pub fn parse_pdf(bytes: &[u8]) -> Result<ParsedBook, PdfError> {
     let doc = open(bytes)?;

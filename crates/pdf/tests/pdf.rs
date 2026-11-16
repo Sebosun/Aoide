@@ -175,6 +175,11 @@ fn a_pdf_of_scanned_pages_has_no_text_to_read() {
     let bytes = pdf(&[Vec::new(), Vec::new()], &[], &[("Title", "Scanned")]);
     assert!(matches!(parse_pdf(&bytes), Err(PdfError::NoText)));
     assert!(matches!(
+        aoide_pdf::check_text(&bytes),
+        Err(PdfError::NoText)
+    ));
+    assert!(aoide_pdf::check_text(&pdf(&[lines_from(700.0, &["Words."])], &[], &[])).is_ok());
+    assert!(matches!(
         parse_pdf(b"not a pdf"),
         Err(PdfError::Unreadable(_))
     ));
