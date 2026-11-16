@@ -11,5 +11,6 @@ opus = "0.3"
 # Build libopus from bundled source and link statically (no opus-devel needed).
 audiopus_sys = { version = "0.2", features = ["static"] }
 ogg = "0.9"
-signalsmith-stretch = "0.1"
+# Sonic's speech speed-changer, pure Rust.
+libsonic = "0.1"
 thiserror = "2"

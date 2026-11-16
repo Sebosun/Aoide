@@ -244,3 +244,124 @@ fn volume_scales_the_output_and_is_clamped() {
     assert_eq!(player.volume(), 0.0);
     assert_eq!(render(&mut player, 10), vec![0.0; 10]);
 }
+
+/// A 220 Hz tone at `rate`, `ms` long, starting `from_ms` into it (so pieces join without a jump).
+fn tone(rate: u32, from_ms: usize, ms: usize) -> Pcm {
+    let start = from_ms * rate as usize / 1000;
+    let samples = (start..start + ms * rate as usize / 1000)
+        .map(|i| 0.3 * (i as f32 * 220.0 * std::f32::consts::TAU / rate as f32).sin())
+        .collect();
+    Pcm {
+        sample_rate: rate,
+        samples,
+    }
+}
+
+/// Renders in blocks of `block` samples until the playlist is finished (or `limit_ms` passes).
+fn play_out(player: &mut PlayerCore, block: usize, limit_ms: usize) -> Vec<f32> {
+    let rate = player.output_rate() as usize;
+    let mut all = Vec::new();
+    while player.position().status != Status::Finished && all.len() < limit_ms * rate / 1000 {
+        let mut out = vec![0.0; block];
+        player.render(&mut out);
+        all.extend(out);
+    }
+    all
+}
+
+fn largest_step(samples: &[f32]) -> f32 {
+    samples
+        .windows(2)
+        .map(|w| (w[1] - w[0]).abs())
+        .fold(0.0, f32::max)
+}
+
+#[test]
+fn stretched_speech_is_as_long_as_the_speed_makes_it_and_its_end_is_heard() {
+    let rate = 24_000;
+    let mut player = PlayerCore::new(rate);
+    player.load(vec![entry("a", 0)], 0);
+    player.provide(0, &tone(rate, 0, 3000));
+    player.set_speed(1.5);
+    player.play();
+    let out = play_out(&mut player, 480, 5000);
+    let ms = out.len() * 1000 / rate as usize;
+    assert!((1900..=2100).contains(&ms), "3 s at 1.5x took {ms} ms");
+    // The last of the tone is played, not cut off.
+    let last = out.len() - out.iter().rev().position(|s| s.abs() > 0.05).unwrap();
+    assert!(
+        last * 1000 / rate as usize >= 1950,
+        "sound ends at {} ms",
+        last * 1000 / rate as usize
+    );
+}
+
+#[test]
+fn no_sound_from_before_a_seek_is_heard_after_it() {
+    let rate = 24_000;
+    let mut player = PlayerCore::new(rate);
+    player.load(vec![entry("a", 0), entry("b", 0)], 0);
+    player.provide(0, &tone(rate, 0, 2000));
+    player.provide(
+        1,
+        &Pcm {
+            sample_rate: rate,
+            samples: vec![0.0; rate as usize * 2],
+        },
+    );
+    player.set_speed(2.0);
+    player.play();
+    render(&mut player, 12_000);
+    player.seek(1);
+    let mut after = vec![1.0; 2400];
+    player.render(&mut after);
+    assert!(
+        after.iter().all(|s| s.abs() < 0.01),
+        "a tail of the old entry played after the seek"
+    );
+}
+
+#[test]
+fn stretched_entries_join_without_a_click_across_any_render_block() {
+    let rate = 24_000;
+    let mut player = PlayerCore::new(rate);
+    player.load(vec![entry("a", 0), entry("b", 0)], 0);
+    player.provide(0, &tone(rate, 0, 1000));
+    player.provide(1, &tone(rate, 1000, 1000));
+    player.set_speed(1.5);
+    player.play();
+    // Odd-sized blocks, as audio devices ask for.
+    let out = play_out(&mut player, 397, 3000);
+    let body = &out[..out.len() * 9 / 10];
+    assert!(largest_step(body) < 0.1, "a jump of {}", largest_step(body));
+    assert!(body.iter().all(|s| s.abs() < 0.35), "louder than the tone");
+}
+
+#[test]
+fn changing_speed_mid_entry_goes_on_without_a_gap() {
+    let rate = 24_000;
+    let mut player = PlayerCore::new(rate);
+    player.load(vec![entry("a", 0)], 0);
+    player.provide(0, &tone(rate, 0, 6000));
+    player.set_speed(1.5);
+    player.play();
+    let mut heard = Vec::new();
+    for speed in [1.5, 1.0, 2.0, 1.25] {
+        player.set_speed(speed);
+        let mut out = vec![0.0; 6000];
+        player.render(&mut out);
+        heard.extend(out);
+    }
+    for (i, window) in heard.chunks(600).enumerate() {
+        let energy: f32 = window.iter().map(|s| s * s).sum();
+        assert!(energy > 5.0, "silence in window {i}: {energy}");
+    }
+    assert!(
+        largest_step(&heard) < 0.1,
+        "a jump of {}",
+        largest_step(&heard)
+    );
+    // 250 ms at each speed: 375 + 250 + 500 + 312 ms of the tone, give or take.
+    let at = player.position().offset_ms;
+    assert!((1390..=1520).contains(&at), "at {at} ms");
+}

@@ -1,6 +1,9 @@
-use signalsmith_stretch::Stretch;
+use libsonic::SonicStream;
 
 use crate::{resample, Pcm};
+
+/// Input samples taken at least at a time while the stretcher asks for more.
+const STRETCH_STEP: usize = 256;
 
 /// One playlist item.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,9 +53,11 @@ pub struct PlayerCore {
     speed: f32,
     /// Output gain, 0.0..=1.0.
     volume: f32,
-    stretch: Option<Stretch>,
-    /// Fractional input samples carried between renders at non-unit speed.
-    carry: f64,
+    /// Speech speed-changer (Sonic, as Android uses), from the first render away from 1x until
+    /// the next seek; at 1x it passes the audio on as it is, so nothing it holds is lost.
+    stretch: Option<SonicStream>,
+    /// Input samples given to the stretcher and not heard yet, so the position is what is heard.
+    held: f64,
 }
 
 impl PlayerCore {
@@ -66,7 +71,7 @@ impl PlayerCore {
             speed: 1.0,
             volume: 1.0,
             stretch: None,
-            carry: 0.0,
+            held: 0.0,
         }
     }
 
@@ -192,12 +197,13 @@ impl PlayerCore {
                 self.offset.min(audio)
             } else {
                 self.offset
-            };
+            }
+            .saturating_sub(self.held.round() as usize);
             (offset as u64 * 1000 / u64::from(self.output_rate)) as u32
         });
         let status = if self.slots.is_empty() {
             Status::Stopped
-        } else if self.index >= self.slots.len() {
+        } else if self.index >= self.slots.len() && self.stretched_left() == 0 {
             Status::Finished
         } else if !self.playing {
             Status::Paused
@@ -223,23 +229,46 @@ impl PlayerCore {
 
     fn render_unscaled(&mut self, out: &mut [f32]) {
         out.fill(0.0);
-        if !self.playing || self.slots.is_empty() || self.index >= self.slots.len() {
+        if !self.playing || self.slots.is_empty() {
             return;
         }
-        if (self.speed - 1.0).abs() < f32::EPSILON {
+        let unit = (self.speed - 1.0).abs() < f32::EPSILON;
+        let stream = match self.stretch.take() {
+            Some(stream) => Some(stream),
+            None if unit => None,
+            None => SonicStream::new(self.output_rate, 1).ok(),
+        };
+        let Some(mut stream) = stream else {
             let pulled = self.pull(out.len());
             out[..pulled.len()].copy_from_slice(&pulled);
             return;
+        };
+        stream.set_speed(self.speed);
+        while stream.available_frames() < out.len() {
+            let needed = out.len() - stream.available_frames();
+            let input = self.pull(STRETCH_STEP.max((needed as f32 * self.speed) as usize));
+            if input.is_empty() {
+                // The playlist's end: what the stretcher still holds is played out. (While
+                // audio is awaited it waits with it instead, as flushing mid-word distorts.)
+                if self.index >= self.slots.len() {
+                    stream.flush();
+                }
+                break;
+            }
+            self.held += input.len() as f64;
+            stream.write_f32(&input);
         }
-        let wanted = out.len() as f64 * f64::from(self.speed) + self.carry;
-        let count = wanted.floor() as usize;
-        self.carry = wanted - count as f64;
-        let mut input = self.pull(count);
-        input.resize(count, 0.0);
-        let rate = self.output_rate;
+        let stretched = stream.read_f32(out.len());
+        self.held = (self.held - stretched.len() as f64 * f64::from(self.speed)).max(0.0);
+        out[..stretched.len()].copy_from_slice(&stretched);
+        self.stretch = Some(stream);
+    }
+
+    /// Samples the stretcher holds ready to play.
+    fn stretched_left(&self) -> usize {
         self.stretch
-            .get_or_insert_with(|| Stretch::preset_default(1, rate))
-            .process(&input, &mut *out);
+            .as_ref()
+            .map_or(0, SonicStream::available_frames)
     }
 
     fn pause_samples(&self, slot: &Slot) -> usize {
@@ -289,9 +318,7 @@ impl PlayerCore {
     }
 
     fn reset_stretch(&mut self) {
-        if let Some(stretch) = &mut self.stretch {
-            stretch.reset();
-        }
-        self.carry = 0.0;
+        self.stretch = None;
+        self.held = 0.0;
     }
 }
