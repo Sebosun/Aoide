@@ -378,6 +378,7 @@ chapter menu they carry the same label.
 ## 1.4 Pauses between paragraphs and at scene breaks
 
 **Size:** S
+**Built:** 2026-11-16 (8916137..f3dc706)
 
 ### Outcome
 
@@ -416,11 +417,17 @@ segment of a block gets `paragraph_pause_ms`; a segment before a scene break get
 - An `<hr>` or an element styled as a break: the document model must carry it without adding a
   block, because block indexes are part of segment ids. Add `break_before: bool` to
   `aoide_document::Block`, set by `crates/epub-parser` and `crates/article`. No offsets move.
+  (Built: an empty element counts when a class or `epub:type` token is one of
+  `aoide_document::names_scene_break`'s; a `pagebreak` page marker does not.)
+
+A `* * *` block's own silent segment carries the break pause after the paragraph pause of the
+segment before it; a rule gives the segment before it the break pause alone. A footnote read
+aloud after its paragraph takes that paragraph's pause after it (400 ms before it).
 
 **Settings.** `AppSettings.pauses { paragraph_ms, break_ms, heading_ms }`, defaults 250, 1200
-and 700, each 0–3000. They reach `from_parsed` as `SegmentOptions`, the way `read_notes`
-does. Changing them unloads every book model the shelf holds, restarts the session of the book
-being listened to and re-plans. Settings ›
+and 700, each 0–3000. They reach `from_parsed` as `SegmentOptions`, with `read_notes`, in one
+`book::Layout` from `ShelfHost::layout`. Changing them unloads every book model the shelf
+holds, restarts the session of the book being listened to and re-plans. Settings ›
 Speech engine: three sliders and a **Hear it** button that plays short paragraphs with the
 current values through the preview path. (Built: three paragraphs, the third after a rule, so
 both the paragraph and the scene-break pause are heard; `Core::preview_pauses`, command
@@ -441,7 +448,9 @@ entries).
 
 ### Logging
 
-None new (a settings change is already logged).
+None new (a settings change is already logged), but one reported failure:
+`playback.restart`, when the book listened to cannot play on after a change
+(`Core::text_laid_out_again`).
 
 ### Done when
 
