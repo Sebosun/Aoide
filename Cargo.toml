@@ -5,3 +5,9 @@ members = ["crates/*", "src-tauri"]
 [workspace.package]
 edition = "2021"
 publish = false
+
+# `tauri dev` builds without optimisation, and the work behind opening a book is mostly in
+# dependencies (unzipping, HTML and XML parsing, SQLite, serde): opening one took seconds. They
+# are optimised even in debug builds; they are built once, and our own crates stay quick to build.
+[profile.dev.package."*"]
+opt-level = 2
