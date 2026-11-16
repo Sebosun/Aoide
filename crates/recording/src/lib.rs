@@ -15,7 +15,7 @@ mod inspect;
 mod reader;
 
 pub use fingerprint::fingerprint;
-pub use inspect::{inspect, inspect_as_listed};
+pub use inspect::{glance, inspect, inspect_as_listed, Glance};
 pub use reader::Reader;
 
 /// What [`inspect`] found.
@@ -79,6 +79,7 @@ pub struct Tags {
     pub album_artist: Option<String>,
     pub track: Option<u64>,
     pub disc: Option<u64>,
+    pub genre: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

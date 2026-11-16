@@ -6,8 +6,9 @@ import ScanFolders, { type Folders } from "@/components/find/ScanFolders.vue";
 import { computed, onMounted, ref } from "vue";
 import { ArrowLeft, BookOpen, Folder, Headphones, Link2, Settings, X } from "@lucide/vue";
 import { api } from "@/api";
-import type { AppSettings, AudiobookMatch, AudiobookSuggestion } from "@/api/types";
-import { formatBytes } from "@/bytes";
+import type { AppSettings, AudiobookMatch } from "@/api/types";
+import { holds, nameOf } from "@/audiobookFinds";
+import FoundAudiobook from "@/components/find/FoundAudiobook.vue";
 import { useAudiobooksStore, type MatchGroup } from "@/stores/audiobooks";
 import { useLibraryStore } from "@/stores/library";
 import { useNavigationStore } from "@/stores/navigation";
@@ -55,13 +56,9 @@ const book = (id: string) => library.books.find((b) => b.id === id);
  *  only close ones, so the closest says it for all of them. */
 const exact = (m: AudiobookMatch) => m.candidates[0]?.exact ?? false;
 const title = (m: AudiobookMatch) => book(m.bookId)?.title ?? "A book";
-/** An audiobook's name: its folder's, or its (first) file's. */
-const nameOf = (c: AudiobookSuggestion) => c.paths[0].split("/").pop() ?? c.paths[0];
-/** What it holds: "Folder · 15 files · 1.2 GB". */
-const holds = (c: AudiobookSuggestion) =>
-  [c.folder ? "Folder" : null, `${c.files.length} ${c.files.length === 1 ? "file" : "files"}`, formatBytes(c.bytes)]
-    .filter(Boolean)
-    .join(" · ");
+/** The finds matching no book: those that sound like audiobooks, and the doubtful rest. */
+const sure = computed(() => audiobooks.unmatched.filter((c) => !c.doubtful));
+const doubtful = computed(() => audiobooks.unmatched.filter((c) => c.doubtful));
 /** The candidate Aoide is checking or that is paired, if any. */
 const current = (m: AudiobookMatch) =>
   m.stage.kind === "verifying" || m.stage.kind === "paired" ? m.candidates[m.stage.candidate] : null;
@@ -262,34 +259,36 @@ function openSettings() {
     </template>
     <section v-if="audiobooks.unmatched.length" class="find-audiobooks__unmatched" aria-labelledby="find-unmatched">
       <h2 id="find-unmatched" class="find-audiobooks__heading">
-        Not in your library <span class="find-audiobooks__count">{{ audiobooks.unmatched.length }}</span>
+        Not in your library <span class="find-audiobooks__count">{{ sure.length }}</span>
       </h2>
       <p class="find-audiobooks__hint">
         These match none of your books by name. Add one to listen to it on its own; you can add its EPUB later.
       </p>
-      <ul class="find-audiobooks__others">
-        <li
-          v-for="c in audiobooks.unmatched"
+      <ul v-if="sure.length" class="find-audiobooks__others">
+        <FoundAudiobook
+          v-for="c in sure"
           :key="c.paths[0]"
-          class="find-audiobooks__other"
-          :title="c.files.join('\n')"
-        >
-          <component :is="c.folder ? Folder : Headphones" :size="14" class="find-audiobooks__kind" aria-hidden="true" />
-          <span class="find-audiobooks__label"
-            ><span class="find-audiobooks__name">{{ nameOf(c) }}</span
-            ><span class="find-audiobooks__meta">{{ holds(c) }}</span></span
-          >
-          <UiButton
-            size="sm"
-            class="find-audiobooks__button"
-            :aria-label="`Add ${nameOf(c)} on its own`"
-            :disabled="audiobooks.adding"
-            @click="audiobooks.addUnmatched(c)"
-          >
-            Add
-          </UiButton>
-        </li>
+          :found="c"
+          :disabled="audiobooks.adding"
+          @add="audiobooks.addUnmatched(c)"
+        />
       </ul>
+      <!-- Nothing about these says audiobook (no spoken genre, not long, not speech-like): kept
+           out of the way rather than dropped. -->
+      <details v-if="doubtful.length" class="find-audiobooks__doubtful">
+        <summary class="find-audiobooks__more">
+          Might not be audiobooks <span class="find-audiobooks__count">{{ doubtful.length }}</span>
+        </summary>
+        <ul class="find-audiobooks__others find-audiobooks__others--doubtful">
+          <FoundAudiobook
+            v-for="c in doubtful"
+            :key="c.paths[0]"
+            :found="c"
+            :disabled="audiobooks.adding"
+            @add="audiobooks.addUnmatched(c)"
+          />
+        </ul>
+      </details>
     </section>
     <div
       v-if="!audiobooks.matches.length && !audiobooks.unmatched.length && !audiobooks.scanning"
@@ -541,16 +540,14 @@ function openSettings() {
   display: grid;
   gap: var(--space-4);
 }
-.find-audiobooks__other {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius-md);
-  background: var(--page);
+.find-audiobooks__doubtful {
+  margin-top: var(--space-8);
 }
-.find-audiobooks__other .find-audiobooks__label {
-  flex: 1;
+.find-audiobooks__more {
+  cursor: pointer;
+  margin-bottom: var(--space-4);
+  font-weight: 600;
+  color: var(--dim);
 }
 .find-audiobooks__empty {
   text-align: center;

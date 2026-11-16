@@ -1151,8 +1151,8 @@ fn search(f: &Fixture, verify: bool) {
     // The test recordings are seconds long, far below an audiobook's size.
     f.core
         .audiobooks
-        .min_audiobook_bytes
-        .store(0, std::sync::atomic::Ordering::Relaxed);
+        .any_length
+        .store(true, std::sync::atomic::Ordering::Relaxed);
     let mut settings = f.core.app_settings();
     settings.audiobooks.roots = vec![f.root.join("Audiobooks").to_string_lossy().into_owned()];
     settings.verify_audiobooks = verify;

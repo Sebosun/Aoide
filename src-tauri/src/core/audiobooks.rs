@@ -53,6 +53,12 @@ pub struct AudiobookSuggestion {
     pub files: Vec<String>,
     /// Their size together.
     pub bytes: u64,
+    /// It may not be an audiobook: nothing about it says so (listed apart).
+    pub doubtful: bool,
+    /// Its length, from a few of its files' headers.
+    pub duration_ms: Option<u64>,
+    /// The artist its files name: usually the author, or the narrator.
+    pub author: Option<String>,
 }
 
 /// Where a book's match stands.
@@ -181,6 +187,9 @@ impl From<aoide_discovery::Suggestion> for AudiobookSuggestion {
             exact: s.exact,
             files: s.files.iter().map(text).collect(),
             bytes: s.bytes,
+            doubtful: s.verdict != aoide_discovery::Verdict::Audiobook,
+            duration_ms: s.duration_ms,
+            author: s.author,
         }
     }
 }
@@ -194,9 +203,8 @@ pub(super) struct Finder {
     home_dir: PathBuf,
     /// Aoide's own folders, never searched.
     private_dirs: Vec<PathBuf>,
-    /// Audio smaller than this is not an audiobook (a game's sounds); tests lower it to search
-    /// their short recordings.
-    pub(super) min_audiobook_bytes: std::sync::atomic::AtomicU64,
+    /// Audio of any size and length counts: tests set it to search their short recordings.
+    pub(super) any_length: AtomicBool,
     matches: Mutex<Matches>,
 }
 
@@ -209,7 +217,7 @@ impl Finder {
             events,
             home_dir: paths.home_dir.clone(),
             private_dirs,
-            min_audiobook_bytes: aoide_discovery::MIN_AUDIOBOOK_BYTES.into(),
+            any_length: AtomicBool::new(false),
             matches: Default::default(),
         }
     }
@@ -462,15 +470,17 @@ impl Finder {
         };
         let mut exclude: Vec<PathBuf> = settings.exclude.iter().map(PathBuf::from).collect();
         exclude.extend(self.private_dirs.iter().cloned());
-        aoide_discovery::ScanOptions {
+        let mut options = aoide_discovery::ScanOptions {
             roots,
             exclude,
             include_hidden: settings.include_hidden.iter().map(PathBuf::from).collect(),
-            min_audiobook_bytes: self
-                .min_audiobook_bytes
-                .load(std::sync::atomic::Ordering::Relaxed),
             ..Default::default()
+        };
+        if self.any_length.load(std::sync::atomic::Ordering::Relaxed) {
+            options.min_audiobook_bytes = 0;
+            options.min_audiobook_ms = 0;
         }
+        options
     }
 
     /// Searches for the audiobooks of books `ids` (every book without a recording when `None`)
@@ -532,7 +542,25 @@ impl Finder {
     ) -> Result<(), String> {
         let options = self.scan_options(settings);
         let started = Instant::now();
-        let (folder, seen) = self.walk(&options, cancel);
+        let (mut folder, seen) = self.walk(&options, cancel);
+        // A few files of each are heard: music, clips and sounds are dropped.
+        let heard = folder.classify(&|path: &Path| {
+            if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                return None;
+            }
+            aoide_recording::glance(path).map(|g| aoide_discovery::AudioFacts {
+                duration_ms: g.duration_ms,
+                channels: g.channels,
+                album: g.tags.album,
+                // "Various Artists" names no one: the track's artist does.
+                artist: g
+                    .tags
+                    .album_artist
+                    .filter(|a| !a.eq_ignore_ascii_case("various artists"))
+                    .or(g.tags.artist),
+                genre: g.tags.genre,
+            })
+        });
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
             tracing::info!(
                 event = "audiobooks.scan",
@@ -554,6 +582,9 @@ impl Finder {
             dirs = seen.dirs,
             files = seen.files,
             audio = seen.found,
+            audiobooks = heard.audiobooks,
+            doubtful = heard.doubtful,
+            dropped = heard.dropped,
             matches = found.len(),
             unmatched = unmatched.as_ref().map(Vec::len),
             took_ms = crate::logging::took(started),
@@ -841,8 +872,8 @@ mod tests {
             Arc::new(super::super::tests::Recorder::default()),
         ));
         finder
-            .min_audiobook_bytes
-            .store(0, std::sync::atomic::Ordering::Relaxed);
+            .any_length
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         let search = || Search {
             settings: AudiobookSearchSettings {
                 roots: vec![audiobooks.to_string_lossy().into_owned()],
@@ -897,8 +928,8 @@ mod tests {
             Arc::new(super::super::tests::Recorder::default()),
         ));
         finder
-            .min_audiobook_bytes
-            .store(0, std::sync::atomic::Ordering::Relaxed);
+            .any_length
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         let search = || Search {
             settings: AudiobookSearchSettings {
                 roots: vec![audiobooks.to_string_lossy().into_owned()],

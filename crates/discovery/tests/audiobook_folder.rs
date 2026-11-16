@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use aoide_discovery::AudiobookFolder;
+use aoide_discovery::{AudioFacts, AudiobookFolder, Verdict};
 
 /// A file of `bytes` that takes no room (sparse): sizes are all a search reads.
 fn sized(root: &Path, relative: &str, bytes: u64) -> PathBuf {
@@ -364,4 +364,216 @@ fn short_sounds_are_not_audiobooks_but_many_short_chapters_are_one() {
         .flat_map(|s| s.paths)
         .collect();
     assert_eq!(all, vec![root.join("The Night Ferry")]);
+}
+
+/// Each audiobook found, as its paths relative to `root`.
+fn listed(folder: &AudiobookFolder, root: &Path) -> Vec<Vec<String>> {
+    folder
+        .all()
+        .iter()
+        .map(|s| {
+            s.paths
+                .iter()
+                .map(|p| p.strip_prefix(root).unwrap().to_string_lossy().into_owned())
+                .collect()
+        })
+        .collect()
+}
+
+#[test]
+fn numbered_files_in_a_folder_are_one_audiobook_however_their_titles_differ() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    // A lecture series: a shared word, then a number and each lecture's own title.
+    touch(root, "Gospel of Mark/Mark 00a Intro to the Text.m4a");
+    touch(root, "Gospel of Mark/Mark 00b Pronunciation.m4a");
+    touch(root, "Gospel of Mark/Mark 16  Latin.m4a");
+    // A course: the number first.
+    touch(root, "Latin 101/01 Pronouncing Classical Latin.mp3");
+    touch(root, "Latin 101/02 Third-Conjugation Verbs.mp3");
+    touch(root, "Latin 101/36 Next Steps.mp3");
+    // Chapters with an introduction before them.
+    touch(root, "Ice Caves/01 Introduction.mp3");
+    touch(root, "Ice Caves/02 Chapter 1.mp3");
+    touch(root, "Ice Caves/03 Chapter 2.mp3");
+    // An author's books, whole and unnumbered, stay apart; numbered ones too when each is
+    // the size of a book.
+    touch(root, "Ada Penn/The Glass Harbour.m4b");
+    touch(root, "Ada Penn/Night Ferry.m4b");
+    sized(root, "Salt Series/01 The Salt Road.m4b", 400 * MIB);
+    sized(root, "Salt Series/02 The Salt Sea.m4b", 400 * MIB);
+    assert_eq!(
+        listed(&AudiobookFolder::read(root), root),
+        [
+            vec!["Ada Penn/Night Ferry.m4b"],
+            vec!["Ada Penn/The Glass Harbour.m4b"],
+            vec!["Gospel of Mark"],
+            vec!["Ice Caves"],
+            vec!["Latin 101"],
+            vec!["Salt Series/01 The Salt Road.m4b"],
+            vec!["Salt Series/02 The Salt Sea.m4b"],
+        ]
+    );
+}
+
+#[test]
+fn videos_and_protected_music_are_not_audiobooks() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "Coding Course/01 Routing.mp4");
+    touch(root, "Coding Course/02 Views.mp4");
+    touch(root, "Store/Song.m4p");
+    touch(root, "Old/Song.wma");
+    touch(root, "Shows/Episode 1.MP4");
+    assert!(AudiobookFolder::read(root).all().is_empty());
+}
+
+/// What the headers of a scripted file say.
+fn heard(minutes: u64, channels: u32, genre: Option<&str>, album: Option<&str>) -> AudioFacts {
+    AudioFacts {
+        duration_ms: Some(minutes * 60_000),
+        channels,
+        album: album.map(str::to_owned),
+        artist: Some("Ada Penn".into()),
+        genre: genre.map(str::to_owned),
+    }
+}
+
+#[test]
+fn what_the_files_say_tells_audiobooks_from_music_and_clips() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    // A music album: ten four-minute stereo tracks at 320 kbps, its genre Rock.
+    for track in 1..=10 {
+        sized(
+            root,
+            &format!("Harbour Lights/{track:02} Song.mp3"),
+            9 * MIB,
+        );
+    }
+    // A soundtrack, its tracks untagged.
+    sized(root, "Night Show/Soundtrack/Big Dumb Ape.mp3", 4 * MIB);
+    sized(root, "Night Show/Soundtrack/Blue Moon.mp3", 4 * MIB);
+    // A clip, three minutes long.
+    sized(root, "Clips/Speech Excerpt.mp3", 4 * MIB);
+    // A long stereo MP3 at 64 kbps: a memoir.
+    sized(root, "My Own Time - A Memoir.mp3", 170 * MIB);
+    // An M4B, whatever else it says.
+    sized(root, "The Salt Road.m4b", 60 * MIB);
+    // Fifty minutes of stereo at 128 kbps, nothing else known: may be either.
+    sized(root, "Talks/Evening Talk.mp3", 46 * MIB);
+    let mut folder = AudiobookFolder::read(root);
+    let report = folder.classify(&|path: &Path| {
+        let name = path.file_name()?.to_string_lossy().into_owned();
+        Some(match name.as_str() {
+            n if n.ends_with("Song.mp3") => heard(4, 2, Some("Rock"), Some("Harbour Lights")),
+            "Big Dumb Ape.mp3" | "Blue Moon.mp3" => heard(2, 2, None, None),
+            "Speech Excerpt.mp3" => heard(3, 1, None, None),
+            "My Own Time - A Memoir.mp3" => heard(370, 2, None, Some("My Own Time")),
+            "The Salt Road.m4b" => heard(400, 2, None, Some("The Salt Road")),
+            "Evening Talk.mp3" => heard(50, 2, None, None),
+            _ => return None,
+        })
+    });
+    let verdicts: Vec<(Vec<String>, Verdict)> = folder
+        .all()
+        .iter()
+        .map(|s| {
+            let paths = s
+                .paths
+                .iter()
+                .map(|p| p.strip_prefix(root).unwrap().to_string_lossy().into_owned())
+                .collect();
+            (paths, s.verdict)
+        })
+        .collect();
+    assert_eq!(
+        verdicts,
+        [
+            (
+                vec!["My Own Time - A Memoir.mp3".into()],
+                Verdict::Audiobook
+            ),
+            (vec!["Talks".into()], Verdict::Doubtful),
+            (vec!["The Salt Road.m4b".into()], Verdict::Audiobook),
+        ]
+    );
+    assert_eq!(
+        (report.audiobooks, report.doubtful, report.dropped),
+        (2, 1, 4),
+        "the album, both soundtrack tracks and the clip are dropped"
+    );
+    let memoir = folder.all().into_iter().next().unwrap();
+    assert_eq!(memoir.duration_ms, Some(370 * 60_000));
+    assert_eq!(memoir.author.as_deref(), Some("Ada Penn"));
+}
+
+#[test]
+fn a_spoken_genre_or_a_word_like_unabridged_says_audiobook() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    sized(root, "Stories/Harbour Tale.mp3", 46 * MIB);
+    sized(root, "Night Ferry (Unabridged).mp3", 46 * MIB);
+    let mut folder = AudiobookFolder::read(root);
+    folder.classify(&|path: &Path| {
+        let spoken = path.ends_with("Harbour Tale.mp3");
+        Some(heard(50, 2, spoken.then_some("Audiobook"), None))
+    });
+    assert!(
+        folder.all().iter().all(|s| s.verdict == Verdict::Audiobook),
+        "{:?}",
+        folder.all()
+    );
+}
+
+#[test]
+fn files_of_one_album_in_a_folder_are_one_audiobook() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    sized(root, "Downloads/Salt Road Opening.mp3", 30 * MIB);
+    sized(root, "Downloads/Harbour Chapter.mp3", 30 * MIB);
+    sized(root, "Downloads/Unrelated Talk.mp3", 30 * MIB);
+    let mut folder = AudiobookFolder::read(root);
+    folder.classify(&|path: &Path| {
+        let album = (!path.ends_with("Unrelated Talk.mp3")).then_some("The Salt Road");
+        Some(heard(60, 1, None, album))
+    });
+    assert_eq!(
+        listed(&folder, root),
+        [
+            vec![
+                "Downloads/Harbour Chapter.mp3",
+                "Downloads/Salt Road Opening.mp3"
+            ],
+            vec!["Downloads/Unrelated Talk.mp3"],
+        ]
+    );
+    // The album's name is one it goes by.
+    let found = folder.suggest(Path::new("/books/x.epub"), Some("The Salt Road"), &[]);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].files.len(), 2);
+}
+
+#[test]
+fn a_genre_that_is_really_a_title_says_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    for lecture in 1..=4 {
+        sized(
+            root,
+            &format!("Latin Course/{lecture:02} Lecture.mp3"),
+            60 * MIB,
+        );
+    }
+    let mut folder = AudiobookFolder::read(root);
+    let report = folder.classify(&|_: &Path| {
+        // "Classical" is a music genre, but this is the course's title put in the genre tag.
+        Some(heard(
+            30,
+            2,
+            Some("Latin 101: Learning a Classical Language"),
+            None,
+        ))
+    });
+    assert_eq!((report.dropped, folder.all().len()), (0, 1));
 }

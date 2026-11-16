@@ -611,7 +611,19 @@ files: Array<string>,
 /**
  * Their size together.
  */
-bytes: number, };
+bytes: number, 
+/**
+ * It may not be an audiobook: nothing about it says so (listed apart).
+ */
+doubtful: boolean, 
+/**
+ * Its length, from a few of its files' headers.
+ */
+durationMs: number | null, 
+/**
+ * The artist its files name: usually the author, or the narrator.
+ */
+author: string | null, };
 
 export type MatchStage = { "kind": "found" } | { "kind": "verifying", candidate: number, } | { "kind": "paired", candidate: number, } | { "kind": "noneVerified" };
 

@@ -1205,7 +1205,10 @@
             "bookId": "book-1",
             "candidates": [
               {
+                "author": "A. Writer",
                 "bytes": 213000,
+                "doubtful": false,
+                "durationMs": 30345,
                 "exact": true,
                 "files": [
                   "~/Audiobooks/Ellis Reed - A Map of Quiet Places/01 - A Map of Quiet Places.m4b",
@@ -1230,7 +1233,10 @@
                 ]
               },
               {
+                "author": "A. Writer",
                 "bytes": 14200,
+                "doubtful": false,
+                "durationMs": 2023,
                 "exact": true,
                 "files": [
                   "~/Audiobooks/A Map of Quiet Places (Unabridged).m4b"

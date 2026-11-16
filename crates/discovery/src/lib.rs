@@ -45,6 +45,9 @@ pub struct ScanOptions {
     /// Audio smaller than this, all of one audiobook's files together, is not an audiobook
     /// (see [`MIN_AUDIOBOOK_BYTES`]).
     pub min_audiobook_bytes: u64,
+    /// Audio shorter than this, all its files together, is not an audiobook once its files are
+    /// heard (see [`AudiobookFolder::classify`] and [`MIN_AUDIOBOOK_MS`]).
+    pub min_audiobook_ms: u64,
 }
 
 impl Default for ScanOptions {
@@ -57,6 +60,7 @@ impl Default for ScanOptions {
             same_filesystem: true,
             threads: 0,
             min_audiobook_bytes: MIN_AUDIOBOOK_BYTES,
+            min_audiobook_ms: MIN_AUDIOBOOK_MS,
         }
     }
 }
@@ -257,3 +261,5 @@ pub use beside::{audiobook_beside, Neighbourhood};
 pub use names::title_from_name;
 mod folder;
 pub use folder::{AudiobookFolder, Suggestion, MIN_AUDIOBOOK_BYTES};
+mod classify;
+pub use classify::{AudioFacts, Classified, Verdict, MIN_AUDIOBOOK_MS};

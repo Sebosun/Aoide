@@ -149,30 +149,12 @@ fn probe(path: &Path) -> Result<Probed, Problem> {
         .len();
     let mut source = Source::open(path)?;
     let mut decoder = source.decoder()?;
-    let mut tags = Tags::default();
-    let mut cover = None;
     let mut chapters = source
         .format
         .chapters()
         .map(flatten_chapters)
         .unwrap_or_default();
-    {
-        let mut metadata = source.format.metadata();
-        loop {
-            if let Some(revision) = metadata.current() {
-                let per_track = revision.per_track.iter().flat_map(|t| &t.metadata.tags);
-                for tag in revision.media.tags.iter().chain(per_track) {
-                    apply(&mut tags, tag);
-                }
-                let per_track = revision.per_track.iter().flat_map(|t| &t.metadata.visuals);
-                cover = cover.or_else(|| cover_of(revision.media.visuals.iter().chain(per_track)));
-            }
-            if metadata.is_latest() {
-                break;
-            }
-            metadata.pop();
-        }
-    }
+    let (mut tags, mut cover) = read_tags(&mut source, true);
 
     // Count the playable frames from the packets, as the reader will decode them. The first
     // packet is decoded too, to catch streams this decoder cannot handle.
@@ -229,6 +211,118 @@ fn probe(path: &Path) -> Result<Probed, Problem> {
     })
 }
 
+/// The tags of a file, and its cover when `cover` is asked for.
+fn read_tags(source: &mut Source, cover: bool) -> (Tags, Option<Cover>) {
+    let mut tags = Tags::default();
+    let mut found = None;
+    let mut metadata = source.format.metadata();
+    loop {
+        if let Some(revision) = metadata.current() {
+            let per_track = revision.per_track.iter().flat_map(|t| &t.metadata.tags);
+            for tag in revision.media.tags.iter().chain(per_track) {
+                apply(&mut tags, tag);
+            }
+            if cover {
+                let per_track = revision.per_track.iter().flat_map(|t| &t.metadata.visuals);
+                found = found.or_else(|| cover_of(revision.media.visuals.iter().chain(per_track)));
+            }
+        }
+        if metadata.is_latest() {
+            break;
+        }
+        metadata.pop();
+    }
+    (tags, found)
+}
+
+/// What a file's headers say about it, read without decoding its audio.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Glance {
+    /// From the headers, or estimated from the first packets and the file's size.
+    pub duration_ms: Option<u64>,
+    /// 0 when the headers do not say.
+    pub channels: u32,
+    pub tags: Tags,
+}
+
+/// No lossy codec gets near this many kilobits a second.
+const MAX_LOSSY_KBPS: u64 = 640;
+/// Packets read at most to estimate a length the headers leave out.
+const GLANCE_PACKETS: usize = 64;
+
+/// A quick look at an audio file: its length, channels and tags, from its headers (and a few
+/// packets when they leave out the length). None when it is not audio this reader knows.
+pub fn glance(path: &Path) -> Option<Glance> {
+    let mut source = Source::open(path).ok()?;
+    let (mut tags, _) = read_tags(&mut source, false);
+    let channels = source.params.channels.as_ref().map_or(0, |c| c.count()) as u32;
+    let size = std::fs::metadata(path).map_or(0, |m| m.len());
+    let lossy = matches!(
+        codec_name(source.params.codec).as_str(),
+        "mp3" | "aac" | "vorbis" | "opus"
+    );
+    let declared = source
+        .num_frames
+        .filter(|&frames| frames > 0 && source.time_base.is_some())
+        .map(|frames| source.frames(frames as i64, 1_000).max(0) as u64)
+        .filter(|&ms| ms > 0)
+        // A header that leaves most of the file out (a joined MP3 keeps its first part's): the
+        // bitrate it implies is beyond any lossy codec's.
+        .filter(|&ms| !lossy || size * 8 / ms <= MAX_LOSSY_KBPS);
+    let duration_ms = declared.or_else(|| estimate_ms(&mut source, size));
+    let mp4 = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| MP4_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()));
+    if mp4 {
+        mp4_tags(path, &mut tags);
+    }
+    Some(Glance {
+        duration_ms,
+        channels,
+        tags,
+    })
+}
+
+/// The length from the bytes per millisecond of the first packets and the file's size.
+fn estimate_ms(source: &mut Source, size: u64) -> Option<u64> {
+    let (mut bytes, mut first, mut end) = (0u64, None, 0i64);
+    for _ in 0..GLANCE_PACKETS {
+        let Ok(Some(packet)) = source.format.next_packet() else {
+            break;
+        };
+        if packet.track_id != source.track_id {
+            continue;
+        }
+        bytes += packet.data.len() as u64;
+        let start = packet.pts.get();
+        first.get_or_insert(start);
+        end = end.max(start + packet.dur.get() as i64);
+    }
+    let ms = source.frames(end - first?, 1_000);
+    (bytes > 0 && ms > 0).then(|| (u128::from(size) * ms as u128 / u128::from(bytes)) as u64)
+}
+
+/// Tags symphonia may miss in an MP4 file.
+fn mp4_tags(path: &Path, tags: &mut Tags) {
+    let config = mp4ameta::ReadConfig {
+        read_meta_items: true,
+        ..mp4ameta::ReadConfig::NONE
+    };
+    let Ok(tag) = mp4ameta::Tag::read_with_path(path, &config) else {
+        return;
+    };
+    let text = |s: Option<&str>| {
+        s.map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_owned)
+    };
+    tags.album = tags.album.take().or(text(tag.album()));
+    tags.artist = tags.artist.take().or(text(tag.artist()));
+    tags.album_artist = tags.album_artist.take().or(text(tag.album_artist()));
+    tags.genre = tags.genre.take().or(text(tag.genre()));
+}
+
 fn apply(tags: &mut Tags, tag: &Tag) {
     let text = |s: &std::sync::Arc<String>| Some(s.trim().to_owned()).filter(|s| !s.is_empty());
     match &tag.std {
@@ -238,6 +332,7 @@ fn apply(tags: &mut Tags, tag: &Tag) {
         Some(StandardTag::AlbumArtist(s)) => {
             tags.album_artist = tags.album_artist.take().or(text(s))
         }
+        Some(StandardTag::Genre(s)) => tags.genre = tags.genre.take().or(text(s)),
         Some(StandardTag::TrackNumber(n)) => tags.track = tags.track.or(Some(*n)),
         Some(StandardTag::DiscNumber(n)) => tags.disc = tags.disc.or(Some(*n)),
         _ => {}
@@ -313,6 +408,7 @@ fn mp4_details(
     tags.album = tags.album.take().or(text(tag.album()));
     tags.artist = tags.artist.take().or(text(tag.artist()));
     tags.album_artist = tags.album_artist.take().or(text(tag.album_artist()));
+    tags.genre = tags.genre.take().or(text(tag.genre()));
     tags.track = tags.track.or(tag.track_number().map(u64::from));
     tags.disc = tags.disc.or(tag.disc_number().map(u64::from));
     if cover.is_none() {

@@ -240,3 +240,34 @@ fn an_embedded_front_cover_is_found() {
     );
     assert_eq!(inspect(&[fixture("tone.flac")]).cover, None);
 }
+
+#[test]
+fn a_glance_reads_length_channels_and_tags_without_decoding() {
+    use aoide_recording::glance;
+    let mp3 = glance(&fixture("set").join("b-first.mp3")).expect("an mp3 is heard");
+    assert_eq!(mp3.channels, 1);
+    assert_eq!(mp3.tags.album.as_deref(), Some("The Lantern Keeper"));
+    assert_eq!(mp3.tags.artist.as_deref(), Some("A. Writer"));
+    for (name, want_ms, channels) in [
+        ("set/b-first.mp3", 1_000, 1),
+        ("book.m4b", 2_000, 1),
+        ("tone.flac", 750, 1),
+        ("tone.ogg", 500, 2),
+    ] {
+        let heard = glance(&fixture(name)).unwrap_or_else(|| panic!("{name} not heard"));
+        let ms = heard
+            .duration_ms
+            .unwrap_or_else(|| panic!("{name}: no length"));
+        // A glance may estimate from the first packets; within a tenth is enough to judge by.
+        assert!(
+            ms.abs_diff(want_ms) <= want_ms / 10 + 60,
+            "{name}: {ms} ms, expected {want_ms}"
+        );
+        assert_eq!(heard.channels, channels, "{name}");
+    }
+    assert_eq!(
+        glance(&fixture("book.m4b")).unwrap().tags.artist.as_deref(),
+        Some("A. Writer")
+    );
+    assert!(glance(&fixture("README.md")).is_none(), "not audio");
+}

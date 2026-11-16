@@ -7,11 +7,19 @@
 //! sets of words, as beside an EPUB (see `beside`), but they only have to come close: enough
 //! words in common, most of the book's among them, a misspelt long word allowed. A suggestion is
 //! only that; pairing it checks it like any other recording.
+//!
+//! A folder of numbered files ("01 Introduction.mp3", "02 Chapter 1.mp3") is one audiobook,
+//! however their titles differ, unless each file is the size of a book. Then
+//! [`AudiobookFolder::classify`] hears a few files of each (their headers only) and drops what is
+//! music or a clip; files of one album in a folder become one audiobook.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 
+use rayon::prelude::*;
+
+use crate::classify::{verdict, AudioFacts, Classified, Evidence, Verdict};
 use crate::names::{is_audio, name, plain_words, stem, words, Book};
 
 /// Suggestions per book at most.
@@ -25,24 +33,57 @@ pub const MIN_AUDIOBOOK_BYTES: u64 = 3 * 1024 * 1024;
 /// be there, so a shared series name ("Ember Watch") or a few small words are not enough.
 const CLOSE: u32 = 500;
 
+/// Numbered files this size each, on average, are books of a series rather than one book's
+/// parts.
+const BOOK_SIZED_BYTES: u64 = 200 * 1024 * 1024;
+
 /// An audio file and its size.
 type AudioFile = (PathBuf, u64);
 
 /// The audiobooks found in some folders, searched once and asked about many books.
 pub struct AudiobookFolder {
     audiobooks: Vec<Audiobook>,
+    /// Shorter audio is not an audiobook (see [`crate::ScanOptions::min_audiobook_ms`]).
+    min_ms: u64,
 }
 
 struct Audiobook {
     /// Paths to give the recording inspector: audio files, or one folder.
     paths: Vec<PathBuf>,
+    /// The folder it is in, or is.
+    dir: PathBuf,
     /// The names it goes by: its folder's or file's, and its files' when they share one.
     names: Vec<String>,
     /// The words of the folders it is in, below the searched one (an author's folder, say).
     place: Vec<String>,
     /// Its audio files, sorted, and their size together.
-    files: Vec<PathBuf>,
+    files: Vec<AudioFile>,
     bytes: u64,
+    verdict: Verdict,
+    duration_ms: Option<u64>,
+    author: Option<String>,
+}
+
+impl Audiobook {
+    fn suggestion(&self, exact: bool) -> Suggestion {
+        Suggestion {
+            paths: self.paths.clone(),
+            exact,
+            files: self.files.iter().map(|(p, _)| p.clone()).collect(),
+            bytes: self.bytes,
+            verdict: self.verdict,
+            duration_ms: self.duration_ms,
+            author: self.author.clone(),
+        }
+    }
+
+    /// The files to hear: the first, the middle and the last.
+    fn samples(&self) -> Vec<&AudioFile> {
+        let n = self.files.len();
+        let mut at = vec![0, n / 2, n.saturating_sub(1)];
+        at.dedup();
+        at.into_iter().filter_map(|i| self.files.get(i)).collect()
+    }
 }
 
 /// An audiobook whose name comes close to a book's.
@@ -56,6 +97,12 @@ pub struct Suggestion {
     pub files: Vec<PathBuf>,
     /// Their size together.
     pub bytes: u64,
+    /// Whether it sounds like an audiobook (doubtful until classified).
+    pub verdict: Verdict,
+    /// Its length, from the files heard.
+    pub duration_ms: Option<u64>,
+    /// The artist its files name.
+    pub author: Option<String>,
 }
 
 /// How close a name comes to the book's: exact before close, then by words in common.
@@ -95,6 +142,7 @@ impl AudiobookFolder {
         }
         let mut folder = Self {
             audiobooks: Vec::new(),
+            min_ms: options.min_audiobook_ms,
         };
         for (dir, files) in &by_dir {
             let Some(root) = options.roots.iter().filter(|r| dir.starts_with(r)).max() else {
@@ -154,15 +202,7 @@ impl AudiobookFolder {
                     .into_iter()
                     .filter(|&(closeness, _, at)| best[at] == Some(closeness))
                     .take(MAX_SUGGESTIONS)
-                    .map(|(closeness, _, at)| {
-                        let audiobook = &self.audiobooks[at];
-                        Suggestion {
-                            paths: audiobook.paths.clone(),
-                            exact: closeness.exact,
-                            files: audiobook.files.clone(),
-                            bytes: audiobook.bytes,
-                        }
-                    })
+                    .map(|(closeness, _, at)| self.audiobooks[at].suggestion(closeness.exact))
                     .collect()
             })
             .collect()
@@ -173,12 +213,7 @@ impl AudiobookFolder {
         let mut all: Vec<Suggestion> = self
             .audiobooks
             .iter()
-            .map(|audiobook| Suggestion {
-                paths: audiobook.paths.clone(),
-                exact: false,
-                files: audiobook.files.clone(),
-                bytes: audiobook.bytes,
-            })
+            .map(|audiobook| audiobook.suggestion(false))
             .collect();
         all.sort_by(|a, b| a.paths.cmp(&b.paths));
         all
@@ -228,7 +263,8 @@ impl AudiobookFolder {
         }
         let named: Vec<&(Vec<String>, Vec<AudioFile>)> =
             groups.iter().filter(|(k, _)| !k.is_empty()).collect();
-        if dir != root && named.len() <= 1 && !more_below {
+        let parts = named.len() > 1 && numbered(files);
+        if dir != root && (named.len() <= 1 || parts) && !more_below {
             // One book's files: the folder is the audiobook, or the folder above when this is
             // one of its discs ("CD1", "Part 2": no words of its own).
             let disc = is_disc(&name(dir));
@@ -237,7 +273,9 @@ impl AudiobookFolder {
                 _ => dir,
             };
             let mut names = vec![name(folder)];
-            names.extend(named.first().map(|(_, group)| stem(&group[0].0)));
+            if !parts {
+                names.extend(named.first().map(|(_, group)| stem(&group[0].0)));
+            }
             let folder = folder.to_path_buf();
             self.add(root, folder.clone(), vec![folder], names, files);
         } else {
@@ -260,9 +298,8 @@ impl AudiobookFolder {
         files: &[AudioFile],
     ) {
         let bytes: u64 = files.iter().map(|(_, size)| size).sum();
-        let files = files.iter().map(|(p, _)| p.clone());
         if let Some(known) = self.audiobooks.iter_mut().find(|a| a.paths == paths) {
-            known.files.extend(files);
+            known.files.extend_from_slice(files);
             known.files.sort();
             known.bytes += bytes;
             return;
@@ -271,16 +308,189 @@ impl AudiobookFolder {
             .strip_prefix(root)
             .map(|p| plain_words(&p.to_string_lossy()))
             .unwrap_or_default();
-        let mut files: Vec<PathBuf> = files.collect();
+        let mut files = files.to_vec();
         files.sort();
         self.audiobooks.push(Audiobook {
             paths,
+            dir,
             names,
             place,
             files,
             bytes,
+            verdict: Verdict::Doubtful,
+            duration_ms: None,
+            author: None,
         });
     }
+
+    /// Hears a few files of each audiobook (`listen` reads a file's headers, on several threads)
+    /// and keeps what sounds like one: drops music, clips and sounds, and joins the files of one
+    /// album in a folder into one audiobook, named for the album too.
+    pub fn classify(
+        &mut self,
+        listen: &(dyn Fn(&Path) -> Option<AudioFacts> + Sync),
+    ) -> Classified {
+        let samples: Vec<&AudioFile> = self
+            .audiobooks
+            .iter()
+            .flat_map(Audiobook::samples)
+            .collect();
+        let heard: HashMap<&Path, (u64, AudioFacts)> = samples
+            .into_par_iter()
+            .filter_map(|(path, size)| Some((path.as_path(), (*size, listen(path)?))))
+            .collect();
+        let mut heard_of: Vec<Vec<(u64, AudioFacts)>> = self
+            .audiobooks
+            .iter()
+            .map(|a| {
+                a.samples()
+                    .iter()
+                    .filter_map(|(path, _)| heard.get(path.as_path()).cloned())
+                    .collect()
+            })
+            .collect();
+        drop(heard);
+        self.join_albums(&mut heard_of);
+
+        let mut classified = Classified::default();
+        let min_ms = self.min_ms;
+        for (audiobook, heard) in self.audiobooks.iter_mut().zip(&heard_of) {
+            let evidence = Evidence {
+                names: audiobook
+                    .names
+                    .iter()
+                    .flat_map(|n| plain_words(n))
+                    .collect(),
+                place: audiobook.place.clone(),
+                extensions: audiobook
+                    .files
+                    .iter()
+                    .filter_map(|(p, _)| p.extension())
+                    .map(|e| e.to_string_lossy().to_lowercase())
+                    .collect(),
+                files: audiobook.files.len(),
+                bytes: audiobook.bytes,
+                heard,
+                min_ms,
+            };
+            audiobook.verdict = verdict(&evidence);
+            audiobook.duration_ms = evidence.duration_ms();
+            audiobook.author = heard.iter().find_map(|(_, f)| f.artist.clone());
+            match audiobook.verdict {
+                Verdict::Audiobook => classified.audiobooks += 1,
+                Verdict::Doubtful => classified.doubtful += 1,
+                Verdict::NotAudiobook => classified.dropped += 1,
+            }
+        }
+        self.audiobooks
+            .retain(|a| a.verdict != Verdict::NotAudiobook);
+        classified
+    }
+
+    /// Joins audiobooks of loose files in one folder whose files all name the same album, and
+    /// names the joined audiobook for its album too. (A single audiobook keeps its own names:
+    /// an album tag may name a series, or be left over from another file.)
+    fn join_albums(&mut self, heard_of: &mut Vec<Vec<(u64, AudioFacts)>>) {
+        let album = |heard: &[(u64, AudioFacts)]| -> Option<String> {
+            let first = heard.first()?.1.album.as_deref()?.trim().to_lowercase();
+            heard
+                .iter()
+                .all(|(_, f)| {
+                    f.album.as_deref().map(|a| a.trim().to_lowercase()) == Some(first.clone())
+                })
+                .then_some(first)
+                .filter(|a| !a.is_empty())
+        };
+        let mut at = 0;
+        while at < self.audiobooks.len() {
+            let Some(key) = album(&heard_of[at]) else {
+                at += 1;
+                continue;
+            };
+            let loose = |a: &Audiobook| a.paths != [a.dir.clone()];
+            if loose(&self.audiobooks[at]) {
+                let mut other = at + 1;
+                while other < self.audiobooks.len() {
+                    let same = loose(&self.audiobooks[other])
+                        && self.audiobooks[other].dir == self.audiobooks[at].dir
+                        && album(&heard_of[other]).as_ref() == Some(&key);
+                    if same {
+                        let joined = self.audiobooks.remove(other);
+                        let joined_heard = heard_of.remove(other);
+                        let into = &mut self.audiobooks[at];
+                        into.paths.extend(joined.paths);
+                        into.paths.sort();
+                        into.files.extend(joined.files);
+                        into.files.sort();
+                        into.bytes += joined.bytes;
+                        for name in joined.names {
+                            if !into.names.contains(&name) {
+                                into.names.push(name);
+                            }
+                        }
+                        heard_of[at].extend(joined_heard);
+                        // What joins them is their album: it is a name the audiobook goes by.
+                        if let Some(name) = heard_of[at][0].1.album.clone() {
+                            if !into.names.contains(&name) {
+                                into.names.push(name);
+                            }
+                        }
+                    } else {
+                        other += 1;
+                    }
+                }
+            }
+            at += 1;
+        }
+    }
+}
+
+/// Whether a folder's files are numbered parts of one book: past the words they all begin
+/// with ("Mark 00a …", "Mark 01 …"), most begin with a number ("01", "00b") or a part word and
+/// one ("Chapter 3"), and they are not each the size of a book.
+fn numbered(files: &[AudioFile]) -> bool {
+    if files.len() < 2 {
+        return false;
+    }
+    let bytes: u64 = files.iter().map(|(_, size)| size).sum();
+    if bytes / files.len() as u64 >= BOOK_SIZED_BYTES {
+        return false;
+    }
+    let tokens: Vec<Vec<String>> = files
+        .iter()
+        .map(|(path, _)| {
+            stem(path)
+                .to_lowercase()
+                .split(|c: char| !c.is_alphanumeric())
+                .filter(|t| !t.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
+        .collect();
+    let shared = (0..)
+        .take_while(|&i| {
+            tokens[0]
+                .get(i)
+                .is_some_and(|t| tokens.iter().all(|other| other.get(i) == Some(t)))
+        })
+        .count();
+    const PART: &[&str] = &[
+        "chapter", "ch", "part", "pt", "track", "lecture", "lesson", "episode", "ep", "session",
+        "section", "disc", "cd",
+    ];
+    let number = |t: &str| {
+        let digits = t.chars().take_while(char::is_ascii_digit).count();
+        (1..=4).contains(&digits) && t.chars().count() <= digits + 1
+    };
+    let count = tokens
+        .iter()
+        .filter(|t| match t.get(shared..) {
+            Some([first, ..]) if number(first) => true,
+            Some([word, next, ..]) => PART.contains(&word.as_str()) && number(next),
+            _ => false,
+        })
+        .count();
+    count * 5 >= files.len() * 4
 }
 
 /// Small words that many names share, left out when comparing ("Method and Madness" is not

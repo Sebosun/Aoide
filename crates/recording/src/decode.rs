@@ -20,6 +20,8 @@ pub(crate) struct Source {
     pub track_id: u32,
     pub params: AudioCodecParameters,
     pub time_base: Option<TimeBase>,
+    /// The track's length in its time base, when its headers say.
+    pub num_frames: Option<u64>,
 }
 
 impl Source {
@@ -47,12 +49,13 @@ impl Source {
             .and_then(|p| p.audio())
             .cloned()
             .ok_or_else(|| Problem::Unreadable("no audio track".into()))?;
-        let (track_id, time_base) = (track.id, track.time_base);
+        let (track_id, time_base, num_frames) = (track.id, track.time_base, track.num_frames);
         Ok(Source {
             format,
             track_id,
             params,
             time_base,
+            num_frames,
         })
     }
 

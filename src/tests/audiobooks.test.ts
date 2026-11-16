@@ -58,15 +58,17 @@ it("lists the audiobooks found for each book, closest first, and pairs the ones 
   const map = wrapper.findAll(".find-audiobooks__card")[0];
   expect(map.get(".find-audiobooks__eyebrow").text()).toBe("Same name");
   expect(map.findAll(".find-audiobooks__candidate").map((c) => c.text())).toEqual([
-    "Ellis Reed - A Map of Quiet PlacesFolder · 15 files · 208 KB",
-    "A Map of Quiet Places (Unabridged).m4b1 file · 14 KB",
+    "Ellis Reed - A Map of Quiet PlacesFolder · 15 files · 208 KB · <1 min · A. Writer",
+    "A Map of Quiet Places (Unabridged).m4b1 file · 14 KB · <1 min · A. Writer",
   ]);
   expect(map.get(".find-audiobooks__candidate").attributes("title")).toContain(
     "~/Audiobooks/Ellis Reed - A Map of Quiet Places/15 - A Map of Quiet Places.m4b",
   );
   const atlas = wrapper.findAll(".find-audiobooks__card")[1];
   expect(atlas.get(".find-audiobooks__eyebrow").text()).toBe("Similar name");
-  expect(atlas.get(".find-audiobooks__candidate").text()).toBe("Unfinished Atlas Radio Play 1.mp32 files · 9 KB");
+  expect(atlas.get(".find-audiobooks__candidate").text()).toBe(
+    "Unfinished Atlas Radio Play 1.mp32 files · 9 KB · <1 min · A. Writer",
+  );
 
   await map.get('[aria-label="Pair A Map of Quiet Places (Unabridged).m4b with A Map of Quiet Places"]').setValue(true);
   await map.get('[aria-label="Select A Map of Quiet Places"]').setValue(true);
@@ -137,6 +139,14 @@ it("lists audiobooks that match no book, and adds one on its own", async () => {
   const section = wrapper.get('[aria-labelledby="find-unmatched"]');
   expect(section.text()).toContain("Ines Morrow - Winter Radio");
   expect(section.text()).toContain("Folder · 2 files");
+  // Its length and its author, as its files say.
+  expect(section.text()).toContain("<1 min · A. Writer");
+  // Nothing about it says audiobook: it is listed apart, folded away.
+  const doubtful = section.get(".find-audiobooks__doubtful");
+  expect(doubtful.get("summary").text()).toBe("Might not be audiobooks 1");
+  expect(doubtful.attributes("open")).toBeUndefined();
+  expect(doubtful.text()).toContain("Ines Morrow - Winter Radio");
+  expect(section.find(".find-audiobooks__others:not(.find-audiobooks__others--doubtful)").exists()).toBe(false);
   await section.get('[aria-label="Add Ines Morrow - Winter Radio on its own"]').trigger("click");
   await flushPromises();
   expect(useLibraryStore().books.find((b) => b.id === "book-5")?.kind).toBe("audiobook");

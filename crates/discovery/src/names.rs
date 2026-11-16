@@ -2,9 +2,11 @@
 
 use std::path::Path;
 
+/// Audio an audiobook comes in. Not `.mp4` (video, nearly always), `.m4p` and `.wma`
+/// (protected music) or Audible's `.aa`/`.aax` (refused when paired: DRM). Sounds in `.wav`
+/// are dropped by their length once heard.
 const AUDIO_EXTENSIONS: &[&str] = &[
-    "mp3", "m4a", "m4b", "mp4", "aac", "flac", "ogg", "oga", "opus", "wav", "wma", "aa", "aax",
-    "aaxc", "m4p",
+    "mp3", "m4a", "m4b", "aac", "flac", "ogg", "oga", "opus", "wav",
 ];
 /// Words that say what a file is rather than which book it holds, as they read once a plural `s`
 /// is dropped ("opus" is "opu").
