@@ -11,6 +11,7 @@ use std::collections::VecDeque;
 use super::recording::RecordingPlan;
 use super::*;
 
+/// The pause between one request and the next.
 const IDLE: Duration = Duration::from_millis(150);
 /// How long to wait after the aligner could not be reached.
 const RETRY: Duration = Duration::from_secs(20);
@@ -96,6 +97,8 @@ pub(super) struct Aligner {
     library: Arc<Mutex<Library>>,
     audio_dir: PathBuf,
     aligning: Mutex<Aligning>,
+    /// Told when work is queued.
+    queued: tokio::sync::Notify,
 }
 
 impl Aligner {
@@ -104,6 +107,7 @@ impl Aligner {
             library,
             audio_dir,
             aligning: Default::default(),
+            queued: tokio::sync::Notify::new(),
         }
     }
 
@@ -142,6 +146,7 @@ impl Aligner {
                 }
             }
         }
+        self.queued.notify_one();
         for (book, index, timings) in known {
             host.aligned(&book, index, timings);
         }
@@ -151,8 +156,14 @@ impl Aligner {
     pub async fn run(&self, host: &dyn AlignHost) {
         let mut offline_until: Option<Instant> = None;
         loop {
-            tokio::time::sleep(IDLE).await;
+            // Nothing waits: wait for work. The aligner was offline: wait out the retry.
+            match offline_until.filter(|until| Instant::now() < *until) {
+                Some(until) => tokio::time::sleep_until(until.into()).await,
+                None if lock(&self.aligning).queue.is_empty() => self.queued.notified().await,
+                None => {}
+            }
             self.step(host, &mut offline_until).await;
+            tokio::time::sleep(IDLE).await;
         }
     }
 
@@ -481,5 +492,23 @@ mod tests {
         aligner.want(vec![speech("evicted")], &host);
 
         assert_eq!(aligner.waiting(), 0);
+    }
+
+    #[tokio::test]
+    async fn running_it_takes_up_work_as_soon_as_it_is_wanted() {
+        let aligner = Arc::new(Aligner::new(
+            super::super::tests::library_with(&["b"]),
+            "/nowhere".into(),
+        ));
+        let host = Arc::new(Host { settings: set_up() });
+        let running = {
+            let (aligner, host) = (Arc::clone(&aligner), Arc::clone(&host));
+            tokio::spawn(async move { aligner.run(&*host).await })
+        };
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        aligner.want(vec![speech("evicted")], &*host);
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert_eq!(aligner.waiting(), 0);
+        running.abort();
     }
 }
