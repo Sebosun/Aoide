@@ -184,6 +184,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `output.start` | info, error | `outcome`, `latency_ms`, `error` | `core.rs`, the audio output |
 | `output.restart` | warn | | `core.rs` `keep_output_alive` |
 | `playback.cache` | warn | `key`, `error` | `core/playback.rs` |
+| `playback.resumed` | info | `book`, `away_s`, `stepped_back` (a number of `unit`: `entries`, 0 being the sentence's start, or `ms` for an audiobook alone), `unit`, `from` (`pause`, or `saved`: the saved place's time) | `core/playback.rs` `step_back`, one line per resume that steps back |
 | `feeder.read` | warn | `error` | `core/feeder.rs` |
 | `cache.evict` | info | `segments`, `books` | `core/storage.rs` `enforce_cache_limit` |
 | `export.done` | info, warn | `kind`, `book`, `file`, `took_ms`, `outcome`, `error` | `core/export.rs` (`Exports`) |

@@ -16,6 +16,7 @@ use aoide_tts::SynthesisRequest;
 use super::align::Alignable;
 use super::narration::NarrationPlan;
 use super::recording::{Narration, RecordingPlan};
+use super::resuming::{self, Away, StepBack};
 use super::session::Session;
 use super::timeline::{self, Timeline, TimelineSession};
 use super::{lock, PlaybackStatus, PlayerStateView, Target};
@@ -200,6 +201,9 @@ pub struct Playback {
     latency_ms: Mutex<u32>,
     /// Told of each change to what plays or how, for the tick to show it.
     changes: tokio::sync::Notify,
+    /// When playback was paused, while it stays paused where it was: how long the listener was
+    /// away when it plays again.
+    paused_at: Mutex<Option<Instant>>,
 }
 
 impl Playback {
@@ -210,6 +214,7 @@ impl Playback {
             error: Mutex::new(None),
             latency_ms: Mutex::new(0),
             changes: tokio::sync::Notify::new(),
+            paused_at: Mutex::new(None),
         }
     }
 
@@ -316,6 +321,7 @@ impl Playback {
 
     /// Plays (or carries on playing) what is loaded.
     pub fn play(&self) -> Moved {
+        *lock(&self.paused_at) = None;
         lock(&self.player).play();
         self.stir();
         Moved {
@@ -324,8 +330,53 @@ impl Playback {
         }
     }
 
+    /// Plays on after a pause, `now`: after a break, a little earlier (see
+    /// [`resuming::step_back`]).
+    pub fn resume_at(&self, now: Instant) -> Moved {
+        let paused_at = lock(&self.paused_at).take();
+        let stepped = paused_at.and_then(|at| {
+            self.step_back(Away(now.saturating_duration_since(at)), "pause")
+        });
+        let played = self.play();
+        match stepped {
+            Some(moved) => Moved {
+                output: played.output,
+                ..moved
+            },
+            None => played,
+        }
+    }
+
+    /// Moves the playhead back for a listener `away` (see [`resuming`]), and says so; `None`
+    /// when it stays. `from` is what `away` was measured from, for the log.
+    fn step_back(&self, away: Away, from: &'static str) -> Option<Moved> {
+        let index = self.position().index;
+        let (id, target) = match lock(&self.playing).as_ref()? {
+            Playing::Entries(session) => {
+                let target = match resuming::step_back(away) {
+                    StepBack::None => return None,
+                    StepBack::SentenceStart => index,
+                    StepBack::Sentences(n) => index.saturating_sub(usize::from(n)),
+                };
+                (session.target.book.id.clone(), target)
+            }
+            Playing::Timeline(_) => return None,
+        };
+        tracing::info!(
+            event = "playback.resumed",
+            book = crate::logging::book(&id),
+            away_s = away.0.as_secs(),
+            stepped_back = index - target,
+            unit = "entries",
+            from,
+            "Stepped back on resume"
+        );
+        Some(self.seek(target, None))
+    }
+
     /// Pauses; the place is saved.
     pub fn pause(&self) -> Moved {
+        *lock(&self.paused_at) = Some(Instant::now());
         lock(&self.player).pause();
         self.stir();
         Moved {
@@ -887,8 +938,9 @@ impl super::Core {
         let _ = self.follow_through(self.playback.pause());
     }
 
+    /// Plays on after a pause, a little earlier after a break.
     pub fn resume(&self) -> Result<(), String> {
-        self.follow_through(self.playback.play())
+        self.follow_through(self.playback.resume_at(Instant::now()))
     }
 
     pub fn stop(&self) {
@@ -1250,6 +1302,60 @@ mod tests {
             "nothing is listened to"
         );
         assert_eq!(playback.stop().parts(), (false, Some(Stopped), Some(Close)));
+    }
+
+    /// Plays the test book read by speech, all made, into entry `index`, and pauses there.
+    fn paused_in(index: usize) -> Playback {
+        let playback = Playback::new(PlayerCore::new(RATE));
+        drop(playback.start(speech(&[0, 1, 2, 3]), index));
+        playback.tick(&memory(&["k0", "k1", "k2", "k3"])).unwrap();
+        listen(&playback, 500);
+        drop(playback.pause());
+        assert_eq!(playback.position().index, index);
+        playback
+    }
+
+    #[test]
+    fn resuming_after_ten_minutes_starts_a_sentence_earlier_and_saves_that_place() {
+        let playback = paused_in(1);
+        let back = Instant::now() + Duration::from_secs(10 * 60);
+        let moved = playback.resume_at(back);
+        let Some(Place::Entry { index, .. }) = moved.place else {
+            panic!("the place stepped back to is saved")
+        };
+        assert_eq!(index, 0);
+        assert_eq!(
+            (moved.listening, moved.output),
+            (Some(Listening::Jumped), Some(OutputNeed::Open))
+        );
+        assert_eq!(playback.position().index, 0);
+        assert_eq!(playback.position().offset_ms, 0);
+        assert!(playback.is_playing());
+    }
+
+    #[test]
+    fn resuming_after_a_moment_plays_on_from_the_playhead() {
+        let playback = paused_in(1);
+        let offset = playback.position().offset_ms;
+        assert!(offset > 0);
+        assert_eq!(
+            playback.resume_at(Instant::now()).parts(),
+            (false, None, Some(OutputNeed::Open))
+        );
+        assert_eq!(
+            (playback.position().index, playback.position().offset_ms),
+            (1, offset)
+        );
+    }
+
+    #[test]
+    fn resuming_after_a_minute_starts_the_sentence_again() {
+        let playback = paused_in(1);
+        drop(playback.resume_at(Instant::now() + Duration::from_secs(60)));
+        assert_eq!(
+            (playback.position().index, playback.position().offset_ms),
+            (1, 0)
+        );
     }
 
     #[test]

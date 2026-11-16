@@ -489,9 +489,10 @@ impl Core {
             .and_then(|id| book.index_of(id))
             .or_else(|| chapter.and_then(|c| book.chapter_start(c)));
         if same_book {
-            if let Some(index) = start {
-                self.follow_through(self.playback.seek(index, None))?;
-            }
+            let Some(index) = start else {
+                return self.resume();
+            };
+            self.follow_through(self.playback.seek(index, None))?;
             return self.follow_through(self.playback.play());
         }
         let start = start

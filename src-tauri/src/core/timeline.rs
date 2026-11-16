@@ -249,9 +249,10 @@ impl Core {
     pub(super) fn play_timeline(&self, id: &str, part: Option<usize>) -> Result<(), String> {
         self.choose_mode(id, super::reading::ModeEvent::ListenChosen)?;
         if self.playback.is_book(id) {
-            if let Some(part) = part {
-                self.seek_part(id, part)?;
-            }
+            let Some(part) = part else {
+                return self.resume();
+            };
+            self.seek_part(id, part)?;
             return self.follow_through(self.playback.play());
         }
         let timeline = self.timeline_of(id)?;
