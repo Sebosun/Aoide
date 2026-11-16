@@ -154,6 +154,8 @@ pub struct Playback {
     error: Mutex<Option<String>>,
     /// The audio output's latency: the word shown is the word heard.
     latency_ms: Mutex<u32>,
+    /// Told of each change to what plays or how, for the tick to show it.
+    changes: tokio::sync::Notify,
 }
 
 impl Playback {
@@ -163,7 +165,19 @@ impl Playback {
             playing: Mutex::new(None),
             error: Mutex::new(None),
             latency_ms: Mutex::new(0),
+            changes: tokio::sync::Notify::new(),
         }
+    }
+
+    /// Resolves at the next change to what plays or how (at once, when one came since the last
+    /// call): a session started or stopped, play, pause, a seek, the speed or volume, a failure.
+    pub async fn changed(&self) {
+        self.changes.notified().await;
+    }
+
+    /// Something shown with playback changed.
+    pub fn stir(&self) {
+        self.changes.notify_one();
     }
 
     /// The player, for the audio output to render from.
@@ -258,11 +272,13 @@ impl Playback {
 
     pub fn play(&self) {
         lock(&self.player).play();
+        self.stir();
     }
 
     #[must_use = "the place is lost unless it is saved"]
     pub fn pause(&self) -> Option<Place> {
         lock(&self.player).pause();
+        self.stir();
         self.place_to_save(true)
     }
 
@@ -276,16 +292,19 @@ impl Playback {
 
     pub fn set_speed(&self, speed: f32) {
         lock(&self.player).set_speed(speed);
+        self.stir();
     }
 
     pub fn set_volume(&self, volume: f32) {
         lock(&self.player).set_volume(volume);
+        self.stir();
     }
 
     /// The audio output failed: playback pauses with `error` shown.
     pub fn fail(&self, error: String) {
         lock(&self.player).pause();
         *lock(&self.error) = Some(error);
+        self.stir();
     }
 
     /// Plays `target` from entry `start`, in place of anything playing.
@@ -298,6 +317,7 @@ impl Playback {
         let rate = self.load(entries, start, offset);
         *lock(&self.playing) = Some(Playing::Entries(Session::new(target, rate)));
         *lock(&self.error) = None;
+        self.stir();
     }
 
     /// Plays `timeline` from `at_ms`, in place of anything playing.
@@ -306,6 +326,7 @@ impl Playback {
         let rate = self.load(timeline.entries(), start, offset);
         *lock(&self.playing) = Some(Playing::Timeline(TimelineSession::new(timeline, rate)));
         *lock(&self.error) = None;
+        self.stir();
     }
 
     /// Gives the player `entries` and plays from `offset` ms into entry `start`; returns the
@@ -324,6 +345,7 @@ impl Playback {
         let place = self.place_to_save(true);
         lock(&self.player).load(Vec::new(), 0);
         *lock(&self.playing) = None;
+        self.stir();
         place
     }
 
@@ -350,6 +372,7 @@ impl Playback {
             }
             player.seek_to(index, offset);
         }
+        self.stir();
         self.place_to_save(true)
     }
 
@@ -916,6 +939,30 @@ mod tests {
         playback.audio_lost(&HashSet::from(["k0".to_string()]));
         playback.tick(&memory(&["k0"])).unwrap();
         assert_eq!(playback.state().status, PlaybackStatus::Buffering);
+    }
+
+    /// Whether a change was told within a moment.
+    async fn told(playback: &Playback) -> bool {
+        tokio::time::timeout(Duration::from_millis(20), playback.changed())
+            .await
+            .is_ok()
+    }
+
+    #[tokio::test]
+    async fn each_change_to_playback_is_told_to_whoever_waits_for_it() {
+        let playback = Playback::new(PlayerCore::new(RATE));
+        assert!(!told(&playback).await, "nothing changed yet");
+        playback.start(speech(&[0]), 0);
+        assert!(told(&playback).await);
+        assert!(!told(&playback).await, "told once");
+        let _ = playback.pause();
+        assert!(told(&playback).await);
+        playback.set_speed(1.5);
+        assert!(told(&playback).await);
+        let _ = playback.seek(0, Some(10));
+        assert!(told(&playback).await);
+        let _ = playback.stop();
+        assert!(told(&playback).await);
     }
 
     #[test]

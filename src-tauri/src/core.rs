@@ -111,7 +111,12 @@ pub use settings::{AlignerSettings, AppSettings, AppSettingsPatch};
 
 use crate::book::{BookModel, ChapterSummary, ExcludedView};
 
+/// How often the player is looked at while it plays (or just changed).
 const TICK: Duration = Duration::from_millis(33);
+/// How long after a change the player is still looked at every tick.
+const LINGER: Duration = Duration::from_secs(2);
+/// How often an idle player is looked at, when nothing tells of a change.
+const IDLE_TICK: Duration = Duration::from_secs(1);
 
 fn now_ms() -> i64 {
     SystemTime::now()
@@ -550,10 +555,21 @@ impl Core {
         }
     }
 
+    /// Looks at the player every tick while it plays, a sleep timer runs, or for a moment after
+    /// a change; otherwise it waits for the next change (or a second), so an idle Aoide does
+    /// not wake thirty times a second.
     async fn tick_loop(self: Arc<Self>) {
-        let mut interval = tokio::time::interval(TICK);
+        let mut lively_until = Instant::now() + LINGER;
         loop {
-            interval.tick().await;
+            let wait = if Instant::now() < lively_until {
+                TICK
+            } else {
+                IDLE_TICK
+            };
+            tokio::select! {
+                () = self.playback.changed() => lively_until = Instant::now() + LINGER,
+                () = tokio::time::sleep(wait) => {}
+            }
             if self.provide_audio() {
                 self.plan(PlanEvent::ListeningChanged { jump: false });
                 self.save_place(self.playback.place_to_save(false));
@@ -579,8 +595,15 @@ impl Core {
                     ))
                 }
             };
+            let lively = matches!(
+                state.status,
+                PlaybackStatus::Playing | PlaybackStatus::Buffering
+            ) || state.sleep.is_some();
             if let Some(state) = self.controls.observe(state, &now_playing) {
                 self.emit(CoreEvent::PlayerState(state));
+            }
+            if lively {
+                lively_until = Instant::now() + LINGER;
             }
         }
     }

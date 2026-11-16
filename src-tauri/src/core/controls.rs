@@ -164,6 +164,7 @@ impl super::Core {
     pub fn set_sleep_timer(&self, minutes: Option<u32>, end_of_chapter: bool) {
         let chapter = self.playback.chapter();
         self.controls.set_sleep(minutes, end_of_chapter, chapter);
+        self.playback.stir();
     }
 }
 
