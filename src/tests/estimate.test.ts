@@ -9,15 +9,29 @@ const chapter: ChapterView = {
     {
       kind: "heading",
       level: 2,
-      segments: [{ id: "0:0:0", words: ["Title"], speakable: true, note: false, notes: [] }],
+      segments: [{ id: "0:0:0", words: ["Title"], speakable: true, canSayAgain: true, note: false, notes: [] }],
     },
     {
       kind: "paragraph",
       level: null,
       segments: [
-        { id: "0:1:0", words: "one two three four".split(" "), speakable: true, note: false, notes: [] },
-        { id: "0:1:1", words: ["* * *"], speakable: false, note: false, notes: [] },
-        { id: "0:1:2", words: "five six seven eight nine".split(" "), speakable: true, note: false, notes: [] },
+        {
+          id: "0:1:0",
+          words: "one two three four".split(" "),
+          speakable: true,
+          canSayAgain: true,
+          note: false,
+          notes: [],
+        },
+        { id: "0:1:1", words: ["* * *"], speakable: false, canSayAgain: false, note: false, notes: [] },
+        {
+          id: "0:1:2",
+          words: "five six seven eight nine".split(" "),
+          speakable: true,
+          canSayAgain: true,
+          note: false,
+          notes: [],
+        },
       ],
     },
   ],

@@ -529,6 +529,18 @@ async fn sentences_the_recording_lacks_are_marked_in_the_chapter() {
         speech.not_narrated, None,
         "nothing is marked while speech narrates"
     );
+    let can_say_again = |chapter: &crate::book::ChapterView| -> Vec<bool> {
+        chapter
+            .blocks
+            .iter()
+            .flat_map(|b| &b.segments)
+            .map(|s| s.can_say_again)
+            .collect()
+    };
+    assert!(
+        can_say_again(&speech).iter().all(|c| *c),
+        "the speech engine says every sentence"
+    );
     f.core
         .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
         .unwrap();
@@ -552,6 +564,15 @@ async fn sentences_the_recording_lacks_are_marked_in_the_chapter() {
         .collect();
     assert!(!speakable.is_empty());
     assert_eq!(second.not_narrated, Some(speakable));
+    // Neither the recording's clips nor what it lacks are said again.
+    let first = f.core.chapter(&f.id, 0).unwrap();
+    assert!(can_say_again(&first).iter().all(|c| !c));
+    assert!(can_say_again(&second).iter().all(|c| !c));
+    assert!(f
+        .core
+        .say_again(&f.id, &first.blocks[0].segments[0].id)
+        .await
+        .is_err());
 }
 
 #[tokio::test]
@@ -580,10 +601,15 @@ async fn what_the_recording_lacks_is_spoken_by_the_speech_engine_when_asked() {
     assert!(!settings.speak_missing, "off unless asked");
     settings.speak_missing = true;
     f.core.save_book_settings(&f.id, settings).await.unwrap();
-    assert_eq!(
-        f.core.chapter(&f.id, 1).unwrap().not_narrated,
-        Some(vec![]),
-        "nothing is passed over"
+    let second = f.core.chapter(&f.id, 1).unwrap();
+    assert_eq!(second.not_narrated, Some(vec![]), "nothing is passed over");
+    assert!(
+        second
+            .blocks
+            .iter()
+            .flat_map(|b| &b.segments)
+            .all(|s| !s.can_say_again),
+        "what the recording lacks is not said again"
     );
 
     f.core.play(&f.id, Some(1), None).await.unwrap();

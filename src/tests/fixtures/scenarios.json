@@ -256,6 +256,33 @@
     ]
   },
   {
+    "name": "a sentence the speech engine says can be said again",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 1
+        },
+        "call": "chapter",
+        "error": null,
+        "expect": {
+          "blocks.0.segments.0.canSayAgain": true,
+          "blocks.1.segments.0.canSayAgain": true
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "segmentId": "99:0:0"
+        },
+        "call": "sayAgain",
+        "error": "no such sentence",
+        "expect": {}
+      }
+    ]
+  },
+  {
     "name": "collections are named once and hold books",
     "start": "",
     "steps": [

@@ -49,6 +49,9 @@ pub struct SegmentView {
     pub id: String,
     pub words: Vec<String>,
     pub speakable: bool,
+    /// The speech engine says it, so it can be said again (see `Core::say_again`): not a
+    /// silent entry, nor anything of a book its recording narrates.
+    pub can_say_again: bool,
     /// A spoken footnote inserted after its paragraph (not part of the book's text flow).
     pub note: bool,
     pub notes: Vec<NoteMarker>,
@@ -304,6 +307,7 @@ impl BookModel {
                         .map(str::to_owned)
                         .collect(),
                     speakable: !segment.speech.is_empty(),
+                    can_say_again: !segment.speech.is_empty(),
                     note: segment.id.contains(":n"),
                     notes: model.notes[local].clone(),
                 });

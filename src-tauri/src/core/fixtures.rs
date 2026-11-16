@@ -1005,6 +1005,24 @@ async fn scenarios_for_the_ui_mock() {
     }
     scenarios.push(s.done());
 
+    let mut s = Scenario::new("a sentence the speech engine says can be said again", "");
+    s.step(
+        "chapter",
+        json!({"bookId": second, "chapter": 1}),
+        &core.chapter(&second, 1),
+        &[
+            "blocks.0.segments.0.canSayAgain",
+            "blocks.1.segments.0.canSayAgain",
+        ],
+    );
+    s.step(
+        "sayAgain",
+        json!({"bookId": second, "segmentId": "99:0:0"}),
+        &core.say_again(&second, "99:0:0").await,
+        &[],
+    );
+    scenarios.push(s.done());
+
     let mut s = Scenario::new("collections are named once and hold books", "");
     let made = core.create_collection("Harbour");
     s.step("createCollection", json!({"name": "Harbour"}), &made, &[""]);

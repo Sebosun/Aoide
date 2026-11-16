@@ -14,6 +14,12 @@ use super::{lock, Core, PlanEvent};
 const NOT_SPOKEN: &str = "this sentence is not said by the speech engine";
 
 impl Core {
+    /// Whether book `id`'s sentences can be said again: the speech engine reads it, not its
+    /// recording (whose clips cannot be made again, and what it lacks goes with it).
+    pub(super) fn says_again(&self, id: &str) -> bool {
+        !self.plays_recording(id, &self.book_settings(id))
+    }
+
     /// Throws away the audio of sentence `segment_id` of book `id` and makes it again, as a
     /// new take, from the playhead put on the sentence (playing or paused as before). A book
     /// that is not being listened to is listened to from that sentence.
@@ -48,6 +54,10 @@ impl Core {
         self.require(id, Needs::Text)?;
         let book = self.load_book(id)?;
         let index = book.index_of(segment_id).ok_or("no such sentence")?;
+        let silent = book.segment(index).map_or(true, |s| s.speech.is_empty());
+        if silent || !self.says_again(id) {
+            return Err(NOT_SPOKEN.into());
+        }
         if !self.playback.is_book(id) {
             self.play(id, None, Some(segment_id.into())).await?;
         }

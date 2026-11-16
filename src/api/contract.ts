@@ -183,6 +183,11 @@ text: string | null, };
 
 export type SegmentView = { id: string, words: Array<string>, speakable: boolean, 
 /**
+ * The speech engine says it, so it can be said again (see `Core::say_again`): not a
+ * silent entry, nor anything of a book its recording narrates.
+ */
+canSayAgain: boolean, 
+/**
  * A spoken footnote inserted after its paragraph (not part of the book's text flow).
  */
 note: boolean, notes: Array<NoteMarker>, };

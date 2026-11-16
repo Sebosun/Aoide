@@ -776,6 +776,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
               .filter((s) => s.speakable)
               .map((s) => s.id)
           : [];
+      // As the core: no sentence of a book its recording narrates is said again.
+      for (const segment of view.blocks.flatMap((b) => b.segments)) segment.canSayAgain = false;
     }
     return view;
   };
@@ -1265,7 +1267,14 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       settlePrepare();
     },
     async sayAgain({ bookId: id, segmentId }) {
+      if (isAudiobook(id)) throw refused(NO_TEXT);
       const chapter = Number(segmentId.split(":")[0]);
+      const view = isArticle(id)
+        ? (fixtureArticle.chapter as unknown as ChapterView)
+        : chapters[Number(id.split("-")[1])]?.[chapter] && getChapter(id, chapter);
+      const segment = view?.blocks.flatMap((b) => b.segments).find((s) => s.id === segmentId);
+      if (!segment) throw refused("no such sentence");
+      if (!segment.canSayAgain) throw refused("this sentence is not said by the speech engine");
       if (state.bookId !== id) return api.play({ bookId: id, chapter, segmentId });
       // As the core does: the playhead goes to the sentence, playing or paused as it was, and
       // the sentence is made again.

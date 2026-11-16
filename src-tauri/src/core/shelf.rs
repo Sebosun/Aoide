@@ -856,6 +856,11 @@ impl super::Core {
         let mut view = book
             .chapter_view(chapter)
             .ok_or_else(|| "no such chapter".to_owned())?;
+        if !self.says_again(&book.id) {
+            for segment in view.blocks.iter_mut().flat_map(|b| &mut b.segments) {
+                segment.can_say_again = false;
+            }
+        }
         view.not_narrated = self.not_narrated(book, chapter);
         Ok(view)
     }

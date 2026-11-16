@@ -16,6 +16,7 @@
                 "light"
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -42,6 +43,7 @@
                 "pier."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": [
                 {
@@ -69,6 +71,7 @@
                 "stars."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -91,6 +94,7 @@
                 "steps."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             },
@@ -117,6 +121,7 @@
                 "bay."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -141,6 +146,7 @@
                 "water"
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -163,6 +169,7 @@
                 "boat."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             },
@@ -183,6 +190,7 @@
                 "water."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -215,6 +223,7 @@
                 "light."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -241,6 +250,7 @@
                 "discovery"
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -281,6 +291,7 @@
                 "rain."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -312,6 +323,7 @@
                 "ending."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -337,6 +349,7 @@
                 "home"
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -360,6 +373,7 @@
                 "be."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             },
@@ -384,6 +398,7 @@
                 "rested."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -417,6 +432,7 @@
                 "past."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -442,6 +458,7 @@
                 "begin"
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -464,6 +481,7 @@
                 "directions."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             },
@@ -482,6 +500,7 @@
                 "her."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -506,6 +525,7 @@
                 "time."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -531,6 +551,7 @@
                 "gate"
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -558,6 +579,7 @@
                 "it."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -583,6 +605,7 @@
                 "pages"
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
@@ -610,6 +633,7 @@
                 "way."
               ],
               "speakable": true,
+              "canSayAgain": true,
               "note": false,
               "notes": []
             }
