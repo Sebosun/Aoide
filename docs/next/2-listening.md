@@ -19,6 +19,7 @@ it differs from the last one sent (`Controls::observe`). The interface side is
 ## 2.1 Step back a little on resume
 
 **Size:** S
+**Built:** 2026-11-16 (1652335..f42029c)
 
 ### Outcome
 
@@ -100,7 +101,9 @@ pub fn step_back_ms(away: Away) -> u64                        // an audiobook wi
 
 **Setting.** `AppSettings.step_back_on_resume: bool` (`core/settings.rs`, with its
 `AppSettingsPatch` field), on by default. There is no playback section in Settings; it goes in
-Settings › Library (`src/components/settings/LibrarySettings.vue`).
+Settings › Library (`src/components/settings/LibrarySettings.vue`), as a Listening section.
+`Core::resume` and the two starts from the saved place read it (`Core::steps_back`); off, they
+play as before.
 
 ### Slices
 
@@ -117,8 +120,9 @@ Settings › Library (`src/components/settings/LibrarySettings.vue`).
 
 ### Logging
 
-A new event `playback.resumed` (`book`, `away_s`, `stepped_back` as entries or ms, `from` =
-`pause` or `saved`), one line per resume that steps back. New row in `docs/logging.md`.
+A new event `playback.resumed` (`book`, `away_s`, `stepped_back` with its `unit`: `entries`,
+0 being the sentence's own start, or `ms`; `from` = `pause` or `saved`), one line per resume
+that steps back. New row in `docs/logging.md`.
 
 ### Done when
 
