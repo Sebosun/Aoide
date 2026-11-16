@@ -769,6 +769,7 @@ impl Playback {
             source: Narration::Speech,
             off_text: false,
             chapter_left_ms: None,
+            book_left_ms: None,
             waiting_for_sync: false,
             position_ms: None,
             duration_ms: None,
@@ -810,6 +811,9 @@ impl Playback {
             let left = audio.saturating_sub(u64::from(position.offset_ms));
             Some(at_speed(left, speed))
         });
+        let book_left_ms = narration
+            .playing_ms(index..book.total_entries())
+            .map(|audio| at_speed(audio.saturating_sub(u64::from(position.offset_ms)), speed));
         PlayerStateView {
             book_id: Some(book.id.clone()),
             status: status_of(position.status),
@@ -824,6 +828,7 @@ impl Playback {
             },
             off_text,
             chapter_left_ms,
+            book_left_ms,
             waiting_for_sync: narration.waits_for_sync(index),
             ..base
         }
@@ -1163,6 +1168,26 @@ mod tests {
         playback.segment_made("k0", 1_000);
         playback.tick(&memory(&["k0"])).unwrap();
         assert_eq!(playback.state().status, PlaybackStatus::Playing);
+    }
+
+    #[test]
+    fn the_time_left_in_a_book_read_by_speech_counts_made_and_estimated_speech_at_the_speed() {
+        let playback = Playback::new(PlayerCore::new(RATE));
+        let _ = playback.start(speech(&[1]), 1);
+        playback.segment_made("k2", 400);
+        playback.tick(&memory(&["k1", "k2"])).unwrap();
+        listen(&playback, 300);
+        let offset = u64::from(playback.position().offset_ms);
+        assert!(offset > 0, "into entry 1");
+        playback.set_speed(1.5);
+
+        // Entry 1 made (1 s), entry 2 made shorter (0.4 s), entry 3 estimated (1 s).
+        let pause = |i| u64::from(playback.book().unwrap().segment(i).unwrap().pause_after_ms);
+        let rest = 1_000 + pause(1) + 400 + pause(2) + 1_000 + pause(3) - offset;
+        assert_eq!(
+            playback.state().book_left_ms,
+            Some((rest as f64 / 1.5) as u64)
+        );
     }
 
     #[test]

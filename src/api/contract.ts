@@ -266,6 +266,11 @@ offText: boolean,
  */
 chapterLeftMs: number | null, 
 /**
+ * Listening time left in the book at this speed, from the playhead to the end; `None`
+ * while part of the rest waits for the recording's sync.
+ */
+bookLeftMs: number | null, 
+/**
  * The recording is being listened to while it syncs, and the sync has not reached the
  * playhead yet: playback waits for it.
  */

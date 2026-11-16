@@ -102,6 +102,7 @@ mod tests {
             source: Default::default(),
             off_text: false,
             chapter_left_ms: None,
+            book_left_ms: None,
             waiting_for_sync: false,
             position_ms: None,
             duration_ms: None,

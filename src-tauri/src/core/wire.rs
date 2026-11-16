@@ -126,6 +126,9 @@ pub struct PlayerStateView {
     /// Listening time left in the chapter at this speed, when it is known exactly (a
     /// recording); otherwise the interface estimates it from the words left.
     pub chapter_left_ms: Option<u64>,
+    /// Listening time left in the book at this speed, from the playhead to the end; `None`
+    /// while part of the rest waits for the recording's sync.
+    pub book_left_ms: Option<u64>,
     /// The recording is being listened to while it syncs, and the sync has not reached the
     /// playhead yet: playback waits for it.
     pub waiting_for_sync: bool,
