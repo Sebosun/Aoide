@@ -1076,3 +1076,42 @@ async fn saying_again_in_a_book_not_listened_to_listens_to_it_from_that_sentence
     );
     core.stop();
 }
+
+#[tokio::test]
+async fn a_prepared_book_with_a_sentence_said_again_still_exports() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let first = spoken(&core, &id, 0);
+    core.prepare_book(&id).await.unwrap();
+    until("the whole short book to be made", || {
+        stage(&core, &id) == Some(PrepareStage::Done) && audio_files(dir.path()).len() == 4
+    })
+    .await;
+
+    core.say_again(&id, &first[0]).await.unwrap();
+    core.pause();
+    until("the new take to be made", || {
+        engine.requests().iter().any(|r| r.take == 1) && audio_files(dir.path()).len() == 4
+    })
+    .await;
+
+    assert_eq!(stage(&core, &id), Some(PrepareStage::Done));
+    match core.export_book(&id).await {
+        Ok(path) => assert!(Path::new(&path).exists(), "{path}"),
+        // Exporting needs ffmpeg, which a test machine may not have.
+        Err(error) => assert!(error.contains("ffmpeg"), "{error}"),
+    }
+    assert_eq!(
+        engine.requests().len(),
+        5,
+        "the export made nothing again: {:?}",
+        engine.calls()
+    );
+    core.stop();
+}
