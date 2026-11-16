@@ -69,6 +69,13 @@ pub(super) enum PlanEvent {
     /// A book's audio was deleted to be made again (its keys forgotten first, see
     /// [`Generation::forget`]).
     BookAudioDeleted(String),
+    /// One sentence of `book` is said again as a new take: its audio under `key` was deleted
+    /// (forgotten first) and the book's speech is planned again. Whether the book is prepared
+    /// does not change.
+    SaidAgain {
+        book: String,
+        key: String,
+    },
     /// The worker started on a segment (of the book being listened to, `segment_id`).
     WorkStarted {
         segment_id: Option<String>,
@@ -159,6 +166,9 @@ impl Generation {
             descriptor,
             model,
         } = speech;
+        let library = lock(&self.library);
+        // Sentences the user asked to be said again are asked for as their latest take.
+        let takes = library.takes(&BookId(book.id.clone())).unwrap_or_default();
         let mut requests = Vec::with_capacity(book.total_entries());
         let mut keys = Vec::new();
         for index in 0..book.total_entries() {
@@ -167,11 +177,11 @@ impl Generation {
                 requests.push(None);
                 continue;
             }
-            let request = voicing.request(segment.speech.clone(), 0);
+            let take = takes.take(&segment.id, &segment.speech);
+            let request = voicing.request(segment.speech.clone(), take);
             keys.push(cache_key(&descriptor, model.as_deref(), &request));
             requests.push(Some(request));
         }
-        let library = lock(&self.library);
         let mut keys = keys.into_iter();
         let items = requests
             .iter()
@@ -326,6 +336,17 @@ impl Generation {
                     &lock(&self.library),
                     &HashSet::from([book.clone()]),
                     &HashSet::new(),
+                );
+                preparation.drop_plans(Some(&book));
+                Some(true)
+            }
+            PlanEvent::SaidAgain { book, key } => {
+                let mut preparation = lock(&self.preparation);
+                // Other books sharing the audio make their own again.
+                preparation.audio_lost(
+                    &lock(&self.library),
+                    &HashSet::new(),
+                    &HashSet::from([key]),
                 );
                 preparation.drop_plans(Some(&book));
                 Some(true)

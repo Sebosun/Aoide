@@ -1387,6 +1387,11 @@ export type Commands = {
   /** Pause or resume a queued book's preparation (remembered across restarts). */
   "set_prepare_paused": { args: { bookId: string; paused: boolean }; result: void };
   "cancel_prepare": { args: { bookId: string }; result: void };
+  /**
+   * Throw away one sentence's audio and make it again as a new take, from the playhead put on
+   * it (a book not being listened to is listened to from there).
+   */
+  "say_again": { args: { bookId: string; segmentId: string }; result: void };
   /** Delete the book's generated audio so it is regenerated. */
   "regenerate_book": { args: { bookId: string }; result: void };
 };
@@ -1677,6 +1682,11 @@ export interface CommandApi {
   /** Pause or resume a queued book's preparation (remembered across restarts). */
   setPreparePaused(args: { bookId: string; paused: boolean }): Promise<void>;
   cancelPrepare(args: { bookId: string }): Promise<void>;
+  /**
+   * Throw away one sentence's audio and make it again as a new take, from the playhead put on
+   * it (a book not being listened to is listened to from there).
+   */
+  sayAgain(args: { bookId: string; segmentId: string }): Promise<void>;
   /** Delete the book's generated audio so it is regenerated. */
   regenerateBook(args: { bookId: string }): Promise<void>;
 }
@@ -1816,5 +1826,6 @@ export const COMMANDS = {
   chapterAudio: "chapter_audio",
   setPreparePaused: "set_prepare_paused",
   cancelPrepare: "cancel_prepare",
+  sayAgain: "say_again",
   regenerateBook: "regenerate_book",
 } as const satisfies Record<keyof CommandApi, keyof Commands>;

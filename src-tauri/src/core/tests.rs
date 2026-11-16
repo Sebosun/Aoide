@@ -979,3 +979,69 @@ async fn reading_speed_is_kept_within_its_range() {
     assert!(core.update_app_settings(speed(50)).is_err());
     assert_eq!(core.app_settings().reading_wpm, 300);
 }
+
+/// The made audio files of the library at `root`, by the index.
+fn audio_files(root: &Path) -> std::collections::HashSet<std::path::PathBuf> {
+    Library::open(&root.join("data/library.sqlite3"))
+        .unwrap()
+        .segment_files()
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_sentence_behind_the_playhead_said_again_is_made_again_alone_as_a_new_take() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let first = spoken(&core, &id, 0);
+    let second = spoken(&core, &id, 1);
+    core.prepare_book(&id).await.unwrap();
+    until("the whole short book to be made", || {
+        stage(&core, &id) == Some(PrepareStage::Done) && audio_files(dir.path()).len() == 4
+    })
+    .await;
+    core.play(&id, Some(1), Some(second[1].clone()))
+        .await
+        .unwrap();
+    core.pause();
+    let before = audio_files(dir.path());
+    let said = engine.requests()[0].clone();
+    assert_eq!(said.take, 0);
+
+    core.say_again(&id, &first[1]).await.unwrap();
+
+    let state = core.player_state();
+    assert_eq!(state.segment_id.as_deref(), Some(first[1].as_str()));
+    assert_eq!(state.status, super::PlaybackStatus::Paused, "pause is kept");
+    until("the sentence to be made again", || {
+        engine.calls().len() == 5 && audio_files(dir.path()).len() == 4
+    })
+    .await;
+    let again = engine.requests()[4].clone();
+    let original = engine
+        .requests()
+        .into_iter()
+        .find(|r| r.text == again.text)
+        .unwrap();
+    assert!(again.text.starts_with("Gulls argued"), "{again:?}");
+    assert_eq!(again.take, 1);
+    assert_eq!(original.take, 0);
+    let after = audio_files(dir.path());
+    let kept: Vec<_> = before.intersection(&after).collect();
+    assert_eq!(kept.len(), 3, "no other audio is touched");
+    let gone = before.difference(&after).next().unwrap();
+    assert!(!dir.path().join("cache/audio").join(gone).exists());
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(engine.calls().len(), 5, "{:?}", engine.calls());
+    assert_eq!(
+        stage(&core, &id),
+        Some(PrepareStage::Done),
+        "the book is still prepared"
+    );
+    core.stop();
+}

@@ -164,6 +164,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `gen.request` | debug, warn | `book`, `index`, `reason`, `chars`, `audio_ms`, `took_ms`, `outcome`, `error` | `crates/generation` `run`, each synthesis |
 | `gen.backoff` | info | `to`, `streak`, `wait_ms` | `crates/generation`, backing off or recovering |
 | `gen.discarded` | debug | `book`, `index` | `crates/generation` `run`, a result whose audio was deleted while it was made |
+| `speech.say_again` | info, warn | `book`, `segment`, `take`, `took_ms`, `outcome` (`ok`, `failed`), `error` | `core/takes.rs` `say_again`, one sentence's audio thrown away to be made again |
 | `gen.failed` | warn | `key`, `error` (the whole error; the player shows a short message, and Settings › Speech engine › Problems lists both) | `core.rs` |
 | `engine.state` | info | `engine`, `from`, `to`, `detail` | `core/engine.rs` `publish` |
 | `engine.server.stage` | info (warn into `failed`, `waiting`) | `program` (`engine`, `aligner`), `from`, `to`, `cause` (the event), `attempt`, `failure` (kind) | `core/engine_process.rs` `step`, where `next` is applied |

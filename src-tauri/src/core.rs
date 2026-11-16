@@ -87,6 +87,7 @@ mod speech_problems;
 pub use speech_problems::SpeechProblem;
 mod tagging;
 pub use tagging::{TaggingRun, TaggingSettings};
+mod takes;
 mod timeline;
 mod voicing;
 mod watching;

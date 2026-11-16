@@ -41,6 +41,9 @@ pub enum Event {
     Made,
     /// Its speech was deleted and has to be made again.
     Lost,
+    /// The user asked for it to be said again: it is said by this request (a new take), not
+    /// made yet.
+    Retaken(SynthesisRequest),
     /// The recording's sync went further; this is how the entry is narrated now.
     Resynced(Fate),
 }
@@ -53,6 +56,10 @@ pub fn next(fate: Fate, event: Event) -> Fate {
             made: true,
         },
         (Fate::Speech { request, .. }, Event::Lost) => Fate::Speech {
+            request,
+            made: false,
+        },
+        (Fate::Speech { .. }, Event::Retaken(request)) => Fate::Speech {
             request,
             made: false,
         },
@@ -229,6 +236,30 @@ impl NarrationPlan {
             Fate::Speech { request, .. } => Some(request),
             _ => None,
         }
+    }
+
+    /// What the speech engine is asked to say for `index`, with its cache key.
+    pub fn speech_at(&self, index: usize) -> Option<(&SynthesisRequest, &str)> {
+        let entry = self.entries.get(index)?;
+        match &entry.fate {
+            Fate::Speech { request, .. } => Some((request, entry.key.as_str())),
+            _ => None,
+        }
+    }
+
+    /// Entry `index` is said again by `request` (a new take), its audio under `key` once made.
+    /// Returns false when the speech engine does not say that entry.
+    pub fn retake(&mut self, index: usize, request: SynthesisRequest, key: String) -> bool {
+        let Some(entry) = self.entries.get_mut(index) else {
+            return false;
+        };
+        if !matches!(entry.fate, Fate::Speech { .. }) {
+            return false;
+        }
+        entry.duration_ms = estimate_ms(request.text.chars().count());
+        entry.fate = next(entry.fate.clone(), Event::Retaken(request));
+        entry.key = key;
+        true
     }
 
     /// Entries in `range` whose speech is made, with their cache keys.
@@ -589,9 +620,18 @@ mod tests {
             made: false,
         };
         let made = Fate::Speech {
-            request,
+            request: request.clone(),
             made: true,
         };
+        let take = SynthesisRequest { take: 1, ..request };
+        let retaken = Fate::Speech {
+            request: take.clone(),
+            made: false,
+        };
+        assert_eq!(next(made.clone(), Event::Retaken(take.clone())), retaken);
+        assert_eq!(next(unmade.clone(), Event::Retaken(take.clone())), retaken);
+        assert_eq!(next(Fate::Clip, Event::Retaken(take.clone())), Fate::Clip);
+        assert_eq!(next(Fate::Silent, Event::Retaken(take)), Fate::Silent);
         assert_eq!(next(unmade.clone(), Event::Made), made);
         assert_eq!(next(made.clone(), Event::Lost), unmade);
         assert_eq!(next(Fate::Clip, Event::Made), Fate::Clip);

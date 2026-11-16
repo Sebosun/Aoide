@@ -294,6 +294,20 @@ impl Storage {
         Ok(())
     }
 
+    /// Deletes the made audio under `key`: its row and its file.
+    pub fn delete_segment(&self, key: &str) -> Result<(), String> {
+        let library = lock(&self.library);
+        let segment = library.segment(key).map_err(|e| e.to_string())?;
+        library
+            .delete_segments(&[key.to_string()])
+            .map_err(|e| e.to_string())?;
+        drop(library);
+        if let Some(segment) = segment {
+            let _ = std::fs::remove_file(self.audio_dir.join(segment.file));
+        }
+        Ok(())
+    }
+
     /// Deletes audio `files` (relative to the audio folder) and book `id`'s folder if that
     /// leaves it empty.
     pub fn delete_audio(&self, id: &str, files: Vec<PathBuf>) {

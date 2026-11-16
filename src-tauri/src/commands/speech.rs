@@ -130,6 +130,18 @@ pub fn cancel_prepare(core: CoreState<'_>, book_id: String) {
     core.cancel_prepare(&book_id);
 }
 
+/// Throw away one sentence's audio and make it again as a new take, from the playhead put on
+/// it (a book not being listened to is listened to from there).
+#[tauri::command]
+pub async fn say_again(
+    core: CoreState<'_>,
+    book_id: String,
+    segment_id: String,
+) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.say_again(&book_id, &segment_id).await?)
+}
+
 /// Delete the book's generated audio so it is regenerated.
 #[tauri::command]
 pub async fn regenerate_book(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {

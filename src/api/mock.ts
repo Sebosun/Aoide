@@ -1264,6 +1264,18 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (at >= 0) prepareQueue.splice(at, 1);
       settlePrepare();
     },
+    async sayAgain({ bookId: id, segmentId }) {
+      const chapter = Number(segmentId.split(":")[0]);
+      if (state.bookId !== id) return api.play({ bookId: id, chapter, segmentId });
+      // As the core does: the playhead goes to the sentence, playing or paused as it was, and
+      // the sentence is made again.
+      emitPlayer({ ...state, chapter, segmentId, wordIndex: 0 });
+      emitGeneration({
+        ...(structuredClone(fixtureGenerationPlaying) as GenerationState),
+        bookId: id,
+        generatingSegmentId: segmentId,
+      });
+    },
     async regenerateBook({ bookId: id }) {
       getBook(id).audioBytes = 0;
       changed();

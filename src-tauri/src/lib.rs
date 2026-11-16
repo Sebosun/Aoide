@@ -78,6 +78,7 @@ pub fn run() {
             commands::speech::set_prepare_paused,
             commands::speech::cancel_prepare,
             commands::speech::regenerate_book,
+            commands::speech::say_again,
             commands::playback::set_sleep_timer,
             commands::library::search_book,
             commands::playback::skip_chapter,

@@ -208,6 +208,22 @@ impl Session {
         self.target.narration.segment_made(key, duration_ms);
     }
 
+    /// Entry `index` is said again by `request` under `key`: what the player was given for it
+    /// is dropped. Returns false when the speech engine does not say it.
+    pub fn retake(
+        &mut self,
+        index: usize,
+        request: aoide_tts::SynthesisRequest,
+        key: String,
+    ) -> bool {
+        if !self.target.narration.retake(index, request, key) {
+            return false;
+        }
+        self.provided.remove(&index);
+        self.timings.remove(&index);
+        true
+    }
+
     /// Audio was deleted (cache limit, regenerate): it has to be made again.
     pub fn audio_lost(&mut self, keys: &HashSet<String>) {
         self.target.narration.audio_lost(keys);

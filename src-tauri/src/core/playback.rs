@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 use aoide_audio::{codec, Pcm, PlayerCore, Position, Status};
 use aoide_library::{BookId, BookKey, Library, Progress, WordTiming};
 use aoide_text::WordEstimate;
+use aoide_tts::SynthesisRequest;
 
 use super::align::Alignable;
 use super::narration::NarrationPlan;
@@ -580,6 +581,19 @@ impl Playback {
     /// The speech with these cache keys was deleted.
     pub fn audio_lost(&self, keys: &HashSet<String>) {
         self.session(|session| session.audio_lost(keys));
+    }
+
+    /// Entry `index` of book `id` is said again by `request` under `key`: the player lets go of
+    /// its audio and waits for the new take. Returns false when that book is not playing or the
+    /// speech engine does not say the entry.
+    pub fn retake(&self, id: &str, index: usize, request: SynthesisRequest, key: String) -> bool {
+        let retaken = self
+            .session(|session| session.target.book.id == id && session.retake(index, request, key))
+            .unwrap_or(false);
+        if retaken {
+            lock(&self.player).release(index);
+        }
+        retaken
     }
 
     // ------------------------------------------------------------ following a sync

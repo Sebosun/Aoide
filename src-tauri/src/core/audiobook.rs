@@ -356,6 +356,7 @@ pub(super) mod tests {
         // Its page asks what speech each chapter has: none, without loading text.
         assert!(core.chapter_audio(&id).await.unwrap().is_empty());
         refused(core.regenerate_book(&id).await, "regenerate_book");
+        refused(core.say_again(&id, "0:0:0").await, "say_again");
         refused(core.export_book(&id).await.map(drop), "export_book");
         refused(
             core.export_read_along(&id).await.map(drop),
