@@ -1,5 +1,7 @@
 //! Stored values: app-wide and per-book JSON values, and cached metadata lookups.
 
+use std::collections::HashMap;
+
 use super::*;
 
 /// Every value stored for the whole app, each as JSON.
@@ -47,6 +49,9 @@ pub enum BookKey {
     /// until the sync reaches it (milliseconds). Removed with the book.
     PendingPlace,
 }
+
+/// Stands for the book's id in a value's name, to find every book's.
+const ID: &str = "\u{1}";
 
 /// Where a book's value is stored.
 enum Place {
@@ -149,6 +154,49 @@ impl Library {
                 Ok(())
             }
         }
+    }
+
+    /// Every book's value under `key`, by book: what listing the library reads at once instead
+    /// of book by book. A value that is not a `T` is that book's [`LibraryError::Corrupt`].
+    pub fn book_values<T: serde::de::DeserializeOwned>(
+        &self,
+        key: BookKey,
+    ) -> Result<HashMap<BookId, Result<T>>> {
+        let rows: Vec<(BookId, String)> = match key.place(&BookId(ID.into())) {
+            Place::Settings(name) => {
+                let (prefix, suffix) = name.split_once(ID).expect("the name holds the id");
+                let mut stmt = self
+                    .conn
+                    .prepare("SELECT key, value FROM settings WHERE key LIKE ?1")?;
+                let rows = stmt.query_map([format!("{prefix}%{suffix}")], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })?;
+                let mut found = Vec::new();
+                for row in rows {
+                    let (name, value) = row?;
+                    let id = name
+                        .strip_prefix(prefix)
+                        .and_then(|rest| rest.strip_suffix(suffix));
+                    if let Some(id) = id {
+                        found.push((BookId(id.into()), value));
+                    }
+                }
+                found
+            }
+            Place::Book(name) => {
+                let mut stmt = self
+                    .conn
+                    .prepare("SELECT book_id, value FROM book_values WHERE key = ?1")?;
+                let rows = stmt.query_map([name], |row| {
+                    Ok((BookId(row.get(0)?), row.get::<_, String>(1)?))
+                })?;
+                rows.collect::<std::result::Result<_, _>>()?
+            }
+        };
+        Ok(rows
+            .into_iter()
+            .map(|(id, text)| (id, store::parse_json(&text)))
+            .collect())
     }
 
     pub fn remove_book_value(&self, id: &BookId, key: BookKey) -> Result<()> {

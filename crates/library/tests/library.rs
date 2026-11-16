@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use aoide_library::{
-    content_hash, scan_folder, BookId, BookStatus, CachedSegment, Library, NewBook, Progress,
-    WordTiming,
+    content_hash, scan_folder, BookId, BookKey, BookStatus, CachedSegment, Library, NewBook,
+    Progress, WordTiming,
 };
 
 fn book(id: &str, path: &str) -> NewBook {
@@ -293,4 +293,46 @@ fn a_library_on_disk_writes_ahead_to_a_log() {
     let lib = Library::open(&path).unwrap();
     lib.mark_discovered_seen(&[], 1).unwrap();
     assert!(dir.path().join("library.sqlite-wal").exists());
+}
+
+#[test]
+fn every_books_progress_and_values_are_read_at_once() {
+    let lib = Library::open_in_memory().unwrap();
+    for id in ["a", "b", "c"] {
+        lib.upsert_book(&book(id, &format!("/books/{id}.epub")), 1)
+            .unwrap();
+    }
+    let place = |chapter| Progress {
+        chapter,
+        char_offset: 4,
+        segment_id: None,
+        updated_at: 9,
+        position_ms: None,
+    };
+    lib.save_progress(&BookId("a".into()), &place(2)).unwrap();
+    lib.save_progress(&BookId("c".into()), &place(5)).unwrap();
+    let progress = lib.all_progress().unwrap();
+    assert_eq!(progress.len(), 2);
+    assert_eq!(progress[&BookId("c".into())], place(5));
+
+    // A value kept with the app's settings, and one kept with the book.
+    lib.set_book_value(&BookId("a".into()), BookKey::ProgressFraction, &0.25)
+        .unwrap();
+    lib.set_book_value(&BookId("b".into()), BookKey::ProgressFraction, &0.5)
+        .unwrap();
+    lib.set_book_value(&BookId("b".into()), BookKey::Prepared, &12_usize)
+        .unwrap();
+    let fractions = lib.book_values::<f64>(BookKey::ProgressFraction).unwrap();
+    assert_eq!(fractions.len(), 2);
+    assert_eq!(fractions[&BookId("b".into())].as_ref().ok(), Some(&0.5));
+    let prepared = lib.book_values::<usize>(BookKey::Prepared).unwrap();
+    assert_eq!(prepared.len(), 1);
+    assert_eq!(prepared[&BookId("b".into())].as_ref().ok(), Some(&12));
+
+    // A value that is not what was asked for is that book's error, not the others'.
+    lib.set_book_value(&BookId("c".into()), BookKey::ProgressFraction, "half")
+        .unwrap();
+    let fractions = lib.book_values::<f64>(BookKey::ProgressFraction).unwrap();
+    assert!(fractions[&BookId("c".into())].is_err());
+    assert_eq!(fractions[&BookId("a".into())].as_ref().ok(), Some(&0.25));
 }

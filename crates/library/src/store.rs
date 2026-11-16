@@ -221,6 +221,10 @@ const MIGRATIONS: &[&str] = &[
                     last_wall TEXT,
                     last_wall_at INTEGER
                 );",
+    // Version 13.
+    // Audio per book is summed from the index alone, without reading the segments' word times.
+    "CREATE INDEX IF NOT EXISTS segments_book_audio ON segments(book_id, bytes, created_at);
+                DROP INDEX IF EXISTS segments_book_id;",
 ];
 
 impl Library {

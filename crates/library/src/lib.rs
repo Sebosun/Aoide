@@ -367,6 +367,26 @@ impl Library {
             .optional()?)
     }
 
+    /// Every book's place, by book.
+    pub fn all_progress(&self) -> Result<std::collections::HashMap<BookId, Progress>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT book_id, chapter, char_offset, segment_id, updated_at, position_ms FROM progress",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                BookId(row.get(0)?),
+                Progress {
+                    chapter: row.get(1)?,
+                    char_offset: row.get(2)?,
+                    segment_id: row.get(3)?,
+                    updated_at: row.get(4)?,
+                    position_ms: row.get(5)?,
+                },
+            ))
+        })?;
+        Ok(rows.collect::<std::result::Result<_, _>>()?)
+    }
+
     // ---- schema v2: bookmarks, listening, details, cache eviction ----
 
     pub fn book_details(&self, id: &BookId) -> Result<Option<BookDetails>> {

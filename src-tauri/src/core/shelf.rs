@@ -30,13 +30,52 @@ pub(super) trait ShelfHost {
     /// Book `id`'s recording, as its summary shows it.
     fn recording_of(&self, id: &str) -> Option<SyncStage>;
     /// Whether book `id` is narrated by its recording, and the recording can be listened to.
-    fn narrates_recording(&self, id: &str) -> bool;
-    /// The mode the user chose for book `id`, if they did.
-    fn chosen_mode(&self, id: &str) -> Option<super::ReadingMode>;
+    fn narrates_recording(&self, id: &str, settings: &super::BookSettings) -> bool;
     /// Article `id`'s stored page, read.
     fn article_document(&self, id: &str) -> Result<aoide_document::ParsedBook, String>;
     /// Article `id`'s site and fetch, as its summary shows them.
     fn article_of(&self, id: &str) -> Option<super::ArticleSummary>;
+}
+
+/// What listing the library shows of every book, read at once rather than book by book.
+struct Stored {
+    collections: HashMap<BookId, Vec<i64>>,
+    /// Books listened to at all.
+    listened: HashSet<BookId>,
+    audio_bytes: HashMap<BookId, u64>,
+    progress: HashMap<BookId, aoide_library::Progress>,
+    fractions: HashMap<BookId, aoide_library::Result<f64>>,
+    settings: HashMap<BookId, aoide_library::Result<super::BookSettings>>,
+    /// Each recording's length.
+    recorded_ms: HashMap<BookId, u64>,
+}
+
+impl Stored {
+    fn read(library: &Library) -> aoide_library::Result<Self> {
+        Ok(Self {
+            collections: library.book_collections()?,
+            listened: library
+                .listening_stats()?
+                .by_book
+                .into_iter()
+                .filter(|b| b.ms > 0)
+                .map(|b| b.book_id)
+                .collect(),
+            audio_bytes: library
+                .audio_usage()?
+                .into_iter()
+                .map(|usage| (usage.book_id, usage.bytes))
+                .collect(),
+            progress: library.all_progress()?,
+            fractions: library.book_values(BookKey::ProgressFraction)?,
+            settings: library.book_values(BookKey::Settings)?,
+            recorded_ms: library
+                .recordings()?
+                .into_iter()
+                .map(|row| (row.book_id, row.total_ms))
+                .collect(),
+        })
+    }
 }
 
 pub(super) struct Shelf {
@@ -370,57 +409,62 @@ impl Shelf {
     }
 
     pub fn list(&self, host: &dyn ShelfHost) -> Result<Vec<BookSummary>, String> {
-        let (records, mut shelves, listened) = {
+        let (records, mut stored) = {
             let library = lock(&self.library);
-            (
-                library.books().map_err(|e| e.to_string())?,
-                library.book_collections().map_err(|e| e.to_string())?,
-                library
-                    .listening_stats()
-                    .map_err(|e| e.to_string())?
-                    .by_book
-                    .into_iter()
-                    .filter(|b| b.ms > 0)
-                    .map(|b| b.book_id)
-                    .collect::<HashSet<BookId>>(),
-            )
+            let records = library.books().map_err(|e| e.to_string())?;
+            (records, Stored::read(&library).map_err(|e| e.to_string())?)
         };
         let ignored = self.ignored();
         Ok(records
             .into_iter()
             .filter(|r| !ignored.contains(&r.id.0))
-            .map(|record| {
-                let collections = shelves.remove(&record.id).unwrap_or_default();
-                let listened = listened.contains(&record.id);
-                self.summary(record, collections, listened, host)
-            })
+            .map(|record| self.summary(record, &mut stored, host))
             .collect())
     }
 
     fn summary(
         &self,
         record: BookRecord,
-        collections: Vec<i64>,
-        listened: bool,
+        stored: &mut Stored,
         host: &dyn ShelfHost,
     ) -> BookSummary {
-        let audio_bytes = lock(&self.library)
-            .book_audio_bytes(&record.id)
-            .unwrap_or(0);
-        let prepare = host.prepare_of(&record.id.0);
+        let id = &record.id;
+        let audio_bytes = stored.audio_bytes.get(id).copied().unwrap_or(0);
+        let settings = match stored.settings.remove(id) {
+            Some(Ok(settings)) => settings,
+            Some(Err(error)) => {
+                self.reporter.report(
+                    "book.read",
+                    "Could not read the book's voice settings",
+                    error,
+                );
+                super::BookSettings::default()
+            }
+            None => super::BookSettings::default(),
+        };
+        let prepare = host.prepare_of(&id.0);
         let facts = AudioFacts {
-            narrates_recording: host.narrates_recording(&record.id.0),
+            narrates_recording: host.narrates_recording(&id.0, &settings),
             cached_speech: audio_bytes > 0,
             prepared: prepare.is_some(),
-            listened,
+            listened: stored.listened.contains(id),
         };
         let audio = facets::audio_source(facts);
-        let mode = reading::mode_for(host.chosen_mode(&record.id.0), &facts);
-        let progress = self.progress(&record.id);
+        let mode = reading::mode_for(settings.mode, &facts);
+        let progress = stored.progress.remove(id).map(|progress| BookProgressView {
+            chapter: progress.chapter,
+            segment_id: progress.segment_id,
+            fraction: stored
+                .fractions
+                .get(id)
+                .and_then(|f| f.as_ref().ok())
+                .copied()
+                .unwrap_or(0.0),
+            position_ms: progress.position_ms,
+        });
         let duration_ms = (record.kind == aoide_library::ItemKind::Audiobook)
-            .then(|| lock(&self.library).recording(&record.id).ok().flatten())
-            .flatten()
-            .map(|row| row.total_ms);
+            .then(|| stored.recorded_ms.get(id).copied())
+            .flatten();
         BookSummary {
             duration_ms,
             prepare,
@@ -433,11 +477,12 @@ impl Shelf {
                 progress.is_some(),
             ),
             word_count: record.word_count,
-            recording: host.recording_of(&record.id.0),
+            recording: host.recording_of(&id.0),
             article: (record.kind == aoide_library::ItemKind::Article)
-                .then(|| host.article_of(&record.id.0))
+                .then(|| host.article_of(&id.0))
                 .flatten(),
             progress,
+            collections: stored.collections.remove(id).unwrap_or_default(),
             id: record.id.0,
             title: record.title.unwrap_or_else(|| "Untitled".into()),
             authors: record.authors,
@@ -447,7 +492,6 @@ impl Shelf {
             audio_bytes,
             added_at: record.added_at,
             last_opened_at: record.last_opened_at,
-            collections,
         }
     }
 
@@ -634,12 +678,8 @@ impl ShelfHost for super::Core {
         self.recording_stage(id)
     }
 
-    fn narrates_recording(&self, id: &str) -> bool {
-        self.plays_recording(id, &self.book_settings(id))
-    }
-
-    fn chosen_mode(&self, id: &str) -> Option<super::ReadingMode> {
-        self.book_settings(id).mode
+    fn narrates_recording(&self, id: &str, settings: &super::BookSettings) -> bool {
+        self.plays_recording(id, settings)
     }
 
     fn article_document(&self, id: &str) -> Result<aoide_document::ParsedBook, String> {
@@ -808,11 +848,8 @@ mod tests {
         fn recording_of(&self, _: &str) -> Option<SyncStage> {
             None
         }
-        fn narrates_recording(&self, _: &str) -> bool {
+        fn narrates_recording(&self, _: &str, _: &super::super::BookSettings) -> bool {
             false
-        }
-        fn chosen_mode(&self, _: &str) -> Option<super::super::ReadingMode> {
-            None
         }
         fn article_document(&self, _: &str) -> Result<aoide_document::ParsedBook, String> {
             Err("no articles in this test".into())
