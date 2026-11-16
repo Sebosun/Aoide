@@ -1067,6 +1067,53 @@ mod tests {
         assert_eq!(playback.state().status, PlaybackStatus::Buffering);
     }
 
+    #[test]
+    fn a_sentence_said_again_plays_its_new_take_now_and_ahead() {
+        let playback = Playback::new(PlayerCore::new(RATE));
+        let _ = playback.start(speech(&[0, 1, 2, 3]), 0);
+        let old = memory(&["k0", "k1", "k2", "k3"]);
+        playback.tick(&old).unwrap();
+        assert_eq!(playback.state().status, PlaybackStatus::Playing);
+        let take = |index: usize| SynthesisRequest {
+            text: format!("entry {index}"),
+            voice_id: "v".into(),
+            language: None,
+            params: Default::default(),
+            take: 1,
+        };
+
+        // The sentence playing now, and one the player holds ahead.
+        assert!(playback.retake("b", 0, take(0), "k0-take".into()));
+        assert!(playback.retake("b", 2, take(2), "k2-take".into()));
+        assert!(!playback.retake("other", 1, take(1), "x".into()));
+        playback.tick(&old).unwrap();
+        assert_eq!(
+            playback.state().status,
+            PlaybackStatus::Buffering,
+            "the old take is let go and not given again"
+        );
+
+        // The new takes are shorter than the old ones: the playhead shows which plays.
+        let mut new = memory(&["k1", "k3"]);
+        new.made.insert("k0-take".into(), 400);
+        new.made.insert("k2-take".into(), 300);
+        playback.segment_made("k0-take", 400);
+        playback.segment_made("k2-take", 300);
+        playback.tick(&new).unwrap();
+        assert_eq!(playback.state().status, PlaybackStatus::Playing);
+        let pause = |i| playback.book().unwrap().segment(i).unwrap().pause_after_ms as usize;
+        listen(&playback, 400 + pause(0) + 50);
+        playback.tick(&new).unwrap();
+        assert_eq!(playback.position().index, 1);
+        listen(&playback, 950 + pause(1) + 300 + pause(2) + 50);
+        playback.tick(&new).unwrap();
+        assert_eq!(
+            playback.position().index,
+            3,
+            "entry 2 played its 300 ms take"
+        );
+    }
+
     /// Whether a change was told within a moment.
     async fn told(playback: &Playback) -> bool {
         tokio::time::timeout(Duration::from_millis(20), playback.changed())

@@ -1045,3 +1045,34 @@ async fn a_sentence_behind_the_playhead_said_again_is_made_again_alone_as_a_new_
     );
     core.stop();
 }
+
+#[tokio::test]
+async fn saying_again_in_a_book_not_listened_to_listens_to_it_from_that_sentence() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let second = spoken(&core, &id, 1);
+
+    core.say_again(&id, &second[1]).await.unwrap();
+
+    let state = core.player_state();
+    assert_eq!(state.book_id.as_deref(), Some(id.as_str()));
+    assert_eq!(state.segment_id.as_deref(), Some(second[1].as_str()));
+    until("the sentence to be made", || {
+        engine
+            .requests()
+            .iter()
+            .any(|r| r.text.starts_with("Someone lit") && r.take == 1)
+    })
+    .await;
+    assert!(
+        core.say_again(&id, "99:0:0").await.is_err(),
+        "no such sentence"
+    );
+    core.stop();
+}
