@@ -48,6 +48,29 @@ pub fn step_back_ms(away: Away) -> u64 {
     }
 }
 
+/// The entry to play from after stepping back `step` from entry `index`, or `None` to play on.
+/// Only entries `spoken` says are spoken count as sentences, and it never goes before entry
+/// `first` (the chapter's first).
+pub fn entry_back(
+    index: usize,
+    step: StepBack,
+    first: usize,
+    spoken: impl Fn(usize) -> bool,
+) -> Option<usize> {
+    match step {
+        StepBack::None => None,
+        StepBack::SentenceStart => Some(index),
+        StepBack::Sentences(n) => Some(
+            (first.min(index)..index)
+                .rev()
+                .filter(|&i| spoken(i))
+                .take(usize::from(n))
+                .last()
+                .unwrap_or(index),
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -74,7 +74,9 @@ pub fn step_back_ms(away: Away) -> u64                        // an audiobook wi
 - *Resuming a paused session:* the time since the pause. `Playback` keeps
   `paused_at: Option<Instant>`, set by `Playback::pause`, cleared by `seek`, `start`,
   `start_timeline` and `stop`. So a seek while paused (or a click on a sentence) means no step
-  back.
+  back. The two places that stop and start the session again in place (`restart_session` and
+  `text_laid_out_again` in `core.rs`) keep a paused session paused since its pause
+  (`Playback::paused_since`, `Playback::pause_since`).
 - *Starting from the saved place* (the first play after starting Aoide, or coming back to a
   book): the time since `Progress.updated_at`. This replaces the earlier idea of a "cold start"
   flag: a restart two minutes after a crash then steps back as little as a two-minute pause,

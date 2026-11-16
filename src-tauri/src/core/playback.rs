@@ -14,9 +14,9 @@ use aoide_text::WordEstimate;
 use aoide_tts::SynthesisRequest;
 
 use super::align::Alignable;
-use super::narration::NarrationPlan;
+use super::narration::{Fate, NarrationPlan};
 use super::recording::{Narration, RecordingPlan};
-use super::resuming::{self, Away, StepBack};
+use super::resuming::{self, Away};
 use super::session::Session;
 use super::timeline::{self, Timeline, TimelineSession};
 use super::{lock, PlaybackStatus, PlayerStateView, Target};
@@ -353,12 +353,14 @@ impl Playback {
         let index = self.position().index;
         let (id, target) = match lock(&self.playing).as_ref()? {
             Playing::Entries(session) => {
-                let target = match resuming::step_back(away) {
-                    StepBack::None => return None,
-                    StepBack::SentenceStart => index,
-                    StepBack::Sentences(n) => index.saturating_sub(usize::from(n)),
-                };
-                (session.target.book.id.clone(), target)
+                let book = &session.target.book;
+                let (chapter, _) = book.locate(index)?;
+                let narration = &session.target.narration;
+                let spoken = |i| matches!(narration.fate(i), Some(Fate::Speech { .. } | Fate::Clip));
+                let first = book.chapters[chapter].first_entry;
+                let target =
+                    resuming::entry_back(index, resuming::step_back(away), first, spoken)?;
+                (book.id.clone(), target)
             }
             Playing::Timeline(_) => return None,
         };
@@ -376,7 +378,18 @@ impl Playback {
 
     /// Pauses; the place is saved.
     pub fn pause(&self) -> Moved {
-        *lock(&self.paused_at) = Some(Instant::now());
+        self.pause_since(None)
+    }
+
+    /// When playback was paused, while it stays paused where it was.
+    pub fn paused_since(&self) -> Option<Instant> {
+        *lock(&self.paused_at)
+    }
+
+    /// Pauses as [`Playback::pause`] does, the pause counted from `since` (now when `None`):
+    /// a session started again in place of one paused stays paused since then.
+    pub fn pause_since(&self, since: Option<Instant>) -> Moved {
+        *lock(&self.paused_at) = Some(since.unwrap_or_else(Instant::now));
         lock(&self.player).pause();
         self.stir();
         Moved {
@@ -418,6 +431,7 @@ impl Playback {
             .recording_plan()
             .map_or(0, |plan| plan.start_offset(start));
         let rate = self.load(entries, start, offset);
+        *lock(&self.paused_at) = None;
         *lock(&self.playing) = Some(Playing::Entries(Session::new(target, rate)));
         *lock(&self.error) = None;
         self.stir();
@@ -437,6 +451,7 @@ impl Playback {
     pub fn start_timeline(&self, timeline: Arc<Timeline>, at_ms: u64) -> Moved {
         let (start, offset) = timeline.locate(at_ms);
         let rate = self.load(timeline.entries(), start, offset);
+        *lock(&self.paused_at) = None;
         *lock(&self.playing) = Some(Playing::Timeline(TimelineSession::new(timeline, rate)));
         *lock(&self.error) = None;
         self.stir();
@@ -457,6 +472,7 @@ impl Playback {
     pub fn stop(&self) -> Moved {
         let place = self.place_to_save(true);
         lock(&self.player).load(Vec::new(), 0);
+        *lock(&self.paused_at) = None;
         *lock(&self.playing) = None;
         self.stir();
         Moved {
@@ -471,6 +487,8 @@ impl Playback {
     /// The place is saved; a jump in a book's entries is a jump for Generation too, while the
     /// speech it makes does not depend on where an audiobook's timeline is.
     pub fn seek(&self, index: usize, offset_ms: Option<u32>) -> Moved {
+        // A place chosen while paused is played from as chosen.
+        *lock(&self.paused_at) = None;
         let (offset, released, listening) = match lock(&self.playing).as_mut() {
             Some(Playing::Entries(session)) => {
                 let offset = offset_ms.unwrap_or_else(|| {
@@ -1040,12 +1058,16 @@ mod tests {
 
     /// The test book (four entries) read by the speech engine, with entries `made` made.
     fn speech(made: &[usize]) -> Target {
-        let book = Arc::new(
-            BookModel::parse("b", &crate::core::tests::epub(), &Default::default()).unwrap(),
-        );
+        speech_of(&crate::core::tests::epub(), made, &[])
+    }
+
+    /// The book in `epub` read by the speech engine, with entries `made` made and entries
+    /// `silent` not said.
+    fn speech_of(epub: &[u8], made: &[usize], silent: &[usize]) -> Target {
+        let book = Arc::new(BookModel::parse("b", epub, &Default::default()).unwrap());
         let requests: Vec<Option<SynthesisRequest>> = (0..book.total_entries())
             .map(|i| {
-                Some(SynthesisRequest {
+                (!silent.contains(&i)).then(|| SynthesisRequest {
                     text: format!("entry {i}"),
                     voice_id: "v".into(),
                     language: None,
@@ -1356,6 +1378,65 @@ mod tests {
             (playback.position().index, playback.position().offset_ms),
             (1, 0)
         );
+    }
+
+    #[test]
+    fn resuming_never_steps_back_over_a_chapter_start() {
+        let two_hours = Duration::from_secs(2 * 60 * 60);
+        let first = paused_in(2);
+        drop(first.resume_at(Instant::now() + two_hours));
+        assert_eq!(first.position().index, 2, "the chapter's first sentence");
+        let second = paused_in(3);
+        drop(second.resume_at(Instant::now() + two_hours));
+        assert_eq!(second.position().index, 2, "one sentence back at most");
+    }
+
+    #[test]
+    fn a_place_chosen_while_paused_is_played_from_as_chosen() {
+        let playback = paused_in(1);
+        drop(playback.seek(1, Some(200)));
+        drop(playback.resume_at(Instant::now() + Duration::from_secs(10 * 60)));
+        let position = playback.position();
+        assert_eq!((position.index, position.offset_ms), (1, 200));
+
+        // Playing and pausing again a moment later: away a moment.
+        drop(playback.pause());
+        drop(playback.play());
+        drop(playback.pause());
+        drop(playback.resume_at(Instant::now() + Duration::from_secs(1)));
+        assert_eq!(playback.position().index, 1);
+    }
+
+    #[test]
+    fn sentences_not_said_are_not_counted_when_stepping_back() {
+        let tests = crate::core::tests::epub_with;
+        let chapter = |body: &str| {
+            format!(r#"<html xmlns="http://www.w3.org/1999/xhtml"><body>{body}</body></html>"#)
+        };
+        let epub = tests(
+            chapter("<p>The nets dried.</p><p>A gull cried.</p><p>The tide turned.</p><p>A boat came in.</p>"),
+            chapter("<p>Night fell.</p>"),
+        );
+        let playback = Playback::new(PlayerCore::new(RATE));
+        drop(playback.start(speech_of(&epub, &[0, 1, 2, 3], &[2]), 3));
+        playback.tick(&memory(&["k0", "k1", "k3"])).unwrap();
+        listen(&playback, 500);
+        drop(playback.pause());
+        assert_eq!(playback.position().index, 3);
+        drop(playback.resume_at(Instant::now() + Duration::from_secs(10 * 60)));
+        assert_eq!(playback.position().index, 1, "entry 2 says nothing");
+    }
+
+    #[test]
+    fn a_pause_carried_over_a_restart_still_counts_from_when_it_began() {
+        let playback = paused_in(1);
+        let since = playback.paused_since();
+        drop(playback.stop());
+        drop(playback.start(speech(&[0, 1, 2, 3]), 1));
+        drop(playback.pause_since(since));
+        // Five minutes from the first pause, a moment less from the second.
+        drop(playback.resume_at(since.unwrap() + Duration::from_secs(5 * 60)));
+        assert_eq!(playback.position().index, 0);
     }
 
     #[test]

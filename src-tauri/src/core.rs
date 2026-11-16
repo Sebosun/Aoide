@@ -577,10 +577,11 @@ impl Core {
                 None => self.speech_target(book)?,
             };
             let playing = self.playback.is_playing();
+            let paused_since = self.playback.paused_since();
             drop(self.playback.stop());
             self.follow_through(self.playback.start(target, index))?;
             if !playing {
-                drop(self.playback.pause());
+                drop(self.playback.pause_since(paused_since));
             }
             Ok::<_, String>(())
         })();
@@ -602,6 +603,7 @@ impl Core {
             return Ok(());
         };
         let playing = self.playback.is_playing();
+        let paused_since = self.playback.paused_since();
         let segment = book
             .segment(self.playback.position().index)
             .map(|seg| seg.id.clone());
@@ -610,7 +612,7 @@ impl Core {
         drop(self.playback.stop());
         self.play(&book.id, None, segment).await?;
         if !playing {
-            drop(self.playback.pause());
+            drop(self.playback.pause_since(paused_since));
         }
         Ok(())
     }
