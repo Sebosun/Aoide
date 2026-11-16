@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onUnmounted, watch } from "vue";
-import { ArrowLeft, Bookmark, Ellipsis, Headphones } from "@lucide/vue";
+import { ArrowLeft, AudioLines, Bookmark, Ellipsis, Headphones, Search } from "@lucide/vue";
 import ReaderSheet from "@/components/reader/ReaderSheet.vue";
 import ReaderLines from "@/components/reader/ReaderLines.vue";
 import ReaderTools from "@/components/reader/ReaderTools.vue";
@@ -15,6 +15,7 @@ import { useReadingTime } from "@/composables/useReadingTime";
 import { prepareChapter } from "@/preparation";
 import { usePreferencesStore } from "@/stores/preferences";
 import BookToolsSheet from "@/components/book/BookToolsSheet.vue";
+import NarrationDialog from "@/components/book/NarrationDialog.vue";
 import { useNavigationStore, VIEW_NAMES, type ToolsTab } from "@/stores/navigation";
 import { useReaderStore } from "@/stores/reader";
 import { usePlayerStore } from "@/stores/player";
@@ -42,7 +43,10 @@ function openTools(tab: ToolsTab | undefined) {
   if (navigation.tools && !tab) navigation.closeTools();
   else navigation.openTools(tab);
 }
-onUnmounted(() => navigation.closeTools());
+onUnmounted(() => {
+  navigation.closeTools();
+  navigation.closeNarration();
+});
 useReadingTime();
 const backLabel = computed(() => VIEW_NAMES[navigation.readerFrom]);
 const { bookmark } = usePlayerControls();
@@ -84,6 +88,31 @@ const { isArticle } = useOpenArticle();
         <template v-if="!audio">
           <ListenButton />
           <ReaderTools :lines="reader.shape === 'readAlong'" />
+          <UiButton
+            variant="glass"
+            size="lg"
+            icon
+            class="reader__round"
+            aria-label="Search this book"
+            title="Search this book (Ctrl F)"
+            aria-haspopup="dialog"
+            @click="navigation.findInBook()"
+          >
+            <Search :size="18" aria-hidden="true" />
+          </UiButton>
+          <UiButton
+            variant="glass"
+            size="lg"
+            icon
+            class="reader__round"
+            aria-label="Narration"
+            title="Narration: the recording or a voice"
+            aria-haspopup="dialog"
+            :aria-expanded="navigation.narrationOpen"
+            @click="navigation.openNarration()"
+          >
+            <AudioLines :size="18" aria-hidden="true" />
+          </UiButton>
         </template>
         <UiButton
           variant="glass"
@@ -101,8 +130,8 @@ const { isArticle } = useOpenArticle();
           size="lg"
           icon
           class="reader__round"
-          aria-label="Search and more"
-          :title="audio ? 'Bookmarks and details' : 'Bookmarks, search, narration and details'"
+          aria-label="Bookmarks and details"
+          title="Bookmarks and details"
           aria-haspopup="dialog"
           :aria-expanded="Boolean(navigation.tools)"
           @click="openTools(undefined)"
@@ -112,7 +141,7 @@ const { isArticle } = useOpenArticle();
       </div>
     </header>
     <AudioReader v-if="audio" />
-    <ReaderLines v-else-if="lines" @tools="openTools(undefined)" />
+    <ReaderLines v-else-if="lines" />
     <ReaderSheet v-else :shape="reader.shape" @tools="openTools" />
     <Transition name="reader__chip">
       <p v-if="offText" class="reader__chip" role="status">
@@ -120,6 +149,12 @@ const { isArticle } = useOpenArticle();
       </p>
     </Transition>
     <BookToolsSheet v-if="navigation.tools" :initial-tab="navigation.tools" @close="navigation.closeTools()" />
+    <NarrationDialog
+      v-if="navigation.narrationOpen && !audio"
+      :book-id="reader.book.id"
+      :title="reader.book.title"
+      @close="navigation.closeNarration()"
+    />
   </div>
 </template>
 

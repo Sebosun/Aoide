@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed } from "vue";
-import { Bookmark, Headphones, Pause, Play, SkipBack, SkipForward, SlidersHorizontal, Square } from "@lucide/vue";
+import { Headphones, Pause, Play, SkipBack, SkipForward, Square } from "@lucide/vue";
 import CoverArt from "@/components/CoverArt.vue";
 import PlayerScrubber from "@/components/player/PlayerScrubber.vue";
 import SpeedPill from "@/components/player/SpeedPill.vue";
@@ -9,25 +9,11 @@ import SleepPill from "@/components/player/SleepPill.vue";
 import VolumeControl from "@/components/player/VolumeControl.vue";
 import { usePlayerControls } from "@/composables/usePlayerControls";
 
-/** One-row transport docked under the page (Sheet reader). */
-const emit = defineEmits<{ tools: [] }>();
+/** One-row transport docked under the page (Sheet reader). Bookmarks and the book tools are at
+ *  the top of the reader. */
 const controls = usePlayerControls();
-const {
-  player,
-  active,
-  recording,
-  book,
-  timeLeft,
-  ahead,
-  percent,
-  toggle,
-  seek,
-  step,
-  bookmark,
-  status,
-  detail,
-  error,
-} = controls;
+const { player, active, recording, book, timeLeft, ahead, percent, toggle, seek, step, status, detail, error } =
+  controls;
 const canPlay = computed(() => Boolean(controls.bookId.value));
 </script>
 
@@ -95,30 +81,6 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
       <SleepPill />
       <VolumeControl />
       <span class="dock__divider" aria-hidden="true" />
-      <UiButton
-        variant="glass"
-        size="sm"
-        icon
-        class="dock__round"
-        aria-label="Add bookmark"
-        title="Bookmark this sentence"
-        :disabled="!canPlay"
-        @click="bookmark"
-      >
-        <Bookmark :size="16" />
-      </UiButton>
-      <UiButton
-        variant="glass"
-        size="sm"
-        icon
-        class="dock__round"
-        aria-label="Book tools"
-        aria-haspopup="dialog"
-        title="Bookmarks, search, narration and details"
-        @click="emit('tools')"
-      >
-        <SlidersHorizontal :size="16" />
-      </UiButton>
       <UiButton
         variant="glass"
         size="sm"

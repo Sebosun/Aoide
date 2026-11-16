@@ -32,6 +32,7 @@ import { isAudioPath } from "@/recording";
 import { asLink } from "@/articles";
 import { useShortcuts } from "@/composables/useShortcuts";
 import { useFrameLog } from "@/composables/useFrameLog";
+import { ITEM_DRAG } from "@/drag";
 
 const library = useLibraryStore(),
   player = usePlayerStore(),
@@ -137,6 +138,11 @@ onUnmounted(() => {
     useArticlesStore().dispose();
   });
 });
+/** Nothing in the window is dragged out of it (covers, links), but for library cards, which
+ *  carry an item to the sidebar's collections. */
+function dragStart(event: DragEvent) {
+  if (!Array.from(event.dataTransfer?.types ?? []).includes(ITEM_DRAG)) event.preventDefault();
+}
 // The browser path: only drags that carry files count, and nested enter/leave pairs are
 // counted so moving over child elements does not flicker or strand the overlay.
 let depth = 0;
@@ -176,7 +182,7 @@ function browserDrop(event: DragEvent) {
   <div
     class="app"
     :class="{ 'app--reader': shown === 'reader' }"
-    @dragstart.prevent
+    @dragstart="dragStart"
     @dragenter="dragEnter"
     @dragover="dragOver"
     @dragleave="dragLeave"

@@ -47,6 +47,7 @@ fn contract() -> String {
         // Errors
         super::error::CoreError,
         super::error::ProblemView,
+        super::SpeechProblem,
         // Logging
         crate::logging::UiLevel,
         crate::logging::UiLog,

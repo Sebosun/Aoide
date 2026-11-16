@@ -487,7 +487,10 @@ impl Shelf {
             authors: record.authors,
             language: record.language,
             status: record.status,
-            cover_path: record.cover_path.map(|p| p.to_string_lossy().into_owned()),
+            // The window shows a large cover from its thumbnail (made once, see `item`).
+            cover_path: record
+                .cover_path
+                .map(|p| super::item::shown_cover(&p).to_string_lossy().into_owned()),
             audio_bytes,
             added_at: record.added_at,
             last_opened_at: record.last_opened_at,

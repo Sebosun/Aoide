@@ -426,6 +426,79 @@ it("switches between kinds once there are two, and shows an audiobook square wit
   wrapper.unmount();
 });
 
+it("counts in the kind switch only what the open collection holds", async () => {
+  await mock.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
+  const wrapper = await library();
+  const store = useLibraryStore();
+  const audiobook = store.books.find((b) => b.kind === "audiobook")!.id;
+  const both = await store.createCollection("Both");
+  const one = await store.createCollection("One");
+  await store.setBookCollections("book-0", [both, one]);
+  await store.setBookCollections(audiobook, [both]);
+  store.filter = `collection:${both}`;
+  await flushPromises();
+  const kinds = () => wrapper.find('[role="group"][aria-label="Kind"]');
+  expect(
+    kinds()
+      .findAll("button")
+      .map((b) => b.text()),
+  ).toEqual(["All2", "Books1", "Audiobooks1"]);
+  // One kind there: nothing to switch between.
+  store.filter = `collection:${one}`;
+  await flushPromises();
+  expect(kinds().exists()).toBe(false);
+  expect(titles(wrapper)).toEqual(["The Lantern Keeper"]);
+  wrapper.unmount();
+});
+
+it("lists books that have an audiobook under Audiobooks, and marks them on their cover", async () => {
+  mock.dispose();
+  mock = createMockApi("?recording=ready");
+  backend.api = mock;
+  const wrapper = await library();
+  const kinds = wrapper.get('[role="group"][aria-label="Kind"]');
+  expect(kinds.findAll("button").map((b) => b.text())).toEqual(["All4", "Books4", "Audiobooks1"]);
+  await kinds.findAll("button")[2].trigger("click");
+  expect(titles(wrapper)).toEqual(["The Lantern Keeper"]);
+  const card = wrapper.get(".book-card");
+  expect(card.get(".book-card__audiobook").attributes("title")).toBe("Has an audiobook");
+  wrapper.unmount();
+});
+
+it("puts a book on a collection when its card is dropped on it in the sidebar", async () => {
+  const shelve = vi.spyOn(mock, "setBookCollections");
+  const wrapper = await app();
+  const id = await useLibraryStore().createCollection("Night reading");
+  await flushPromises();
+  const card = wrapper.findAll(".book-card").find((c) => c.text().includes("A Map of Quiet Places"))!;
+  expect(card.attributes("draggable")).toBe("true");
+  const data = new Map<string, string>();
+  const transfer = {
+    get types() {
+      return [...data.keys()];
+    },
+    setData: (type: string, value: string) => data.set(type, value),
+    getData: (type: string) => data.get(type) ?? "",
+    effectAllowed: "",
+    dropEffect: "",
+  };
+  const drag = (target: Element, type: string) => {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: transfer });
+    target.dispatchEvent(event);
+    return event;
+  };
+  expect(drag(card.element, "dragstart").defaultPrevented).toBe(false);
+  const target = shelf(wrapper, "Night reading");
+  expect(drag(target.element, "dragover").defaultPrevented, "a collection takes the drop").toBe(true);
+  drag(target.element, "drop");
+  await flushPromises();
+  expect(shelve).toHaveBeenCalledWith({ bookId: "book-1", ids: [id] });
+  expect(shelf(wrapper, "Night reading").text()).toContain("1");
+  expect(useUiStore().toasts.map((t) => t.text)).toContain("Added to Night reading");
+  wrapper.unmount();
+});
+
 it("offers no text actions on an audiobook's card", async () => {
   await mock.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
   const wrapper = await library();
@@ -471,6 +544,24 @@ it("lists articles as their own kind, with a text tile and their fetch on the ca
     }
     wrapper.unmount();
   }
+});
+
+it("shows an article's image behind its site and headline, and its text tile without one", async () => {
+  mock.dispose();
+  mock = createMockApi("?article=ready");
+  backend.api = mock;
+  const wrapper = await library();
+  const tile = () => wrapper.get(".book-card__tile");
+  expect(tile().find("img").exists()).toBe(false);
+  expect(tile().text()).toContain("Every evening at dusk");
+  useLibraryStore().books.find((b) => b.kind === "article")!.coverUrl = "asset://localhost/article.jpg";
+  await flushPromises();
+  expect(tile().classes()).toContain("article-tile--image");
+  expect(tile().get("img").attributes("src")).toBe("asset://localhost/article.jpg");
+  expect(tile().get(".article-tile__headline").text()).toBe("The Quay Lights");
+  // Over a picture the first lines would be hard to read: the headline says enough.
+  expect(tile().find(".article-tile__lead").exists()).toBe(false);
+  wrapper.unmount();
 });
 
 it("a refresh keeps the summaries that did not change, so only changed cards are drawn again", async () => {

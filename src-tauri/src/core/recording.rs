@@ -128,6 +128,14 @@ pub enum Narration {
     Recording,
 }
 
+impl Narration {
+    /// Whether a book whose narration is `chosen` plays its recording when it can be heard:
+    /// unless speech was chosen. Whoever paired an audiobook wants to hear it.
+    pub(super) fn prefers_recording(chosen: Option<Narration>) -> bool {
+        chosen != Some(Narration::Speech)
+    }
+}
+
 // ---------------------------------------------------------------- transcribers
 
 /// What a transcriber is loaded with.
@@ -626,7 +634,7 @@ impl Core {
 
     /// Whether a book plays its recording.
     pub(super) fn plays_recording(&self, id: &str, settings: &BookSettings) -> bool {
-        settings.narration == Some(Narration::Recording) && self.recordings.listenable(id)
+        Narration::prefers_recording(settings.narration) && self.recordings.listenable(id)
     }
 
     /// The recording being listened to while it syncs has more synced (or is done): playback

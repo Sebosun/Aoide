@@ -194,6 +194,9 @@ pub(super) struct Finder {
     home_dir: PathBuf,
     /// Aoide's own folders, never searched.
     private_dirs: Vec<PathBuf>,
+    /// Audio smaller than this is not an audiobook (a game's sounds); tests lower it to search
+    /// their short recordings.
+    pub(super) min_audiobook_bytes: std::sync::atomic::AtomicU64,
     matches: Mutex<Matches>,
 }
 
@@ -206,6 +209,7 @@ impl Finder {
             events,
             home_dir: paths.home_dir.clone(),
             private_dirs,
+            min_audiobook_bytes: aoide_discovery::MIN_AUDIOBOOK_BYTES.into(),
             matches: Default::default(),
         }
     }
@@ -462,6 +466,9 @@ impl Finder {
             roots,
             exclude,
             include_hidden: settings.include_hidden.iter().map(PathBuf::from).collect(),
+            min_audiobook_bytes: self
+                .min_audiobook_bytes
+                .load(std::sync::atomic::Ordering::Relaxed),
             ..Default::default()
         }
     }
@@ -833,6 +840,9 @@ mod tests {
             &super::super::tests::paths(dir.path()),
             Arc::new(super::super::tests::Recorder::default()),
         ));
+        finder
+            .min_audiobook_bytes
+            .store(0, std::sync::atomic::Ordering::Relaxed);
         let search = || Search {
             settings: AudiobookSearchSettings {
                 roots: vec![audiobooks.to_string_lossy().into_owned()],
@@ -886,6 +896,9 @@ mod tests {
             &super::super::tests::paths(dir.path()),
             Arc::new(super::super::tests::Recorder::default()),
         ));
+        finder
+            .min_audiobook_bytes
+            .store(0, std::sync::atomic::Ordering::Relaxed);
         let search = || Search {
             settings: AudiobookSearchSettings {
                 roots: vec![audiobooks.to_string_lossy().into_owned()],

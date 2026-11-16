@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
+import { ITEM_DRAG } from "@/drag";
 import { computed } from "vue";
 import {
   BookDown,
@@ -196,10 +197,21 @@ const items = computed<MenuEntry[]>(() => {
   });
   return list;
 });
+/** A card is dragged onto a collection in the sidebar to put the item on it. */
+function dragged(event: DragEvent) {
+  if (!event.dataTransfer) return;
+  event.dataTransfer.setData(ITEM_DRAG, props.book.id);
+  event.dataTransfer.effectAllowed = "copy";
+}
 </script>
 
 <template>
-  <li class="book-card" :class="{ 'book-card--unavailable': unavailable }">
+  <li
+    class="book-card"
+    :class="{ 'book-card--unavailable': unavailable }"
+    :draggable="!unavailable"
+    @dragstart="dragged"
+  >
     <button
       type="button"
       class="book-card__open"
@@ -214,6 +226,7 @@ const items = computed<MenuEntry[]>(() => {
         :site="article.siteName ?? book.title"
         :title="book.title"
         :lead="article.lead"
+        :image="book.coverUrl"
         :loading="loading"
       />
       <CoverArt
@@ -224,6 +237,9 @@ const items = computed<MenuEntry[]>(() => {
         :url="book.coverUrl"
         :shape="audiobook ? 'square' : 'portrait'"
       />
+      <span v-if="book.kind === 'book' && book.recording" class="book-card__audiobook" title="Has an audiobook"
+        ><Headphones :size="13" aria-hidden="true"
+      /></span>
     </button>
     <h3 class="book-card__title" :title="book.title">{{ book.title }}</h3>
     <span class="book-card__line">{{
@@ -284,9 +300,23 @@ const items = computed<MenuEntry[]>(() => {
 }
 /* A button sizes to its content even as a block: it fills the grid track instead. */
 .book-card__open {
+  position: relative;
   display: block;
   width: 100%;
   border-radius: var(--radius-md);
+}
+.book-card__audiobook {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: grid;
+  place-items: center;
+  width: var(--space-12);
+  height: var(--space-12);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ink) 72%, transparent);
+  color: var(--page);
+  box-shadow: 0 2px 8px -2px var(--shadow);
 }
 /* A square cover sits at the foot of a portrait frame, so the titles below line up. */
 .book-card__open:has(.book-card__cover--square) {

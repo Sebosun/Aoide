@@ -114,7 +114,7 @@ it("searches with Ctrl F: the open book from the reader, the library from its sc
   expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe("Search");
   expect((document.activeElement as HTMLElement).getAttribute("aria-label")).toBe("Search in book");
   // Again from another tab of the open sheet.
-  await wrapper.get("#book-tools-tab-voice").trigger("click");
+  await wrapper.get("#book-tools-tab-details").trigger("click");
   await flushPromises();
   press("f", { ctrlKey: true });
   await flushPromises();
@@ -144,7 +144,7 @@ it("opens and closes Settings with Ctrl comma, and lists the shortcuts under Abo
 it("leaves the reader with Escape, unless Escape is closing something over it", async () => {
   const wrapper = await app();
   await reading(wrapper);
-  await wrapper.get('[aria-label="Search and more"]').trigger("click");
+  await wrapper.get('[aria-label="Bookmarks and details"]').trigger("click");
   await flushPromises();
   expect(wrapper.find('[role="dialog"][aria-label="Book tools"]').exists()).toBe(true);
   press("Escape");

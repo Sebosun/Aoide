@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { nextTick, ref, watch } from "vue";
-import { Bookmark, Info, Search, SlidersHorizontal, X } from "@lucide/vue";
+import { Bookmark, Info, Search, X } from "@lucide/vue";
 import BookSearch from "@/components/book/BookSearch.vue";
 import BookBookmarks from "@/components/book/BookBookmarks.vue";
-import BookNarration from "@/components/book/BookNarration.vue";
 import BookInfo from "@/components/book/BookInfo.vue";
 import UiDialog from "@/components/ui/UiDialog.vue";
 import { useReaderStore } from "@/stores/reader";
 import { useNavigationStore, type ToolsTab } from "@/stores/navigation";
 
 export type { ToolsTab };
-/** Book tools as a modal bottom sheet: Bookmarks, Search, Narration (the recording, or the
- *  speech engine's voice with audio, preparation and export) and Details (with extraction notes). Escape or the backdrop closes it; focus
- *  returns to the opener, or to the dock's tools button when WebKit had not focused it. */
+/** Book tools as a modal bottom sheet: Bookmarks, Search (a picked result closes the sheet) and
+ *  Details (with extraction notes). Narration is a dialog of its own. Escape or the backdrop
+ *  closes it; focus returns to the opener, or to the reader's tools button when WebKit had not
+ *  focused it. */
 const props = withDefaults(defineProps<{ initialTab?: ToolsTab }>(), { initialTab: "bookmarks" });
 const emit = defineEmits<{ close: [] }>();
 const reader = useReaderStore(),
@@ -36,7 +36,6 @@ watch(
 const allTabs = [
   { id: "bookmarks", label: "Bookmarks", icon: Bookmark },
   { id: "search", label: "Search", icon: Search },
-  { id: "voice", label: "Narration", icon: SlidersHorizontal },
   { id: "details", label: "Details", icon: Info },
 ] as const;
 /** An audiobook on its own has no text to search and no voice to choose. */
@@ -62,7 +61,7 @@ function moveTab(delta: number) {
     label="Book tools"
     variant="sheet"
     :initial-focus="initialFocus"
-    return-focus='[aria-label="Player"] [aria-label="Book tools"]'
+    return-focus='.reader__actions [aria-label="Bookmarks and details"]'
     @close="emit('close')"
   >
     <div class="book-tools">
@@ -106,8 +105,12 @@ function moveTab(delta: number) {
         :aria-labelledby="`book-tools-tab-${tab}`"
       >
         <BookBookmarks v-if="tab === 'bookmarks'" :key="`b:${reader.book.id}`" :book-id="reader.book.id" />
-        <BookSearch v-else-if="tab === 'search'" :key="`s:${reader.book.id}`" :book-id="reader.book.id" />
-        <BookNarration v-else-if="tab === 'voice'" :key="`v:${reader.book.id}`" :book-id="reader.book.id" />
+        <BookSearch
+          v-else-if="tab === 'search'"
+          :key="`s:${reader.book.id}`"
+          :book-id="reader.book.id"
+          @picked="emit('close')"
+        />
         <BookInfo
           v-else
           :key="`d:${reader.book.id}`"

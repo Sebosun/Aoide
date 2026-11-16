@@ -488,8 +488,12 @@ const collectionItems = computed<MenuEntry[]>(() => {
 </template>
 
 <style scoped>
+/* Centred in the window: on a wide screen the page does not hug the sidebar. */
 .item-page {
+  box-sizing: border-box;
+  width: 100%;
   max-width: 1120px;
+  margin-inline: auto;
   padding: var(--space-4) var(--space-16) 0;
   display: flex;
   flex-direction: column;

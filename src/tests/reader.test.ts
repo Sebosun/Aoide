@@ -289,7 +289,7 @@ it("sets a sleep timer and bookmarks the playhead from the dock", async () => {
   expect(dock.text()).toMatch(/1[45]:\d\d/);
   await choose(dock, "Sleep timer", "End of chapter");
   expect(sleep).toHaveBeenLastCalledWith({ minutes: null, endOfChapter: true });
-  await dock.get('[aria-label="Add bookmark"]').trigger("click");
+  await wrapper.get('[aria-label="Bookmark this place"]').trigger("click");
   await flushPromises();
   expect(mark).toHaveBeenCalledWith({ bookId: "book-0", note: "" });
   expect(useUiStore().toasts.map((t) => t.text)).toContain("Bookmarked");
@@ -621,7 +621,7 @@ it("bookmarks a moment of an audiobook and plays from it", async () => {
   await wrapper.get('[aria-label="Bookmark this moment"]').trigger("click");
   await flushPromises();
   expect(useUiStore().toasts.map((t) => t.text)).toContain("Bookmarked");
-  await wrapper.get('[aria-label="Search and more"]').trigger("click");
+  await wrapper.get('[aria-label="Bookmarks and details"]').trigger("click");
   await flushPromises();
   const sheet = wrapper.get('[role="dialog"]');
   expect(sheet.findAll('[role="tab"]').map((t) => t.text())).toEqual(["Bookmarks", "Details"]);

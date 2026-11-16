@@ -16,6 +16,10 @@ use crate::names::{is_audio, name, plain_words, stem, words, Book};
 
 /// Suggestions per book at most.
 const MAX_SUGGESTIONS: usize = 3;
+/// Audio smaller than this, all its files together, is not an audiobook: a game's or an app's
+/// sounds, a ringtone. 3 MiB is about twenty minutes of speech at a low bitrate; a book split
+/// into many short chapters counts by its whole size.
+pub const MIN_AUDIOBOOK_BYTES: u64 = 3 * 1024 * 1024;
 /// Words two names must share to come close, per thousand of their words (the Dice coefficient:
 /// twice the shared words over both counts). Besides, more than half the book's own words must
 /// be there, so a shared series name ("Ember Watch") or a few small words are not enough.
@@ -103,6 +107,9 @@ impl AudiobookFolder {
                 .is_some_and(|(next, _)| next.starts_with(dir));
             folder.add_folder(root, dir, files, more_below);
         }
+        folder
+            .audiobooks
+            .retain(|a| a.bytes >= options.min_audiobook_bytes);
         folder
     }
 

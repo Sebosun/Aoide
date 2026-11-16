@@ -5,6 +5,7 @@ import { createMockApi } from "@/api/mock";
 import App from "@/App.vue";
 import SettingsDialog from "@/components/settings/SettingsDialog.vue";
 import BookToolsSheet from "@/components/book/BookToolsSheet.vue";
+import NarrationDialog from "@/components/book/NarrationDialog.vue";
 import { useReaderStore } from "@/stores/reader";
 import { useNavigationStore } from "@/stores/navigation";
 import { choose } from "@/tests/helpers";
@@ -134,8 +135,10 @@ it("previews the chosen voice with the unsaved engine settings", async () => {
 it("previews a book's own voice from book tools", async () => {
   await useReaderStore().open("book-0");
   const preview = vi.spyOn(mock, "previewVoice");
-  const wrapper = mount(BookToolsSheet, { attachTo: document.body });
-  await wrapper.get('[role="tab"][aria-controls="book-tools-voice"]').trigger("click");
+  const wrapper = mount(NarrationDialog, {
+    props: { bookId: "book-0", title: "The Lantern Keeper" },
+    attachTo: document.body,
+  });
   await flushPromises();
   await choose(wrapper, "Voice for this book", "Adrian");
   await wrapper.get('[aria-label="Preview voice"]').trigger("click");
@@ -147,6 +150,31 @@ it("previews a book's own voice from book tools", async () => {
     language: "en",
   });
   expect(play).toHaveBeenCalled();
+  wrapper.unmount();
+});
+
+it("lists the speech engine's problems with their whole error, and clears them", async () => {
+  mock.dispose();
+  mock = createMockApi("?speech-problems");
+  backend.api = mock;
+  const wrapper = mount(SettingsDialog, { attachTo: document.body });
+  await flushPromises();
+  await wrapper
+    .findAll('[role="tab"]')
+    .find((t) => t.text() === "Speech engine")!
+    .trigger("click");
+  await flushPromises();
+  const list = wrapper.get('[aria-label="Speech engine problems"]');
+  expect(list.text()).toContain("The speech engine is unavailable");
+  expect(list.text()).toContain("12 times");
+  expect(list.text()).toContain("error sending request for url (http://127.0.0.1:8883/v1/audio/speech)");
+  await wrapper
+    .findAll("button")
+    .find((b) => b.text() === "Clear")!
+    .trigger("click");
+  await flushPromises();
+  expect(await mock.speechProblems()).toEqual([]);
+  expect(wrapper.text()).toContain("No problems with the speech engine since Aoide started.");
   wrapper.unmount();
 });
 

@@ -20,6 +20,18 @@ pub async fn save_book_settings(
     Ok(core.save_book_settings(&book_id, settings).await?)
 }
 
+/// What went wrong with the speech engine lately, newest first (Settings › Speech engine).
+#[tauri::command]
+pub fn speech_problems(core: CoreState<'_>) -> Vec<crate::core::SpeechProblem> {
+    core.speech_problems()
+}
+
+/// Forgets the speech engine's problems listed so far.
+#[tauri::command]
+pub fn clear_speech_problems(core: CoreState<'_>) {
+    core.clear_speech_problems();
+}
+
 /// Registered adapters and the active global profile.
 #[tauri::command]
 pub fn engine_options(core: CoreState<'_>) -> EngineOptions {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { onMounted, ref } from "vue";
-import { FilePlus, FolderOpen, FolderSearch, Headphones, RefreshCw, Rss, X } from "@lucide/vue";
+import { ClipboardPaste, FilePlus, FolderOpen, FolderSearch, Headphones, RefreshCw, Rss, X } from "@lucide/vue";
 import type { DiscoveredFeed } from "@/api/types";
 import UiDialog from "@/components/ui/UiDialog.vue";
 import { api } from "@/api";
@@ -30,6 +30,18 @@ onMounted(() => {
 const subscribing = navigation.addMode === "subscribe";
 /** The feeds a site names, to pick one when it names several. */
 const choices = ref<DiscoveredFeed[]>([]);
+/** Fills the field from the clipboard. Where the window may not read it, the field takes the
+ *  focus and the user pastes with Ctrl V. */
+async function paste() {
+  linkError.value = "";
+  try {
+    const text = (await navigator.clipboard.readText()).trim();
+    if (text) link.value = text;
+  } catch {
+    linkError.value = "Press Ctrl V to paste.";
+  }
+  field.value?.focus();
+}
 async function submitLink() {
   const valid = asLink(link.value);
   if (!valid) {
@@ -124,6 +136,9 @@ function rescan() {
             :aria-invalid="linkError ? 'true' : undefined"
             @input="linkError = ''"
           />
+          <UiButton size="lg" icon class="add-dialog__button" aria-label="Paste link" title="Paste link" @click="paste">
+            <ClipboardPaste :size="16" aria-hidden="true" />
+          </UiButton>
           <UiButton
             variant="accent"
             size="lg"

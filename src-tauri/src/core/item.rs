@@ -101,11 +101,111 @@ pub(super) fn store_cover(
     Some(target)
 }
 
-/// Deletes item `id`'s cover in `dir`, in whichever type it was kept.
+/// Deletes item `id`'s cover in `dir`, in whichever type it was kept, and its thumbnail.
 pub(super) fn drop_covers(dir: &Path, id: &str) {
     for ext in COVER_EXTENSIONS {
         let _ = std::fs::remove_file(dir.join(format!("{id}.{ext}")));
     }
+    for ext in ["jpg", "png"] {
+        let _ = std::fs::remove_file(dir.join(THUMBNAILS).join(format!("{id}.{ext}")));
+    }
+}
+
+// ---------------------------------------------------------------- thumbnails
+
+/// How wide the thumbnails covers are shown from are, in pixels: a library card or the item page
+/// shows a cover about 210 px wide, and twice that on a HiDPI screen. A cover the window shrinks
+/// many times over (they come up to 2000 px and more) is drawn with its lettering broken up; one
+/// shrunk here, with a filter made for it, is not.
+pub(super) const THUMBNAIL_WIDTH: u32 = 480;
+/// The folder beside the covers that holds their thumbnails, named after the cover's file.
+const THUMBNAILS: &str = "thumbs";
+
+/// The file the window shows `cover` from: its thumbnail, made when the cover is wider than
+/// [`THUMBNAIL_WIDTH`] and made again when the cover is newer; else the cover itself (a small
+/// one, an SVG, or a file that cannot be read as a picture). Making one is logged.
+pub(super) fn shown_cover(cover: &Path) -> PathBuf {
+    match thumbnail(cover) {
+        Ok(Some(thumb)) => thumb,
+        Ok(None) => cover.to_path_buf(),
+        Err(error) => {
+            tracing::warn!(
+                event = "cover.thumbnail",
+                file = %cover.file_name().unwrap_or_default().to_string_lossy(),
+                outcome = "failed",
+                %error,
+                "Could not make a cover's thumbnail; showing the cover"
+            );
+            cover.to_path_buf()
+        }
+    }
+}
+
+/// `cover`'s thumbnail, made if missing or older than the cover; `None` when the cover is shown
+/// as it is.
+fn thumbnail(cover: &Path) -> Result<Option<PathBuf>, String> {
+    let Some(dir) = cover.parent() else {
+        return Ok(None);
+    };
+    let Some(stem) = cover.file_stem().map(|s| s.to_string_lossy().into_owned()) else {
+        return Ok(None);
+    };
+    let modified = |path: &Path| std::fs::metadata(path).and_then(|m| m.modified()).ok();
+    let made = ["jpg", "png"]
+        .map(|ext| dir.join(THUMBNAILS).join(format!("{stem}.{ext}")))
+        .into_iter()
+        .find(|thumb| thumb.exists());
+    if let Some(thumb) = &made {
+        if modified(thumb) >= modified(cover) {
+            return Ok(Some(thumb.clone()));
+        }
+    }
+    // A header read: no decoding for a cover small enough, or one that is not a picture.
+    let Ok((width, _)) = image::image_dimensions(cover) else {
+        return Ok(None);
+    };
+    if width <= THUMBNAIL_WIDTH {
+        if let Some(thumb) = made {
+            let _ = std::fs::remove_file(thumb);
+        }
+        return Ok(None);
+    }
+    let started = std::time::Instant::now();
+    let picture = image::open(cover).map_err(|e| e.to_string())?;
+    let small = picture.resize(
+        THUMBNAIL_WIDTH,
+        u32::MAX,
+        image::imageops::FilterType::Lanczos3,
+    );
+    std::fs::create_dir_all(dir.join(THUMBNAILS)).map_err(|e| e.to_string())?;
+    // A cover with see-through parts keeps them (PNG); any other is a JPEG, a tenth the size.
+    let thumb = if small.color().has_alpha() {
+        let thumb = dir.join(THUMBNAILS).join(format!("{stem}.png"));
+        small.save(&thumb).map_err(|e| e.to_string())?;
+        thumb
+    } else {
+        let thumb = dir.join(THUMBNAILS).join(format!("{stem}.jpg"));
+        let file = std::fs::File::create(&thumb).map_err(|e| e.to_string())?;
+        let mut encoder =
+            image::codecs::jpeg::JpegEncoder::new_with_quality(std::io::BufWriter::new(file), 88);
+        encoder
+            .encode_image(&small.to_rgb8())
+            .map_err(|e| e.to_string())?;
+        thumb
+    };
+    if let Some(other) = made.filter(|m| *m != thumb) {
+        let _ = std::fs::remove_file(other);
+    }
+    tracing::info!(
+        event = "cover.thumbnail",
+        file = %cover.file_name().unwrap_or_default().to_string_lossy(),
+        from = width,
+        to = THUMBNAIL_WIDTH,
+        took_ms = crate::logging::took(started),
+        outcome = "ok",
+        "Made a cover's thumbnail"
+    );
+    Ok(Some(thumb))
 }
 
 #[cfg(test)]
@@ -170,5 +270,67 @@ mod tests {
             store_cover(&file, "a", "image/png", b"png", Untyped::Jpeg),
             None
         );
+    }
+
+    /// A cover `width` × `height`, as a PNG in `dir`.
+    fn cover(dir: &Path, name: &str, width: u32, height: u32) -> PathBuf {
+        let path = dir.join(name);
+        image::RgbImage::from_fn(width, height, |x, y| {
+            image::Rgb([(x % 256) as u8, (y % 256) as u8, 90])
+        })
+        .save(&path)
+        .unwrap();
+        path
+    }
+
+    #[test]
+    fn a_large_cover_is_shown_from_a_thumbnail_made_once_and_again_when_it_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let big = cover(dir.path(), "a.png", 1800, 2700);
+        let shown = shown_cover(&big);
+        assert_eq!(shown, dir.path().join("thumbs/a.jpg"));
+        assert_eq!(
+            image::image_dimensions(&shown).unwrap(),
+            (THUMBNAIL_WIDTH, THUMBNAIL_WIDTH * 3 / 2),
+            "the same shape, as wide as a card needs"
+        );
+        let made = std::fs::metadata(&shown).unwrap().modified().unwrap();
+        assert_eq!(shown_cover(&big), shown);
+        assert_eq!(
+            std::fs::metadata(&shown).unwrap().modified().unwrap(),
+            made,
+            "not made again"
+        );
+
+        // A new cover, wider than tall.
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        cover(dir.path(), "a.png", 1600, 900);
+        assert_eq!(
+            image::image_dimensions(shown_cover(&big)).unwrap(),
+            (THUMBNAIL_WIDTH, 270)
+        );
+    }
+
+    #[test]
+    fn a_small_cover_or_one_that_is_not_a_picture_is_shown_as_it_is() {
+        let dir = tempfile::tempdir().unwrap();
+        let small = cover(dir.path(), "b.png", 300, 450);
+        assert_eq!(shown_cover(&small), small);
+        let svg = dir.path().join("c.svg");
+        std::fs::write(&svg, "<svg xmlns='http://www.w3.org/2000/svg'/>").unwrap();
+        assert_eq!(shown_cover(&svg), svg);
+        let broken = dir.path().join("d.jpg");
+        std::fs::write(&broken, b"not a picture").unwrap();
+        assert_eq!(shown_cover(&broken), broken);
+        assert!(!dir.path().join("thumbs/d.jpg").exists());
+    }
+
+    #[test]
+    fn dropping_an_items_covers_drops_their_thumbnails() {
+        let dir = tempfile::tempdir().unwrap();
+        let big = cover(dir.path(), "e.png", 1800, 2700);
+        let thumb = shown_cover(&big);
+        drop_covers(dir.path(), "e");
+        assert!(!big.exists() && !thumb.exists());
     }
 }

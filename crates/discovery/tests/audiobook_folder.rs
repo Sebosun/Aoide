@@ -5,11 +5,19 @@ use std::path::{Path, PathBuf};
 
 use aoide_discovery::AudiobookFolder;
 
-fn touch(root: &Path, relative: &str) -> PathBuf {
+/// A file of `bytes` that takes no room (sparse): sizes are all a search reads.
+fn sized(root: &Path, relative: &str, bytes: u64) -> PathBuf {
     let path = root.join(relative);
     fs::create_dir_all(path.parent().unwrap()).unwrap();
-    fs::write(&path, b"x").unwrap();
+    fs::File::create(&path).unwrap().set_len(bytes).unwrap();
     path
+}
+
+const MIB: u64 = 1024 * 1024;
+
+/// An audio file the size of an audiobook's.
+fn touch(root: &Path, relative: &str) -> PathBuf {
+    sized(root, relative, 8 * MIB)
 }
 
 /// The suggestions for a book, each as its paths relative to `root`.
@@ -215,13 +223,12 @@ fn a_suggestion_holds_every_audio_file_of_its_audiobook_and_their_size() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     for (file, bytes) in [
-        ("The Salt Road/CD1/01 - The Salt Road.m4b", 3),
-        ("The Salt Road/CD1/02 - The Salt Road.m4b", 4),
-        ("The Salt Road/CD2/01 - The Salt Road.m4b", 5),
+        ("The Salt Road/CD1/01 - The Salt Road.m4b", 3 * MIB),
+        ("The Salt Road/CD1/02 - The Salt Road.m4b", 4 * MIB),
+        ("The Salt Road/CD2/01 - The Salt Road.m4b", 5 * MIB),
         ("The Salt Road/CD2/cover.jpg", 100),
     ] {
-        let path = touch(root, file);
-        fs::write(path, vec![0u8; bytes]).unwrap();
+        sized(root, file, bytes);
     }
     let found =
         AudiobookFolder::read(root).suggest(Path::new("/books/x.epub"), Some("The Salt Road"), &[]);
@@ -240,7 +247,7 @@ fn a_suggestion_holds_every_audio_file_of_its_audiobook_and_their_size() {
             "The Salt Road/CD2/01 - The Salt Road.m4b",
         ]
     );
-    assert_eq!(found[0].bytes, 12);
+    assert_eq!(found[0].bytes, 12 * MIB);
 }
 
 #[test]
@@ -332,4 +339,29 @@ fn every_audiobook_found_is_listed_once_by_path() {
             (vec!["Loose".to_string()], 1)
         ]
     );
+}
+
+#[test]
+fn short_sounds_are_not_audiobooks_but_many_short_chapters_are_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    // A game's or an app's sounds: a few kilobytes each.
+    sized(root, ".local/share/Some Game/sfx/door.ogg", 4 * 1024);
+    sized(root, "Games/Some Game/sfx/door.ogg", 4 * 1024);
+    sized(root, "Games/Some Game/sfx/step.ogg", 4 * 1024);
+    sized(root, "Notifications/Ding Dong.mp3", 60 * 1024);
+    // A book split into many short chapters counts by its whole size.
+    for chapter in 1..=40 {
+        sized(
+            root,
+            &format!("The Night Ferry/{chapter:02}.mp3"),
+            200 * 1024,
+        );
+    }
+    let all: Vec<PathBuf> = AudiobookFolder::read(root)
+        .all()
+        .into_iter()
+        .flat_map(|s| s.paths)
+        .collect();
+    assert_eq!(all, vec![root.join("The Night Ferry")]);
 }

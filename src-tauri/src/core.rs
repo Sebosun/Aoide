@@ -82,6 +82,8 @@ pub use recording::{
 #[cfg(any(test, debug_assertions))]
 pub use syncing::Stage as SyncStage;
 mod session;
+mod speech_problems;
+pub use speech_problems::SpeechProblem;
 mod timeline;
 mod voicing;
 mod watching;
@@ -192,6 +194,8 @@ pub struct Core {
     engine: engine::Engine,
     /// What the speech engine is asked to make.
     generation: generation::Generation,
+    /// What went wrong with the speech engine lately.
+    speech_problems: speech_problems::SpeechProblems,
     /// The sleep timer, the media keys and the player state last sent.
     controls: controls::Controls,
     /// Exact word timings being asked for.
@@ -343,6 +347,7 @@ impl Core {
             output: output::Output::new(audio),
             engine: engine_component,
             generation,
+            speech_problems: Default::default(),
             controls: Default::default(),
             aligner,
             settings: config::Settings::new(config),
@@ -546,8 +551,9 @@ impl Core {
                     });
                     self.enforce_cache_limit();
                 }
-                WorkerEvent::Failed { job, error } => {
-                    tracing::warn!(event = "gen.failed", key = %job.key, %error, "Making audio failed");
+                WorkerEvent::Failed { job, error, detail } => {
+                    tracing::warn!(event = "gen.failed", key = %job.key, error = %detail, "Making audio failed");
+                    self.speech_problems.record(&error, &detail, now_ms());
                     self.plan(PlanEvent::WorkFailed { error });
                 }
                 WorkerEvent::Discarded(_) => self.plan(PlanEvent::WorkDiscarded),

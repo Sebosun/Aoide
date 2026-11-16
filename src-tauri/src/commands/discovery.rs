@@ -113,6 +113,17 @@ pub async fn choose_books(app: tauri::AppHandle) -> Option<Vec<String>> {
     .await
 }
 
+/// The system's folder chooser, titled `title` (what the folder is for); null when cancelled.
+#[tauri::command]
+pub async fn choose_folder(app: tauri::AppHandle, title: String) -> Option<String> {
+    pick(&app, move |dialog, done| {
+        dialog
+            .set_title(title)
+            .pick_folder(move |p| done(p.map(|p| p.to_string())));
+    })
+    .await
+}
+
 /// The system's file chooser for audiobook files (or a folder); null when cancelled.
 #[tauri::command]
 pub async fn choose_audio(app: tauri::AppHandle, folder: bool) -> Option<Vec<String>> {

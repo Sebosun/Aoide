@@ -57,6 +57,7 @@ reflink-copy = "0.1"
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", default-features = false, features = ["registry", "fmt", "ansi", "env-filter", "tracing-log", "std", "smallvec"] }

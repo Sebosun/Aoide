@@ -143,6 +143,23 @@ pub enum EngineError {
     InvalidAudio(String),
 }
 
+impl EngineError {
+    /// What went wrong, said for people: no addresses, codes or transport errors (those are in
+    /// the error's text, for the log and Settings).
+    pub fn summary(&self) -> &'static str {
+        match self {
+            Self::Unavailable(_) => "The speech engine is unavailable",
+            Self::Timeout => "The speech engine took too long to answer",
+            Self::Http { .. } => "The speech engine turned the request down",
+            Self::InvalidConfig(_) => "The speech engine's settings are not valid",
+            Self::InvalidInput(_) => "The speech engine could not read this text",
+            Self::InvalidResponse(_) | Self::InvalidAudio(_) => {
+                "The speech engine sent back audio that cannot be played"
+            }
+        }
+    }
+}
+
 /// One TTS engine instance (an adapter bound to an endpoint).
 pub trait SpeechEngine: Send + Sync {
     fn descriptor(&self) -> &EngineDescriptor;

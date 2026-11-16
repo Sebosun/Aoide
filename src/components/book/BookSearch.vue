@@ -4,13 +4,20 @@ import { ref } from "vue";
 import { api } from "@/api";
 import type { SearchHit } from "@/api/types";
 import { usePlayerStore } from "@/stores/player";
+/** Searches the book's text; a picked result plays from there, and the search says it was
+ *  picked (`picked`) so whatever holds it can close. */
 const props = defineProps<{ bookId: string }>();
+const emit = defineEmits<{ picked: [] }>();
 const player = usePlayerStore();
 const query = ref(""),
   hits = ref<SearchHit[] | null>(null),
   error = ref(""),
   searching = ref(false);
 let request = 0;
+function pick(hit: SearchHit) {
+  void player.play(props.bookId, hit.chapter, hit.segmentId);
+  emit("picked");
+}
 async function search() {
   const q = query.value.trim();
   error.value = "";
@@ -49,7 +56,7 @@ function parts(hit: SearchHit) {
   <p v-if="hits && hits.length >= 200" class="book-search__empty">Showing the first 200 matches.</p>
   <ul v-if="hits?.length" class="book-search__list">
     <li v-for="hit in hits" :key="`${hit.chapter}:${hit.segmentId}:${hit.matchStart}`">
-      <button type="button" class="book-search__hit" @click="player.play(bookId, hit.chapter, hit.segmentId)">
+      <button type="button" class="book-search__hit" @click="pick(hit)">
         <small>{{ hit.chapterTitle }}</small>
         <span
           >{{ parts(hit)[0] }}<mark>{{ parts(hit)[1] }}</mark

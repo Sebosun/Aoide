@@ -48,26 +48,35 @@ export const useLibraryStore = defineStore("library", () => {
   /** Books whose file could not be read: listed apart, never among the books to open. */
   const failed = computed(() => books.value.filter((b) => b.status.kind === "error"));
   const usable = computed(() => books.value.filter((b) => b.status.kind !== "error"));
-  const counts = computed(
-    () =>
-      Object.fromEntries(
-        Object.entries(filters).map(([key, test]) => [key, usable.value.filter(test).length]),
-      ) as Record<BuiltInFilter, number>,
-  );
-  /** How many items of each kind there are. */
-  const kindCounts = computed(() => {
-    const c: Record<ItemKind, number> = { book: 0, audiobook: 0, article: 0 };
-    for (const book of usable.value) c[book.kind]++;
-    return c;
-  });
-  /** The kind switch is offered once the library holds two kinds. */
-  const kinds = computed(() => (Object.keys(kindCounts.value) as ItemKind[]).filter((k) => kindCounts.value[k] > 0));
   /** The collection the library is filtered by, if any. */
   const collection = computed(() =>
     filter.value.startsWith("collection:")
       ? (collections.value.find((c) => `collection:${c.id}` === filter.value) ?? null)
       : null,
   );
+  /** What the library is showing from: the open collection's items, else every item. Counts
+   *  are of these, so a collection's switch counts what it holds. */
+  const scope = computed(() =>
+    collection.value ? usable.value.filter((b) => b.collections.includes(collection.value!.id)) : usable.value,
+  );
+  const counts = computed(
+    () =>
+      Object.fromEntries(
+        Object.entries(filters).map(([key, test]) => [key, scope.value.filter(test).length]),
+      ) as Record<BuiltInFilter, number>,
+  );
+  /** Whether an item is of `kind`. Audiobooks are those on their own and books that have one
+   *  (a paired recording, however far its sync is), so a book can be both. */
+  const isKind = (book: BookSummary, kind: ItemKind) =>
+    kind === "audiobook" ? book.kind === "audiobook" || book.recording !== null : book.kind === kind;
+  /** How many items of each kind there are. */
+  const kindCounts = computed(() => {
+    const c: Record<ItemKind, number> = { book: 0, audiobook: 0, article: 0 };
+    for (const book of scope.value) for (const kind of Object.keys(c) as ItemKind[]) if (isKind(book, kind)) c[kind]++;
+    return c;
+  });
+  /** The kind switch is offered once what is shown holds two kinds. */
+  const kinds = computed(() => (Object.keys(kindCounts.value) as ItemKind[]).filter((k) => kindCounts.value[k] > 0));
   const matchesFilter = (book: BookSummary) => {
     const value = filter.value;
     return value.startsWith("collection:")
@@ -77,7 +86,7 @@ export const useLibraryStore = defineStore("library", () => {
   const visible = computed(() => {
     const q = query.value.trim().toLowerCase();
     const shown = usable.value.filter(
-      (b) => matchesFilter(b) && (kind.value === "all" || kinds.value.length < 2 || b.kind === kind.value),
+      (b) => matchesFilter(b) && (kind.value === "all" || kinds.value.length < 2 || isKind(b, kind.value as ItemKind)),
     );
     const matches = q
       ? shown.filter((b) => b.title.toLowerCase().includes(q) || b.authors.some((a) => a.toLowerCase().includes(q)))

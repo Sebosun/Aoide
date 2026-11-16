@@ -76,16 +76,29 @@ it("imports the selected books, applying chosen online details, and refreshes th
   wrapper.unmount();
 });
 
-it("saves which folders are searched", async () => {
+it("adds the folders to search with the system's chooser and saves each change", async () => {
   const save = vi.spyOn(mock, "updateAppSettings");
+  const chooser = vi
+    .spyOn(mock, "chooseFolder")
+    .mockResolvedValueOnce("/home/me/Books")
+    .mockResolvedValueOnce("/media/shelf")
+    .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce("/home/me/Books/old");
   const wrapper = mount(FindBooksView);
   await flushPromises();
-  await wrapper.get('[aria-label="Folders to search"]').setValue("/home/me/Books\n/media/shelf");
-  await wrapper.get('[aria-label="Folders to skip"]').setValue("/home/me/Books/old");
+  const folders = wrapper.get('[aria-label="Folders to search"]');
+  // Nothing chosen: the home folder is searched, and no path has to be typed anywhere.
+  expect(folders.text()).toContain("Your home folder");
+  expect(wrapper.find("textarea").exists()).toBe(false);
+  const add = (label: string) => wrapper.get(`[aria-label="${label}"]`).trigger("click").then(flushPromises);
+  await add("Add a folder to search");
+  await add("Add a folder to search");
+  await add("Add a folder to search"); // cancelled: nothing changes
+  await add("Add a folder to skip");
+  expect(chooser).toHaveBeenCalledTimes(4);
   await wrapper.get('[aria-label="Look for new books when Aoide starts"]').setValue(true);
-  await wrapper.get(".scan-folders__form").trigger("submit");
   await flushPromises();
-  expect(save).toHaveBeenCalledWith({
+  expect(save).toHaveBeenLastCalledWith({
     patch: expect.objectContaining({
       scan: {
         roots: ["/home/me/Books", "/media/shelf"],
@@ -95,6 +108,12 @@ it("saves which folders are searched", async () => {
       },
     }),
   });
+  await wrapper.get('[aria-label="Remove /media/shelf"]').trigger("click");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({
+    patch: expect.objectContaining({ scan: expect.objectContaining({ roots: ["/home/me/Books"] }) }),
+  });
+  expect(wrapper.get('[aria-label="Folders to search"]').text()).not.toContain("/media/shelf");
   wrapper.unmount();
 });
 

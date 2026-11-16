@@ -91,6 +91,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `discovery.scan` | info, warn | `roots`, `epubs`, `read`, `took_ms`, `outcome`, `error` | `core/discovery.rs` |
 | `discovery.import` | info | `chosen`, `failed` | `core/discovery.rs` |
 | `library.audiobook` | info | `book`, `outcome` (`ok`, `refused`), `error` | `core/audiobook.rs` `add_audiobook` |
+| `cover.thumbnail` | info / warn | `file`, `from` and `to` (widths), `took_ms`, `outcome` (`ok`, `failed`), `error` | `core/item.rs` `shown_cover`: a cover wider than 480 px gets a thumbnail to be shown from, once, and again when the cover changes |
 | `library.merge` | info | `book`, `from` (the audiobook), `outcome` (`ok`, `failed`), `error` | `core/audiobook.rs` `merge_audiobook` |
 | `progress.pending` | info / warn | `book`, `outcome` (`settled` into progress once the sync reached it, `dropped` when read or played first), `error` | `core/audiobook.rs` |
 | `article.save` | info | `book`, `outcome` (`ok`) | `core/articles.rs` `save` |
@@ -155,7 +156,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `gen.request` | debug, warn | `book`, `index`, `reason`, `chars`, `audio_ms`, `took_ms`, `outcome`, `error` | `crates/generation` `run`, each synthesis |
 | `gen.backoff` | info | `to`, `streak`, `wait_ms` | `crates/generation`, backing off or recovering |
 | `gen.discarded` | debug | `book`, `index` | `crates/generation` `run`, a result whose audio was deleted while it was made |
-| `gen.failed` | warn | `key`, `error` | `core.rs` |
+| `gen.failed` | warn | `key`, `error` (the whole error; the player shows a short message, and Settings › Speech engine › Problems lists both) | `core.rs` |
 | `engine.state` | info | `engine`, `from`, `to`, `detail` | `core.rs` `emit_engine_status` |
 | `engine.voice` | warn | `engine`, `voice`, `error` | `core.rs`, a voice the engine lacks |
 | `engine.session` | warn | `error` | `core.rs` |

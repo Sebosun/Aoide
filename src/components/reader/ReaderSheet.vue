@@ -26,7 +26,7 @@ import { prepareChapter } from "@/preparation";
  *  transport underneath and follows the playhead; reading silently (`read`) shows the progress
  *  through the book there instead, and the text is only read. */
 const props = defineProps<{ shape: Shape }>();
-const emit = defineEmits<{ tools: [tab?: "details" | "voice"] }>();
+const emit = defineEmits<{ tools: [tab?: "details"] }>();
 const reader = useReaderStore(),
   library = useLibraryStore(),
   navigation = useNavigationStore();
@@ -151,7 +151,7 @@ const next = computed(() => {
           :article="Boolean(article)"
           @chapter="jump"
           @details="emit('tools', 'details')"
-          @voice="emit('tools', 'voice')"
+          @voice="navigation.openNarration()"
           @about="navigation.openItem(reader.book.id)"
           @prepare="prepareChapter(reader.book.id, $event)"
         />
@@ -209,7 +209,7 @@ const next = computed(() => {
     >
       <LocateFixed :size="16" /> Back to playhead
     </button>
-    <PlayerDock v-if="along" @tools="emit('tools')" />
+    <PlayerDock v-if="along" />
     <footer v-else class="sheet__foot">
       <div
         class="sheet__progress"

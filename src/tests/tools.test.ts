@@ -34,15 +34,28 @@ async function reader(book = "book-0") {
   return wrapper;
 }
 
-it("opens book tools as a modal bottom sheet with four tabs, and Escape returns to the dock", async () => {
+it("keeps every book tool at the top: the player at the foot only plays", async () => {
   const wrapper = await reader();
-  const button = wrapper.get('[aria-label="Player"] [aria-label="Book tools"]');
+  await usePlayerStore().play("book-0", 0, null);
+  await flushPromises();
+  const dock = wrapper.get('[aria-label="Player"]');
+  expect(dock.find('[aria-label="Add bookmark"]').exists()).toBe(false);
+  expect(dock.find('[aria-label="Book tools"]').exists()).toBe(false);
+  const header = wrapper.get(".reader__actions");
+  for (const label of ["Search this book", "Narration", "Bookmark this place", "Bookmarks and details"])
+    expect(header.find(`[aria-label="${label}"]`).exists(), label).toBe(true);
+  wrapper.unmount();
+});
+
+it("opens book tools as a modal bottom sheet with three tabs, and Escape returns to its button", async () => {
+  const wrapper = await reader();
+  const button = wrapper.get('[aria-label="Bookmarks and details"]');
   await button.trigger("click");
   await flushPromises();
   const sheet = wrapper.get('[role="dialog"]');
   expect(sheet.attributes("aria-modal")).toBe("true");
   expect(sheet.attributes("aria-label")).toBe("Book tools");
-  expect(sheet.findAll('[role="tab"]').map((t) => t.text())).toEqual(["Bookmarks", "Search", "Narration", "Details"]);
+  expect(sheet.findAll('[role="tab"]').map((t) => t.text())).toEqual(["Bookmarks", "Search", "Details"]);
   const selected = sheet.get('[role="tab"][aria-selected="true"]');
   expect(selected.text()).toBe("Bookmarks");
   expect(document.activeElement).toBe(selected.element);
@@ -56,7 +69,7 @@ it("opens book tools as a modal bottom sheet with four tabs, and Escape returns 
 
 it("moves between tabs with the arrow keys and closes from the backdrop", async () => {
   const wrapper = await reader();
-  await wrapper.get('[aria-label="Player"] [aria-label="Book tools"]').trigger("click");
+  await wrapper.get('[aria-label="Bookmarks and details"]').trigger("click");
   await flushPromises();
   await wrapper.get('[role="tab"][aria-selected="true"]').trigger("keydown", { key: "ArrowRight" });
   expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe("Search");
@@ -83,7 +96,38 @@ it("opens the extraction notes in Details from the warning in the margin", async
   wrapper.unmount();
 });
 
-it("flags a book voice the engine does not offer and opens the Voice tab from the margin", async () => {
+it("searches from the top of the reader, and a picked result closes the search", async () => {
+  const play = vi.spyOn(mock, "play");
+  const wrapper = await reader();
+  await wrapper.get('[aria-label="Search this book"]').trigger("click");
+  await flushPromises();
+  const sheet = wrapper.get('[role="dialog"]');
+  expect(sheet.get('[role="tab"][aria-selected="true"]').text()).toBe("Search");
+  expect(document.activeElement).toBe(sheet.get('[aria-label="Search in book"]').element);
+  await sheet.get('[aria-label="Search in book"]').setValue("lantern");
+  await sheet.get(".book-search__form").trigger("submit");
+  await flushPromises();
+  await wrapper.get(".book-search__hit").trigger("click");
+  await flushPromises();
+  expect(play).toHaveBeenCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
+  expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+  wrapper.unmount();
+});
+
+it("opens who reads the book in its own dialog from the top", async () => {
+  const wrapper = await reader();
+  await wrapper.get('[aria-label="Narration"]').trigger("click");
+  await flushPromises();
+  const dialog = wrapper.get('[role="dialog"][aria-label="Narration"]');
+  expect(dialog.find('[aria-label="Search in book"]').exists()).toBe(false);
+  expect(dialog.text()).toContain("Voice");
+  await dialog.trigger("keydown", { key: "Escape" });
+  await flushPromises();
+  expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+  wrapper.unmount();
+});
+
+it("flags a book voice the engine does not offer and opens Narration from the margin", async () => {
   await mock.saveBookSettings({
     bookId: "book-0",
     settings: {
@@ -102,7 +146,7 @@ it("flags a book voice the engine does not offer and opens the Voice tab from th
   expect(warning.attributes("title")).toContain("Abigail");
   await warning.trigger("click");
   await flushPromises();
-  expect(wrapper.get('[role="dialog"] [role="tab"][aria-selected="true"]').text()).toBe("Narration");
+  expect(wrapper.find('[role="dialog"][aria-label="Narration"]').exists()).toBe(true);
   wrapper.unmount();
 });
 

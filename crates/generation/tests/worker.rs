@@ -205,8 +205,10 @@ async fn a_failure_pauses_all_work_and_the_failed_segment_waits_longest() {
     let mut seen = vec![];
     while seen.len() < 3 {
         match next(&mut events).await {
-            WorkerEvent::Failed { job, error } => {
-                assert!(error.contains("down"));
+            WorkerEvent::Failed { job, error, detail } => {
+                // What people are shown says what went wrong; the detail is kept for Settings.
+                assert_eq!(error, "The speech engine is unavailable");
+                assert!(detail.contains("down"), "{detail}");
                 seen.push(format!("failed:{}", job.key));
             }
             WorkerEvent::Finished { job, .. } => {

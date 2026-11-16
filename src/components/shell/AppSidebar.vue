@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { ITEM_DRAG } from "@/drag";
 import { ChartNoAxesColumn, Ellipsis, House, Library, Pencil, Plus, Rss, Settings, Trash2 } from "@lucide/vue";
 import type { Collection } from "@/api/types";
 import UiMenu from "@/components/ui/UiMenu.vue";
@@ -39,6 +40,24 @@ const collections = computed(() =>
     current: navigation.view === "library" && library.collection?.id === collection.id,
   })),
 );
+/** The collection a library card is being dragged over. */
+const dropOn = ref<number | null>(null);
+const carriesItem = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes(ITEM_DRAG);
+function dragOver(event: DragEvent, id: number) {
+  if (!carriesItem(event)) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  dropOn.value = id;
+}
+function drop(event: DragEvent, collection: Collection) {
+  dropOn.value = null;
+  const id = event.dataTransfer?.getData(ITEM_DRAG);
+  if (!id) return;
+  event.preventDefault();
+  // The window would otherwise take it for a link or files.
+  event.stopPropagation();
+  void shelves.add(id, collection);
+}
 function openCollection(id: number) {
   library.filter = `collection:${id}`;
   navigation.view = "library";
@@ -94,7 +113,10 @@ const actions = (collection: Collection): MenuEntry[] => [
         v-for="collection in collections"
         :key="collection.id"
         class="sidebar__shelf"
-        :class="{ 'sidebar__shelf--on': collection.current }"
+        :class="{ 'sidebar__shelf--on': collection.current, 'sidebar__shelf--drop': dropOn === collection.id }"
+        @dragover="dragOver($event, collection.id)"
+        @dragleave="dropOn = dropOn === collection.id ? null : dropOn"
+        @drop="drop($event, collection)"
       >
         <button
           type="button"
@@ -253,6 +275,11 @@ const actions = (collection: Collection): MenuEntry[] => [
 .sidebar__shelf--on:hover,
 .sidebar__shelf--on:focus-within {
   background: var(--page);
+}
+/* A library card dragged over a collection it can be dropped on. */
+.sidebar__shelf--drop {
+  background: var(--page);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 .sidebar__shelf--on .sidebar__collection {
   color: var(--ink);

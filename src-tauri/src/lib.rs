@@ -49,6 +49,8 @@ pub fn run() {
             commands::playback::set_speed,
             commands::playback::set_volume,
             commands::speech::engine_status,
+            commands::speech::speech_problems,
+            commands::speech::clear_speech_problems,
             commands::speech::book_settings,
             commands::speech::save_book_settings,
             commands::speech::engine_options,
@@ -148,6 +150,7 @@ pub fn run() {
             commands::feeds::import_opml,
             commands::feeds::export_opml,
             commands::discovery::choose_audio,
+            commands::discovery::choose_folder,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build Aoide")

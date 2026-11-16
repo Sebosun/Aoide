@@ -42,6 +42,9 @@ pub struct ScanOptions {
     pub same_filesystem: bool,
     /// Walker threads; 0 picks one per CPU.
     pub threads: usize,
+    /// Audio smaller than this, all of one audiobook's files together, is not an audiobook
+    /// (see [`MIN_AUDIOBOOK_BYTES`]).
+    pub min_audiobook_bytes: u64,
 }
 
 impl Default for ScanOptions {
@@ -53,6 +56,7 @@ impl Default for ScanOptions {
             skip_names: SKIP_NAMES.iter().map(|s| s.to_string()).collect(),
             same_filesystem: true,
             threads: 0,
+            min_audiobook_bytes: MIN_AUDIOBOOK_BYTES,
         }
     }
 }
@@ -252,4 +256,4 @@ mod names;
 pub use beside::{audiobook_beside, Neighbourhood};
 pub use names::title_from_name;
 mod folder;
-pub use folder::{AudiobookFolder, Suggestion};
+pub use folder::{AudiobookFolder, Suggestion, MIN_AUDIOBOOK_BYTES};

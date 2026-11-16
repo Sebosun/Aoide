@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed } from "vue";
-import { Bookmark, Pause, Play, SkipBack, SkipForward, SlidersHorizontal, Square } from "@lucide/vue";
+import { Pause, Play, SkipBack, SkipForward, Square } from "@lucide/vue";
 import PlayerScrubber from "@/components/player/PlayerScrubber.vue";
 import SpeedPill from "@/components/player/SpeedPill.vue";
 import SleepPill from "@/components/player/SleepPill.vue";
@@ -10,10 +10,9 @@ import { usePlayerControls } from "@/composables/usePlayerControls";
 
 /** The full transport of Lines mode: the scrubber (buffer numbers in its tooltip, buffering and
  *  errors under it), then one row: speed, sleep and volume; previous, a 66px play button and
- *  next; bookmark, book tools and stop. */
-const emit = defineEmits<{ tools: [] }>();
+ *  next; stop. Bookmarks and the book tools are at the top of the reader. */
 const controls = usePlayerControls();
-const { player, active, timeLeft, ahead, percent, toggle, seek, step, bookmark, status, detail, error } = controls;
+const { player, active, timeLeft, ahead, percent, toggle, seek, step, status, detail, error } = controls;
 const canPlay = computed(() => Boolean(controls.bookId.value));
 </script>
 
@@ -70,30 +69,6 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
         </button>
       </div>
       <div class="transport__side transport__side--end">
-        <UiButton
-          variant="glass"
-          size="sm"
-          icon
-          class="transport__round"
-          aria-label="Add bookmark"
-          title="Bookmark this sentence"
-          :disabled="!canPlay"
-          @click="bookmark"
-        >
-          <Bookmark :size="16" />
-        </UiButton>
-        <UiButton
-          variant="glass"
-          size="sm"
-          icon
-          class="transport__round"
-          aria-label="Book tools"
-          aria-haspopup="dialog"
-          title="Bookmarks, search, voice and details"
-          @click="emit('tools')"
-        >
-          <SlidersHorizontal :size="16" />
-        </UiButton>
         <UiButton
           variant="glass"
           size="sm"

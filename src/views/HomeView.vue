@@ -119,6 +119,7 @@ const added = (at: number) => dayName(at);
                 :site="book.article?.siteName ?? book.title"
                 :title="book.title"
                 :lead="book.article?.lead ?? null"
+                :image="book.coverUrl"
               />
               <CoverArt
                 v-else

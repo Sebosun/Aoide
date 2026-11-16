@@ -1,4 +1,4 @@
-import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, expect, it, onTestFinished, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "@/api/mock";
@@ -213,6 +213,32 @@ it("subscribes when the link given to Add is a feed, and shows it in Feeds", asy
   expect(addDialog()).toBeNull();
   expect(useNavigationStore().view).toBe("feeds");
   expect(wrapper.get(".feeds__source[aria-current='true']").text()).toContain("Lantern Notes");
+});
+
+it("pastes a link into Add from the clipboard, and says to use Ctrl V where it cannot read it", async () => {
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  useNavigationStore().openAdd();
+  await flushPromises();
+  const readText = vi.fn().mockResolvedValueOnce("  https://lanterns.example/feed.xml \n");
+  Object.defineProperty(navigator, "clipboard", { value: { readText }, configurable: true });
+  onTestFinished(() => {
+    delete (navigator as { clipboard?: unknown }).clipboard;
+  });
+  const field = wrapper.get<HTMLInputElement>('[role="dialog"] input[type="url"]');
+  await wrapper.get('[aria-label="Paste link"]').trigger("click");
+  await flushPromises();
+  expect(field.element.value).toBe("https://lanterns.example/feed.xml");
+  expect(document.activeElement).toBe(field.element);
+
+  readText.mockRejectedValueOnce(new Error("not allowed"));
+  await field.setValue("");
+  await wrapper.get('[aria-label="Paste link"]').trigger("click");
+  await flushPromises();
+  expect(field.element.value).toBe("");
+  expect(addDialog()!.textContent).toContain("Press Ctrl V to paste");
+  expect(document.activeElement).toBe(field.element);
+  wrapper.unmount();
 });
 
 it("offers a site's feeds to choose from when subscribing to the site", async () => {

@@ -5,6 +5,7 @@
  *  so it answers as the core did. */
 import type {
   ArticleView,
+  SpeechProblem,
   AddedLink,
   EntryView,
   FeedView,
@@ -322,6 +323,19 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const listed = () => structuredClone(found).map((c) => (recordings.has(c.id) ? { ...c, audiobook: [] } : c));
   const query = new URLSearchParams(search);
   const mode = query.get("theme");
+  /** The speech engine's problems (core/speech_problems.rs), newest first; one to show with
+   *  `?speech-problems`. */
+  let speechProblems: SpeechProblem[] = query.has("speech-problems")
+    ? [
+        {
+          message: "The speech engine is unavailable",
+          detail: "engine is unavailable: error sending request for url (http://127.0.0.1:8883/v1/audio/speech)",
+          firstMs: Date.now() - 600_000,
+          lastMs: Date.now() - 60_000,
+          times: 12,
+        },
+      ]
+    : [];
   let preferences: Preferences = {
     appearance: {
       mode: mode === "light" || mode === "dark" ? mode : "auto",
@@ -359,7 +373,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const downloaded = new Set<string>(["base.en"]);
   const hour = 3_600_000;
   /** What the core decides about a recording (core/recording.rs): what is synced so far can be
-   *  listened to, it narrates the book once chosen, and what can be done about it (the core's
+   *  listened to, it narrates the book unless speech was chosen, and what can be done about it (the core's
    *  own table, from the stages fixture). */
   const decide = (r: Undecided): RecordingView => {
     const stage = syncStages[r.stage],
@@ -367,7 +381,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     return {
       ...r,
       listenable,
-      narrates: listenable && settingsOf(r.bookId).narration === "recording",
+      // Unless speech was chosen: whoever paired an audiobook wants to hear it.
+      narrates: listenable && settingsOf(r.bookId).narration !== "speech",
       actions: listenable ? stage.listenableActions : stage.actions,
     };
   };
@@ -1078,6 +1093,12 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async engineStatus() {
       return { ...engine };
+    },
+    async speechProblems() {
+      return structuredClone(speechProblems);
+    },
+    async clearSpeechProblems() {
+      speechProblems = [];
     },
     async engineOptions() {
       return { descriptors: structuredClone(descriptors), profile: structuredClone(profile) };
@@ -1868,6 +1889,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async chooseBooks() {
       return ["~/Downloads/the-lantern-keeper.epub"];
     },
+    async chooseFolder() {
+      return "~/Audiobooks";
+    },
     async chooseAudio({ folder }) {
       return folder ? ["~/Audiobooks/The Lantern Keeper"] : ["~/Audiobooks/the-lantern-keeper.m4b"];
     },
@@ -2013,7 +2037,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   ) => {
     settings.set(id, { ...settingsOf(id), narration });
     // As the core would report it: a ready recording chosen as the narration is what plays.
-    if (narration === "recording" && stage === "ready") getBook(id).audio = "recording";
+    if (narration !== "speech" && stage === "ready") getBook(id).audio = "recording";
     emitSync(recordingIn(id, stage));
     changed();
   };

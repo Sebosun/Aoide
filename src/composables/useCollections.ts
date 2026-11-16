@@ -29,6 +29,20 @@ export function useCollections() {
       return id;
     });
   }
+  /** Puts item `id` on `collection` (a card dropped on it), saying so. */
+  async function add(id: string, collection: Collection) {
+    const book = library.books.find((b) => b.id === id);
+    if (!book) return;
+    if (book.collections.includes(collection.id)) {
+      ui.toast(`Already in ${collection.name}`, "info");
+      return;
+    }
+    const done = await attempt(async () => {
+      await library.setBookCollections(id, [...book.collections, collection.id]);
+      return true;
+    });
+    if (done) ui.toast(`Added to ${collection.name}`);
+  }
   async function rename(collection: Collection) {
     const name = await ui.prompt({
       title: "Rename collection",
@@ -51,5 +65,11 @@ export function useCollections() {
     const ids = book.collections.includes(id) ? book.collections.filter((c) => c !== id) : [...book.collections, id];
     await attempt(() => library.setBookCollections(book.id, ids));
   }
-  return { create, rename, remove, toggle };
+  return {
+    add,
+    create,
+    rename,
+    remove,
+    toggle,
+  };
 }

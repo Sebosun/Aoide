@@ -95,6 +95,28 @@ export type ProblemView = {
  */
 message: string, error: CoreError, };
 
+export type SpeechProblem = { 
+/**
+ * What went wrong, said for people.
+ */
+message: string, 
+/**
+ * The whole error.
+ */
+detail: string, 
+/**
+ * When it first happened in this run, in ms since the epoch.
+ */
+firstMs: number, 
+/**
+ * When it last happened.
+ */
+lastMs: number, 
+/**
+ * How many times in a row it happened.
+ */
+times: number, };
+
 export type UiLevel = "debug" | "info" | "warn" | "error";
 
 export type UiLog = { level: UiLevel, 
@@ -1052,6 +1074,8 @@ export type Commands = {
   "import_discovered": { args: { choices: ImportChoice[] }; result: ImportResult[] };
   /** The system's file chooser for EPUB files to add; null when cancelled. */
   "choose_books": { args: Record<string, never>; result: string[] | null };
+  /** The system's folder chooser, titled `title` (what the folder is for); null when cancelled. */
+  "choose_folder": { args: { title: string }; result: string | null };
   /** The system's file chooser for audiobook files (or a folder); null when cancelled. */
   "choose_audio": { args: { folder: boolean }; result: string[] | null };
   /** Subscriptions, by title, with their unread counts and health. */
@@ -1200,6 +1224,10 @@ export type Commands = {
   "engine_status": { args: Record<string, never>; result: EngineStatusView };
   "book_settings": { args: { bookId: string }; result: BookSettings };
   "save_book_settings": { args: { bookId: string; settings: BookSettings }; result: void };
+  /** What went wrong with the speech engine lately, newest first (Settings › Speech engine). */
+  "speech_problems": { args: Record<string, never>; result: SpeechProblem[] };
+  /** Forgets the speech engine's problems listed so far. */
+  "clear_speech_problems": { args: Record<string, never>; result: void };
   /** Registered adapters and the active global profile. */
   "engine_options": { args: Record<string, never>; result: EngineOptions };
   /** Voices of the active engine (fails when the engine is offline). */
@@ -1319,6 +1347,8 @@ export interface CommandApi {
   importDiscovered(args: { choices: ImportChoice[] }): Promise<ImportResult[]>;
   /** The system's file chooser for EPUB files to add; null when cancelled. */
   chooseBooks(): Promise<string[] | null>;
+  /** The system's folder chooser, titled `title` (what the folder is for); null when cancelled. */
+  chooseFolder(args: { title: string }): Promise<string | null>;
   /** The system's file chooser for audiobook files (or a folder); null when cancelled. */
   chooseAudio(args: { folder: boolean }): Promise<string[] | null>;
   /** Subscriptions, by title, with their unread counts and health. */
@@ -1467,6 +1497,10 @@ export interface CommandApi {
   engineStatus(): Promise<EngineStatusView>;
   bookSettings(args: { bookId: string }): Promise<BookSettings>;
   saveBookSettings(args: { bookId: string; settings: BookSettings }): Promise<void>;
+  /** What went wrong with the speech engine lately, newest first (Settings › Speech engine). */
+  speechProblems(): Promise<SpeechProblem[]>;
+  /** Forgets the speech engine's problems listed so far. */
+  clearSpeechProblems(): Promise<void>;
   /** Registered adapters and the active global profile. */
   engineOptions(): Promise<EngineOptions>;
   /** Voices of the active engine (fails when the engine is offline). */
@@ -1532,6 +1566,7 @@ export const COMMANDS = {
   fetchDiscoveredDetails: "fetch_discovered_details",
   importDiscovered: "import_discovered",
   chooseBooks: "choose_books",
+  chooseFolder: "choose_folder",
   chooseAudio: "choose_audio",
   feeds: "feeds",
   addLink: "add_link",
@@ -1608,6 +1643,8 @@ export const COMMANDS = {
   engineStatus: "engine_status",
   bookSettings: "book_settings",
   saveBookSettings: "save_book_settings",
+  speechProblems: "speech_problems",
+  clearSpeechProblems: "clear_speech_problems",
   engineOptions: "engine_options",
   engineVoices: "engine_voices",
   previewVoice: "preview_voice",

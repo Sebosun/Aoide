@@ -6,6 +6,7 @@ import { initialPlayer } from "@/api/initial";
 import SettingsDialog from "@/components/settings/SettingsDialog.vue";
 import ActivityView from "@/views/ActivityView.vue";
 import BookToolsSheet from "@/components/book/BookToolsSheet.vue";
+import NarrationDialog from "@/components/book/NarrationDialog.vue";
 import BookVoice from "@/components/book/BookVoice.vue";
 import UiHost from "@/components/ui/UiHost.vue";
 import LibraryView from "@/views/LibraryView.vue";
@@ -182,8 +183,7 @@ it("saves per-book voice settings and queues whole-book preparation", async () =
   await useReaderStore().open("book-0");
   const saveSettings = vi.spyOn(mock, "saveBookSettings");
   const prepare = vi.spyOn(mock, "prepareBook");
-  const wrapper = mount(BookToolsSheet);
-  await wrapper.get('[role="tab"][aria-controls="book-tools-voice"]').trigger("click");
+  const wrapper = mount(NarrationDialog, { props: { bookId: "book-0", title: "The Lantern Keeper" } });
   await flushPromises();
   await choose(wrapper, "Voice for this book", "Adrian");
   await wrapper.get('[aria-label="Read footnotes aloud"]').setValue(true);
@@ -201,9 +201,8 @@ it("saves per-book voice settings and queues whole-book preparation", async () =
 it("asks before regenerating a book's audio", async () => {
   await useReaderStore().open("book-0");
   const regenerate = vi.spyOn(mock, "regenerateBook");
-  const wrapper = mount(BookToolsSheet),
+  const wrapper = mount(NarrationDialog, { props: { bookId: "book-0", title: "The Lantern Keeper" } }),
     host = mount(UiHost, { attachTo: document.body });
-  await wrapper.get('[role="tab"][aria-controls="book-tools-voice"]').trigger("click");
   await flushPromises();
   await wrapper.get('[aria-label="Regenerate audio"]').trigger("click");
   await flushPromises();
@@ -240,8 +239,7 @@ it("looks up online details and applies the picked match", async () => {
 
 it("exports the book and reports where the file went", async () => {
   await useReaderStore().open("book-0");
-  const wrapper = mount(BookToolsSheet);
-  await wrapper.get('[role="tab"][aria-controls="book-tools-voice"]').trigger("click");
+  const wrapper = mount(NarrationDialog, { props: { bookId: "book-0", title: "The Lantern Keeper" } });
   await flushPromises();
   await wrapper.get('[aria-label="Export audiobook"]').trigger("click");
   await flushPromises();
@@ -293,8 +291,7 @@ it("pauses and resumes whole-book preparation", async () => {
   await mock.prepareBook({ bookId: "book-0" });
   await flushPromises();
   const paused = vi.spyOn(mock, "setPreparePaused");
-  const wrapper = mount(BookToolsSheet);
-  await wrapper.get('[role="tab"][aria-controls="book-tools-voice"]').trigger("click");
+  const wrapper = mount(NarrationDialog, { props: { bookId: "book-0", title: "The Lantern Keeper" } });
   await flushPromises();
   await wrapper.get('[aria-label="Pause preparing"]').trigger("click");
   await flushPromises();

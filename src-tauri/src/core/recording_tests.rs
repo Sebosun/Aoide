@@ -731,18 +731,27 @@ async fn the_synced_part_plays_while_the_rest_is_still_syncing() {
     assert_eq!(partial.stage, Stage::Transcribing);
     assert!(partial.transcribed_ms < 400_000, "{partial:?}");
     assert!(partial.listenable, "what is synced so far can be heard");
-    assert!(!partial.narrates, "not chosen yet");
-
-    f.core
-        .set_narration(&f.id, Narration::Recording)
-        .await
-        .expect("a recording can be listened to while it syncs");
-    assert!(f.core.recording(&f.id).unwrap().narrates);
+    // Nothing was chosen: whoever paired an audiobook wants to hear it.
+    assert!(partial.narrates, "the recording narrates by default");
     assert_eq!(
         f.events.payloads(CoreEvent::SYNC_STATE).last().unwrap()["narrates"],
         true,
         "the views are told"
     );
+
+    f.core
+        .set_narration(&f.id, Narration::Speech)
+        .await
+        .unwrap();
+    assert!(
+        !f.core.recording(&f.id).unwrap().narrates,
+        "speech, once chosen, stays"
+    );
+    f.core
+        .set_narration(&f.id, Narration::Recording)
+        .await
+        .expect("a recording can be listened to while it syncs");
+    assert!(f.core.recording(&f.id).unwrap().narrates);
     f.core.play(&f.id, Some(0), None).await.unwrap();
     until("the synced first chapter to play", || {
         let state = f.core.player_state();
@@ -1139,6 +1148,11 @@ fn two_audiobooks(f: &Fixture, second_reads: bool) -> (PathBuf, PathBuf) {
 }
 
 fn search(f: &Fixture, verify: bool) {
+    // The test recordings are seconds long, far below an audiobook's size.
+    f.core
+        .audiobooks
+        .min_audiobook_bytes
+        .store(0, std::sync::atomic::Ordering::Relaxed);
     let mut settings = f.core.app_settings();
     settings.audiobooks.roots = vec![f.root.join("Audiobooks").to_string_lossy().into_owned()];
     settings.verify_audiobooks = verify;

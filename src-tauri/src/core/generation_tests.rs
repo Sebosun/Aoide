@@ -375,4 +375,15 @@ async fn a_failed_segment_is_reported() {
     })
     .await;
     assert!(last_generation(&events)["generatingSegmentId"].is_null());
+    // The player says what happened; Settings has the whole error.
+    assert_eq!(
+        last_generation(&events)["error"],
+        "The speech engine is unavailable"
+    );
+    let problems = core.speech_problems();
+    assert_eq!(problems[0].message, "The speech engine is unavailable");
+    assert!(
+        problems[0].detail.contains("the engine fell over"),
+        "{problems:?}"
+    );
 }

@@ -12,7 +12,6 @@ import { prepareChapter } from "@/preparation";
 
 /** Lines mode, for listening from across the room: the spoken sentence large, filling word by
  *  word, with the sentences around it at reading size. */
-const emit = defineEmits<{ tools: [] }>();
 const reader = useReaderStore(),
   player = usePlayerStore(),
   library = useLibraryStore(),
@@ -126,7 +125,7 @@ const play = (segment: SegmentView) => {
         </p>
       </TransitionGroup>
     </div>
-    <PlayerTransport class="reader-lines__transport" @tools="emit('tools')" />
+    <PlayerTransport class="reader-lines__transport" />
   </section>
 </template>
 

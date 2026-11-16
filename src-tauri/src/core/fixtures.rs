@@ -1503,6 +1503,10 @@ async fn scenarios_for_the_ui_mock() {
     let (core, found_renames) = preview_library(found_dir.path()).await;
     let [tide, glass] = preview_folders(found_dir.path());
     let folder = |name: &str| found_dir.path().join(name).to_string_lossy().into_owned();
+    // The preview's audiobooks are short real recordings, far below an audiobook's size.
+    core.audiobooks
+        .min_audiobook_bytes
+        .store(0, std::sync::atomic::Ordering::Relaxed);
     core.update_app_settings(super::AppSettingsPatch {
         metadata_lookup: Some(true),
         scan: Some(super::discovery::ScanSettings {

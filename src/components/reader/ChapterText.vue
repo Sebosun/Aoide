@@ -56,7 +56,7 @@ const chapterMissing = computed(
   <article class="chapter-text" aria-label="Chapter text">
     <p v-if="chapterMissing" class="chapter-text__missing" role="note">
       This chapter is not in the recording, so playing skips it. To hear it, turn on
-      <strong>Speak what the recording lacks</strong> under Narration in the book tools, or choose
+      <strong>Speak what the recording lacks</strong> under Narration at the top of the reader, or choose
       <strong>Speech engine</strong> there.
     </p>
     <slot name="before" />

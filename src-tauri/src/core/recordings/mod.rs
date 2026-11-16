@@ -544,7 +544,7 @@ impl Recordings {
         let position = state.position(id);
         let listenable = live.is_some_and(Live::listenable);
         drop(state);
-        let narrates = listenable && host.narration(id) == Some(Narration::Recording);
+        let narrates = listenable && Narration::prefers_recording(host.narration(id));
         Some(RecordingView {
             book_id: id.to_owned(),
             stage,

@@ -145,7 +145,10 @@ pub enum WorkerEvent {
     },
     Failed {
         job: Job,
+        /// What went wrong, said for people ("The speech engine is unavailable").
         error: String,
+        /// The whole error, for the log and the list of problems in Settings.
+        detail: String,
     },
     /// The job's key was forgotten while it was being made: the result was dropped unstored.
     Discarded(Job),
@@ -388,8 +391,11 @@ async fn run(
             storing.send_replace(true);
         }
         let outcome = match synthesis {
-            Ok(synthesis) => store.store(&item.job, synthesis).await,
-            Err(error) => Err(error.to_string()),
+            Ok(synthesis) => store
+                .store(&item.job, synthesis)
+                .await
+                .map_err(|error| ("Could not keep the audio that was made".to_owned(), error)),
+            Err(error) => Err((error.summary().to_owned(), error.to_string())),
         };
         storing.send_replace(false);
         let took_ms = started.elapsed().as_millis() as u64;
@@ -413,7 +419,7 @@ async fn run(
                 reason = ?item.job.reason,
                 took_ms,
                 outcome = "failed",
-                %error,
+                error = %error.1,
                 "Making audio failed"
             ),
         }
@@ -433,7 +439,7 @@ async fn run(
                     duration_ms,
                 });
             }
-            Err(error) => {
+            Err((error, detail)) => {
                 let at = Instant::now();
                 backoff = backoff.next(BackoffEvent::Failed { at }, &options);
                 if let Backoff::Waiting { streak, until } = backoff {
@@ -449,6 +455,7 @@ async fn run(
                 let _ = events.send(WorkerEvent::Failed {
                     job: item.job,
                     error,
+                    detail,
                 });
             }
         }

@@ -84,13 +84,16 @@ it("shows the book on the left with a chapter picker", async () => {
 it("has the full transport, and switches back to the page", async () => {
   const wrapper = await lines();
   const transport = wrapper.get('[aria-label="Player"]');
-  for (const label of ["Previous chapter", "Play", "Next chapter", "Add bookmark", "Book tools", "Stop"])
+  for (const label of ["Previous chapter", "Play", "Next chapter", "Stop"])
     expect(transport.find(`[aria-label="${label}"]`).exists(), label).toBe(true);
+  // Bookmarks and the book tools are at the top of the reader, once.
+  for (const label of ["Add bookmark", "Book tools"])
+    expect(transport.find(`[aria-label="${label}"]`).exists(), label).toBe(false);
   expect(transport.find('[aria-label="Playback speed"][aria-haspopup="listbox"]').exists()).toBe(true);
   expect(transport.find('[aria-label="Sleep timer"][aria-haspopup="listbox"]').exists()).toBe(true);
   expect(transport.find('button[aria-label="Volume"]').exists()).toBe(true);
   expect(transport.find('[role="slider"]').exists()).toBe(true);
-  await transport.get('[aria-label="Book tools"]').trigger("click");
+  await wrapper.get('[aria-label="Bookmarks and details"]').trigger("click");
   await flushPromises();
   expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
   await wrapper.get('[role="dialog"]').trigger("keydown", { key: "Escape" });
