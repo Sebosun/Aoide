@@ -73,6 +73,7 @@ mod reading;
 pub use reading::{ReadState, ReadingMode, Shape};
 mod recording;
 mod recordings;
+mod resuming;
 mod settings;
 mod signin;
 mod sites;
