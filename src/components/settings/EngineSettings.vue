@@ -13,6 +13,7 @@ import SettingsNote from "@/components/settings/SettingsNote.vue";
 import SettingsActions from "@/components/settings/SettingsActions.vue";
 import VoicePreview from "@/components/settings/VoicePreview.vue";
 import SpeechProblems from "@/components/settings/SpeechProblems.vue";
+import NarrationPauses from "@/components/settings/NarrationPauses.vue";
 import { usePlayerStore } from "@/stores/player";
 
 /** The speech engine profile. Edits stay a draft (which Preview speaks with) until saved. */
@@ -305,7 +306,8 @@ async function save() {
 
     <SettingsActions label="Save engine" :busy="saving" :message="message" :error="error" />
   </form>
-  <SpeechProblems class="engine-settings__problems" />
+  <NarrationPauses class="engine-settings__apart" />
+  <SpeechProblems class="engine-settings__apart" />
 </template>
 
 <style scoped>
@@ -314,7 +316,7 @@ async function save() {
   gap: var(--space-11);
 }
 /* Set apart from the form above it, as one settings section is from the next. */
-.engine-settings__problems {
+.engine-settings__apart {
   margin-top: var(--space-11);
   padding-top: var(--space-11);
   border-top: 1px solid var(--line);

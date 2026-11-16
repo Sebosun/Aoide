@@ -421,8 +421,10 @@ segment of a block gets `paragraph_pause_ms`; a segment before a scene break get
 and 700, each 0–3000. They reach `from_parsed` as `SegmentOptions`, the way `read_notes`
 does. Changing them unloads every book model the shelf holds, restarts the session of the book
 being listened to and re-plans. Settings ›
-Speech engine: three sliders and a **Hear it** button that plays two short paragraphs with the
-current values through the preview path.
+Speech engine: three sliders and a **Hear it** button that plays short paragraphs with the
+current values through the preview path. (Built: three paragraphs, the third after a rule, so
+both the paragraph and the scene-break pause are heard; `Core::preview_pauses`, command
+`preview_pauses`, saves and caches nothing.)
 
 **Durations.** Estimates of listening time include the pauses (they already include silent
 entries).

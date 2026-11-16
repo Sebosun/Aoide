@@ -1174,3 +1174,34 @@ async fn a_pause_changed_replans_the_book_listened_to_without_asking_for_speech_
     assert_eq!(core.app_settings().pauses, longer);
     core.stop();
 }
+
+#[tokio::test]
+async fn hearing_the_pauses_says_three_short_paragraphs_with_the_pauses_on_screen_between_them() {
+    use super::settings::PauseSettings;
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events) = start(dir.path(), &engine);
+    let pauses = PauseSettings {
+        paragraph_ms: 500,
+        break_ms: 1000,
+        heading_ms: 3000,
+    };
+
+    let wav = core.preview_pauses(pauses).await.unwrap();
+
+    let said: Vec<String> = engine.requests().into_iter().map(|r| r.text).collect();
+    assert_eq!(said.len(), 3, "{said:?}");
+    assert!(
+        engine.requests().iter().all(|r| r.voice_id == "Test.wav"),
+        "in the voice books are read in"
+    );
+    let audio = aoide_tts::decode_wav(&wav).unwrap();
+    // The fake engine says each paragraph in 300 ms; the last is followed by nothing.
+    assert_eq!(audio.duration_ms(), 3 * 300 + 500 + 1000);
+    assert_eq!(
+        core.app_settings().pauses,
+        PauseSettings::default(),
+        "hearing saves nothing"
+    );
+}

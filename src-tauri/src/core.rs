@@ -115,7 +115,7 @@ mod tests;
 pub use error::CoreError;
 use preparation::Plan;
 pub use preparation::{PrepareView, Stage as PrepareStage};
-pub use settings::{AlignerSettings, AppSettings, AppSettingsPatch};
+pub use settings::{AlignerSettings, AppSettings, AppSettingsPatch, PauseSettings};
 
 use crate::book::{BookModel, ChapterSummary, ExcludedView};
 

@@ -132,6 +132,40 @@ it("previews the chosen voice with the unsaved engine settings", async () => {
   wrapper.unmount();
 });
 
+it("sets the pauses between paragraphs, at scene breaks and after headings, and hears them before saving", async () => {
+  const hear = vi.spyOn(mock, "previewPauses");
+  const save = vi.spyOn(mock, "updateAppSettings");
+  const wrapper = mount(SettingsDialog, { attachTo: document.body });
+  await flushPromises();
+  await wrapper
+    .findAll('[role="tab"]')
+    .find((t) => t.text() === "Speech engine")!
+    .trigger("click");
+  await flushPromises();
+  const slider = (label: string) => wrapper.get(`[aria-label="${label}"]`).element as HTMLInputElement;
+  expect(slider("Pause between paragraphs").value).toBe("250");
+  expect(slider("Pause at a scene break").value).toBe("1200");
+  expect(slider("Pause after a heading").value).toBe("700");
+  expect(wrapper.text()).toContain("1.2 s");
+
+  await wrapper.get('[aria-label="Pause between paragraphs"]').setValue("600");
+  expect(wrapper.text()).toContain("600 ms");
+  await wrapper.get('[aria-label="Hear the pauses"]').trigger("click");
+  await flushPromises();
+  expect(hear).toHaveBeenCalledWith({ pauses: { paragraphMs: 600, breakMs: 1200, headingMs: 700 } });
+  expect(play).toHaveBeenCalled();
+  expect(save).not.toHaveBeenCalled();
+
+  await wrapper
+    .findAll('button[type="submit"]')
+    .find((b) => b.text() === "Save pauses")!
+    .trigger("click");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ patch: { pauses: { paragraphMs: 600, breakMs: 1200, headingMs: 700 } } });
+  expect((await mock.appSettings()).pauses.paragraphMs).toBe(600);
+  wrapper.unmount();
+});
+
 it("previews a book's own voice from book tools", async () => {
   await useReaderStore().open("book-0");
   const preview = vi.spyOn(mock, "previewVoice");

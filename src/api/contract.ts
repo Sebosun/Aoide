@@ -1399,6 +1399,11 @@ export type Commands = {
    * The WAV goes back as raw bytes (an ArrayBuffer in the UI), not as a JSON number array.
    */
   "preview_voice": { args: { profile: EngineProfile; voiceId?: string | null; params: { [key in string]: ParamValue }; language?: string | null }; result: ArrayBuffer };
+  /**
+   * Says a few short paragraphs in the voice books are read in, with `pauses` (as on screen,
+   * saved or not) between them, and returns a WAV file as raw bytes.
+   */
+  "preview_pauses": { args: { pauses: PauseSettings }; result: ArrayBuffer };
   /** Validates and activates a profile; regenerates upcoming audio with it. */
   "save_engine_profile": { args: { profile: EngineProfile }; result: void };
   /** Queue whole-book generation (progress arrives via BookSummary.prepare + library://changed). */
@@ -1694,6 +1699,11 @@ export interface CommandApi {
    * The WAV goes back as raw bytes (an ArrayBuffer in the UI), not as a JSON number array.
    */
   previewVoice(args: { profile: EngineProfile; voiceId?: string | null; params: { [key in string]: ParamValue }; language?: string | null }): Promise<ArrayBuffer>;
+  /**
+   * Says a few short paragraphs in the voice books are read in, with `pauses` (as on screen,
+   * saved or not) between them, and returns a WAV file as raw bytes.
+   */
+  previewPauses(args: { pauses: PauseSettings }): Promise<ArrayBuffer>;
   /** Validates and activates a profile; regenerates upcoming audio with it. */
   saveEngineProfile(args: { profile: EngineProfile }): Promise<void>;
   /** Queue whole-book generation (progress arrives via BookSummary.prepare + library://changed). */
@@ -1843,6 +1853,7 @@ export const COMMANDS = {
   engineOptions: "engine_options",
   engineVoices: "engine_voices",
   previewVoice: "preview_voice",
+  previewPauses: "preview_pauses",
   saveEngineProfile: "save_engine_profile",
   prepareBook: "prepare_book",
   prepareChapter: "prepare_chapter",

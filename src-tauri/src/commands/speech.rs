@@ -81,6 +81,18 @@ pub async fn preview_voice(
     Ok(tauri::ipc::Response::new(wav))
 }
 
+/// Says a few short paragraphs in the voice books are read in, with `pauses` (as on screen,
+/// saved or not) between them, and returns a WAV file as raw bytes.
+#[tauri::command]
+pub async fn preview_pauses(
+    core: CoreState<'_>,
+    pauses: crate::core::PauseSettings,
+) -> Result<tauri::ipc::Response, CoreError> {
+    let core = Arc::clone(&core);
+    let wav = core.preview_pauses(pauses).await?;
+    Ok(tauri::ipc::Response::new(wav))
+}
+
 /// Validates and activates a profile; regenerates upcoming audio with it.
 #[tauri::command]
 pub async fn save_engine_profile(

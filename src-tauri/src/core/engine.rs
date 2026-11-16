@@ -17,6 +17,26 @@ use super::engine_process::{Answer, FailureKind, ServerState, ServerView, Stoppe
 use super::voicing::{fallback_voice, Voicing};
 use super::{lock, BookSettings, CoreEvent, EngineOptions, EngineState, EngineStatusView, Events};
 
+/// Appends `audio` to `said` (at `said`'s rate, the first audio's), then `pause_ms` of silence.
+fn follow_with(said: &mut aoide_tts::Synthesis, audio: aoide_tts::Synthesis, pause_ms: u32) {
+    if said.sample_rate == 0 {
+        said.sample_rate = audio.sample_rate;
+    }
+    let rate = said.sample_rate;
+    let samples = if audio.sample_rate == rate {
+        audio.samples
+    } else {
+        let pcm = aoide_audio::Pcm {
+            sample_rate: audio.sample_rate,
+            samples: audio.samples,
+        };
+        aoide_audio::resample(&pcm, rate).samples
+    };
+    said.samples.extend(samples);
+    let silence = (u64::from(pause_ms) * u64::from(rate) / 1000) as usize;
+    said.samples.resize(said.samples.len() + silence, 0.0);
+}
+
 /// Spoken by a voice preview.
 const PREVIEW_TEXT: &str =
     "The lantern swung gently as the little boat drifted home across the quiet harbour.";
@@ -403,6 +423,20 @@ impl Engine {
         params: Params,
         language: Option<String>,
     ) -> Result<Vec<u8>, String> {
+        let lines = [(PREVIEW_TEXT.to_owned(), 0)];
+        self.say(profile, voice_id, params, language, &lines).await
+    }
+
+    /// Says each line in turn, each followed by its silence in milliseconds, as one WAV file;
+    /// otherwise as [`Engine::preview`].
+    pub async fn say(
+        &self,
+        profile: EngineProfile,
+        voice_id: Option<String>,
+        params: Params,
+        language: Option<String>,
+        lines: &[(String, u32)],
+    ) -> Result<Vec<u8>, String> {
         self.want();
         let engine = self.registry.create(&profile).map_err(|e| e.to_string())?;
         let descriptor = engine.descriptor().clone();
@@ -429,13 +463,20 @@ impl Engine {
             language.as_deref(),
             fallback.as_deref(),
             None, // The settings form previews exactly the voice it names.
-        )?
-        .request(PREVIEW_TEXT.into(), 0);
-        let audio = engine
-            .synthesize(&request)
-            .await
-            .map_err(|e| e.to_string())?;
-        aoide_tts::encode_wav(&audio).map_err(|e| e.to_string())
+        )?;
+        let mut said = aoide_tts::Synthesis {
+            sample_rate: 0,
+            samples: Vec::new(),
+            word_timings: None,
+        };
+        for (text, pause_ms) in lines {
+            let audio = engine
+                .synthesize(&request.request(text.clone(), 0))
+                .await
+                .map_err(|e| e.to_string())?;
+            follow_with(&mut said, audio, *pause_ms);
+        }
+        aoide_tts::encode_wav(&said).map_err(|e| e.to_string())
     }
 
     fn set_status(&self, status: EngineStatusView) {
@@ -593,6 +634,42 @@ impl super::Core {
         }
         self.engine
             .preview(profile, voice_id, params, language)
+            .await
+    }
+
+    /// Says a few short paragraphs in the voice books are read in, with `pauses` between them
+    /// (a paragraph's, then a scene break's), as one WAV file. Nothing is saved or cached.
+    pub async fn preview_pauses(
+        &self,
+        pauses: super::settings::PauseSettings,
+    ) -> Result<Vec<u8>, String> {
+        let profile = self.engine.profile();
+        if profile.launch.is_some() {
+            self.speech_server.want();
+            self.wait_for_speech_server().await?;
+        }
+        let block = |text: &str, break_before| aoide_text::Block {
+            kind: aoide_text::BlockKind::Paragraph,
+            text: text.into(),
+            break_before,
+        };
+        let blocks = [
+            block(
+                "The ferry left before dawn. Nobody on the quay waved.",
+                false,
+            ),
+            block("By noon the island was a grey line behind us.", false),
+            block("Three summers passed before I went back.", true),
+        ];
+        let segments = aoide_text::segment_chapter(0, &blocks, &pauses.segment_options());
+        let last = segments.len().saturating_sub(1);
+        let lines: Vec<(String, u32)> = segments
+            .into_iter()
+            .enumerate()
+            .map(|(i, s)| (s.speech, if i == last { 0 } else { s.pause_after_ms }))
+            .collect();
+        self.engine
+            .say(profile, None, Params::default(), None, &lines)
             .await
     }
 

@@ -9,9 +9,9 @@ export interface PreviewRequest {
   language: string | null;
 }
 
-/** Plays a voice sample for engine settings that may not be saved yet. Samples are cached per
- *  request while the component lives, and playback stops when it unmounts. */
-export function useVoicePreview() {
+/** Plays short WAV samples the core makes. Each is cached by its key while the component lives,
+ *  and playback stops when it unmounts. */
+export function useSample() {
   const state = ref<"idle" | "loading" | "playing">("idle"),
     error = ref("");
   const cache = new Map<string, string>();
@@ -23,17 +23,15 @@ export function useVoicePreview() {
     audio = null;
     state.value = "idle";
   }
-  async function play({ profile, voiceId, params, language }: PreviewRequest) {
+  async function play(key: string, make: () => Promise<ArrayBuffer>) {
     stop();
-    const id = request,
-      plain = JSON.parse(JSON.stringify(profile)) as EngineProfile;
-    const key = JSON.stringify([plain, voiceId, params, language]);
+    const id = request;
     error.value = "";
     state.value = "loading";
     try {
       let url = cache.get(key);
       if (!url) {
-        const wav = await api.previewVoice({ profile: plain, voiceId, params: { ...params }, language });
+        const wav = await make();
         url = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
         cache.set(key, url);
       }
@@ -56,4 +54,16 @@ export function useVoicePreview() {
     cache.forEach((url) => URL.revokeObjectURL(url));
   });
   return { state, error, play, stop };
+}
+
+/** Plays a voice sample for engine settings that may not be saved yet. */
+export function useVoicePreview() {
+  const sample = useSample();
+  function play({ profile, voiceId, params, language }: PreviewRequest) {
+    const plain = JSON.parse(JSON.stringify(profile)) as EngineProfile;
+    return sample.play(JSON.stringify([plain, voiceId, params, language]), () =>
+      api.previewVoice({ profile: plain, voiceId, params: { ...params }, language }),
+    );
+  }
+  return { ...sample, play };
 }
