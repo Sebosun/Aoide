@@ -54,7 +54,6 @@ sha2 = "0.10"
 toml = "1"
 rayon = "1"
 reflink-copy = "0.1"
-souvlaki = { version = "0.8.3", default-features = false, features = ["use_zbus"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
@@ -75,3 +74,10 @@ quote = "1"
 syn = { version = "2", features = ["full"] }
 tempfile = "3"
 ts-rs = { version = "12.0.1", features = ["no-serde-warnings"] }
+
+# Media keys: MPRIS served directly on Linux, souvlaki elsewhere.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = "5"
+
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+souvlaki = "0.8.3"

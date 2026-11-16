@@ -122,6 +122,8 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `reading.mode` | info | `book`, `from`, `to` | `core/reading.rs` `choose_mode`, a book switched between read and listen |
 | `reading.state` | info | `book`, `from`, `to` | `core/reading.rs` `Reading::apply`, unread / in progress / finished |
 | `reading.save` | warn | `kind`, `error`, `repeat` (reported) | `core/reading.rs`, storing reading time |
+| `media.start` | warn | `error` | `media/mpris.rs` `spawn`, when the session bus is unavailable (no media keys) |
+| `media.update` | warn | `error` | `media/mpris.rs`, telling the desktop what plays |
 | `metadata.lookup` | warn | `book`, `outcome`, `error` | `core/discovery.rs` |
 | `metadata.apply` | warn | `book`, `error` | `core/discovery.rs` |
 | `http` | debug, warn | `service`, `op`, `found`, `took_ms`, `outcome`, `error` | `core/metadata.rs` (Open Library) |

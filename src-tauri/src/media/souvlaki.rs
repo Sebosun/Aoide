@@ -1,36 +1,22 @@
-//! OS media controls (MPRIS on Linux): media keys, desktop "now playing" widgets.
+//! Media controls through `souvlaki` (macOS, Windows).
 
-use crate::core::PlaybackStatus;
 use std::sync::mpsc::{channel, Sender};
-use std::sync::{Arc, Weak};
+use std::sync::Weak;
 
 use souvlaki::{MediaControlEvent, MediaControls, MediaMetadata, MediaPlayback, PlatformConfig};
 
-use crate::core::Core;
+use super::{handle, Control, MediaUpdate};
+use crate::core::{Core, PlaybackStatus};
 
-pub enum MediaUpdate {
-    Playback(PlaybackStatus),
-    Metadata {
-        title: String,
-        album: String,
-        artist: String,
-        cover: Option<String>,
-    },
-}
-
-/// Starts the media-controls thread. Returns `None` when the platform service is unavailable.
-pub fn spawn(core: &Arc<Core>) -> Option<Sender<MediaUpdate>> {
-    let weak: Weak<Core> = Arc::downgrade(core);
+pub fn spawn(core: Weak<Core>) -> Option<Sender<MediaUpdate>> {
     let (tx, rx) = channel::<MediaUpdate>();
     let (ready_tx, ready_rx) = channel::<bool>();
     std::thread::Builder::new()
         .name("aoide-media".into())
         .spawn(move || {
-            // Per-process name (MPRIS convention) so a second instance cannot clash.
-            let dbus_name = format!("aoide.instance{}", std::process::id());
             let config = PlatformConfig {
                 display_name: "Aoide",
-                dbus_name: &dbus_name,
+                dbus_name: "aoide",
                 hwnd: None,
             };
             let Ok(mut controls) = MediaControls::new(config) else {
@@ -38,8 +24,17 @@ pub fn spawn(core: &Arc<Core>) -> Option<Sender<MediaUpdate>> {
                 return;
             };
             let attached = controls.attach(move |event| {
-                if let Some(core) = weak.upgrade() {
-                    handle(core, event);
+                let control = match event {
+                    MediaControlEvent::Play => Control::Play,
+                    MediaControlEvent::Pause => Control::Pause,
+                    MediaControlEvent::Toggle => Control::Toggle,
+                    MediaControlEvent::Stop => Control::Stop,
+                    MediaControlEvent::Next => Control::Next,
+                    MediaControlEvent::Previous => Control::Previous,
+                    _ => return,
+                };
+                if let Some(core) = core.upgrade() {
+                    handle(core, control);
                 }
             });
             let _ = ready_tx.send(attached.is_ok());
@@ -75,26 +70,4 @@ pub fn spawn(core: &Arc<Core>) -> Option<Sender<MediaUpdate>> {
         })
         .ok()?;
     ready_rx.recv().ok().filter(|ok| *ok).map(|_| tx)
-}
-
-fn handle(core: Arc<Core>, event: MediaControlEvent) {
-    match event {
-        MediaControlEvent::Play => {
-            let _ = core.resume();
-        }
-        MediaControlEvent::Pause => core.pause(),
-        MediaControlEvent::Toggle => core.toggle(),
-        MediaControlEvent::Stop => core.stop(),
-        MediaControlEvent::Next => {
-            tauri::async_runtime::spawn(async move {
-                let _ = core.skip_chapter(1).await;
-            });
-        }
-        MediaControlEvent::Previous => {
-            tauri::async_runtime::spawn(async move {
-                let _ = core.skip_chapter(-1).await;
-            });
-        }
-        _ => {}
-    }
 }
