@@ -37,9 +37,16 @@ function show() {
   keyboard.value = false;
   open.value = true;
 }
+/** Where the focus goes back to when the list closes: the button, or for a list opened from
+ *  outside, where the focus was (nowhere: the page). */
+let returnTo: Element | null = null;
 function close(refocus = false) {
   open.value = false;
-  if (refocus) button.value?.focus();
+  const back = returnTo;
+  returnTo = null;
+  if (!refocus) return;
+  if (!back) button.value?.focus();
+  else if (back !== document.body && back.isConnected) (back as HTMLElement).focus?.();
 }
 function pick(i: number) {
   if (!enabled(i)) return;
@@ -135,8 +142,15 @@ onUnmounted(() => {
   document.removeEventListener("pointerdown", outside);
   clearTimeout(typedTimer);
 });
-/** `show` opens the list from outside (a keyboard shortcut), with the focus in it. */
-defineExpose({ show });
+/** `show` opens the list from outside (a keyboard shortcut), with the focus in it until it
+ *  closes, when it goes back where it was. */
+defineExpose({
+  show() {
+    if (open.value) return;
+    returnTo = document.activeElement;
+    show();
+  },
+});
 </script>
 
 <template>

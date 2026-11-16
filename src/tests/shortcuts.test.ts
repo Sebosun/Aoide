@@ -305,6 +305,23 @@ it("opens the sleep timer menu with T, in the library and in the reader", async 
   wrapper.unmount();
 });
 
+it("gives the focus back where it was when the sleep timer menu closes, so Space plays again", async () => {
+  const wrapper = await pausedOnABook();
+  const menu = () => document.querySelector('[role="listbox"][aria-label="Sleep timer"]');
+  press("t");
+  await flushPromises();
+  expect(menu()).not.toBeNull();
+  press("Escape");
+  await flushPromises();
+  expect(menu()).toBeNull();
+  // Not on the unseen button the menu belongs to.
+  expect(document.activeElement).toBe(document.body);
+  expect(press(" ").defaultPrevented).toBe(true);
+  await flushPromises();
+  expect(usePlayerStore().state.status).toBe("playing");
+  wrapper.unmount();
+});
+
 it("opens the sleep timer menu with T while reading another book silently", async () => {
   const wrapper = await pausedOnABook();
   await useReaderStore().open("book-1");
