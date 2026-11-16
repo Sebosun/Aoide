@@ -439,9 +439,9 @@ None new (a settings change is already logged).
 - Paragraphs are audibly separated at the default settings.
 - Changing a pause makes no audio again.
 
-### Open questions
+### Settled
 
-- Per-book pauses (poetry wants more)? The plan says global only.
+- Pauses are global only, not per book (plan's default).
 
 ---
 
@@ -529,7 +529,7 @@ A voice per character. It needs speaker attribution, which no deterministic rule
 wanted later, it builds on `Role` becoming `Role::Speaker(id)` and a per-book cast list filled
 in by hand.
 
-### Open questions
+### Settled
 
-- Inner thoughts in italics: a third role? Not planned.
-- Should the short-span threshold be a setting? The plan says a constant.
+- Inner thoughts in italics get no third role (plan's default).
+- The short-span threshold is a constant, not a setting (plan's default).
