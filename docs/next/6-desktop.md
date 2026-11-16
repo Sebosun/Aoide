@@ -558,6 +558,8 @@ The rules, each one a row of the table-driven test:
 - `Stopping` + `Exited` → `then`. `Stopping` + `Tick` at or after `kill_at` → `Kill` (same
   state; the `Exited` that follows finishes it).
 - `Failed` + `RetryChosen` → `Stopped { Retry }`, and the want that follows launches.
+- `Failed` + `Answered(Ready | Loading)` → `External`. A server the user started by hand after
+  ours failed is used, and generation is no longer held back.
 - `External` + `Answered(Offline)` → `Stopped { Never }`. The other program went away, so ours
   may start on the next want.
 - `Switched { same_launch: false }` from `Starting | Running | Waiting` → `Stopping { then:

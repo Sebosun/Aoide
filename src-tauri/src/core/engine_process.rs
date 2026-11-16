@@ -333,10 +333,12 @@ pub fn next(state: Server, event: ServerEvent, ctx: &Ctx) -> (Server, ServerActi
         )
     };
     match (state, event) {
-        // Never launched over a server that answers: that one is the user's.
-        (Server::Stopped { .. }, E::Answered(Answer::Ready | Answer::Loading)) => {
-            (Server::External, A::None)
-        }
+        // Never launched over a server that answers: that one is the user's. One answering
+        // after ours failed (the user started it by hand) is used too.
+        (
+            Server::Stopped { .. } | Server::Failed { .. },
+            E::Answered(Answer::Ready | Answer::Loading),
+        ) => (Server::External, A::None),
         (Server::Stopped { why }, event @ (E::Wanted | E::Answered(_) | E::Tick))
             if (event == E::Wanted || ctx.wanted)
                 && matches!(
@@ -1879,6 +1881,9 @@ mod tests {
             // Failed.
             ("failed stays failed when wanted", Failed { why: Failure::StartTimedOut }, E::Wanted, quiet(), Failed { why: Failure::StartTimedOut }, A::None),
             ("try again", Failed { why: Failure::StartTimedOut }, E::RetryChosen, quiet(), stopped(StopWhy::Retry), A::None),
+            ("a server started by hand after a failure is used", Failed { why: Failure::Exited(exit(2)) }, E::Answered(Ready), wanted(), External, A::None),
+            ("one loading by hand after a failure is used too", Failed { why: Failure::PortTaken(None) }, E::Answered(Loading), quiet(), External, A::None),
+            ("no answer leaves a failure as it is", Failed { why: Failure::Exited(exit(2)) }, E::Answered(Offline), wanted(), Failed { why: Failure::Exited(exit(2)) }, A::None),
             ("saving the profile clears a failure", Failed { why: Failure::StartTimedOut }, E::Switched { same_launch: true }, quiet(), stopped(StopWhy::Never), A::None),
             // External.
             ("the other program went away", External, E::Answered(Offline), quiet(), stopped(StopWhy::Never), A::None),
