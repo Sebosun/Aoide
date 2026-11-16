@@ -6,6 +6,7 @@ import App from "@/App.vue";
 import { useNavigationStore } from "@/stores/navigation";
 import { usePlayerStore } from "@/stores/player";
 import { SHORTCUTS, keyLabels, matchShortcut } from "@/shortcuts";
+import readme from "@/../README.md?raw";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("@/api", () => ({
@@ -319,4 +320,16 @@ it("shows the list of shortcuts with ?, the same list as Settings › About, and
   await flushPromises();
   expect(wrapper.find('[role="dialog"][aria-label="Keyboard shortcuts"]').exists()).toBe(false);
   wrapper.unmount();
+});
+
+it("lists the same shortcuts in the README as in the app", () => {
+  // A lone backslash would escape the tag after it in Markdown.
+  const kbd = (key: string) => `<kbd>${key.replace("\\", "\\\\")}</kbd>`;
+  const rows = SHORTCUTS.map(
+    (shortcut) =>
+      `| ${shortcut.keys.map((combo) => keyLabels(combo).map(kbd).join(" ")).join(" / ")} | ${shortcut.label} |`,
+  );
+  const section = readme.split("### Keyboard shortcuts")[1]?.split("\n## ")[0] ?? "";
+  const table = section.split("\n").filter((line) => line.startsWith("| ") && !/^\| (Keys|---)/.test(line));
+  expect(table).toEqual(rows);
 });

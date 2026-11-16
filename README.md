@@ -234,18 +234,23 @@ Then turn on **Settings → Word highlighting → Exact word timing** with the a
 | <kbd>Shift</kbd> <kbd>←</kbd> / <kbd>Shift</kbd> <kbd>→</kbd> | Previous or next chapter |
 | <kbd>Ctrl</kbd> <kbd>←</kbd> / <kbd>Ctrl</kbd> <kbd>→</kbd> | Back or forward 30 s, or three sentences |
 | <kbd>[</kbd> / <kbd>]</kbd> | Slower or faster by 0.1× |
-| <kbd>\</kbd> | Back to 1× |
+| <kbd>\\</kbd> | Back to 1× |
 | <kbd>Shift</kbd> <kbd>↑</kbd> / <kbd>Shift</kbd> <kbd>↓</kbd> | Volume up or down by 10% |
 | <kbd>M</kbd> | Mute or unmute |
 | <kbd>B</kbd> | Bookmark here |
 | <kbd>T</kbd> | Sleep timer |
 | <kbd>Ctrl</kbd> <kbd>F</kbd> | Search the open book, or the library |
+| <kbd>Ctrl</kbd> <kbd>N</kbd> | Add books or audiobooks |
 | <kbd>Ctrl</kbd> <kbd>,</kbd> | Settings |
-| <kbd>Ctrl</kbd> <kbd>+</kbd> / <kbd>Ctrl</kbd> <kbd>−</kbd> / <kbd>Ctrl</kbd> <kbd>0</kbd> | Larger, smaller, or normal interface size (or <kbd>Ctrl</kbd> + mouse wheel) |
-| <kbd>Esc</kbd> | Close a dialog or menu |
+| <kbd>Ctrl</kbd> <kbd>+</kbd> | Larger interface |
+| <kbd>Ctrl</kbd> <kbd>−</kbd> | Smaller interface |
+| <kbd>Ctrl</kbd> <kbd>0</kbd> | Interface at 100% |
+| <kbd>Esc</kbd> | Close a dialog or menu, or leave the reader |
 | <kbd>?</kbd> | Show this list |
 
-The same list is in **Settings → About**.
+<kbd>Ctrl</kbd> + mouse wheel changes the interface size too. While you type in a field, only the <kbd>Ctrl</kbd> shortcuts for search, Add, Settings and size work (<kbd>Ctrl</kbd> <kbd>←</kbd> / <kbd>→</kbd> move by word as usual), and the player's keys wait while a dialog is open. ↑ and ↓ alone keep scrolling. <kbd>T</kbd> opens the sleep timer's menu in the player, or over the card at the foot of the sidebar.
+
+The same list is in **Settings → About**, and <kbd>?</kbd> shows it anywhere.
 
 ## Where your files live
 
