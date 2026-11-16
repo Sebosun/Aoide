@@ -20,7 +20,7 @@ fn a_version_14_library_whose_articles_lack_a_lead_gains_one() {
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch(
         "ALTER TABLE articles DROP COLUMN lead;
-         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; PRAGMA user_version = 14;",
+         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS segment_takes; PRAGMA user_version = 14;",
     )
     .unwrap();
     drop(conn);
@@ -36,7 +36,7 @@ fn a_version_14_library_that_already_has_a_lead_opens() {
     drop(Library::open(&path).unwrap());
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch(
-        "DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; PRAGMA user_version = 14;",
+        "DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS segment_takes; PRAGMA user_version = 14;",
     )
     .unwrap();
     drop(conn);
@@ -45,7 +45,7 @@ fn a_version_14_library_that_already_has_a_lead_opens() {
     let version: i64 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 16);
+    assert_eq!(version, 17);
     assert!(columns(&conn, "articles").contains(&"lead".to_owned()));
 }
 
@@ -58,7 +58,7 @@ fn a_version_14_library_whose_feeds_lack_failing_since_gains_it() {
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch(
         "ALTER TABLE feeds DROP COLUMN failing_since;
-         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; PRAGMA user_version = 14;",
+         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS segment_takes; PRAGMA user_version = 14;",
     )
     .unwrap();
     drop(conn);

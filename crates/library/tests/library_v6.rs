@@ -140,7 +140,7 @@ fn a_version_5_library_is_upgraded_with_its_books_kept() {
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch(
         "DROP TABLE IF EXISTS sites; DROP TABLE IF EXISTS feed_entries; DROP TABLE IF EXISTS feeds; ALTER TABLE books DROP COLUMN shelf; DROP TABLE IF EXISTS articles; ALTER TABLE books DROP COLUMN kind; ALTER TABLE progress DROP COLUMN position_ms; ALTER TABLE bookmarks DROP COLUMN position_ms; DROP TABLE IF EXISTS reading; ALTER TABLE books DROP COLUMN finished_at; ALTER TABLE books DROP COLUMN word_count; DROP TABLE book_values; DROP TABLE sync_maps; DROP TABLE recording_blocks; DROP TABLE recordings; \
-         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; PRAGMA user_version = 5;",
+         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS segment_takes; PRAGMA user_version = 5;",
     )
     .unwrap();
     drop(conn);

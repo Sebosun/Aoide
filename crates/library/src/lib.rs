@@ -22,6 +22,7 @@ mod segments;
 mod sites;
 mod store;
 mod tags;
+mod takes;
 mod values;
 pub use activity::{ActivityStats, BookActivity, DayActivity};
 pub use articles::ArticleRow;
@@ -34,6 +35,7 @@ pub use recordings::{RecordingRow, StoredSyncMap, TranscriptBlock};
 pub use segments::{AudioUsage, CachedSegment, WordTiming};
 pub use sites::SiteRow;
 pub use tags::{tidy_tags, TagCount, TagSource};
+pub use takes::Takes;
 pub use values::{BookKey, GlobalKey};
 
 /// Lower-case hex SHA-256 of the EPUB file bytes.

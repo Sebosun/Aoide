@@ -263,6 +263,15 @@ const MIGRATIONS: &[Step] = &[
                     PRIMARY KEY (book_id, tag_id)
                 );
                 CREATE INDEX book_tags_tag ON book_tags(tag_id);"),
+    // Version 17.
+    // How many times the user asked for a sentence to be said again, for the text it said then.
+    Step::Sql("CREATE TABLE segment_takes (
+                    book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+                    segment_id TEXT NOT NULL,
+                    speech_hash TEXT NOT NULL,
+                    take INTEGER NOT NULL CHECK(take > 0),
+                    PRIMARY KEY (book_id, segment_id)
+                );"),
 ];
 
 fn add_column_if_missing(
