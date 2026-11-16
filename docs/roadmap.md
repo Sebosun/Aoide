@@ -18,3 +18,12 @@
 - More engine adapters.
 - Audiobook sync, phases 2 and 3 (see [audiobook-sync.md](audiobook-sync.md#phases)): listening while it syncs, an OpenAI-style transcription adapter, exact word timing for recordings, EPUB 3 Media Overlays export.
 - Release builds (AppImage, RPM, DEB) instead of build-from-source only.
+
+## Proposed
+
+Plans for features that are not started, one per feature, with their order and sizes:
+[next/plan.md](next/plan.md). They cover narration (saying a sentence again, a pronunciation
+list, leaving chapters out, pauses, a voice for dialogue), the player, the reader (a selection
+menu, highlights, typography, a dictionary, library-wide search), the library (editing details,
+series, archive, formats, backup), articles and feeds (imports, folders, podcasts) and the
+desktop (open with, notifications, background work, releases).
