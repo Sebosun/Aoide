@@ -155,7 +155,7 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
         if SILENT.contains(&name) {
             continue;
         }
-        if scene_break(node) {
+        if name == "hr" {
             builder.flush();
             builder.after_break = true;
             continue;
@@ -204,17 +204,6 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
         blocks: builder.blocks,
         warnings,
     }
-}
-
-/// A rule, or an element with nothing to read whose class names a scene break.
-fn scene_break(node: NodeRef<'_, Node>) -> bool {
-    let Some(element) = scraper::ElementRef::wrap(node) else {
-        return false;
-    };
-    let value = element.value();
-    value.name() == "hr"
-        || (value.classes().any(aoide_document::names_scene_break)
-            && element.text().all(|text| text.trim().is_empty()))
 }
 
 /// A `pre` element's text as written, without its first line break and trailing blank space.

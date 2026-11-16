@@ -417,8 +417,10 @@ segment of a block gets `paragraph_pause_ms`; a segment before a scene break get
 - An `<hr>` or an element styled as a break: the document model must carry it without adding a
   block, because block indexes are part of segment ids. Add `break_before: bool` to
   `aoide_document::Block`, set by `crates/epub-parser` and `crates/article`. No offsets move.
-  (Built: an empty element counts when a class or `epub:type` token is one of
-  `aoide_document::names_scene_break`'s; a `pagebreak` page marker does not.)
+  (Built: in an EPUB, an empty element counts when a class or `epub:type` token is one of
+  `aoide_document::names_scene_break`'s, and only between lines, never inside running text; a
+  `pagebreak` page marker does not. In an article only a rule counts: the readability pass
+  drops class names.)
 
 A `* * *` block's own silent segment carries the break pause after the paragraph pause of the
 segment before it; a rule gives the segment before it the break pause alone. A footnote read
