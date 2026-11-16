@@ -197,6 +197,11 @@ const items = computed<MenuEntry[]>(() => {
   });
   return list;
 });
+/** An article without a picture shows its text (site, headline, first lines) as its tile; every
+ *  other item shows its picture (cover, drawn art, the article's image) with its title and
+ *  author laid over its foot. */
+const textTile = computed(() => Boolean(article.value) && (!props.book.coverUrl || loading.value));
+const byline = computed(() => props.book.authors.join(", ") || (article.value ? "" : "Unknown author"));
 /** A card is dragged onto a collection in the sidebar to put the item on it. */
 function dragged(event: DragEvent) {
   if (!event.dataTransfer) return;
@@ -220,13 +225,12 @@ function dragged(event: DragEvent) {
       @click="emit('open')"
     >
       <ArticleTile
-        v-if="article"
+        v-if="textTile"
         class="book-card__tile"
         :class="{ 'book-card__tile--loading': loading }"
-        :site="article.siteName ?? book.title"
+        :site="article!.siteName ?? book.title"
         :title="book.title"
-        :lead="article.lead"
-        :image="book.coverUrl"
+        :lead="article!.lead"
         :loading="loading"
       />
       <CoverArt
@@ -235,16 +239,19 @@ function dragged(event: DragEvent) {
         :class="{ 'book-card__cover--square': audiobook }"
         :title="book.title"
         :url="book.coverUrl"
+        :label="false"
         :shape="audiobook ? 'square' : 'portrait'"
       />
       <span v-if="book.kind === 'book' && book.recording" class="book-card__audiobook" title="Has an audiobook"
         ><Headphones :size="13" aria-hidden="true"
       /></span>
     </button>
-    <h3 class="book-card__title" :title="book.title">{{ book.title }}</h3>
-    <span class="book-card__line">{{
-      book.authors.join(", ") || (article ? (article.siteName ?? "\u00a0") : "Unknown author")
-    }}</span>
+    <h3 v-if="textTile" class="book-card__title visually-hidden">{{ book.title }}</h3>
+    <span v-else class="book-card__caption" :class="{ 'book-card__caption--square': audiobook }"
+      ><span v-if="article" class="book-card__kicker">{{ article.siteName ?? "" }}</span>
+      <h3 class="book-card__title" :title="book.title">{{ book.title }}</h3>
+      <span v-if="byline" class="book-card__byline">{{ byline }}</span></span
+    >
     <span class="book-card__track"><i :style="{ width: `${percent}%` }" /></span>
     <span v-if="book.status.kind === 'missing'" class="book-card__badge book-card__badge--warn">File missing</span>
     <template v-else-if="book.status.kind === 'error'"
@@ -300,6 +307,8 @@ function dragged(event: DragEvent) {
 }
 /* A button sizes to its content even as a block: it fills the grid track instead. */
 .book-card__open {
+  grid-row: 1;
+  grid-column: 1;
   position: relative;
   display: block;
   width: 100%;
@@ -308,7 +317,7 @@ function dragged(event: DragEvent) {
 .book-card__audiobook {
   position: absolute;
   top: var(--space-3);
-  right: var(--space-3);
+  left: var(--space-3);
   display: grid;
   place-items: center;
   width: var(--space-12);
@@ -351,10 +360,52 @@ function dragged(event: DragEvent) {
   filter: grayscale(1);
   opacity: 0.35;
 }
+/* Over the foot of the picture, in the button's place in the grid; clicks go through to it. It
+   fades into the page's colour, so it reads in either theme and on any cover. */
+.book-card__caption {
+  grid-row: 1;
+  grid-column: 1;
+  align-self: end;
+  z-index: 1;
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-16) var(--space-6) var(--space-6);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: linear-gradient(
+    transparent,
+    color-mix(in srgb, var(--page) 86%, transparent) 42%,
+    color-mix(in srgb, var(--page) 96%, transparent)
+  );
+  pointer-events: none;
+}
+.book-card--unavailable .book-card__caption {
+  opacity: 0.5;
+}
+.book-card__kicker {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .book-card__title {
-  margin-top: var(--space-2);
+  margin: 0;
   font-size: 14px;
   font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.book-card__byline {
+  color: var(--dim);
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

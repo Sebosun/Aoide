@@ -546,21 +546,30 @@ it("lists articles as their own kind, with a text tile and their fetch on the ca
   }
 });
 
-it("shows an article's image behind its site and headline, and its text tile without one", async () => {
+it("lays every item's title and author over its picture, and keeps an article's text tile without one", async () => {
   mock.dispose();
   mock = createMockApi("?article=ready");
   backend.api = mock;
   const wrapper = await library();
-  const tile = () => wrapper.get(".book-card__tile");
-  expect(tile().find("img").exists()).toBe(false);
-  expect(tile().text()).toContain("Every evening at dusk");
+  const card = (title: string) => wrapper.findAll(".book-card").find((c) => c.text().includes(title))!;
+  // A book, its cover drawn or its own: the caption lies over it, and the drawn art adds no title.
+  const book = card("The Lantern Keeper");
+  const caption = book.get(".book-card__caption");
+  expect(caption.get(".book-card__title").text()).toBe("The Lantern Keeper");
+  expect(caption.get(".book-card__byline").text()).toBe("Mira Vale");
+  expect(book.find(".cover-art__title").exists()).toBe(false);
+
+  // An article without a picture: its text tile says it all.
+  const article = () => wrapper.findAll(".book-card").find((c) => c.find(".book-card__tile").exists())!;
+  expect(article().find(".book-card__caption").exists()).toBe(false);
+  expect(article().get(".book-card__tile").text()).toContain("Every evening at dusk");
+  // With its image, the article is shown like a book: the picture, its site and headline over it.
   useLibraryStore().books.find((b) => b.kind === "article")!.coverUrl = "asset://localhost/article.jpg";
   await flushPromises();
-  expect(tile().classes()).toContain("article-tile--image");
-  expect(tile().get("img").attributes("src")).toBe("asset://localhost/article.jpg");
-  expect(tile().get(".article-tile__headline").text()).toBe("The Quay Lights");
-  // Over a picture the first lines would be hard to read: the headline says enough.
-  expect(tile().find(".article-tile__lead").exists()).toBe(false);
+  const pictured = card("The Quay Lights");
+  expect(pictured.get(".book-card__cover img").attributes("src")).toBe("asset://localhost/article.jpg");
+  expect(pictured.get(".book-card__caption .book-card__title").text()).toBe("The Quay Lights");
+  expect(pictured.get(".book-card__kicker").text()).toBe("Quay Weekly");
   wrapper.unmount();
 });
 
