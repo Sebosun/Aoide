@@ -137,7 +137,14 @@ impl Shelf {
     /// Scans the library folder, importing new books and marking vanished ones missing.
     pub fn rescan(&self) -> Result<(), String> {
         let started = Instant::now();
-        let files = scan_folder(&self.library_dir).map_err(|e| e.to_string())?;
+        let known = lock(&self.library).scanned_files().unwrap_or_else(|error| {
+            tracing::warn!(event = "library.scan", %error, "Could not read the last scan; every file is read again");
+            Vec::new()
+        });
+        let files = scan_folder(&self.library_dir, &known).map_err(|e| e.to_string())?;
+        if let Err(error) = lock(&self.library).store_scanned_files(&files) {
+            tracing::warn!(event = "library.scan", %error, "Could not remember this scan; the next reads every file again");
+        }
         let (mut new, mut read) = (0usize, 0usize);
         let ignored = self.ignored();
         let mut present = Vec::new();

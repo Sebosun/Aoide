@@ -17,6 +17,7 @@ mod feeds;
 mod listening;
 mod merge;
 mod recordings;
+mod scanned;
 mod segments;
 mod sites;
 mod store;
@@ -137,6 +138,10 @@ pub struct Progress {
 pub struct ScannedFile {
     pub path: PathBuf,
     pub id: BookId,
+    /// Its size in bytes, when it was hashed.
+    pub size: u64,
+    /// Its modification time in nanoseconds since the Unix epoch, when it was hashed.
+    pub modified_ns: i64,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -461,7 +466,12 @@ pub fn content_hash(bytes: &[u8]) -> BookId {
 /// Recursively finds `*.epub` files (case-insensitive extension) under `dir`, hashing each.
 /// Hidden files/directories (name starting with '.') are skipped. Results are sorted by path.
 /// Unreadable individual files are skipped; a missing `dir` yields an empty list.
-pub fn scan_folder(dir: &Path) -> Result<Vec<ScannedFile>> {
+/// The EPUBs under `dir` (hidden files and folders left out), by path, each with the id its
+/// content hashes to. A file `known` from an earlier scan, with the same size and modification
+/// time, keeps the id it had there without being read again.
+pub fn scan_folder(dir: &Path, known: &[ScannedFile]) -> Result<Vec<ScannedFile>> {
+    let known: std::collections::HashMap<&Path, &ScannedFile> =
+        known.iter().map(|f| (f.path.as_path(), f)).collect();
     let mut found = Vec::new();
     let entries = walkdir::WalkDir::new(dir)
         .into_iter()
@@ -477,12 +487,28 @@ pub fn scan_folder(dir: &Path) -> Result<Vec<ScannedFile>> {
         {
             continue;
         }
-        if let Ok(bytes) = std::fs::read(entry.path()) {
-            found.push(ScannedFile {
-                path: entry.into_path(),
-                id: content_hash(&bytes),
-            });
-        }
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        let size = metadata.len();
+        let modified_ns = metadata
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_nanos() as i64);
+        let id = match known.get(entry.path()) {
+            Some(was) if was.size == size && was.modified_ns == modified_ns => was.id.clone(),
+            _ => match std::fs::read(entry.path()) {
+                Ok(bytes) => content_hash(&bytes),
+                Err(_) => continue,
+            },
+        };
+        found.push(ScannedFile {
+            path: entry.into_path(),
+            id,
+            size,
+            modified_ns,
+        });
     }
     found.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(found)

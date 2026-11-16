@@ -225,6 +225,14 @@ const MIGRATIONS: &[&str] = &[
     // Audio per book is summed from the index alone, without reading the segments' word times.
     "CREATE INDEX IF NOT EXISTS segments_book_audio ON segments(book_id, bytes, created_at);
                 DROP INDEX IF EXISTS segments_book_id;",
+    // Version 14.
+    // What the last scan of the library folder hashed, so unchanged files are not read again.
+    "CREATE TABLE IF NOT EXISTS library_files (
+                    path TEXT PRIMARY KEY NOT NULL,
+                    book_id TEXT NOT NULL,
+                    size INTEGER NOT NULL,
+                    modified_ns INTEGER NOT NULL
+                );",
 ];
 
 impl Library {

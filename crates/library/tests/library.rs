@@ -268,7 +268,7 @@ fn scan_finds_epubs_recursively_skipping_hidden_and_other_files() {
     std::fs::write(root.join(".hidden/c.epub"), b"c").unwrap();
     std::fs::write(root.join(".d.epub"), b"d").unwrap();
 
-    let found = scan_folder(root).unwrap();
+    let found = scan_folder(root, &[]).unwrap();
     let paths: Vec<PathBuf> = found
         .iter()
         .map(|f| f.path.strip_prefix(root).unwrap().to_path_buf())
@@ -281,9 +281,46 @@ fn scan_finds_epubs_recursively_skipping_hidden_and_other_files() {
 }
 
 #[test]
+fn a_file_unchanged_since_the_last_scan_keeps_its_id_without_being_read_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    std::fs::write(root.join("a.epub"), b"aaa").unwrap();
+    std::fs::write(root.join("b.epub"), b"bbb").unwrap();
+    let mut known = scan_folder(root, &[]).unwrap();
+    // Remember an id the content would not hash to: kept only if the file is not read.
+    known[0].id = BookId("remembered".into());
+
+    let again = scan_folder(root, &known).unwrap();
+    assert_eq!(again[0].id, BookId("remembered".into()));
+    assert_eq!(again[1].id, content_hash(b"bbb"));
+
+    std::fs::write(root.join("a.epub"), b"changed").unwrap();
+    let changed = scan_folder(root, &known).unwrap();
+    assert_eq!(changed[0].id, content_hash(b"changed"));
+}
+
+#[test]
+fn what_a_scan_found_is_remembered_for_the_next() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("a.epub"), b"aaa").unwrap();
+    let found = scan_folder(dir.path(), &[]).unwrap();
+    let lib = Library::open_in_memory().unwrap();
+    assert!(lib.scanned_files().unwrap().is_empty());
+    lib.store_scanned_files(&found).unwrap();
+    assert_eq!(lib.scanned_files().unwrap(), found);
+    lib.store_scanned_files(&[]).unwrap();
+    assert!(
+        lib.scanned_files().unwrap().is_empty(),
+        "replaced, not added to"
+    );
+}
+
+#[test]
 fn scanning_a_missing_folder_yields_nothing() {
     let dir = tempfile::tempdir().unwrap();
-    assert!(scan_folder(&dir.path().join("absent")).unwrap().is_empty());
+    assert!(scan_folder(&dir.path().join("absent"), &[])
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
