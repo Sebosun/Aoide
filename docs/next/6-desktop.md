@@ -564,7 +564,8 @@ The rules, each one a row of the table-driven test:
   Stopped(Switched) }`, and from anything else → `Stopped { Never }`. With `same_launch: true`
   (same launch command and base URL; only a voice or a parameter changed) the server keeps
   running.
-- `Quit` from any state with a process → `Stopping { then: Stopped(Quit) }`.
+- `Quit` from any state with a process → `Stopping { then: Stopped(Quit) }`, and from `Stopped`
+  or `Waiting` → `Stopped { Quit }`, so nothing is launched while Aoide quits.
 
 **"Wanted" for idle** is an input (`ctx.wanted`) from the host, and the core decides it.
 Speech is wanted while generation is busy or has work queued (`Generation::queued`), a book is

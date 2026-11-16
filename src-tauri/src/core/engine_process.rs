@@ -648,7 +648,10 @@ pub fn next(state: Server, event: ServerEvent, ctx: &Ctx) -> (Server, ServerActi
             },
             A::None,
         ),
-        (Server::Waiting { .. }, E::Quit) => (Server::Stopped { why: StopWhy::Quit }, A::None),
+        // Nothing is launched after a quit, however much is still wanted.
+        (Server::Waiting { .. } | Server::Stopped { .. }, E::Quit) => {
+            (Server::Stopped { why: StopWhy::Quit }, A::None)
+        }
 
         (state, _) => (state, A::None),
     }
@@ -1894,7 +1897,8 @@ mod tests {
             // Quit.
             ("quit while running", running(NOW), E::Quit, quiet(), Stopping { pid: 7, kill_at_ms: NOW + t.quit_grace_ms, then: After::Stopped(StopWhy::Quit) }, A::Terminate),
             ("quit while waiting", waiting(1, NOW, 500), E::Quit, quiet(), stopped(StopWhy::Quit), A::None),
-            ("quit while stopped", stopped(StopWhy::Idle), E::Quit, quiet(), stopped(StopWhy::Idle), A::None),
+            ("quit while stopped", stopped(StopWhy::Idle), E::Quit, quiet(), stopped(StopWhy::Quit), A::None),
+            ("nothing is launched after quitting", stopped(StopWhy::Quit), E::Tick, wanted(), stopped(StopWhy::Quit), A::None),
         ];
 
         for (name, state, event, row, expected, action) in rows {
