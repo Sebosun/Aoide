@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { Pause, Play } from "@lucide/vue";
 import CoverArt from "@/components/CoverArt.vue";
+import SleepPill from "@/components/player/SleepPill.vue";
 import { usePlayerControls } from "@/composables/usePlayerControls";
 import { useNavigationStore } from "@/stores/navigation";
 import { useReaderStore } from "@/stores/reader";
@@ -9,7 +10,8 @@ import { useReaderStore } from "@/stores/reader";
 /** What is playing, as a card at the foot of the sidebar: cover, title, a state line and
  *  play/pause. It shows while something is loaded in the player (the sidebar, and so the card,
  *  is not shown in the reader, which has the full transport); clicking it opens the reader on
- *  that book. */
+ *  that book. The sleep timer's menu (the T key) opens over the card: its button lies unseen
+ *  across it, out of the way of the pointer and of Tab. */
 const controls = usePlayerControls();
 const { player, active, book, chapterTitle, timeLeft, toggle, sleepLabel, error } = controls;
 const reader = useReaderStore(),
@@ -58,6 +60,7 @@ async function openReader() {
     >
       <Pause v-if="active" :size="15" fill="currentColor" /><Play v-else :size="15" fill="currentColor" />
     </button>
+    <SleepPill class="mini-player__sleep" tabindex="-1" />
     <span class="mini-player__edge" aria-hidden="true"
       ><i :style="{ width: `${player.state.chapterFraction * 100}%` }"
     /></span>
@@ -123,6 +126,15 @@ async function openReader() {
   border-radius: 50%;
   background: var(--accent);
   color: var(--on-accent);
+}
+/* Over the pill's own size. */
+.mini-player .mini-player__sleep {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  opacity: 0;
+  pointer-events: none;
 }
 .mini-player__edge {
   position: absolute;

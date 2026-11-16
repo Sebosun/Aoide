@@ -231,6 +231,14 @@ Then turn on **Settings → Word highlighting → Exact word timing** with the a
 | --- | --- |
 | <kbd>Space</kbd> | Play or pause |
 | <kbd>←</kbd> / <kbd>→</kbd> | Previous or next sentence |
+| <kbd>Shift</kbd> <kbd>←</kbd> / <kbd>Shift</kbd> <kbd>→</kbd> | Previous or next chapter |
+| <kbd>Ctrl</kbd> <kbd>←</kbd> / <kbd>Ctrl</kbd> <kbd>→</kbd> | Back or forward 30 s, or three sentences |
+| <kbd>[</kbd> / <kbd>]</kbd> | Slower or faster by 0.1× |
+| <kbd>\</kbd> | Back to 1× |
+| <kbd>Shift</kbd> <kbd>↑</kbd> / <kbd>Shift</kbd> <kbd>↓</kbd> | Volume up or down by 10% |
+| <kbd>M</kbd> | Mute or unmute |
+| <kbd>B</kbd> | Bookmark here |
+| <kbd>T</kbd> | Sleep timer |
 | <kbd>Ctrl</kbd> <kbd>F</kbd> | Search the open book, or the library |
 | <kbd>Ctrl</kbd> <kbd>,</kbd> | Settings |
 | <kbd>Ctrl</kbd> <kbd>+</kbd> / <kbd>Ctrl</kbd> <kbd>−</kbd> / <kbd>Ctrl</kbd> <kbd>0</kbd> | Larger, smaller, or normal interface size (or <kbd>Ctrl</kbd> + mouse wheel) |

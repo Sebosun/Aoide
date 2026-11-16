@@ -184,3 +184,121 @@ it("finds each listed shortcut from its keys, so the list and the handler share 
   expect(keyLabels({ key: " " })).toEqual(["Space"]);
   expect(keyLabels({ key: "-", ctrl: true })).toEqual(["Ctrl", "−"]);
 });
+
+/** The keys an audiobook player has, each with the call it makes (from a book paused on 0:1:0
+ *  at 1×, at full volume). */
+const PLAYER_KEYS: { keys: string; key: string; init?: KeyboardEventInit; call: string; with: unknown }[] = [
+  { keys: "Shift →", key: "ArrowRight", init: { shiftKey: true }, call: "skipChapter", with: { delta: 1 } },
+  { keys: "Shift ←", key: "ArrowLeft", init: { shiftKey: true }, call: "skipChapter", with: { delta: -1 } },
+  {
+    keys: "Ctrl →",
+    key: "ArrowRight",
+    init: { ctrlKey: true },
+    call: "play",
+    with: { bookId: "book-0", chapter: 0, segmentId: "0:2:1" },
+  },
+  { keys: "]", key: "]", call: "setSpeed", with: { speed: 1.1 } },
+  { keys: "[", key: "[", call: "setSpeed", with: { speed: 0.9 } },
+  { keys: "\\", key: "\\", call: "setSpeed", with: { speed: 1 } },
+  { keys: "Shift ↓", key: "ArrowDown", init: { shiftKey: true }, call: "setVolume", with: { volume: 0.9 } },
+  { keys: "Shift ↑", key: "ArrowUp", init: { shiftKey: true }, call: "setVolume", with: { volume: 1 } },
+  { keys: "M", key: "m", call: "setVolume", with: { volume: 0 } },
+  { keys: "B", key: "b", call: "addBookmark", with: { bookId: "book-0", note: "" } },
+];
+
+async function pausedOnABook() {
+  const wrapper = await app();
+  await mock.play({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
+  await mock.pause();
+  await flushPromises();
+  return wrapper;
+}
+
+it.each(PLAYER_KEYS)(
+  "$keys makes its call from the library while a book is loaded",
+  async ({ key, init, call, with: args }) => {
+    const wrapper = await pausedOnABook();
+    const spy = vi.spyOn(mock, call as keyof typeof mock);
+    expect(press(key, init).defaultPrevented).toBe(true);
+    await flushPromises();
+    expect(spy).toHaveBeenLastCalledWith(args);
+    wrapper.unmount();
+  },
+);
+
+it.each(PLAYER_KEYS)("$keys does nothing in a text field", async ({ key, init, call }) => {
+  const wrapper = await pausedOnABook();
+  const spy = vi.spyOn(mock, call as keyof typeof mock);
+  wrapper.get<HTMLInputElement>('[aria-label="Search library"]').element.focus();
+  expect(press(key, init).defaultPrevented).toBe(false);
+  await flushPromises();
+  expect(spy).not.toHaveBeenCalled();
+  wrapper.unmount();
+});
+
+it("steps speed by tenths within 0.5× and 3×, and volume by tenths, saying where they are", async () => {
+  const wrapper = await pausedOnABook();
+  const speed = vi.spyOn(mock, "setSpeed"),
+    volume = vi.spyOn(mock, "setVolume");
+  await usePlayerStore().setSpeed(1.25);
+  press("]");
+  await flushPromises();
+  expect(speed).toHaveBeenLastCalledWith({ speed: 1.3 });
+  expect(document.body.textContent).toContain("Speed 1.3×");
+  await usePlayerStore().setSpeed(3);
+  press("]");
+  await flushPromises();
+  expect(speed).toHaveBeenLastCalledWith({ speed: 3 });
+  await usePlayerStore().setSpeed(0.5);
+  press("[");
+  await flushPromises();
+  expect(speed).toHaveBeenLastCalledWith({ speed: 0.5 });
+  // Muting and back, then from silence up a step.
+  press("m");
+  await flushPromises();
+  expect(document.body.textContent).toContain("Muted");
+  press("m");
+  await flushPromises();
+  expect(volume).toHaveBeenLastCalledWith({ volume: 1 });
+  await usePlayerStore().setVolume(0);
+  press("ArrowUp", { shiftKey: true });
+  await flushPromises();
+  expect(volume).toHaveBeenLastCalledWith({ volume: 0.1 });
+  expect(document.body.textContent).toContain("Volume 10%");
+  wrapper.unmount();
+});
+
+it("moves 30 s with Ctrl and the arrows in an audiobook on its own", async () => {
+  const wrapper = await app();
+  await mock.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
+  await mock.play({ bookId: "book-5", chapter: 0, segmentId: null });
+  await mock.pause();
+  await flushPromises();
+  const skip = vi.spyOn(mock, "skip");
+  press("ArrowRight", { ctrlKey: true });
+  await flushPromises();
+  expect(skip).toHaveBeenLastCalledWith({ bookId: "book-5", deltaMs: 30_000 });
+  press("ArrowLeft", { ctrlKey: true });
+  await flushPromises();
+  expect(skip).toHaveBeenLastCalledWith({ bookId: "book-5", deltaMs: -30_000 });
+  wrapper.unmount();
+});
+
+it("opens the sleep timer menu with T, in the library and in the reader", async () => {
+  const wrapper = await pausedOnABook();
+  const menu = () => document.querySelector('[role="listbox"][aria-label="Sleep timer"]');
+  expect(press("t").defaultPrevented).toBe(true);
+  await flushPromises();
+  expect(menu()).not.toBeNull();
+  // Escape on the open menu closes it.
+  press("Escape");
+  await flushPromises();
+  expect(menu()).toBeNull();
+  await reading(wrapper);
+  await flushPromises();
+  expect(menu()).toBeNull();
+  press("t");
+  await flushPromises();
+  expect(menu()).not.toBeNull();
+  wrapper.unmount();
+});

@@ -135,6 +135,8 @@ onUnmounted(() => {
   document.removeEventListener("pointerdown", outside);
   clearTimeout(typedTimer);
 });
+/** `show` opens the list from outside (a keyboard shortcut), with the focus in it. */
+defineExpose({ show });
 </script>
 
 <template>

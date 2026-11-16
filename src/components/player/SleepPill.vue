@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { Moon } from "@lucide/vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { SLEEP_MINUTES, usePlayerControls } from "@/composables/usePlayerControls";
 const { sleepChoice, setSleep, sleepLabel, player } = usePlayerControls();
+const select = ref<{ show(): void }>();
+// The T key asks for the menu.
+watch(
+  () => player.sleepMenu,
+  () => select.value?.show(),
+);
 /** Only a running countdown is spelled out; otherwise the moon (lit while set) says enough. */
 const countdown = computed(() => player.state.sleep?.remainingMs != null);
 const title = computed(() =>
@@ -21,6 +27,7 @@ const options = computed(() => [
 
 <template>
   <UiSelect
+    ref="select"
     class="sleep-pill"
     :class="{ 'sleep-pill--on': player.state.sleep }"
     variant="pill"

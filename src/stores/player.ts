@@ -75,6 +75,14 @@ export const usePlayerStore = defineStore("player", () => {
     return action(() => api.setVolume({ volume }));
   }
   const toggleMute = () => setVolume(state.value.volume > 0 ? 0 : heard);
+  function setSpeed(speed: number) {
+    state.value = { ...state.value, speed }; // Ahead of the next state event, so quick key presses add up.
+    return action(() => api.setSpeed({ speed }));
+  }
+  /** Rises each time the sleep timer's menu is asked for (the T key); the player's sleep pill
+   *  opens on it. */
+  const sleepMenu = ref(0);
+  const askSleep = () => sleepMenu.value++;
   function dispose() {
     unlisteners.splice(0).forEach((fn) => fn());
     startup = undefined;
@@ -99,8 +107,10 @@ export const usePlayerStore = defineStore("player", () => {
     pause: () => action(() => api.pause()),
     resume: () => action(() => api.resume()),
     stop: () => action(() => api.stop()),
-    setSpeed: (speed: number) => action(() => api.setSpeed({ speed })),
+    setSpeed,
     setVolume,
     toggleMute,
+    sleepMenu,
+    askSleep,
   };
 });

@@ -17,12 +17,28 @@ const OVERLAYS = '[aria-modal="true"], [role="dialog"], [role="menu"], [role="li
 /** Things that use the arrow keys themselves. */
 const ARROWS = '[role="slider"], [role="tablist"], [role="menu"], [role="listbox"]';
 
+/** The speeds the player plays at (the audio player keeps to them too). */
+const MIN_SPEED = 0.5,
+  MAX_SPEED = 3;
+/** A tenth up or down from `value`, landing on whole tenths (1.25 goes to 1.3 or 1.2), within
+ *  `min` and `max`. */
+function stepTenth(value: number, direction: number, min: number, max: number) {
+  const tenths = direction > 0 ? Math.floor(value * 10 + 1e-6) + 1 : Math.ceil(value * 10 - 1e-6) - 1;
+  return Math.min(max, Math.max(min, tenths / 10));
+}
+const volumeLabel = (volume: number) => (volume > 0 ? `Volume ${Math.round(volume * 100)}%` : "Muted");
+
 /** App-wide keys, listened for on the window (mounted once by App). Which keys there are comes
  *  from the table in src/shortcuts.ts, which Settings › About also lists; this says what each does.
  *  - Keys that do not work while typing are also left alone under a dialog.
  *  - Space plays or pauses and ← / → move a sentence. Both are left alone while typing, on a
  *    control that uses the key (for Space: one reached with the keyboard), under a dialog, and
  *    when a component already handled the key.
+ *  - Shift ← / → skip a chapter; Ctrl ← / → move 30 s on an audiobook's timeline, else three
+ *    sentences (and move by word in a text field, as usual).
+ *  - [ and ] step the speed by 0.1×, \\ puts it back to 1×; Shift ↑ / ↓ step the volume by 10%
+ *    (↑ and ↓ alone keep scrolling); M mutes. Each says the new value in a toast.
+ *  - B bookmarks the playing (or open) book's place; T opens the player's sleep timer menu.
  *  - Escape leaves the reader for the screen it was opened from, when nothing is open over it.
  *  - Ctrl F searches the open book (in the reader) or the library; Ctrl , opens Settings;
  *    Ctrl N opens Add.
@@ -52,6 +68,14 @@ export function useShortcuts() {
     if (to !== preferences.appearance.zoom) void preferences.update({ zoom: to });
     ui.toast(`Zoom ${zoomLabel(to)}`, "info", "zoom");
   }
+  function setSpeed(speed: number) {
+    void controls.player.setSpeed(speed);
+    ui.toast(`Speed ${speed}×`, "info", "speed");
+  }
+  function setVolume(volume: number) {
+    void controls.player.setVolume(volume);
+    ui.toast(volumeLabel(volume), "info", "volume");
+  }
   let spaceHeld = false;
   const dialogOpen = () => document.querySelector('[aria-modal="true"]');
   /** What each shortcut does, given its combination's `arg` and the focused element. One that
@@ -65,6 +89,30 @@ export function useShortcuts() {
     sentence(arg, target) {
       if (!controls.player.state.bookId || target?.closest(ARROWS)) return false;
       void controls.step(arg);
+    },
+    chapter(arg) {
+      if (!controls.player.state.bookId) return false;
+      void controls.player.skipChapter(arg);
+    },
+    jump(arg) {
+      // `step` moves 10 s on an audiobook's timeline: three steps are 30 s, or three sentences.
+      if (!controls.player.state.bookId) return false;
+      void controls.step(arg * 3);
+    },
+    speed: (arg) => setSpeed(stepTenth(controls.player.state.speed, arg, MIN_SPEED, MAX_SPEED)),
+    normalSpeed: () => setSpeed(1),
+    volume: (arg) => setVolume(stepTenth(controls.player.state.volume, arg, 0, 1)),
+    mute() {
+      void controls.player.toggleMute();
+      ui.toast(volumeLabel(controls.player.state.volume), "info", "volume");
+    },
+    bookmark() {
+      if (!controls.bookId.value) return false;
+      void controls.bookmark();
+    },
+    sleep() {
+      if (!controls.bookId.value) return false;
+      controls.player.askSleep();
     },
     find() {
       // Search only reaches book tools, never past another dialog.
