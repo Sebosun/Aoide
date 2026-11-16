@@ -15,6 +15,8 @@ import { useRecordingsStore } from "@/stores/recordings";
  *  stage (see api/mock); `pair=~/a.m4b,~/b.aax` opens the pairing dialog on those paths and
  *  `report=book-0` that book's sync report; `audiobook=1` adds the preview's audiobook on its own
  *  (book-5); `feeds=empty|failing` has no subscriptions, or one that stopped answering;
+ *  `server=starting|running|stopped|failed` shows the speech server Aoide starts in that state (as the
+ *  core made it; `settings=engine` shows it in Settings);
  *  `browser=off|missing|ready` sets the browser for articles (off, on with none found, on with
  *  one found; `settings=sites` shows it); `signin=waiting|fetching` opens a sign-in on the
  *  preview's article */

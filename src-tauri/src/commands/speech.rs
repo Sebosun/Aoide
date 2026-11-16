@@ -32,6 +32,24 @@ pub fn clear_speech_problems(core: CoreState<'_>) {
     core.clear_speech_problems();
 }
 
+/// Try again: starts a speech server that failed once more.
+#[tauri::command]
+pub fn retry_speech_server(core: CoreState<'_>) {
+    core.retry_speech_server();
+}
+
+/// Stop now: stops the speech server Aoide started; it starts again when speech is needed.
+#[tauri::command]
+pub fn stop_speech_server(core: CoreState<'_>) {
+    core.stop_speech_server();
+}
+
+/// Shows the speech server's log (`speech-server.log`) in the file manager.
+#[tauri::command]
+pub fn show_speech_server_log(core: CoreState<'_>) -> Result<(), CoreError> {
+    Ok(core.show_speech_server_log()?)
+}
+
 /// Registered adapters and the active global profile.
 #[tauri::command]
 pub fn engine_options(core: CoreState<'_>) -> EngineOptions {

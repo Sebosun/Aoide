@@ -7,7 +7,13 @@ import type { EngineStatusView, BookView } from "@/api/types";
 export const usePlayerStore = defineStore("player", () => {
   const state = ref(initialPlayer()),
     generation = ref(initialGeneration());
-  const engine = ref<EngineStatusView>({ profileName: "Chatterbox", state: "offline", detail: null, wanted: false });
+  const engine = ref<EngineStatusView>({
+    profileName: "Chatterbox",
+    state: "offline",
+    detail: null,
+    wanted: false,
+    server: null,
+  });
   const error = ref("");
   const playingBook = ref<BookView | null>(null);
   let metadataId: string | null = null;

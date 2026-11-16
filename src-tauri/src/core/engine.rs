@@ -347,6 +347,7 @@ impl Engine {
             state,
             detail,
             wanted: false,
+            server: None,
         });
         (polled, Some(answer))
     }
@@ -366,6 +367,7 @@ impl Engine {
             state: EngineState::Busy,
             detail: None,
             wanted: true,
+            server: None,
         });
     }
 
@@ -377,6 +379,7 @@ impl Engine {
                 state: EngineState::Offline,
                 detail: Some("checking…".into()),
                 wanted: self.wanted.load(Ordering::SeqCst),
+                server: None,
             })
         })
     }
@@ -451,16 +454,18 @@ impl Engine {
                 state: EngineState::Offline,
                 detail: None,
                 wanted: false,
+                server: None,
             },
             (None, None) => return None,
         };
         status.wanted = self.wanted.load(Ordering::SeqCst);
-        if let Some(server) = server {
-            if let Some((state, detail)) = server_status(&server) {
+        if let Some(server) = &server {
+            if let Some((state, detail)) = server_status(server) {
                 status.state = state;
                 status.detail = Some(detail);
             }
         }
+        status.server = server;
         Some(status)
     }
 
@@ -502,6 +507,7 @@ fn server_status(server: &ServerView) -> Option<(EngineState, String)> {
                 (Some(StoppedKind::Idle), Some(minutes)) => {
                     format!("Stopped after {minutes} minutes unused; starts when needed")
                 }
+                (Some(StoppedKind::Asked), _) => detail("Stopped; starts when needed"),
                 _ => detail("Starts when needed"),
             },
         ),
@@ -646,6 +652,15 @@ impl super::Core {
     /// want starts it again.
     pub fn stop_speech_server(&self) {
         self.speech_server.stop_now();
+    }
+
+    /// Shows the speech server's log in the file manager.
+    pub fn show_speech_server_log(&self) -> Result<(), String> {
+        let path = self.speech_server.log_path();
+        if !path.exists() {
+            return Err("The speech server has not written a log yet.".into());
+        }
+        (self.show_in_folder)(&path)
     }
 }
 

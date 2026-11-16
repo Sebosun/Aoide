@@ -1,0 +1,85 @@
+{
+  "failed": {
+    "detail": "The speech server ended (exit code 2). Its last lines are in Settings › Speech engine.",
+    "profileName": "Local Chatterbox",
+    "server": {
+      "canRetry": true,
+      "canStop": false,
+      "error": null,
+      "exitCode": 2,
+      "failure": "exited",
+      "idleMinutes": 30,
+      "lastLines": [
+        "Starting the server",
+        "python: can't open file 'server.py': [Errno 2] No such file or directory"
+      ],
+      "logFile": "speech-server.log",
+      "signal": null,
+      "startTimeoutSeconds": 180,
+      "state": "failed",
+      "stopped": null
+    },
+    "state": "error",
+    "wanted": true
+  },
+  "running": {
+    "detail": "chatterbox-turbo",
+    "profileName": "Local Chatterbox",
+    "server": {
+      "canRetry": false,
+      "canStop": true,
+      "error": null,
+      "exitCode": null,
+      "failure": null,
+      "idleMinutes": 30,
+      "lastLines": [],
+      "logFile": "speech-server.log",
+      "signal": null,
+      "startTimeoutSeconds": 180,
+      "state": "running",
+      "stopped": null
+    },
+    "state": "ready",
+    "wanted": true
+  },
+  "starting": {
+    "detail": "Starting the voice…",
+    "profileName": "Local Chatterbox",
+    "server": {
+      "canRetry": false,
+      "canStop": true,
+      "error": null,
+      "exitCode": null,
+      "failure": null,
+      "idleMinutes": 30,
+      "lastLines": [],
+      "logFile": "speech-server.log",
+      "signal": null,
+      "startTimeoutSeconds": 180,
+      "state": "starting",
+      "stopped": null
+    },
+    "state": "loading",
+    "wanted": true
+  },
+  "stopped": {
+    "detail": "Stopped; starts when needed",
+    "profileName": "Local Chatterbox",
+    "server": {
+      "canRetry": false,
+      "canStop": false,
+      "error": null,
+      "exitCode": null,
+      "failure": null,
+      "idleMinutes": 30,
+      "lastLines": [],
+      "logFile": "speech-server.log",
+      "signal": null,
+      "startTimeoutSeconds": 180,
+      "state": "stopped",
+      "stopped": "asked"
+    },
+    "state": "offline",
+    "wanted": true
+  }
+}

@@ -61,6 +61,7 @@ import fixtureArticle from "@/tests/fixtures/article.json";
 import fixtureFeeds from "@/tests/fixtures/feeds.json";
 import fixtureStages from "@/tests/fixtures/stages.json";
 import fixtureChapters from "@/tests/fixtures/chapters.json";
+import fixtureSpeechServer from "@/tests/fixtures/speech-server.json";
 import fixtureWeb from "@/tests/fixtures/web.json";
 import fixtureBrowser from "@/tests/fixtures/browser.json";
 import fixtureFound from "@/tests/fixtures/found.json";
@@ -119,11 +120,24 @@ export function slowed<T extends AoideApi>(api: T, ms: number): T {
 /** Original, synthetic preview books. No personal books or network requests. `search` holds
  *  the preview's parameters (the page's own by default). */
 export function createMockApi(search = typeof location === "undefined" ? "" : location.search) {
-  const engine: EngineStatusView = {
-    profileName: "Local Chatterbox",
-    state: "ready",
-    detail: "Browser preview · simulated audio",
-    wanted: false,
+  /** The speech server Aoide starts, as the core showed it (`server=starting|running|stopped|failed`). */
+  const serverViews = fixtureSpeechServer as Record<string, EngineStatusView>;
+  const serverParam = new URLSearchParams(search).get("server");
+  const engine: EngineStatusView =
+    serverParam && serverViews[serverParam]
+      ? structuredClone(serverViews[serverParam])
+      : {
+          profileName: "Local Chatterbox",
+          state: "ready",
+          detail: "Browser preview · simulated audio",
+          wanted: false,
+          server: null,
+        };
+  /** Shows the core's view of the server in `stage`, as Try again or Stop now lead to. */
+  const showServer = (stage: "starting" | "stopped") => {
+    if (!engine.server) return;
+    Object.assign(engine, structuredClone(serverViews[stage]));
+    engineHandlers.forEach((h) => h({ ...engine }));
   };
   const books = coreBooks();
   /** Home as the core made it for these books; `setHome` replaces it (an empty library). */
@@ -205,7 +219,16 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     network: "loopback",
     voiceId: "Emily.wav",
     params: {},
-    launch: null,
+    // With a server Aoide starts, the command that starts it.
+    launch: engine.server
+      ? {
+          program: "/home/reader/chatterbox/.venv/bin/python",
+          args: ["server.py"],
+          workingDir: "/home/reader/chatterbox",
+          startTimeoutSeconds: engine.server.startTimeoutSeconds,
+          idleMinutes: engine.server.idleMinutes ?? 0,
+        }
+      : null,
   };
   const settings = new Map<string, BookSettings>();
   /** A book's settings; nobody has changed them for most books. */
@@ -1144,6 +1167,13 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async clearSpeechProblems() {
       speechProblems = [];
     },
+    async retrySpeechServer() {
+      showServer("starting");
+    },
+    async stopSpeechServer() {
+      showServer("stopped");
+    },
+    async showSpeechServerLog() {},
     async engineOptions() {
       return { descriptors: structuredClone(descriptors), profile: structuredClone(profile) };
     },
@@ -2127,7 +2157,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     emitConfig,
     emitProblem: (p: ProblemView) => problemHandlers.forEach((h) => h({ ...p })),
     /** A status from the core; `wanted` defaults to true (the user has asked to listen). */
-    emitEngine: (s: Omit<EngineStatusView, "wanted"> & { wanted?: boolean }) =>
-      engineHandlers.forEach((h) => h({ wanted: true, ...s })),
+    emitEngine: (
+      s: Omit<EngineStatusView, "wanted" | "server"> & Partial<Pick<EngineStatusView, "wanted" | "server">>,
+    ) => engineHandlers.forEach((h) => h({ wanted: true, server: null, ...s })),
   });
 }

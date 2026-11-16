@@ -203,3 +203,45 @@ it("keeps the engine's problem out of sight while a book is only read, until the
   expect(wrapper.get("nav .engine-card").text()).toContain("Local Chatterbox has a problem");
   wrapper.unmount();
 });
+
+it("a speech server that failed shows on the card, with its last lines, Try again and Show log in Settings", async () => {
+  mock.dispose();
+  mock = createMockApi("?server=failed");
+  backend.api = mock;
+  const retry = vi.spyOn(mock, "retrySpeechServer");
+  const showLog = vi.spyOn(mock, "showSpeechServerLog");
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await usePlayerStore().start();
+  await flushPromises();
+
+  const card = wrapper.get(".engine-card");
+  expect(card.text()).toContain("Local Chatterbox has a problem");
+  expect(card.get('[role="alert"]').text()).toContain("The speech server ended (exit code 2)");
+
+  useNavigationStore().openSettings("engine");
+  await flushPromises();
+  const lines = document.body.querySelector('[aria-label="The speech server\'s last lines"]');
+  expect(lines?.textContent).toContain("python: can't open file 'server.py'");
+  document.body.querySelector<HTMLButtonElement>('[aria-label="Show the speech server\'s log"]')!.click();
+  document.body.querySelector<HTMLButtonElement>('[aria-label="Try starting the speech server again"]')!.click();
+  await flushPromises();
+  expect(showLog).toHaveBeenCalled();
+  expect(retry).toHaveBeenCalled();
+  expect(document.body.querySelector('[aria-label="The speech server\'s last lines"]')).toBeNull();
+  wrapper.unmount();
+});
+
+it("a running speech server can be stopped from the card's panel", async () => {
+  mock.dispose();
+  mock = createMockApi("?server=running");
+  backend.api = mock;
+  await mock.prepareBook({ bookId: "book-1" });
+  const stop = vi.spyOn(mock, "stopSpeechServer");
+  const { wrapper } = await openQueue();
+  button("Stop the speech server now").click();
+  await flushPromises();
+  expect(stop).toHaveBeenCalled();
+  expect(panel()?.textContent).toContain("Stopped; starts when needed");
+  wrapper.unmount();
+});

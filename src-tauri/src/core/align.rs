@@ -124,6 +124,7 @@ impl Aligner {
     }
 
     /// The service Aoide starts for the settings' launch command, as it is now.
+    #[cfg(test)]
     pub fn server_view(&self) -> Option<ServerView> {
         self.server.view()
     }

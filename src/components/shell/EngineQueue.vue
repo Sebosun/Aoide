@@ -15,6 +15,7 @@ import {
 import { useRecordingsStore } from "@/stores/recordings";
 import { RECORDING_ACTION_ICONS, RECORDING_ACTION_LABELS, recordingStatus, type RecordingAction } from "@/recording";
 import { useUiStore } from "@/stores/ui";
+import { api } from "@/api";
 
 /** What the speech engine is working on: audio for the book playing now, then the books
  *  queued for whole-book preparation, in the order they will be made; and the recordings being
@@ -72,6 +73,15 @@ async function syncAction(bookId: string, action: RecordingAction) {
     ui.toast(String(e), "error");
   }
 }
+/** The speech server Aoide starts, when the profile has a launch command. */
+const server = computed(() => player.engine.server);
+async function serverAction(action: "retry" | "stop") {
+  try {
+    await (action === "retry" ? api.retrySpeechServer() : api.stopSpeechServer());
+  } catch (e) {
+    ui.toast(String(e), "error");
+  }
+}
 function settings() {
   emit("close");
   navigation.openSettings("engine");
@@ -88,6 +98,27 @@ function settings() {
         <span class="engine-queue__dim">{{ player.engine.state }}</span>
       </p>
       <p v-if="player.engine.detail" class="engine-queue__detail">{{ player.engine.detail }}</p>
+      <p v-if="server?.canStop || server?.canRetry" class="engine-queue__server">
+        <button
+          v-if="server.canRetry"
+          type="button"
+          class="engine-queue__link"
+          aria-label="Try starting the speech server again"
+          @click="serverAction('retry')"
+        >
+          Try again
+        </button>
+        <button
+          v-if="server.canStop"
+          type="button"
+          class="engine-queue__link"
+          aria-label="Stop the speech server now"
+          title="Frees the graphics card; it starts again when speech is needed"
+          @click="serverAction('stop')"
+        >
+          Stop now
+        </button>
+      </p>
     </header>
 
     <section v-if="playing" class="engine-queue__section" aria-label="Playing now">
@@ -201,6 +232,18 @@ function settings() {
 .engine-queue__dim {
   color: var(--dim);
   font-weight: 600;
+}
+.engine-queue__server {
+  display: flex;
+  gap: var(--space-6);
+}
+.engine-queue__link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.engine-queue__link:hover {
+  text-decoration: underline;
 }
 .engine-queue__detail {
   font-size: 12px;

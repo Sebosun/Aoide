@@ -23,7 +23,38 @@ const voices = ref<Voice[] | null>(null),
   voiceError = ref("");
 const launchArgs = ref(""),
   launchProgram = ref(""),
-  launchDir = ref("");
+  launchDir = ref(""),
+  idleMinutes = ref(30);
+/** Idle times offered; 0 keeps the server running. */
+const IDLE_CHOICES = [0, 5, 10, 15, 30, 60, 120, 240];
+const idleOptions = computed(() =>
+  [...new Set([...IDLE_CHOICES, idleMinutes.value])]
+    .sort((a, b) => a - b)
+    .map((m) => ({ value: String(m), label: m === 0 ? "Never" : `After ${m} minutes unused` })),
+);
+/** The server Aoide starts for the saved launch command, as the core sees it. */
+const server = computed(() => player.engine.server);
+const serverLine = computed(() => {
+  const view = server.value;
+  if (!view) return "";
+  if (view.state === "external") return "Another program answers at this address; Aoide uses it and never stops it.";
+  if (view.state === "running")
+    return view.idleMinutes
+      ? `Running. Aoide stops it after ${view.idleMinutes} minutes unused, and when Aoide quits.`
+      : "Running. Aoide stops it when Aoide quits.";
+  return player.engine.detail ?? "";
+});
+const serverError = ref("");
+async function serverAction(action: "retry" | "stop" | "log") {
+  serverError.value = "";
+  try {
+    if (action === "retry") await api.retrySpeechServer();
+    else if (action === "stop") await api.stopSpeechServer();
+    else await api.showSpeechServerLog();
+  } catch (e) {
+    serverError.value = String(e);
+  }
+}
 const message = ref(""),
   error = ref(""),
   saving = ref(false),
@@ -40,6 +71,7 @@ onMounted(async () => {
     launchProgram.value = options.profile.launch?.program ?? "";
     launchArgs.value = options.profile.launch?.args.join("\n") ?? "";
     launchDir.value = options.profile.launch?.workingDir ?? "";
+    idleMinutes.value = options.profile.launch?.idleMinutes ?? 30;
   } catch (e) {
     loadError.value = String(e);
   }
@@ -92,7 +124,7 @@ const draft = computed<EngineProfile | null>(() => {
             .filter(Boolean),
           workingDir: launchDir.value.trim() || null,
           startTimeoutSeconds: profile.value.launch?.startTimeoutSeconds ?? 180,
-          idleMinutes: profile.value.launch?.idleMinutes ?? 30,
+          idleMinutes: idleMinutes.value,
         }
       : null,
   };
@@ -214,8 +246,40 @@ async function save() {
 
     <SettingsSection title="Start the server automatically">
       <SettingsNote
-        >When the engine is offline, Aoide runs this command, and stops it again when Aoide quits.</SettingsNote
+        >When speech is needed and the engine is offline, Aoide runs this command. It stops the server again when it is
+        unused for a while and when Aoide quits. What the server prints goes to <code>speech-server.log</code> in
+        Aoide's logs folder.</SettingsNote
       >
+      <div v-if="server" class="engine-settings__server">
+        <p class="engine-settings__server-line" :class="`engine-settings__server-line--${server.state}`" role="status">
+          {{ serverLine }}
+        </p>
+        <pre
+          v-if="server.lastLines.length"
+          class="engine-settings__lines"
+          aria-label="The speech server's last lines"
+          >{{ server.lastLines.join("\n") }}</pre>
+        <div class="engine-settings__server-actions">
+          <UiButton
+            v-if="server.canRetry"
+            size="sm"
+            variant="primary"
+            aria-label="Try starting the speech server again"
+            @click="serverAction('retry')"
+            >Try again</UiButton
+          >
+          <UiButton
+            v-if="server.canStop"
+            size="sm"
+            aria-label="Stop the speech server now"
+            title="Frees the graphics card; it starts again when speech is needed"
+            @click="serverAction('stop')"
+            >Stop now</UiButton
+          >
+          <UiButton size="sm" aria-label="Show the speech server's log" @click="serverAction('log')">Show log</UiButton>
+        </div>
+        <p v-if="serverError" class="engine-settings__error" role="alert">{{ serverError }}</p>
+      </div>
       <SettingsField label="Program"
         ><input
           v-model="launchProgram"
@@ -229,6 +293,13 @@ async function save() {
       </SettingsField>
       <SettingsField label="Working folder"
         ><input v-model="launchDir" type="text" aria-label="Launch working folder" spellcheck="false"
+      /></SettingsField>
+      <SettingsField label="Stop when idle" as="div"
+        ><UiSelect
+          label="Stop when idle"
+          :options="idleOptions"
+          :model-value="String(idleMinutes)"
+          @update:model-value="(m) => (idleMinutes = Number(m))"
       /></SettingsField>
     </SettingsSection>
 
@@ -265,6 +336,37 @@ async function save() {
 .engine-settings__status--busy,
 .engine-settings__status--loading {
   color: var(--warn);
+}
+.engine-settings__server {
+  display: grid;
+  gap: var(--space-5);
+}
+.engine-settings__server-line {
+  font-size: 13px;
+  color: var(--dim);
+}
+.engine-settings__server-line--failed {
+  color: var(--accent);
+  font-weight: 600;
+}
+.engine-settings__lines {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-md);
+  background: var(--ground);
+  color: var(--ink);
+  font-family: ui-monospace, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.engine-settings__server-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
 }
 .engine-settings__check {
   display: flex;

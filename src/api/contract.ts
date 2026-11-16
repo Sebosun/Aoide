@@ -273,12 +273,64 @@ positionMs: number | null, durationMs: number | null, partPositionMs: number | n
 
 export type EngineState = "offline" | "loading" | "ready" | "busy" | "error";
 
+export type ServerState = "stopped" | "starting" | "running" | "stopping" | "waiting" | "failed" | "external";
+
+export type FailureKind = "spawn" | "exited" | "portTaken" | "startTimedOut" | "tooManyRestarts";
+
+export type StoppedKind = "never" | "idle" | "exited" | "switched" | "retry" | "asked" | "quit";
+
+export type ServerView = { state: ServerState, 
+/**
+ * Why it is stopped, while it is.
+ */
+stopped: StoppedKind | null, 
+/**
+ * Why it failed, while it has.
+ */
+failure: FailureKind | null, 
+/**
+ * How the failed server ended, when it ended.
+ */
+exitCode: number | null, signal: number | null, 
+/**
+ * Why it could not be started at all.
+ */
+error: string | null, 
+/**
+ * Minutes without use before it is stopped; `None` keeps it running.
+ */
+idleMinutes: number | null, 
+/**
+ * Seconds without an answer or output before a start is given up.
+ */
+startTimeoutSeconds: number, 
+/**
+ * Whether Try again applies.
+ */
+canRetry: boolean, 
+/**
+ * Whether Stop now applies.
+ */
+canStop: boolean, 
+/**
+ * The name of the server's log file (in Aoide's logs folder).
+ */
+logFile: string, 
+/**
+ * Its last lines, while it has failed.
+ */
+lastLines: Array<string>, };
+
 export type EngineStatusView = { profileName: string, state: EngineState, detail: string | null, 
 /**
  * Something in this run has needed the engine (the user listened, prepared a book or
  * tried a voice). Until then its problems are not the user's: they are only reading.
  */
-wanted: boolean, };
+wanted: boolean, 
+/**
+ * The server Aoide starts for the profile's launch command; `None` without one.
+ */
+server: ServerView | null, };
 
 export type PreparingView = { bookId: string, done: number, total: number, };
 
@@ -1308,6 +1360,12 @@ export type Commands = {
   "speech_problems": { args: Record<string, never>; result: SpeechProblem[] };
   /** Forgets the speech engine's problems listed so far. */
   "clear_speech_problems": { args: Record<string, never>; result: void };
+  /** Try again: starts a speech server that failed once more. */
+  "retry_speech_server": { args: Record<string, never>; result: void };
+  /** Stop now: stops the speech server Aoide started; it starts again when speech is needed. */
+  "stop_speech_server": { args: Record<string, never>; result: void };
+  /** Shows the speech server's log (`speech-server.log`) in the file manager. */
+  "show_speech_server_log": { args: Record<string, never>; result: void };
   /** Registered adapters and the active global profile. */
   "engine_options": { args: Record<string, never>; result: EngineOptions };
   /** Voices of the active engine (fails when the engine is offline). */
@@ -1592,6 +1650,12 @@ export interface CommandApi {
   speechProblems(): Promise<SpeechProblem[]>;
   /** Forgets the speech engine's problems listed so far. */
   clearSpeechProblems(): Promise<void>;
+  /** Try again: starts a speech server that failed once more. */
+  retrySpeechServer(): Promise<void>;
+  /** Stop now: stops the speech server Aoide started; it starts again when speech is needed. */
+  stopSpeechServer(): Promise<void>;
+  /** Shows the speech server's log (`speech-server.log`) in the file manager. */
+  showSpeechServerLog(): Promise<void>;
   /** Registered adapters and the active global profile. */
   engineOptions(): Promise<EngineOptions>;
   /** Voices of the active engine (fails when the engine is offline). */
@@ -1740,6 +1804,9 @@ export const COMMANDS = {
   saveBookSettings: "save_book_settings",
   speechProblems: "speech_problems",
   clearSpeechProblems: "clear_speech_problems",
+  retrySpeechServer: "retry_speech_server",
+  stopSpeechServer: "stop_speech_server",
+  showSpeechServerLog: "show_speech_server_log",
   engineOptions: "engine_options",
   engineVoices: "engine_voices",
   previewVoice: "preview_voice",

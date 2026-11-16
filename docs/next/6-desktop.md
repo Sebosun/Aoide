@@ -647,7 +647,12 @@ blocks for at most the quit grace. `log_tail() -> Vec<String>` serves Settings.
   `logFile` (the file name). The core fills `state` and `detail` of the existing view from the
   table above. The card's `error && wanted` rule then shows a failed server without UI changes.
 - Commands: `retry_speech_server()`, `speech_server_log() -> Vec<String>` (the last 40 lines),
-  and `show_speech_server_log()` (through `ShowInFolder`).
+  and `show_speech_server_log()` (through `ShowInFolder`). (As built: no `speech_server_log`;
+  `ServerView.lastLines` carries the last lines while the server has failed, so the event that
+  says it failed already holds them. `stop_speech_server()` is Stop now. The view also has
+  `stopped` (why it is stopped), `signal`, `error` (a spawn error), `startTimeoutSeconds` and
+  `canStop`. The mock shows the core's views with `?server=starting|running|stopped|failed`,
+  from `src/tests/fixtures/speech-server.json`.)
 - Settings › Speech engine, under the launch command: the server's state line, "Stop when idle
   for [N] minutes", and, when failed, the last lines, **Try again** and **Show log**.
 

@@ -1720,3 +1720,79 @@ async fn scenarios_for_the_ui_mock() {
 
     write("scenarios", &scenarios, &renames);
 }
+
+/// The engine's status with a server Aoide starts, as the mock shows it with
+/// `server=starting|running|stopped|failed`: written as `speech-server.json`.
+#[tokio::test]
+async fn speech_server_states_for_the_ui_mock() {
+    use super::engine_tests::{start, Scripted};
+    use aoide_tts::EngineStatus;
+    if !wanted() {
+        return;
+    }
+    let script = |dir: &Path, body: &str| {
+        let engine = Scripted::new("chatterbox", EngineStatus::Offline, &["Emily.wav"], false);
+        let launch = format!(
+            "voiceId = \"Emily.wav\"\n[engine.launch]\nprogram = \"sh\"\nargs = [\"-c\", \"{body}\"]"
+        );
+        (engine, dir.to_owned(), launch)
+    };
+    let renames = vec![(
+        "Engine chatterbox".to_owned(),
+        "Local Chatterbox".to_owned(),
+    )];
+    let mut views = serde_json::Map::new();
+
+    let dir = tempfile::tempdir().unwrap();
+    let (engine, root, launch) = script(dir.path(), "echo Loading the model; exec sleep 300");
+    let (core, _events, id) = start(&root, &[&engine], &launch).await;
+    core.prepare_book(&id).await.unwrap();
+    until("starting", || {
+        core.engine_status().detail.as_deref() == Some("Starting the voice…")
+    })
+    .await;
+    views.insert(
+        "starting".into(),
+        serde_json::to_value(core.engine_status()).unwrap(),
+    );
+    engine.set_status(EngineStatus::Ready(Some("chatterbox-turbo".into())));
+    until("running", || {
+        core.engine_status()
+            .server
+            .is_some_and(|s| s.state == super::engine_process::ServerState::Running)
+    })
+    .await;
+    core.cancel_prepare(&id);
+    let mut running = core.engine_status();
+    running.state = super::EngineState::Ready;
+    views.insert("running".into(), serde_json::to_value(running).unwrap());
+    core.stop_speech_server();
+    until("stopped", || {
+        core.engine_status()
+            .server
+            .is_some_and(|s| s.state == super::engine_process::ServerState::Stopped)
+    })
+    .await;
+    views.insert(
+        "stopped".into(),
+        serde_json::to_value(core.engine_status()).unwrap(),
+    );
+    core.shutdown();
+
+    let dir = tempfile::tempdir().unwrap();
+    let (engine, root, launch) = script(
+        dir.path(),
+        "echo Starting the server >&2; echo \\\"python: can't open file 'server.py': [Errno 2] No such file or directory\\\" >&2; exit 2",
+    );
+    let (core, _events, id) = start(&root, &[&engine], &launch).await;
+    core.prepare_book(&id).await.unwrap();
+    until("failed", || {
+        core.engine_status().state == super::EngineState::Error
+    })
+    .await;
+    views.insert(
+        "failed".into(),
+        serde_json::to_value(core.engine_status()).unwrap(),
+    );
+    write("speech-server", &views, &renames);
+}
