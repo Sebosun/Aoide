@@ -346,6 +346,33 @@ async fn a_book_prepared_while_aoide_is_not_in_front_ends_with_one_notice_that_o
 }
 
 #[tokio::test]
+async fn exporting_an_unprepared_book_ends_with_one_notice_not_two() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events, notifier) = start_noticing(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+
+    let exported = core.export_book(&id).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let sent = notifier.sent();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    match exported {
+        Ok(_) => assert_eq!(sent[0].body, "Exported to the Exports folder."),
+        // Exporting needs ffmpeg, which a test machine may not have.
+        Err(error) => {
+            assert!(error.contains("ffmpeg"), "{error}");
+            assert_eq!(sent[0].body, "The export failed.");
+        }
+    }
+    assert_eq!(sent[0].opens.as_deref(), Some(id.as_str()));
+}
+
+#[tokio::test]
 async fn a_book_prepared_while_aoide_is_in_front_says_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let id = library_folder(dir.path(), "");

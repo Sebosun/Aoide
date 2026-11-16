@@ -236,6 +236,8 @@ pub(super) trait SyncHost: Sync {
     /// Book `id`'s recording was removed (by the user, or unpaired after no audiobook passed the
     /// quick check): it is not the book's narration any more.
     fn removed(&self, id: &str);
+    /// A sync job ended (see [`syncing::job_end`]); `took` is how long it ran.
+    fn happened(&self, happened: super::notices::Happened, took: Duration);
 }
 
 /// Every recording paired with a book, its sync and the transcriber it uses.
@@ -246,6 +248,8 @@ pub(super) struct Recordings {
     playable: Mutex<Option<(Playable, Arc<RecordingPlan>, usize)>>,
     transcribers: TranscriberFactory,
     models_dir: PathBuf,
+    /// How long sync jobs ran.
+    clock: super::environment::Clock,
 }
 
 impl Recordings {
@@ -253,6 +257,7 @@ impl Recordings {
         library: Arc<Mutex<Library>>,
         transcribers: TranscriberFactory,
         models_dir: PathBuf,
+        clock: super::environment::Clock,
     ) -> Self {
         Self {
             library,
@@ -260,6 +265,7 @@ impl Recordings {
             playable: Mutex::new(None),
             transcribers,
             models_dir,
+            clock,
         }
     }
 
@@ -290,6 +296,7 @@ impl Recordings {
                     total_ms: row.total_ms,
                     transcribed_ms,
                     pace_from: None,
+                    job_from: None,
                     abort: Arc::new(AtomicBool::new(false)),
                     sample_checked: false,
                     changes: next_change(),
@@ -357,7 +364,7 @@ impl Recordings {
         event: SyncEvent,
         error: Option<&str>,
     ) -> SyncStage {
-        let (before, after) = {
+        let (before, after, job_from) = {
             let mut state = lock(&self.state);
             let Some(live) = state.live.get_mut(id) else {
                 return SyncStage::Failed;
@@ -369,7 +376,23 @@ impl Recordings {
                 live.pace_from = Some((Instant::now(), live.transcribed_ms));
                 live.abort.store(false, Ordering::Relaxed);
             }
-            (before, live.stage)
+            if matches!(live.stage, SyncStage::Transcribing | SyncStage::Matching) {
+                live.job_from.get_or_insert_with(|| self.clock.now());
+            }
+            // Kept while the job is under way or waits in line; taken when it ends.
+            let job_from = if matches!(
+                live.stage,
+                SyncStage::Transcribing
+                    | SyncStage::Matching
+                    | SyncStage::Waiting
+                    | SyncStage::NeedsModel
+                    | SyncStage::Paused
+            ) {
+                live.job_from
+            } else {
+                live.job_from.take()
+            };
+            (before, live.stage, job_from)
         };
         if before != after {
             tracing::info!(
@@ -389,6 +412,17 @@ impl Recordings {
             if before != after {
                 host.emit(CoreEvent::LibraryChanged);
             }
+        }
+        if let Some(end) = syncing::job_end(before, after) {
+            use super::notices::Happened;
+            let id = id.to_owned();
+            let happened = match end {
+                syncing::JobEnd::Synced => Happened::Synced(id),
+                syncing::JobEnd::NeedsYou => Happened::SyncNeedsYou(id),
+                syncing::JobEnd::Failed => Happened::SyncFailed(id),
+            };
+            let took = job_from.map_or(Duration::ZERO, |from| self.clock.now() - from);
+            host.happened(happened, took);
         }
         after
     }
@@ -475,6 +509,7 @@ impl Recordings {
                 total_ms: row.total_ms,
                 transcribed_ms,
                 pace_from: None,
+                job_from: None,
                 abort: Arc::new(AtomicBool::new(false)),
                 sample_checked: false,
                 changes: next_change(),

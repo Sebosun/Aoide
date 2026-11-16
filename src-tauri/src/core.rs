@@ -282,7 +282,7 @@ impl Core {
             Arc::clone(&engine),
             reporter.clone(),
             Arc::clone(&events),
-            clock,
+            clock.clone(),
         );
         let mut player = PlayerCore::new(OUTPUT_RATE);
         if let Some(settings) = settings {
@@ -293,6 +293,7 @@ impl Core {
             Arc::clone(&library),
             transcribers,
             paths.models_dir.clone(),
+            clock.clone(),
         );
         let data_dir = paths.db_path.parent().unwrap_or(Path::new(".")).to_owned();
         let speech_server = engine_process::ServerProcess::new(
@@ -326,6 +327,7 @@ impl Core {
             &paths,
             Arc::clone(&events),
             reporter.clone(),
+            clock.clone(),
         ));
         let aligner = align::Aligner::new(
             Arc::clone(&library),
@@ -333,7 +335,12 @@ impl Core {
             &data_dir,
             &data_dir.join("logs"),
         );
-        let exports = export::Exports::new(Arc::clone(&library), &paths, Arc::clone(&events));
+        let exports = export::Exports::new(
+            Arc::clone(&library),
+            &paths,
+            Arc::clone(&events),
+            clock.clone(),
+        );
         let metadata = metadata::Metadata::new(
             Arc::clone(&library),
             paths.covers_dir.clone(),

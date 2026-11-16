@@ -4,6 +4,8 @@
 
 use std::sync::{Arc, Mutex};
 
+use super::super::environment::Clock;
+use super::super::notices::Happened;
 use super::super::recording::{Narration, RecognitionEngine, RecognitionSettings, SyncAction};
 use super::super::recording_tests::{read, scripted, write_recording};
 use super::super::syncing::Stage;
@@ -17,6 +19,7 @@ struct TestHost {
     events: Mutex<Vec<&'static str>>,
     synced: Mutex<Vec<bool>>,
     removed: Mutex<Vec<String>>,
+    happened: Mutex<Vec<Happened>>,
 }
 
 impl SyncHost for TestHost {
@@ -49,6 +52,10 @@ impl SyncHost for TestHost {
     fn removed(&self, id: &str) {
         self.removed.lock().unwrap().push(id.to_owned());
     }
+
+    fn happened(&self, happened: Happened, _: std::time::Duration) {
+        self.happened.lock().unwrap().push(happened);
+    }
 }
 
 #[test]
@@ -73,6 +80,7 @@ fn the_sync_job_runs_on_its_own_and_tells_its_host_how_far_it_got() {
         events: Mutex::default(),
         synced: Mutex::default(),
         removed: Mutex::default(),
+        happened: Mutex::default(),
     };
     let texts: Vec<String> = host.book.chapters.iter().map(|c| c.text.clone()).collect();
     let (factory, script, _, _) = scripted();
@@ -86,6 +94,7 @@ fn the_sync_job_runs_on_its_own_and_tells_its_host_how_far_it_got() {
         Arc::new(Mutex::new(library)),
         factory,
         dir.path().join("models"),
+        Clock::default(),
     );
     let view = recordings
         .attach_recording(&host, &id, vec![audio.to_string_lossy().into()])
@@ -102,6 +111,11 @@ fn the_sync_job_runs_on_its_own_and_tells_its_host_how_far_it_got() {
         "told once synced"
     );
     assert!(host.events.lock().unwrap().contains(&CoreEvent::SYNC_STATE));
+    assert_eq!(
+        *host.happened.lock().unwrap(),
+        [Happened::Synced(id.clone())],
+        "told once, when the sync ended"
+    );
     let (playable, synced) = recordings.playable(&host, &host.book).unwrap();
     assert_eq!(synced, host.book.total_entries(), "all of it is synced");
     assert!(playable.clips.iter().all(|c| !c.audio.is_empty()));
@@ -147,6 +161,7 @@ fn synced() -> (tempfile::TempDir, String, TestHost, Recordings) {
         events: Mutex::default(),
         synced: Mutex::default(),
         removed: Mutex::default(),
+        happened: Mutex::default(),
     };
     let texts: Vec<String> = host.book.chapters.iter().map(|c| c.text.clone()).collect();
     let (factory, script, _, _) = scripted();
@@ -159,12 +174,30 @@ fn synced() -> (tempfile::TempDir, String, TestHost, Recordings) {
         Arc::new(Mutex::new(library)),
         factory,
         dir.path().join("models"),
+        Clock::default(),
     );
     recordings
         .attach_recording(&host, &id, vec![audio.to_string_lossy().into()])
         .unwrap();
     while recordings.sync_step(&host) {}
     (dir, id, host, recordings)
+}
+
+#[test]
+fn the_check_every_start_makes_tells_of_nothing() {
+    let (dir, id, host, recordings) = synced();
+    host.happened.lock().unwrap().clear();
+    let (factory, _, _, _) = scripted();
+    let restarted = Recordings::new(
+        Arc::clone(&recordings.library),
+        factory,
+        dir.path().join("models"),
+        Clock::default(),
+    );
+    restarted.load_recordings(true);
+    while restarted.sync_step(&host) {}
+    assert_eq!(restarted.view(&host, &id).unwrap().stage, Stage::Ready);
+    assert_eq!(*host.happened.lock().unwrap(), []);
 }
 
 #[test]

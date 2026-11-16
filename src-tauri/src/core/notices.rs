@@ -12,7 +12,6 @@ pub const LONG_JOB: Duration = Duration::from_secs(60);
 
 /// A long job that ended, or one that needs the user. Each names the book it is about.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[allow(dead_code)] // Sync, export and import tell of theirs in the next slice.
 pub enum Happened {
     Prepared(String),
     /// The speech engine failed while the book was being prepared.

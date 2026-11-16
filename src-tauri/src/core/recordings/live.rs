@@ -11,6 +11,8 @@ pub(super) struct Live {
     pub(super) transcribed_ms: u64,
     /// When transcription (re)started in this run, and how far it was then: the pace.
     pub(super) pace_from: Option<(Instant, u64)>,
+    /// When the sync job under way first started transcribing or matching in this run.
+    pub(super) job_from: Option<Instant>,
     /// Set to stop transcription mid-block.
     pub(super) abort: Arc<AtomicBool>,
     /// The quick check passed in this run.

@@ -160,6 +160,29 @@ impl Stage {
     }
 }
 
+/// How a sync job ended, for the user to be told.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum JobEnd {
+    Synced,
+    /// A doubtful sample check or a poor match waits for the user's word.
+    NeedsYou,
+    Failed,
+}
+
+/// Whether going from `before` to `after` ends a sync job: only when transcribing or matching
+/// gives way to a result, so the re-check every start makes ends none.
+pub fn job_end(before: Stage, after: Stage) -> Option<JobEnd> {
+    if !matches!(before, Stage::Transcribing | Stage::Matching) {
+        return None;
+    }
+    match after {
+        Stage::Ready => Some(JobEnd::Synced),
+        Stage::PoorMatch | Stage::SampleMismatch => Some(JobEnd::NeedsYou),
+        Stage::Failed => Some(JobEnd::Failed),
+        _ => None,
+    }
+}
+
 /// What the user can do about a book's recording. The UI words and draws these; which ones
 /// apply is decided by [`actions`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,6 +265,29 @@ mod tests {
     use super::Event::*;
     use super::Stage::*;
     use super::*;
+
+    #[test]
+    fn a_job_ends_only_when_transcribing_or_matching_gives_way_to_a_result() {
+        let table = [
+            (Matching, Ready, Some(JobEnd::Synced)),
+            (Matching, PoorMatch, Some(JobEnd::NeedsYou)),
+            (Transcribing, SampleMismatch, Some(JobEnd::NeedsYou)),
+            (Transcribing, Failed, Some(JobEnd::Failed)),
+            (Matching, Failed, Some(JobEnd::Failed)),
+            // The re-check every start makes is not a job.
+            (Checking, Ready, None),
+            (Checking, PoorMatch, None),
+            (Checking, Failed, None),
+            // Still under way, or stopped by the user.
+            (Transcribing, Matching, None),
+            (Waiting, Transcribing, None),
+            (Transcribing, Paused, None),
+            (Transcribing, Missing, None),
+        ];
+        for (before, after, end) in table {
+            assert_eq!(job_end(before, after), end, "{before:?} -> {after:?}");
+        }
+    }
 
     #[test]
     fn every_stage_event_the_machine_accepts_is_offered_and_no_other() {

@@ -441,6 +441,10 @@ impl SyncHost for Core {
         Core::emit(self, event);
     }
 
+    fn happened(&self, happened: super::notices::Happened, took: std::time::Duration) {
+        self.tell(happened, took);
+    }
+
     fn load_book(&self, id: &str) -> Result<Arc<BookModel>, String> {
         Core::load_book(self, id)
     }

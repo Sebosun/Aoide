@@ -161,6 +161,7 @@ impl Recordings {
                 total_ms: found.total_ms(),
                 transcribed_ms: 0,
                 pace_from: None,
+                job_from: None,
                 abort: Arc::new(AtomicBool::new(false)),
                 sample_checked: false,
                 changes: next_change(),

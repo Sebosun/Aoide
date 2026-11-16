@@ -237,6 +237,8 @@ pub(super) trait DiscoveryHost: Sync {
         id: &'a str,
         picked: Match,
     ) -> aoide_tts::BoxFuture<'a, Result<(), String>>;
+    /// The chosen books are imported; `took` is how long it ran.
+    fn happened(&self, happened: super::notices::Happened, took: Duration);
 }
 
 /// "Find books": scans folders for EPUBs, compares them with the library and copies the
@@ -253,6 +255,8 @@ pub(super) struct Discovery {
     private_dirs: Vec<PathBuf>,
     /// Set while a scan runs; storing `true` cancels it.
     scanning: Mutex<Option<Arc<AtomicBool>>>,
+    /// How long imports ran.
+    clock: super::environment::Clock,
 }
 
 impl Discovery {
@@ -261,6 +265,7 @@ impl Discovery {
         paths: &Paths,
         events: Arc<dyn Events>,
         reporter: error::Reporter,
+        clock: super::environment::Clock,
     ) -> Self {
         let mut private_dirs = vec![paths.library_dir.clone(), paths.audio_dir.clone()];
         private_dirs.extend(paths.db_path.parent().map(Path::to_path_buf));
@@ -273,6 +278,7 @@ impl Discovery {
             covers_dir: paths.covers_dir.clone(),
             private_dirs,
             scanning: Mutex::new(None),
+            clock,
         }
     }
 
@@ -570,6 +576,7 @@ impl Discovery {
         choices: Vec<ImportChoice>,
         host: &dyn DiscoveryHost,
     ) -> Result<Vec<ImportResult>, String> {
+        let started = self.clock.now();
         let candidates = self.candidates(host)?;
         let total = choices.len();
         let mut results = Vec::with_capacity(total);
@@ -607,6 +614,11 @@ impl Discovery {
                 }),
             }
         }
+        // Books already in the library were imported before.
+        let added = imported
+            .iter()
+            .filter(|(c, _)| c.status != CandidateStatus::InLibrary)
+            .count() as u32;
         host.imported(imported.iter().map(|(c, _)| c.id.clone()).collect())
             .await?;
         for (candidate, choice) in &imported {
@@ -645,6 +657,10 @@ impl Discovery {
             chosen = total,
             failed = results.iter().filter(|r| r.error.is_some()).count(),
             "Imported found books"
+        );
+        host.happened(
+            super::notices::Happened::ImportFinished { added },
+            self.clock.now() - started,
         );
         Ok(results)
     }
@@ -714,6 +730,10 @@ impl Core {
 impl DiscoveryHost for Core {
     fn removed(&self) -> HashSet<String> {
         self.shelf.ignored()
+    }
+
+    fn happened(&self, happened: super::notices::Happened, took: Duration) {
+        self.tell(happened, took);
     }
 
     fn cached_match(&self, query: &Query) -> Option<Match> {
@@ -799,6 +819,8 @@ fn describe_file(found: &aoide_discovery::Found, covers: &Path, seen_at: i64) ->
 
 #[cfg(test)]
 mod tests {
+    use super::super::environment::Clock;
+    use super::super::notices::Happened;
     use super::*;
 
     fn file(path: &str, hash: Option<&str>, title: Option<&str>) -> DiscoveredFile {
@@ -869,6 +891,7 @@ mod tests {
     #[derive(Default)]
     struct Host {
         imported: Mutex<Vec<String>>,
+        happened: Mutex<Vec<(Happened, std::time::Duration)>>,
     }
 
     impl DiscoveryHost for Host {
@@ -898,6 +921,9 @@ mod tests {
         ) -> aoide_tts::BoxFuture<'a, Result<(), String>> {
             Box::pin(async { Ok(()) })
         }
+        fn happened(&self, happened: Happened, took: std::time::Duration) {
+            lock(&self.happened).push((happened, took));
+        }
     }
 
     #[tokio::test]
@@ -917,6 +943,7 @@ mod tests {
             &paths,
             Arc::new(super::super::tests::Recorder::default()),
             Default::default(),
+            Clock::stepping(std::time::Duration::from_secs(70)),
         ));
         let host = Host::default();
 
@@ -936,5 +963,13 @@ mod tests {
         assert_eq!(results[0].error, None);
         assert!(paths.library_dir.join("Found.epub").is_file());
         assert_eq!(*lock(&host.imported), [found[0].id.clone()]);
+        assert_eq!(
+            *lock(&host.happened),
+            [(
+                Happened::ImportFinished { added: 1 },
+                std::time::Duration::from_secs(70)
+            )],
+            "told once, with how long the import took"
+        );
     }
 }

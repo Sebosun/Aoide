@@ -124,6 +124,8 @@ pub(super) trait ExportHost: Sync {
     fn engine_name(&self) -> String;
     /// Book `id` and its synced recording.
     fn recording_plan(&self, id: &str) -> Result<(Arc<BookModel>, Arc<RecordingPlan>), String>;
+    /// An export ended; `took` is how long it ran.
+    fn happened(&self, happened: super::notices::Happened, took: Duration);
 }
 
 /// Writes export files, on a blocking thread.
@@ -139,6 +141,8 @@ pub(super) struct Exports {
     encoder: Arc<Encoder>,
     /// The book being exported.
     exporting: Mutex<Option<String>>,
+    /// How long exports ran.
+    clock: super::environment::Clock,
 }
 
 /// Holds the export slot; dropping it frees the slot.
@@ -151,7 +155,12 @@ impl Drop for Slot<'_> {
 }
 
 impl Exports {
-    pub fn new(library: Arc<Mutex<Library>>, paths: &Paths, events: Arc<dyn Events>) -> Self {
+    pub fn new(
+        library: Arc<Mutex<Library>>,
+        paths: &Paths,
+        events: Arc<dyn Events>,
+        clock: super::environment::Clock,
+    ) -> Self {
         Self {
             encoder: Arc::new(Encoder {
                 library,
@@ -160,6 +169,7 @@ impl Exports {
                 events,
             }),
             exporting: Mutex::new(None),
+            clock,
         }
     }
 
@@ -181,13 +191,31 @@ impl Exports {
     /// speech first.
     pub async fn audiobook(&self, id: &str, host: &dyn ExportHost) -> Result<String, String> {
         let started = Instant::now();
+        let since = self.clock.now();
         let result = {
             let _slot = self.claim(id)?;
             self.make_audiobook(id, host).await
         };
         log_export("m4b", id, started, &result);
-        self.encoder.finished(id, &result);
+        self.ended(id, &result, since, host);
         result
+    }
+
+    /// Tells the window and the host how the export of `id`, started at `since`, ended.
+    fn ended(
+        &self,
+        id: &str,
+        result: &Result<String, String>,
+        since: Instant,
+        host: &dyn ExportHost,
+    ) {
+        use super::notices::Happened;
+        self.encoder.finished(id, result);
+        let happened = match result {
+            Ok(_) => Happened::Exported(id.into()),
+            Err(_) => Happened::ExportFailed(id.into()),
+        };
+        host.happened(happened, self.clock.now() - since);
     }
 
     async fn make_audiobook(&self, id: &str, host: &dyn ExportHost) -> Result<String, String> {
@@ -219,6 +247,7 @@ impl Exports {
     /// Exports `id` with its synced recording as a read-along EPUB into the Exports folder.
     pub async fn read_along(&self, id: &str, host: &dyn ExportHost) -> Result<String, String> {
         let started = Instant::now();
+        let since = self.clock.now();
         let result = {
             let _slot = self.claim(id)?;
             match host.recording_plan(id) {
@@ -233,7 +262,7 @@ impl Exports {
             }
         };
         log_export("read-along", id, started, &result);
-        self.encoder.finished(id, &result);
+        self.ended(id, &result, since, host);
         result
     }
 }
@@ -527,6 +556,10 @@ impl ExportHost for Core {
         self.engine.profile_name()
     }
 
+    fn happened(&self, happened: super::notices::Happened, took: Duration) {
+        self.tell(happened, took);
+    }
+
     fn recording_plan(&self, id: &str) -> Result<(Arc<BookModel>, Arc<RecordingPlan>), String> {
         if self.recording_stage(id) != Some(super::syncing::Stage::Ready) {
             return Err("the recording is not synced with the book yet".into());
@@ -554,6 +587,7 @@ pub(super) fn which_ffmpeg() -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::notices::Happened;
     use super::*;
 
     #[test]
@@ -655,7 +689,12 @@ mod tests {
                 .collect::<Vec<_>>(),
             [(0, one), (one, one + two)]
         );
-        let exports = Exports::new(library_with(&["b"]), &paths, Arc::new(Recorder::default()));
+        let exports = Exports::new(
+            library_with(&["b"]),
+            &paths,
+            Arc::new(Recorder::default()),
+            Default::default(),
+        );
         for (chapter, ms) in book.chapters.iter().zip([one, two]) {
             let pcm = exports.encoder.chapter_pcm(chapter, &segments).unwrap();
             assert_eq!(pcm.len(), samples_for(ms));
@@ -667,7 +706,11 @@ mod tests {
         }
     }
 
-    struct Waiting;
+    /// A host whose preparation never ends and that has no recording synced.
+    #[derive(Default)]
+    struct Waiting {
+        happened: Mutex<Vec<Happened>>,
+    }
 
     impl ExportHost for Waiting {
         fn prepare<'a>(&'a self, _: &'a str) -> aoide_tts::BoxFuture<'a, Result<(), String>> {
@@ -685,6 +728,9 @@ mod tests {
         fn recording_plan(&self, _: &str) -> Result<(Arc<BookModel>, Arc<RecordingPlan>), String> {
             Err("the recording is not synced with the book yet".into())
         }
+        fn happened(&self, happened: Happened, _: Duration) {
+            lock(&self.happened).push(happened);
+        }
     }
 
     #[tokio::test]
@@ -695,19 +741,30 @@ mod tests {
             library_with(&["a", "b"]),
             &paths(dir.path()),
             Arc::clone(&events) as Arc<dyn Events>,
+            Default::default(),
         ));
+        let host = Arc::new(Waiting::default());
         let running = Arc::clone(&exports);
-        let first = tokio::spawn(async move { running.read_along("a", &Waiting).await });
+        let first_host = Arc::clone(&host);
+        let first = tokio::spawn(async move { running.read_along("a", &*first_host).await });
         let _ = first.await;
         assert_eq!(exports.exporting(), None, "a failed export frees the slot");
 
         let slot = exports.claim("a").unwrap();
         assert_eq!(
-            exports.read_along("b", &Waiting).await.unwrap_err(),
+            exports.read_along("b", &*host).await.unwrap_err(),
             "another export is already running"
         );
         drop(slot);
-        assert!(exports.read_along("b", &Waiting).await.is_err());
+        assert!(exports.read_along("b", &*host).await.is_err());
+        assert_eq!(
+            *lock(&host.happened),
+            [
+                Happened::ExportFailed("a".into()),
+                Happened::ExportFailed("b".into())
+            ],
+            "an export refused for another running tells of nothing"
+        );
 
         let sent = events.payloads(CoreEvent::EXPORT_PROGRESS);
         assert_eq!(sent.len(), 2, "{sent:?}");
