@@ -376,10 +376,14 @@ impl Playback {
         *lock(&self.paused_at)
     }
 
-    /// Pauses as [`Playback::pause`] does, the pause counted from `since` (now when `None`):
-    /// a session started again in place of one paused stays paused since then.
+    /// Pauses as [`Playback::pause`] does, the pause counted from `since` (when `None`, from
+    /// the pause already on, or now): a session started again in place of one paused stays
+    /// paused since then, and pausing what is paused keeps the time it was first paused.
     pub fn pause_since(&self, since: Option<Instant>) -> Moved {
-        *lock(&self.paused_at) = Some(since.unwrap_or_else(Instant::now));
+        {
+            let mut paused_at = lock(&self.paused_at);
+            *paused_at = since.or(*paused_at).or_else(|| Some(Instant::now()));
+        }
         lock(&self.player).pause();
         self.stir();
         Moved {
@@ -1452,6 +1456,20 @@ mod tests {
         assert_eq!(playback.position().index, 3);
         drop(playback.resume_at(Instant::now() + Duration::from_secs(10 * 60)));
         assert_eq!(playback.position().index, 1, "entry 2 says nothing");
+    }
+
+    #[test]
+    fn pausing_again_while_paused_still_counts_from_the_first_pause() {
+        // A sleep timer that runs out, or a media key, can pause what is already paused.
+        let playback = paused_in(1);
+        let first = playback.paused_since().unwrap();
+        drop(playback.pause());
+        drop(playback.resume_at(first + Duration::from_secs(5 * 60)));
+        assert_eq!(
+            playback.position().index,
+            0,
+            "five minutes since the first pause"
+        );
     }
 
     #[test]
