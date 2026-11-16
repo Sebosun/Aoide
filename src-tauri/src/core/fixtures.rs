@@ -663,6 +663,16 @@ async fn feeds_for_the_ui_mock() {
 /// The stage machines the mock plays out: for each stage, where each event the UI can cause
 /// leads, and what each stage offers. Written from [`super::syncing`] and
 /// [`super::preparation`], so the mock never keeps its own copy of their rules.
+/// The themes that come with Aoide, as the preferences list them.
+#[test]
+fn themes_for_the_ui_mock() {
+    if !wanted() {
+        return;
+    }
+    let none = tempfile::tempdir().unwrap();
+    write("themes", &aoide_config::themes(none.path()), &[]);
+}
+
 #[test]
 fn stage_machines_for_the_ui_mock() {
     if !wanted() {

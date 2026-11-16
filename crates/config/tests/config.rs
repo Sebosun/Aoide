@@ -344,3 +344,95 @@ fn missing_theme_folder_has_no_themes() {
     let dir = tempfile::tempdir().unwrap();
     assert!(load_themes(&dir.path().join("themes")).is_empty());
 }
+
+#[test]
+fn built_in_themes_come_first_and_a_file_of_the_same_name_replaces_one() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("nord.toml"),
+        "title = \"My Nord\"\n[dark]\naccent = \"#ff0000\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("mine.toml"),
+        "[dark]\naccent = \"#00ff00\"\n",
+    )
+    .unwrap();
+    let all = aoide_config::themes(dir.path());
+    let listed: Vec<(&str, &str, bool)> = all
+        .iter()
+        .map(|t| (t.name.as_str(), t.title.as_str(), t.builtin))
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            ("catppuccin", "Catppuccin", true),
+            ("dracula", "Dracula", true),
+            ("everforest", "Everforest", true),
+            ("gruvbox", "Gruvbox", true),
+            ("nord", "My Nord", false),
+            ("rose-pine", "Rosé Pine", true),
+            ("tokyo-night", "Tokyo Night", true),
+            ("mine", "mine", false),
+        ]
+    );
+    assert_eq!(all[4].dark["accent"], "#ff0000");
+}
+
+/// Relative luminance of a `#rrggbb` colour (WCAG).
+fn luminance(hex: &str) -> f64 {
+    let hex = hex.trim_start_matches('#');
+    let channel = |at: usize| {
+        let c = f64::from(u8::from_str_radix(&hex[at..at + 2], 16).unwrap()) / 255.0;
+        if c <= 0.03928 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4)
+}
+
+fn contrast(a: &str, b: &str) -> f64 {
+    let (a, b) = (luminance(a), luminance(b));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
+}
+
+#[test]
+fn every_built_in_theme_sets_every_token_and_reads_well() {
+    let dir = tempfile::tempdir().unwrap();
+    let builtin: Vec<_> = aoide_config::themes(dir.path());
+    assert_eq!(builtin.len(), 7);
+    for theme in &builtin {
+        assert!(
+            theme.problems.is_empty(),
+            "{}: {:?}",
+            theme.name,
+            theme.problems
+        );
+        for (variant, tokens) in [("light", &theme.light), ("dark", &theme.dark)] {
+            assert_eq!(
+                tokens.len(),
+                aoide_config::TOKENS.len(),
+                "{} {variant}",
+                theme.name
+            );
+            for (fg, bg, least) in [
+                ("ink", "page", 7.0),
+                ("reading", "page", 7.0),
+                ("dim", "page", 4.5),
+                ("on-accent", "accent", 4.5),
+                ("accent", "page", 3.0),
+                ("ok", "page", 3.0),
+                ("warn", "page", 3.0),
+            ] {
+                let ratio = contrast(&tokens[fg], &tokens[bg]);
+                assert!(
+                    ratio >= least,
+                    "{} {variant}: {fg} on {bg} is {ratio:.2}:1, under {least}:1",
+                    theme.name
+                );
+            }
+        }
+    }
+}

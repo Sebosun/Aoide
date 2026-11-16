@@ -233,10 +233,47 @@ impl Default for Appearance {
 pub struct Theme {
     /// File name without `.toml`.
     pub name: String,
+    /// The file's `title`, or its name.
+    pub title: String,
+    /// Comes with Aoide (no file of this name in the themes folder replaces it).
+    pub builtin: bool,
     /// Token name (see [`TOKENS`]) to CSS colour.
     pub light: BTreeMap<String, String>,
     pub dark: BTreeMap<String, String>,
     pub problems: Vec<String>,
+}
+
+/// The themes that come with Aoide, as files of the same form.
+const BUILT_IN: &[(&str, &str)] = &[
+    ("catppuccin", include_str!("../themes/catppuccin.toml")),
+    ("dracula", include_str!("../themes/dracula.toml")),
+    ("everforest", include_str!("../themes/everforest.toml")),
+    ("gruvbox", include_str!("../themes/gruvbox.toml")),
+    ("nord", include_str!("../themes/nord.toml")),
+    ("rose-pine", include_str!("../themes/rose-pine.toml")),
+    ("tokyo-night", include_str!("../themes/tokyo-night.toml")),
+];
+
+/// Every theme to choose from: those that come with Aoide, by name, then the files in `dir`
+/// (see [`load_themes`]). A file named like a built-in theme takes its place.
+pub fn themes(dir: &Path) -> Vec<Theme> {
+    let mut own = load_themes(dir);
+    let mut all: Vec<Theme> = BUILT_IN
+        .iter()
+        .map(
+            |(name, text)| match own.iter().position(|t| t.name == *name) {
+                Some(at) => own.remove(at),
+                None => {
+                    let mut theme =
+                        parse_theme(name.to_string(), Path::new(name), Ok(text.to_string()));
+                    theme.builtin = true;
+                    theme
+                }
+            },
+        )
+        .collect();
+    all.extend(own);
+    all
 }
 
 /// Reads every `*.toml` file in `dir`, sorted by name. A missing folder gives no themes; a
@@ -261,16 +298,24 @@ pub fn load_themes(dir: &Path) -> Vec<Theme> {
 }
 
 fn load_theme(name: String, path: &Path) -> Theme {
-    let mut theme = Theme {
+    parse_theme(
         name,
+        path,
+        std::fs::read_to_string(path).map_err(|e| e.to_string()),
+    )
+}
+
+/// A theme from a file's text (`path` names it in problems).
+fn parse_theme(name: String, path: &Path, text: Result<String, String>) -> Theme {
+    let mut theme = Theme {
+        title: name.clone(),
+        name,
+        builtin: false,
         light: BTreeMap::new(),
         dark: BTreeMap::new(),
         problems: Vec::new(),
     };
-    let table = match std::fs::read_to_string(path)
-        .map_err(|e| e.to_string())
-        .and_then(|text| text.parse::<toml::Table>().map_err(|e| e.to_string()))
-    {
+    let table = match text.and_then(|text| text.parse::<toml::Table>().map_err(|e| e.to_string())) {
         Ok(table) => table,
         Err(message) => {
             theme.problems.push(format!(
@@ -281,6 +326,14 @@ fn load_theme(name: String, path: &Path) -> Theme {
             return theme;
         }
     };
+    if let Some(title) = table
+        .get("title")
+        .and_then(toml::Value::as_str)
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+    {
+        theme.title = title.to_owned();
+    }
     for (variant, tokens) in [("light", &mut theme.light), ("dark", &mut theme.dark)] {
         match table.get(variant) {
             None => {}

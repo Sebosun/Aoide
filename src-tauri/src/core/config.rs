@@ -228,7 +228,7 @@ impl Config {
     pub(super) fn preferences(&self) -> PreferencesView {
         PreferencesView {
             appearance: self.get(APPEARANCE).unwrap_or_default(),
-            themes: aoide_config::load_themes(&self.dir.join(THEMES_DIR)),
+            themes: aoide_config::themes(&self.dir.join(THEMES_DIR)),
             config_dir: self.dir.to_string_lossy().into_owned(),
             problems: self.problems(),
         }
@@ -581,7 +581,7 @@ mod tests {
     }
 
     #[test]
-    fn preferences_list_themes_from_the_themes_folder() {
+    fn preferences_list_themes_from_the_themes_folder_after_those_that_come_with_aoide() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir(dir.path().join(THEMES_DIR)).unwrap();
         std::fs::write(
@@ -591,9 +591,10 @@ mod tests {
         .unwrap();
         let config = Config::open(dir.path(), &Library::open_in_memory().unwrap());
         let themes = config.preferences().themes;
-        assert_eq!(themes.len(), 1);
-        assert_eq!(themes[0].name, "dusk");
-        assert_eq!(themes[0].dark["accent"], "#FFB000");
+        let dusk = themes.last().unwrap();
+        assert_eq!((dusk.name.as_str(), dusk.builtin), ("dusk", false));
+        assert_eq!(dusk.dark["accent"], "#FFB000");
+        assert!(themes[..themes.len() - 1].iter().all(|t| t.builtin));
     }
 
     /// Records what the settings told it.

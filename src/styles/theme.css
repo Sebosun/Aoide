@@ -19,6 +19,12 @@
   --ok: #1e8f5a;
   --warn: #a8650f;
   --shadow: rgba(18, 22, 56, 0.32);
+  /* Aoide's own colours again, for its swatch beside other themes (a theme overrides
+     only the tokens above). */
+  --aoide-ground: #e9ecf7;
+  --aoide-page: #ffffff;
+  --aoide-ink: #121638;
+  --aoide-accent: #e0502f;
 
   --screen: linear-gradient(180deg, var(--cover-tint), var(--ground) 70%);
   --font-ui: "Manrope", system-ui, sans-serif;
@@ -51,6 +57,12 @@
     --ok: #4fd495;
     --warn: #e9a94b;
     --shadow: rgba(0, 0, 0, 0.6);
+    /* Aoide's own colours again, for its swatch beside other themes (a theme overrides
+       only the tokens above). */
+    --aoide-ground: #0c0f22;
+    --aoide-page: #161b38;
+    --aoide-ink: #f2f3fa;
+    --aoide-accent: #ff7a59;
     color-scheme: dark;
   }
 }
@@ -71,5 +83,11 @@
   --ok: #4fd495;
   --warn: #e9a94b;
   --shadow: rgba(0, 0, 0, 0.6);
+  /* Aoide's own colours again, for its swatch beside other themes (a theme overrides
+     only the tokens above). */
+  --aoide-ground: #0c0f22;
+  --aoide-page: #161b38;
+  --aoide-ink: #f2f3fa;
+  --aoide-accent: #ff7a59;
   color-scheme: dark;
 }

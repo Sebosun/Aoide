@@ -28,6 +28,7 @@ import type {
   PrepareState,
   PrepareView,
   Preferences,
+  Theme,
   Candidate,
   ScanProgress,
   DiscoveryImportProgress,
@@ -63,6 +64,7 @@ import fixtureChapters from "@/tests/fixtures/chapters.json";
 import fixtureWeb from "@/tests/fixtures/web.json";
 import fixtureBrowser from "@/tests/fixtures/browser.json";
 import fixtureFound from "@/tests/fixtures/found.json";
+import fixtureThemes from "@/tests/fixtures/themes.json";
 import { ApiError } from "@/api/errors";
 
 /** A refusal, as the core answers one: an error of a kind (its `String` errors are `internal`). */
@@ -345,7 +347,15 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       zoom: Number(query.get("zoom")) || 1,
     },
     themes: [
-      { name: "dusk", light: { accent: "#B4472B" }, dark: { accent: "#FFB27A", ground: "#120E1C" }, problems: [] },
+      ...(structuredClone(fixtureThemes) as Theme[]),
+      {
+        name: "dusk",
+        title: "dusk",
+        builtin: false,
+        light: { accent: "#B4472B" },
+        dark: { accent: "#FFB27A", ground: "#120E1C" },
+        problems: [],
+      },
     ],
     configDir: "~/.config/aoide",
     problems: [],

@@ -57,9 +57,12 @@ async function copy(text: string) {
         <summary>Theme files</summary>
         <p>
           Put a file in <code>{{ preferences.configDir }}/themes/</code> with a <code>[light]</code> and a
-          <code>[dark]</code> table of colours, then pick it under Appearance › Colours.
+          <code>[dark]</code> table of colours, then pick it under Appearance › Colours. A file named like a theme that
+          comes with Aoide (<code>nord.toml</code>, <code>gruvbox.toml</code>…) takes its place.
         </p>
         <pre class="about-settings__code"><code># {{ preferences.configDir }}/themes/dusk.toml
+title = "Dusk"
+
 [light]
 accent = "#C2410C"
 

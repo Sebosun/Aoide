@@ -2,7 +2,7 @@
 import UiSegmented from "@/components/ui/UiSegmented.vue";
 import { computed, onMounted, ref } from "vue";
 import { Minus, Palette, Plus } from "@lucide/vue";
-import UiSelect from "@/components/ui/UiSelect.vue";
+import ThemePicker from "@/components/settings/ThemePicker.vue";
 import type { AppearanceMode } from "@/api/types";
 import { TEXT_SCALES } from "@/theme";
 import { ZOOM_STEPS, clampZoom, stepZoom, zoomLabel } from "@/zoom";
@@ -33,18 +33,6 @@ const modes: { value: AppearanceMode; label: string }[] = [
   { value: "dark", label: "Dark" },
 ];
 const zoom = computed(() => clampZoom(preferences.appearance.zoom));
-const missingTheme = computed(
-  () =>
-    preferences.appearance.theme !== "default" &&
-    !preferences.themes.some((t) => t.name === preferences.appearance.theme),
-);
-const themeOptions = computed(() => [
-  { value: "default", label: "Aoide" },
-  ...(missingTheme.value
-    ? [{ value: preferences.appearance.theme, label: `${preferences.appearance.theme} (file not found)` }]
-    : []),
-  ...preferences.themes.map((theme) => ({ value: theme.name, label: theme.name })),
-]);
 </script>
 
 <template>
@@ -63,10 +51,10 @@ const themeOptions = computed(() => [
     </div>
     <div class="appearance__row">
       <span class="appearance__label">Colours</span>
-      <UiSelect
-        class="appearance__select"
-        label="Colour theme"
-        :options="themeOptions"
+      <ThemePicker
+        class="appearance__themes"
+        :themes="preferences.themes"
+        :mode="preferences.appearance.mode"
         :model-value="preferences.appearance.theme"
         @update:model-value="(theme) => preferences.update({ theme })"
       />
@@ -208,9 +196,8 @@ const themeOptions = computed(() => [
   opacity: 1;
   cursor: default;
 }
-.appearance__select {
-  justify-self: start;
-  min-width: 200px;
+.appearance__themes {
+  align-self: start;
 }
 .appearance__range {
   justify-self: start;

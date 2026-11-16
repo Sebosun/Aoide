@@ -781,6 +781,14 @@ export type Theme = {
  */
 name: string, 
 /**
+ * The file's `title`, or its name.
+ */
+title: string, 
+/**
+ * Comes with Aoide (no file of this name in the themes folder replaces it).
+ */
+builtin: boolean, 
+/**
  * Token name (see [`TOKENS`]) to CSS colour.
  */
 light: { [key in string]: string }, dark: { [key in string]: string }, problems: Array<string>, };

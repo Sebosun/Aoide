@@ -49,6 +49,8 @@ it("turns a theme file into CSS that overrides only the given tokens, per varian
   expect(themeCss(undefined)).toBe("");
   const css = themeCss({
     name: "dusk",
+    title: "dusk",
+    builtin: false,
     light: { accent: "#123456" },
     dark: { accent: "#ABCDEF", ground: "#000" },
     problems: [],
@@ -91,17 +93,62 @@ it("changes appearance from Settings and saves it to the config file", async () 
   expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ mode: "dark" }) });
   expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
 
-  await choose(wrapper, "Colour theme", "dusk");
+  await wrapper
+    .get('[role="radiogroup"][aria-label="Colour theme"]')
+    .findAll("label")
+    .find((l) => l.text() === "dusk")!
+    .get("input")
+    .setValue(true);
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ mode: "dark", theme: "dusk" }) });
   expect(wrapper.text()).toContain("~/.config/aoide");
   wrapper.unmount();
 });
 
+it("offers the themes that come with Aoide, each with a swatch in its own colours", async () => {
+  mock.emitConfig({ appearance: { mode: "dark", theme: "default", textSize: 2, readerMode: "page", zoom: 1 } });
+  const save = vi.spyOn(mock, "saveAppearance");
+  const wrapper = mount(SettingsDialog, { attachTo: document.body });
+  await flushPromises();
+  const picker = wrapper.get('[role="radiogroup"][aria-label="Colour theme"]');
+  const choices = () => picker.findAll("label");
+  expect(choices().map((c) => c.text())).toEqual([
+    "Aoide",
+    "Catppuccin",
+    "Dracula",
+    "Everforest",
+    "Gruvbox",
+    "Nord",
+    "Rosé Pine",
+    "Tokyo Night",
+    "dusk",
+  ]);
+  const choice = (title: string) => choices().find((c) => c.text() === title)!;
+  expect((choice("Aoide").get("input").element as HTMLInputElement).checked).toBe(true);
+  // Dark mode: the dark variant's page and accent.
+  const swatch = choice("Tokyo Night").get(".theme-picker__swatch").attributes("style");
+  expect(swatch).toContain("--swatch-page: #1a1b26");
+  expect(swatch).toContain("--swatch-accent: #7aa2f7");
+  await choice("Tokyo Night").get("input").setValue(true);
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ theme: "tokyo-night" }) });
+  expect((choice("Tokyo Night").get("input").element as HTMLInputElement).checked).toBe(true);
+  wrapper.unmount();
+});
+
 it("shows problems in settings.toml and theme files", async () => {
   mock.emitConfig({
     problems: ["settings.toml is not valid TOML: line 3"],
-    themes: [{ name: "dusk", light: {}, dark: {}, problems: ["[light] sparkle: not a colour token Aoide knows"] }],
+    themes: [
+      {
+        name: "dusk",
+        title: "dusk",
+        builtin: false,
+        light: {},
+        dark: {},
+        problems: ["[light] sparkle: not a colour token Aoide knows"],
+      },
+    ],
   });
   const wrapper = mount(SettingsDialog, { attachTo: document.body });
   await flushPromises();
