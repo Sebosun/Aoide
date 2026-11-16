@@ -166,6 +166,31 @@ it("sets the pauses between paragraphs, at scene breaks and after headings, and 
   wrapper.unmount();
 });
 
+it("hears the pauses in the voice saved since they were last heard", async () => {
+  const hear = vi.spyOn(mock, "previewPauses");
+  const wrapper = mount(SettingsDialog, { attachTo: document.body });
+  await flushPromises();
+  await wrapper
+    .findAll('[role="tab"]')
+    .find((t) => t.text() === "Speech engine")!
+    .trigger("click");
+  await flushPromises();
+  await wrapper.get('[aria-label="Hear the pauses"]').trigger("click");
+  await flushPromises();
+  await wrapper.get('[aria-label="Stop hearing the pauses"]').trigger("click");
+
+  await choose(wrapper, "Default voice", "Olivia");
+  await wrapper
+    .findAll('button[type="submit"]')
+    .find((b) => b.text() === "Save engine")!
+    .trigger("click");
+  await flushPromises();
+  await wrapper.get('[aria-label="Hear the pauses"]').trigger("click");
+  await flushPromises();
+  expect(hear).toHaveBeenCalledTimes(2);
+  wrapper.unmount();
+});
+
 it("previews a book's own voice from book tools", async () => {
   await useReaderStore().open("book-0");
   const preview = vi.spyOn(mock, "previewVoice");

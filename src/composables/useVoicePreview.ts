@@ -9,13 +9,14 @@ export interface PreviewRequest {
   language: string | null;
 }
 
-/** Plays short WAV samples the core makes. Each is cached by its key while the component lives,
- *  and playback stops when it unmounts. */
+/** Plays short WAV samples the core makes. Each is cached by its key while the component lives
+ *  (a sample without a key is made each time), and playback stops when it unmounts. */
 export function useSample() {
   const state = ref<"idle" | "loading" | "playing">("idle"),
     error = ref("");
   const cache = new Map<string, string>();
   let audio: HTMLAudioElement | null = null,
+    unkept: string | null = null,
     request = 0;
   function stop() {
     request += 1;
@@ -23,17 +24,20 @@ export function useSample() {
     audio = null;
     state.value = "idle";
   }
-  async function play(key: string, make: () => Promise<ArrayBuffer>) {
+  async function play(key: string | null, make: () => Promise<ArrayBuffer>) {
     stop();
     const id = request;
     error.value = "";
     state.value = "loading";
     try {
-      let url = cache.get(key);
+      let url = key === null ? undefined : cache.get(key);
       if (!url) {
         const wav = await make();
         url = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
-        cache.set(key, url);
+        if (key === null) {
+          if (unkept) URL.revokeObjectURL(unkept);
+          unkept = url;
+        } else cache.set(key, url);
       }
       if (id !== request) return;
       const sample = new Audio(url);
@@ -52,6 +56,7 @@ export function useSample() {
   onUnmounted(() => {
     stop();
     cache.forEach((url) => URL.revokeObjectURL(url));
+    if (unkept) URL.revokeObjectURL(unkept);
   });
   return { state, error, play, stop };
 }

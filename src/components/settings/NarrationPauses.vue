@@ -34,7 +34,8 @@ function set(key: keyof PauseSettings, event: Event) {
 }
 function hear() {
   const asked = { ...pauses.value };
-  void play(JSON.stringify(asked), () => api.previewPauses({ pauses: asked }));
+  // Said in the saved voice, which can change while this is open: never kept.
+  void play(null, () => api.previewPauses({ pauses: asked }));
 }
 </script>
 
