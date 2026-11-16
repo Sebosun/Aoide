@@ -184,7 +184,7 @@ To add a voice, describe it: `--design "Mara" "A warm woman in her forties, low 
 
 The pill in the top right corner tells you whether Aoide can reach the server. When it says **ready**, you're set.
 
-> **Tip:** under **Settings → Speech engine → Start the server automatically** you can give Aoide the command that starts your server. It will then start it when needed and you can forget about it.
+> **Tip:** under **Settings → Speech engine → Start the server automatically** you can give Aoide the command that starts your server. It will then start it the first time you listen, prepare a book or try a voice (only reading starts nothing), and you can forget about it. While the model loads the player says *Starting the voice…*. If the server ends instead, Aoide says so, with its exit code; what it printed is in `speech-server.log` in Aoide's logs folder. A server you started yourself is used as it is and never stopped.
 
 ### 3. Add books
 

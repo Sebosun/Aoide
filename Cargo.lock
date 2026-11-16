@@ -154,6 +154,7 @@ dependencies = [
  "reflink-copy",
  "reqwest 0.12.28",
  "roxmltree",
+ "rustix",
  "serde",
  "serde_json",
  "sha2 0.10.9",

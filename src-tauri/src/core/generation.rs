@@ -221,6 +221,11 @@ impl Generation {
         lock(&self.preparation).queued()
     }
 
+    /// Whether there is speech to make: for what is listened to, or for a queued book.
+    pub fn wants_speech(&self) -> bool {
+        lock(&self.state).pending > 0
+    }
+
     /// Whether the worker is making a segment now.
     pub fn busy(&self) -> bool {
         lock(&self.state).generating_segment_id.is_some()
@@ -595,6 +600,9 @@ impl super::Core {
     /// Tells generation what changed; see [`generation::Generation::apply`].
     pub(super) fn plan(&self, event: PlanEvent) {
         self.generation.apply(event, self);
+        if self.generation.wants_speech() {
+            self.speech_server.want();
+        }
     }
 
     pub(super) fn segment_id_for(&self, job: &Job) -> Option<String> {

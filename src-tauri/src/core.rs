@@ -195,6 +195,8 @@ pub struct Core {
     output: output::Output,
     /// The speech engine in use.
     engine: engine::Engine,
+    /// The server Aoide starts for the engine's launch command.
+    speech_server: engine_process::ServerProcess,
     /// What the speech engine is asked to make.
     generation: generation::Generation,
     /// What went wrong with the speech engine lately.
@@ -284,8 +286,17 @@ impl Core {
             transcribers,
             paths.models_dir.clone(),
         );
+        let data_dir = paths.db_path.parent().unwrap_or(Path::new(".")).to_owned();
+        let speech_server = engine_process::ServerProcess::new(
+            engine_process::Names::SPEECH,
+            &data_dir,
+            &data_dir.join("logs"),
+            engine_process::Spec::of(&profile.launch, &profile.base_url),
+            engine_process::Timing::default(),
+        );
         let engine_component =
             engine::Engine::new(registry, profile, Arc::clone(&engine), Arc::clone(&events));
+        engine_component.set_server(speech_server.view());
         let shelf = shelf::Shelf::new(
             Arc::clone(&library),
             paths.library_dir.clone(),
@@ -350,6 +361,7 @@ impl Core {
             playback: playback::Playback::new(player),
             output: output::Output::new(audio),
             engine: engine_component,
+            speech_server,
             generation,
             speech_problems: Default::default(),
             tagging: Default::default(),
@@ -377,6 +389,13 @@ impl Core {
         tokio::spawn(Arc::clone(core).worker_events(worker_events));
         tokio::spawn(Arc::clone(core).tick_loop());
         tokio::spawn(Arc::clone(core).engine_loop());
+        let serving = Arc::clone(core);
+        tokio::spawn(async move {
+            serving
+                .speech_server
+                .run(&engine::SpeechServer(&serving))
+                .await
+        });
         let aligning = Arc::clone(core);
         tokio::spawn(async move { aligning.aligner.run(&*aligning).await });
         let scanner = Arc::clone(core);
@@ -545,6 +564,7 @@ impl Core {
             match event {
                 WorkerEvent::Started(job) => {
                     self.engine.mark_busy();
+                    self.speech_server.used();
                     let segment_id = self.segment_id_for(&job);
                     self.plan(PlanEvent::WorkStarted { segment_id });
                 }
@@ -660,7 +680,11 @@ impl Core {
     async fn engine_loop(self: Arc<Self>) {
         loop {
             let busy = self.generation.busy();
-            if self.engine.poll(busy).await == engine::Polled::VoicesKnown {
+            let (polled, answer) = self.engine.poll(busy).await;
+            if let Some(answer) = answer {
+                self.speech_server.answered(answer);
+            }
+            if polled == engine::Polled::VoicesKnown {
                 // Plans made before the engine listed its voices (it was down) may name a
                 // voice it does not offer: make them again now that the list is known.
                 if let Err(error) = self.restart_session().await {
@@ -681,7 +705,7 @@ impl Core {
     pub fn shutdown(&self) {
         self.save_place(self.playback.place_to_save(true));
         self.output.close();
-        self.engine.shutdown();
+        self.speech_server.stop(&engine::SpeechServer(self));
         self.stop_aligner();
         self.browsing.stop();
     }

@@ -151,7 +151,9 @@ Characterisation tests first, at `Core`'s public seam with the `FakeEngine` from
 - switching profile while a voice listing is in flight leaves the new engine's voices unasked
   and the old listing ignored;
 - an engine that is ready and lists no voices has saved voice names used as they are;
-- an offline engine with a launch command is launched once;
+- an offline engine with a launch command is launched once (since 6.4 of `docs/next`: once speech
+  is wanted, by the `ServerProcess` component in `core/engine_process.rs`, which also notices
+  the exit, restarts after a crash and stops it when idle);
 - `engine://status` is emitted only when the status changes.
 
 **Done when:** those tests pass before and after; `Core` has one `engine` field of the component

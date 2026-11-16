@@ -4,9 +4,19 @@
 //!
 //! Its state is one [`Server`], changed only by [`next`] over named [`ServerEvent`]s.
 
-#![cfg_attr(not(test), allow(dead_code))]
+use std::collections::VecDeque;
+use std::io::{BufRead, Write};
+use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::{mpsc, Arc, Mutex};
+use std::time::{Duration, Instant};
 
-use std::time::Duration;
+use aoide_tts::LaunchCommand;
+use serde::Serialize;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+
+use super::lock;
 
 /// Why no server of ours runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -644,6 +654,879 @@ pub fn next(state: Server, event: ServerEvent, ctx: &Ctx) -> (Server, ServerActi
     }
 }
 
+// ------------------------------------------------------------------ the process
+
+/// Lines of the server's output kept for the view and for [`port_taken`].
+const TAIL_LINES: usize = 40;
+/// The server log stops growing at this size.
+const LOG_LIMIT: u64 = 10 * 1024 * 1024;
+/// How long the port check waits for a connection.
+const PORT_CHECK: Duration = Duration::from_millis(300);
+/// How long the reaper waits for the last of the output once the leader has ended.
+const OUTPUT_DRAIN: Duration = Duration::from_millis(500);
+/// How often timers are looked at.
+const TICK: Duration = Duration::from_secs(1);
+
+/// Which server: its name in logs, and the files it keeps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Names {
+    /// `program` in `proc.*` and `engine.server.*` events.
+    pub program: &'static str,
+    /// The stem of its log file, pidfile and thread names.
+    pub file: &'static str,
+}
+
+impl Names {
+    pub const SPEECH: Names = Names {
+        program: "engine",
+        file: "speech-server",
+    };
+    pub const ALIGNER: Names = Names {
+        program: "aligner",
+        file: "aligner",
+    };
+}
+
+/// What is launched, and the address it answers at.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Spec {
+    pub launch: LaunchCommand,
+    pub base_url: String,
+}
+
+impl Spec {
+    /// What a profile with `launch` at `base_url` launches, if anything.
+    pub fn of(launch: &Option<LaunchCommand>, base_url: &str) -> Option<Spec> {
+        launch.clone().map(|launch| Spec {
+            launch,
+            base_url: base_url.to_owned(),
+        })
+    }
+
+    /// The address the port check connects to.
+    fn address(&self) -> Option<SocketAddr> {
+        let url = url::Url::parse(&self.base_url).ok()?;
+        let host = url.host_str()?.trim_matches(['[', ']']).to_owned();
+        let port = url.port_or_known_default()?;
+        (host.as_str(), port).to_socket_addrs().ok()?.next()
+    }
+}
+
+/// The server's state, as the window shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum ServerState {
+    Stopped,
+    Starting,
+    Running,
+    Stopping,
+    Waiting,
+    Failed,
+    External,
+}
+
+/// Why the server failed, as the window shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum FailureKind {
+    Spawn,
+    Exited,
+    PortTaken,
+    StartTimedOut,
+    TooManyRestarts,
+}
+
+/// Why no server runs, as the window shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum StoppedKind {
+    Never,
+    Idle,
+    Exited,
+    Switched,
+    Retry,
+    Asked,
+    Quit,
+}
+
+impl From<StopWhy> for StoppedKind {
+    fn from(why: StopWhy) -> Self {
+        match why {
+            StopWhy::Never => StoppedKind::Never,
+            StopWhy::Idle => StoppedKind::Idle,
+            StopWhy::Exited => StoppedKind::Exited,
+            StopWhy::Switched => StoppedKind::Switched,
+            StopWhy::Retry => StoppedKind::Retry,
+            StopWhy::Asked => StoppedKind::Asked,
+            StopWhy::Quit => StoppedKind::Quit,
+        }
+    }
+}
+
+/// The server Aoide starts for a launch command, as the window shows it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct ServerView {
+    pub state: ServerState,
+    /// Why it is stopped, while it is.
+    pub stopped: Option<StoppedKind>,
+    /// Why it failed, while it has.
+    pub failure: Option<FailureKind>,
+    /// How the failed server ended, when it ended.
+    pub exit_code: Option<i32>,
+    pub signal: Option<i32>,
+    /// Why it could not be started at all.
+    pub error: Option<String>,
+    /// Minutes without use before it is stopped; `None` keeps it running.
+    pub idle_minutes: Option<u32>,
+    /// Seconds without an answer or output before a start is given up.
+    pub start_timeout_seconds: u32,
+    /// Whether Try again applies.
+    pub can_retry: bool,
+    /// Whether Stop now applies.
+    pub can_stop: bool,
+    /// The name of the server's log file (in Aoide's logs folder).
+    pub log_file: String,
+    /// Its last lines, while it has failed.
+    pub last_lines: Vec<String>,
+}
+
+/// What the server needs from the rest of the app.
+pub(super) trait ServerHost: Send + Sync {
+    fn now_ms(&self) -> i64;
+    /// Something needs the server now.
+    fn wanted(&self) -> bool;
+    /// Its view changed (`None`: there is no launch command).
+    fn server_changed(&self, view: Option<ServerView>);
+}
+
+/// The server's output: its last lines, how many it printed, and its log file.
+#[derive(Default)]
+struct Output {
+    tail: VecDeque<String>,
+    lines: u64,
+    log: Option<LogFile>,
+}
+
+struct LogFile {
+    file: std::fs::File,
+    written: u64,
+    /// Nothing more is written: the limit was reached or writing failed.
+    closed: bool,
+}
+
+impl Output {
+    fn line(&mut self, line: String, names: Names) {
+        if let Some(log) = &mut self.log {
+            log.write(&line, names);
+        }
+        self.tail.push_back(line);
+        while self.tail.len() > TAIL_LINES {
+            self.tail.pop_front();
+        }
+        self.lines += 1;
+    }
+}
+
+impl LogFile {
+    fn write(&mut self, line: &str, names: Names) {
+        if self.closed {
+            return;
+        }
+        let bytes = line.len() as u64 + 1;
+        let written = if self.written + bytes > LOG_LIMIT {
+            self.closed = true;
+            writeln!(
+                self.file,
+                "[Aoide: this log reached 10 MB; later lines are not kept]"
+            )
+        } else {
+            self.written += bytes;
+            writeln!(self.file, "{line}")
+        };
+        if let Err(error) = written {
+            self.closed = true;
+            tracing::warn!(
+                event = "engine.server.log",
+                program = names.program,
+                file = %format!("{}.log", names.file),
+                %error,
+                "Cannot write the server's log"
+            );
+        }
+    }
+}
+
+/// A spawn for the spawner thread, and where its result goes.
+struct SpawnRequest {
+    command: Command,
+    reply: mpsc::Sender<Result<u32, String>>,
+}
+
+/// A stop under way, for its log line.
+struct Stop {
+    started: Instant,
+    killed: bool,
+}
+
+struct Inner {
+    state: Server,
+    spec: Option<Spec>,
+    last_answer: Option<Answer>,
+    last_output_ms: Option<i64>,
+    /// Output lines seen at the last step.
+    seen_lines: u64,
+    stopping: Option<Stop>,
+}
+
+/// The server Aoide starts for a launch command; see the module documentation.
+pub(super) struct ServerProcess {
+    names: Names,
+    pidfile: PathBuf,
+    logs_dir: PathBuf,
+    base: Timing,
+    tick: Duration,
+    inner: Mutex<Inner>,
+    /// One step at a time, with the actions it leads to.
+    steps: Mutex<()>,
+    events: UnboundedSender<ServerEvent>,
+    receiver: Mutex<Option<UnboundedReceiver<ServerEvent>>>,
+    spawner: Mutex<mpsc::Sender<SpawnRequest>>,
+    output: Arc<Mutex<Output>>,
+    /// The view last handed to the host.
+    sent: Mutex<Option<Option<ServerView>>>,
+}
+
+impl ServerProcess {
+    /// The server for `spec`, keeping its pidfile in `data_dir` and its log in `logs_dir`.
+    pub fn new(
+        names: Names,
+        data_dir: &Path,
+        logs_dir: &Path,
+        spec: Option<Spec>,
+        base: Timing,
+    ) -> Self {
+        let (events, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let output = Arc::new(Mutex::new(Output::default()));
+        let (spawner, requests) = mpsc::channel();
+        {
+            let (events, output) = (events.clone(), Arc::clone(&output));
+            let grace = base.grace();
+            let spawned = std::thread::Builder::new()
+                .name(format!("aoide-{}", names.file))
+                .spawn(move || spawn_loop(names, requests, events, output, grace));
+            if let Err(error) = spawned {
+                tracing::error!(event = "proc.spawn", program = names.program, outcome = "failed", %error, "Cannot start the thread that starts the server");
+            }
+        }
+        Self {
+            names,
+            pidfile: data_dir.join(format!("{}.pid", names.file)),
+            logs_dir: logs_dir.to_owned(),
+            base,
+            tick: TICK,
+            inner: Mutex::new(Inner {
+                state: Server::Stopped {
+                    why: StopWhy::Never,
+                },
+                spec,
+                last_answer: None,
+                last_output_ms: None,
+                seen_lines: 0,
+                stopping: None,
+            }),
+            steps: Mutex::new(()),
+            events,
+            receiver: Mutex::new(Some(receiver)),
+            spawner: Mutex::new(spawner),
+            output,
+            sent: Mutex::new(None),
+        }
+    }
+
+    /// Looks at the timers every `tick` instead of every second (tests).
+    #[cfg(test)]
+    pub fn with_tick(mut self, tick: Duration) -> Self {
+        self.tick = tick;
+        self
+    }
+
+    /// The server's log file.
+    pub fn log_path(&self) -> PathBuf {
+        self.logs_dir.join(format!("{}.log", self.names.file))
+    }
+
+    /// Its last lines.
+    pub fn log_tail(&self) -> Vec<String> {
+        lock(&self.output).tail.iter().cloned().collect()
+    }
+
+    /// Something needs the server now.
+    pub fn want(&self) {
+        self.send(ServerEvent::Wanted);
+    }
+
+    /// What its address answered.
+    pub fn answered(&self, answer: Answer) {
+        self.send(ServerEvent::Answered(answer));
+    }
+
+    /// A request was made to it.
+    pub fn used(&self) {
+        self.send(ServerEvent::Used);
+    }
+
+    /// Try again, after a failure.
+    pub fn retry(&self) {
+        self.send(ServerEvent::RetryChosen);
+    }
+
+    /// Stop now.
+    pub fn stop_now(&self) {
+        self.send(ServerEvent::StopChosen);
+    }
+
+    /// Another profile is in use, launching `spec`.
+    pub fn switch(&self, spec: Option<Spec>) {
+        let same_launch = {
+            let mut inner = lock(&self.inner);
+            let same = inner.spec == spec;
+            inner.spec = spec;
+            same
+        };
+        self.send(ServerEvent::Switched { same_launch });
+    }
+
+    fn send(&self, event: ServerEvent) {
+        let _ = self.events.send(event);
+    }
+
+    /// The server's view; `None` without a launch command.
+    pub fn view(&self) -> Option<ServerView> {
+        let inner = lock(&self.inner);
+        let spec = inner.spec.as_ref()?;
+        let timing = self.timing(Some(spec));
+        let (stopped, failure, exit, error) = match &inner.state {
+            Server::Stopped { why } => (Some(StoppedKind::from(*why)), None, None, None),
+            Server::Failed { why } => {
+                let (kind, exit, error) = match why {
+                    Failure::Spawn { error } => (FailureKind::Spawn, None, Some(error.clone())),
+                    Failure::Exited(exit) => (FailureKind::Exited, Some(*exit), None),
+                    Failure::PortTaken(exit) => (FailureKind::PortTaken, *exit, None),
+                    Failure::StartTimedOut => (FailureKind::StartTimedOut, None, None),
+                    Failure::TooManyRestarts(exit) => {
+                        (FailureKind::TooManyRestarts, Some(*exit), None)
+                    }
+                };
+                (None, Some(kind), exit, error)
+            }
+            _ => (None, None, None, None),
+        };
+        let state = match inner.state {
+            Server::Stopped { .. } => ServerState::Stopped,
+            Server::Starting { .. } => ServerState::Starting,
+            Server::Running { .. } => ServerState::Running,
+            Server::Stopping { .. } => ServerState::Stopping,
+            Server::Waiting { .. } => ServerState::Waiting,
+            Server::Failed { .. } => ServerState::Failed,
+            Server::External => ServerState::External,
+        };
+        Some(ServerView {
+            state,
+            stopped,
+            failure,
+            exit_code: exit.and_then(|e| e.code),
+            signal: exit.and_then(|e| e.signal),
+            error,
+            idle_minutes: timing.idle_ms.map(|ms| (ms / 60_000) as u32),
+            start_timeout_seconds: (timing.start_timeout_ms / 1000) as u32,
+            can_retry: state == ServerState::Failed,
+            can_stop: matches!(
+                state,
+                ServerState::Starting | ServerState::Running | ServerState::Waiting
+            ),
+            log_file: format!("{}.log", self.names.file),
+            last_lines: if state == ServerState::Failed {
+                self.log_tail()
+            } else {
+                vec![]
+            },
+        })
+    }
+
+    /// The timings for `spec`.
+    fn timing(&self, _spec: Option<&Spec>) -> Timing {
+        self.base.clone()
+    }
+
+    /// Applies `event` with [`next`], logs the transition, tells the host, and carries out
+    /// what follows (a launch leads to more events, applied in turn).
+    pub fn step(&self, event: ServerEvent, host: &dyn ServerHost) {
+        let _one = lock(&self.steps);
+        let mut pending = Some(event);
+        while let Some(event) = pending.take() {
+            let now = host.now_ms();
+            let wanted = host.wanted();
+            let cause = event.name();
+            let (before, after, action, stopped) = {
+                let mut inner = lock(&self.inner);
+                if let ServerEvent::Answered(answer) = event {
+                    inner.last_answer = Some(answer);
+                }
+                if inner.spec.is_none()
+                    && matches!(event, ServerEvent::Wanted | ServerEvent::Answered(_))
+                {
+                    continue;
+                }
+                let (lines, tail) = {
+                    let output = lock(&self.output);
+                    (
+                        output.lines,
+                        output.tail.iter().cloned().collect::<Vec<_>>(),
+                    )
+                };
+                if lines != inner.seen_lines {
+                    inner.seen_lines = lines;
+                    inner.last_output_ms = Some(now);
+                }
+                let timing = self.timing(inner.spec.as_ref());
+                let ctx = Ctx {
+                    now_ms: now,
+                    wanted,
+                    last_answer: inner.last_answer,
+                    last_output_ms: inner.last_output_ms,
+                    tail: &tail,
+                    timing: &timing,
+                };
+                let before = inner.state.clone();
+                let (after, action) = next(before.clone(), event, &ctx);
+                inner.state = after.clone();
+                let stopped = match (&before, &after) {
+                    (Server::Stopping { then, .. }, after) if after.name() != "stopping" => {
+                        inner.stopping.take().map(|stop| (then.clone(), stop))
+                    }
+                    _ => None,
+                };
+                (before, after, action, stopped)
+            };
+            if before.name() != after.name() {
+                self.log_stage(&before, &after, cause);
+            }
+            if let Some((then, stop)) = stopped {
+                self.log_stop(&then, &stop);
+            }
+            self.send_view(host);
+            pending = self.carry_out(action, &after);
+        }
+    }
+
+    fn log_stage(&self, before: &Server, after: &Server, cause: &str) {
+        let attempt = match after {
+            Server::Starting { restarts, .. }
+            | Server::Running { restarts, .. }
+            | Server::Waiting { restarts, .. } => restarts.count,
+            _ => 0,
+        };
+        let failure = match after {
+            Server::Failed { why } => Some(crate::logging::name(failure_kind(why))),
+            _ => None,
+        };
+        if matches!(after, Server::Failed { .. } | Server::Waiting { .. }) {
+            tracing::warn!(
+                event = "engine.server.stage",
+                program = self.names.program,
+                from = before.name(),
+                to = after.name(),
+                cause,
+                attempt,
+                failure,
+                "The server stopped"
+            );
+        } else {
+            tracing::info!(
+                event = "engine.server.stage",
+                program = self.names.program,
+                from = before.name(),
+                to = after.name(),
+                cause,
+                attempt,
+                "The server's state changed"
+            );
+        }
+    }
+
+    fn log_stop(&self, then: &After, stop: &Stop) {
+        let why = match then {
+            After::Stopped(StopWhy::Idle) => "idle",
+            After::Stopped(StopWhy::Switched) => "switched",
+            After::Stopped(StopWhy::Quit) => "quit",
+            After::Stopped(StopWhy::Asked) => "asked",
+            After::Stopped(_) => "stopped",
+            After::Failed(_) => "timeout",
+        };
+        tracing::info!(
+            event = "engine.server.stop",
+            program = self.names.program,
+            why,
+            outcome = if stop.killed { "killed" } else { "terminated" },
+            took_ms = crate::logging::took(stop.started),
+            "Stopped the server"
+        );
+    }
+
+    fn send_view(&self, host: &dyn ServerHost) {
+        let view = self.view();
+        let mut sent = lock(&self.sent);
+        if sent.as_ref() != Some(&view) {
+            *sent = Some(view.clone());
+            drop(sent);
+            host.server_changed(view);
+        }
+    }
+
+    /// Carries out `action` in `state`; a launch returns how it went.
+    fn carry_out(&self, action: ServerAction, state: &Server) -> Option<ServerEvent> {
+        match action {
+            ServerAction::None => None,
+            ServerAction::Launch { why } => Some(self.launch(why)),
+            ServerAction::Terminate => {
+                if let Some(pid) = state.pid() {
+                    lock(&self.inner).stopping = Some(Stop {
+                        started: Instant::now(),
+                        killed: false,
+                    });
+                    process::signal(pid, process::Sig::Term);
+                }
+                None
+            }
+            ServerAction::Kill => {
+                if let Some(pid) = state.pid() {
+                    if let Some(stop) = &mut lock(&self.inner).stopping {
+                        stop.killed = true;
+                    }
+                    process::signal(pid, process::Sig::Kill);
+                }
+                None
+            }
+        }
+    }
+
+    fn launch(&self, why: LaunchWhy) -> ServerEvent {
+        let Some(spec) = lock(&self.inner).spec.clone() else {
+            return ServerEvent::SpawnFailed {
+                error: "there is no launch command".into(),
+            };
+        };
+        if let Some(address) = spec.address() {
+            if TcpStream::connect_timeout(&address, PORT_CHECK).is_ok() {
+                tracing::warn!(
+                    event = "proc.spawn",
+                    program = self.names.program,
+                    why = why.name(),
+                    outcome = "address_taken",
+                    "Something else listens at the server's address; not starting it"
+                );
+                return ServerEvent::AddressTaken;
+            }
+        }
+        self.new_log();
+        let launch = &spec.launch;
+        let mut command = Command::new(&launch.program);
+        command
+            .args(&launch.args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if let Some(dir) = launch
+            .working_dir
+            .as_deref()
+            .filter(|d| !d.trim().is_empty())
+        {
+            command.current_dir(dir);
+        }
+        let (reply, answer) = mpsc::channel();
+        let sent = lock(&self.spawner).send(SpawnRequest { command, reply });
+        let spawned = match sent {
+            Ok(()) => answer
+                .recv()
+                .unwrap_or_else(|_| Err("the spawner thread is gone".into())),
+            Err(_) => Err("the spawner thread is gone".into()),
+        };
+        match spawned {
+            Ok(pid) => {
+                tracing::info!(
+                    event = "proc.spawn",
+                    program = self.names.program,
+                    pid,
+                    why = why.name(),
+                    outcome = "ok",
+                    "Launched the server"
+                );
+                ServerEvent::Spawned { pid }
+            }
+            Err(error) => {
+                tracing::error!(
+                    event = "proc.spawn",
+                    program = self.names.program,
+                    why = why.name(),
+                    outcome = "failed",
+                    %error,
+                    "Could not launch the server"
+                );
+                ServerEvent::SpawnFailed { error }
+            }
+        }
+    }
+
+    /// Starts a new log for a launch; the last one becomes `<name>.previous.log`.
+    fn new_log(&self) {
+        let path = self.log_path();
+        let previous = self
+            .logs_dir
+            .join(format!("{}.previous.log", self.names.file));
+        let _ = std::fs::create_dir_all(&self.logs_dir);
+        let _ = std::fs::rename(&path, previous);
+        let file = std::fs::File::create(&path);
+        let mut output = lock(&self.output);
+        output.tail.clear();
+        output.log = match file {
+            Ok(file) => Some(LogFile {
+                file,
+                written: 0,
+                closed: false,
+            }),
+            Err(error) => {
+                tracing::warn!(
+                    event = "engine.server.log",
+                    program = self.names.program,
+                    file = %crate::logging::file(&path),
+                    %error,
+                    "Cannot write the server's log"
+                );
+                None
+            }
+        };
+    }
+
+    /// Applies what happens to the server, and its timers, for as long as Aoide runs.
+    pub async fn run(&self, host: &dyn ServerHost) {
+        let Some(mut receiver) = lock(&self.receiver).take() else {
+            return;
+        };
+        self.send_view(host);
+        let mut ticks = tokio::time::interval(self.tick);
+        ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        loop {
+            let event = tokio::select! {
+                event = receiver.recv() => match event {
+                    Some(event) => event,
+                    None => return,
+                },
+                _ = ticks.tick() => ServerEvent::Tick,
+            };
+            self.step(event, host);
+        }
+    }
+
+    /// Stops a server of ours before Aoide quits, waiting for it for the quit grace at most,
+    /// then killing what is left.
+    pub fn stop(&self, host: &dyn ServerHost) {
+        self.step(ServerEvent::Quit, host);
+        let (pid, grace) = {
+            let inner = lock(&self.inner);
+            let grace = self.timing(inner.spec.as_ref()).quit_grace_ms;
+            (inner.state.pid(), grace)
+        };
+        let Some(pid) = pid else { return };
+        let deadline = Instant::now() + Duration::from_millis(grace.max(0) as u64);
+        while process::alive(pid) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let killed = process::alive(pid);
+        if killed {
+            process::signal(pid, process::Sig::Kill);
+            let deadline = Instant::now() + Duration::from_secs(1);
+            while process::alive(pid) && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+        if let Some(mut stop) = lock(&self.inner).stopping.take() {
+            stop.killed |= killed;
+            self.log_stop(&After::Stopped(StopWhy::Quit), &stop);
+        }
+    }
+}
+
+fn failure_kind(failure: &Failure) -> FailureKind {
+    match failure {
+        Failure::Spawn { .. } => FailureKind::Spawn,
+        Failure::Exited(_) => FailureKind::Exited,
+        Failure::PortTaken(_) => FailureKind::PortTaken,
+        Failure::StartTimedOut => FailureKind::StartTimedOut,
+        Failure::TooManyRestarts(_) => FailureKind::TooManyRestarts,
+    }
+}
+
+/// The spawner thread: starts each requested server, with readers for its output and a reaper
+/// that tells `events` when it ends. Runs until the [`ServerProcess`] is dropped.
+fn spawn_loop(
+    names: Names,
+    requests: mpsc::Receiver<SpawnRequest>,
+    events: UnboundedSender<ServerEvent>,
+    output: Arc<Mutex<Output>>,
+    grace: Duration,
+) {
+    for SpawnRequest { mut command, reply } in requests {
+        let mut child = match command.spawn() {
+            Ok(child) => child,
+            Err(error) => {
+                let _ = reply.send(Err(error.to_string()));
+                continue;
+            }
+        };
+        let pid = child.id();
+        let started = Instant::now();
+        let (done, drained) = mpsc::channel::<()>();
+        let readers: Vec<Box<dyn std::io::Read + Send>> = [
+            child
+                .stdout
+                .take()
+                .map(|o| Box::new(o) as Box<dyn std::io::Read + Send>),
+            child
+                .stderr
+                .take()
+                .map(|e| Box::new(e) as Box<dyn std::io::Read + Send>),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+        let streams = readers.len();
+        for stream in readers {
+            let (output, done) = (Arc::clone(&output), done.clone());
+            let _ = std::thread::Builder::new()
+                .name(format!("aoide-{}-output", names.file))
+                .spawn(move || read_output(stream, &output, names, done));
+        }
+        drop(done);
+        let _ = reply.send(Ok(pid));
+        let events = events.clone();
+        let _ = std::thread::Builder::new()
+            .name(format!("aoide-{}-wait", names.file))
+            .spawn(move || {
+                let status = child.wait();
+                let exit = exit_of(status.ok(), started);
+                // The last lines may say why it ended.
+                let deadline = Instant::now() + OUTPUT_DRAIN;
+                for _ in 0..streams {
+                    let left = deadline.saturating_duration_since(Instant::now());
+                    if drained.recv_timeout(left).is_err() {
+                        break;
+                    }
+                }
+                process::end_group(pid, grace);
+                tracing::warn!(
+                    event = "proc.exit",
+                    program = names.program,
+                    pid,
+                    code = exit.code,
+                    signal = exit.signal,
+                    ran_ms = exit.ran_ms,
+                    file = %format!("{}.log", names.file),
+                    "The server ended"
+                );
+                let _ = events.send(ServerEvent::Exited { pid, exit });
+            });
+    }
+}
+
+/// Reads one of the server's streams line by line into `output`, until it closes.
+fn read_output(
+    stream: Box<dyn std::io::Read + Send>,
+    output: &Mutex<Output>,
+    names: Names,
+    _done: mpsc::Sender<()>,
+) {
+    let mut reader = std::io::BufReader::new(stream);
+    let mut buffer = Vec::new();
+    loop {
+        buffer.clear();
+        match reader.read_until(b'\n', &mut buffer) {
+            Ok(0) | Err(_) => return,
+            Ok(_) => {
+                let line = String::from_utf8_lossy(&buffer)
+                    .trim_end_matches(['\n', '\r'])
+                    .to_owned();
+                lock(output).line(line, names);
+            }
+        }
+    }
+}
+
+fn exit_of(status: Option<std::process::ExitStatus>, started: Instant) -> Exit {
+    #[cfg(unix)]
+    let signal = {
+        use std::os::unix::process::ExitStatusExt;
+        status.and_then(|s| s.signal())
+    };
+    #[cfg(not(unix))]
+    let signal = None;
+    Exit {
+        code: status.and_then(|s| s.code()),
+        signal,
+        ran_ms: crate::logging::took(started),
+    }
+}
+
+/// Signals to a server process.
+mod process {
+    use std::time::Duration;
+
+    #[derive(Debug, Clone, Copy)]
+    pub enum Sig {
+        Term,
+        Kill,
+    }
+
+    #[cfg(unix)]
+    pub fn signal(pid: u32, sig: Sig) {
+        use rustix::process::{kill_process, Pid, Signal};
+        let Some(pid) = Pid::from_raw(pid as i32) else {
+            return;
+        };
+        let sig = match sig {
+            Sig::Term => Signal::TERM,
+            Sig::Kill => Signal::KILL,
+        };
+        let _ = kill_process(pid, sig);
+    }
+
+    /// Whether process `pid` still runs (or is not reaped yet).
+    #[cfg(unix)]
+    pub fn alive(pid: u32) -> bool {
+        rustix::process::Pid::from_raw(pid as i32)
+            .is_some_and(|pid| rustix::process::test_kill_process(pid).is_ok())
+    }
+
+    /// Ends what is left of the group led by `pid` once the leader has ended.
+    #[cfg(unix)]
+    pub fn end_group(_pid: u32, _grace: Duration) {}
+
+    #[cfg(not(unix))]
+    pub fn signal(_pid: u32, _sig: Sig) {}
+
+    #[cfg(not(unix))]
+    pub fn alive(_pid: u32) -> bool {
+        false
+    }
+
+    #[cfg(not(unix))]
+    pub fn end_group(_pid: u32, _grace: Duration) {}
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -852,5 +1735,206 @@ mod tests {
             "ModuleNotFoundError: torch"
         ])));
         assert!(!port_taken(&[]));
+    }
+}
+
+/// The server with real `sh` scripts as fake servers, a settable clock and a settable want.
+#[cfg(test)]
+pub(super) mod process_tests {
+    use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
+
+    use super::*;
+
+    pub(in crate::core) struct Host {
+        /// Added to the real clock.
+        pub ahead_ms: AtomicI64,
+        pub wanted: AtomicBool,
+        pub views: Mutex<Vec<Option<ServerView>>>,
+    }
+
+    impl Host {
+        pub fn new() -> Arc<Self> {
+            Arc::new(Self {
+                ahead_ms: AtomicI64::new(0),
+                wanted: AtomicBool::new(false),
+                views: Mutex::new(vec![]),
+            })
+        }
+
+        pub fn advance(&self, ms: i64) {
+            self.ahead_ms.fetch_add(ms, Ordering::SeqCst);
+        }
+    }
+
+    impl ServerHost for Host {
+        fn now_ms(&self) -> i64 {
+            super::super::now_ms() + self.ahead_ms.load(Ordering::SeqCst)
+        }
+        fn wanted(&self) -> bool {
+            self.wanted.load(Ordering::SeqCst)
+        }
+        fn server_changed(&self, view: Option<ServerView>) {
+            self.views.lock().unwrap().push(view);
+        }
+    }
+
+    /// A launch command running `script` with `sh`.
+    pub fn script(script: &str) -> LaunchCommand {
+        LaunchCommand {
+            program: "sh".into(),
+            args: vec!["-c".into(), script.into()],
+            working_dir: None,
+        }
+    }
+
+    pub fn spec(launch: LaunchCommand) -> Spec {
+        Spec {
+            launch,
+            // Nothing listens on the discard port.
+            base_url: "http://127.0.0.1:9".into(),
+        }
+    }
+
+    pub fn timing() -> Timing {
+        Timing {
+            grace_ms: 200,
+            quit_grace_ms: 200,
+            backoff_ms: [50, 50, 50],
+            ..Timing::default()
+        }
+    }
+
+    /// A running server over `dir` for `launch`, its host, and the task applying its events.
+    pub fn running(
+        dir: &Path,
+        launch: LaunchCommand,
+    ) -> (Arc<ServerProcess>, Arc<Host>, tokio::task::JoinHandle<()>) {
+        let server = Arc::new(
+            ServerProcess::new(
+                Names::SPEECH,
+                dir,
+                &dir.join("logs"),
+                Some(spec(launch)),
+                timing(),
+            )
+            .with_tick(Duration::from_millis(20)),
+        );
+        let host = Host::new();
+        let task = {
+            let (server, host) = (Arc::clone(&server), Arc::clone(&host));
+            tokio::spawn(async move { server.run(&*host).await })
+        };
+        (server, host, task)
+    }
+
+    pub async fn until(what: &str, check: impl Fn() -> bool) {
+        for _ in 0..400 {
+            if check() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        panic!("timed out waiting for {what}");
+    }
+
+    pub fn state(server: &ServerProcess) -> Option<ServerState> {
+        server.view().map(|v| v.state)
+    }
+
+    fn lines(path: &Path) -> usize {
+        std::fs::read_to_string(path)
+            .unwrap_or_default()
+            .lines()
+            .count()
+    }
+
+    #[tokio::test]
+    async fn looking_at_an_offline_engine_with_nothing_wanted_launches_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let marks = dir.path().join("launched.txt");
+        let (server, _host, task) = running(
+            dir.path(),
+            script(&format!(
+                "echo launched >> '{}'; exec sleep 300",
+                marks.display()
+            )),
+        );
+        for _ in 0..3 {
+            server.answered(Answer::Offline);
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        assert_eq!(lines(&marks), 0);
+        assert_eq!(state(&server), Some(ServerState::Stopped));
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn a_want_launches_the_server_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let marks = dir.path().join("launched.txt");
+        let (server, host, task) = running(
+            dir.path(),
+            script(&format!(
+                "echo launched >> '{}'; exec sleep 300",
+                marks.display()
+            )),
+        );
+        server.answered(Answer::Offline);
+        for _ in 0..3 {
+            server.want();
+            server.answered(Answer::Offline);
+        }
+        until("the launch", || lines(&marks) == 1).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        assert_eq!(lines(&marks), 1);
+        assert_eq!(state(&server), Some(ServerState::Starting));
+        server.stop(&*host);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn a_server_that_ends_at_once_fails_with_its_exit_code_and_last_lines() {
+        let dir = tempfile::tempdir().unwrap();
+        let (server, _host, task) = running(dir.path(), script("echo boom >&2; exit 2"));
+        server.answered(Answer::Offline);
+        server.want();
+        until("the failure", || {
+            state(&server) == Some(ServerState::Failed)
+        })
+        .await;
+
+        let view = server.view().unwrap();
+        assert_eq!(view.failure, Some(FailureKind::Exited));
+        assert_eq!(view.exit_code, Some(2));
+        assert!(view.can_retry);
+        assert_eq!(view.last_lines, vec!["boom".to_string()]);
+        assert_eq!(server.log_tail(), vec!["boom".to_string()]);
+        let log = std::fs::read_to_string(dir.path().join("logs/speech-server.log")).unwrap();
+        assert_eq!(log, "boom\n");
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn a_missing_program_fails_to_start() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = LaunchCommand {
+            program: dir.path().join("no-such-server").display().to_string(),
+            args: vec![],
+            working_dir: None,
+        };
+        let (server, _host, task) = running(dir.path(), missing);
+        server.answered(Answer::Offline);
+        server.want();
+        until("the failure", || {
+            state(&server) == Some(ServerState::Failed)
+        })
+        .await;
+
+        let view = server.view().unwrap();
+        assert_eq!(view.failure, Some(FailureKind::Spawn));
+        assert!(view.error.is_some());
+        task.abort();
     }
 }

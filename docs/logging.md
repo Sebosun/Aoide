@@ -12,7 +12,12 @@ always end with a cap (`| tail -n N`, N ≤ 100).
 | A smoke run (`AOIDE_SMOKE_HOME=<home>`) | `<home>/data/logs/` |
 
 Files are named `aoide.YYYY-MM-DD.jsonl` by the UTC date, and the last seven are kept. `ts` is
-UTC. `AOIDE_LOG` sets what the file keeps (EnvFilter syntax; default `warn,aoide=debug`, so
+UTC.
+
+The speech server Aoide starts writes what it prints to `speech-server.log` in the same folder
+(the run before is `speech-server.previous.log`; each stops at 10 MB), and an aligner Aoide
+starts to `aligner.log`. That output may contain book text, so it is the user's to read and is
+never copied into the JSON log: events name it only as `file`. `AOIDE_LOG` sets what the file keeps (EnvFilter syntax; default `warn,aoide=debug`, so
 dependencies log warnings only); the terminal shows `warn,aoide=info`.
 
 ## A line
@@ -159,7 +164,10 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `gen.backoff` | info | `to`, `streak`, `wait_ms` | `crates/generation`, backing off or recovering |
 | `gen.discarded` | debug | `book`, `index` | `crates/generation` `run`, a result whose audio was deleted while it was made |
 | `gen.failed` | warn | `key`, `error` (the whole error; the player shows a short message, and Settings › Speech engine › Problems lists both) | `core.rs` |
-| `engine.state` | info | `engine`, `from`, `to`, `detail` | `core.rs` `emit_engine_status` |
+| `engine.state` | info | `engine`, `from`, `to`, `detail` | `core/engine.rs` `publish` |
+| `engine.server.stage` | info (warn into `failed`, `waiting`) | `program` (`engine`, `aligner`), `from`, `to`, `cause` (the event), `attempt`, `failure` (kind) | `core/engine_process.rs` `step`, where `next` is applied |
+| `engine.server.stop` | info | `program`, `why` (`idle`, `switched`, `timeout`, `asked`, `quit`, `leftover`), `outcome` (`terminated`, `killed` after the grace period), `took_ms` | `core/engine_process.rs`, a server stopped |
+| `engine.server.log` | warn | `program`, `file`, `error` (the server log cannot be written) | `core/engine_process.rs` |
 | `engine.voice` | warn | `engine`, `voice`, `error` | `core.rs`, a voice the engine lacks |
 | `engine.session` | warn | `error` | `core.rs` |
 | `narration.fallback` | warn | `error` | `core.rs` |
@@ -176,8 +184,8 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `feeder.read` | warn | `error` | `core/feeder.rs` |
 | `cache.evict` | info | `segments`, `books` | `core/storage.rs` `enforce_cache_limit` |
 | `export.done` | info, warn | `kind`, `book`, `file`, `took_ms`, `outcome`, `error` | `core/export.rs` (`Exports`) |
-| `proc.spawn` | info, error | `program`, `pid`, `outcome`, `error` | `core.rs` (engine), `core/align.rs` (aligner) |
-| `proc.exit` | warn | `program`, `code`, `stderr_tail` | `core/export.rs`, `core/read_along.rs` (ffmpeg) |
+| `proc.spawn` | info, warn, error | `program`, `pid`, `why` (`wanted`, `restart`, `idle_wake`, `retry`), `outcome` (`ok`, `address_taken`, `failed`), `error` | `core/engine_process.rs` (engine, aligner) |
+| `proc.exit` | warn | `program`, `code`, `stderr_tail` (ffmpeg); for `engine` and `aligner`: `pid`, `code`, `signal`, `ran_ms`, `file` and no `stderr_tail` | `core/export.rs`, `core/read_along.rs` (ffmpeg), `core/engine_process.rs` (the reaper thread) |
 | **Smoke runs** | | | |
 | `smoke` | info, warn, error | `error` | `smoke.rs`; the message names the smoke library's own books |
 

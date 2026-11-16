@@ -79,6 +79,10 @@ syn = { version = "2", features = ["full"] }
 tempfile = "3"
 ts-rs = { version = "12.0.1", features = ["no-serde-warnings"] }
 
+# Signals to the speech server's process group, and its parent-death signal.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1.6", features = ["process"] }
+
 # Media keys: MPRIS served directly on Linux, souvlaki elsewhere.
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = "5"

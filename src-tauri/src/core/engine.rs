@@ -1,5 +1,6 @@
-//! The speech engine in use: its profile, what it has said about its voices and model, its
-//! status as the window shows it, and the process Aoide launched for it.
+//! The speech engine in use: its profile, what it has said about its voices and model, and its
+//! status as the window shows it, with the state of the server Aoide starts for it folded in
+//! (the server itself is [`super::engine_process`]'s).
 //!
 //! A component: its state is behind its own locks, each method computes under them and returns
 //! a value, and nothing outside reaches the state but through these methods. It tells the window
@@ -10,10 +11,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use aoide_tts::{
-    resolve_params, EngineProfile, EngineStatus, LaunchCommand, Params, Registry, SpeechEngine,
-};
+use aoide_tts::{resolve_params, EngineProfile, EngineStatus, Params, Registry, SpeechEngine};
 
+use super::engine_process::{Answer, FailureKind, ServerState, ServerView, StoppedKind};
 use super::voicing::{fallback_voice, Voicing};
 use super::{lock, BookSettings, CoreEvent, EngineOptions, EngineState, EngineStatusView, Events};
 
@@ -29,7 +29,6 @@ struct Active {
     /// The voice for books that do not choose one.
     voice: Option<String>,
     voices: VoiceList,
-    launched: Option<std::process::Child>,
 }
 
 /// What the active engine has said about its voices.
@@ -69,10 +68,12 @@ pub(super) struct Speech {
 pub(super) struct Engine {
     registry: Registry,
     active: Mutex<Active>,
+    /// What the engine answered last (or that it is busy), before the server is folded in.
+    answered: Mutex<Option<EngineStatusView>>,
+    /// The server Aoide starts for the profile's launch command, if it has one.
+    server: Mutex<Option<ServerView>>,
     /// The status last sent to the window.
     status: Mutex<Option<EngineStatusView>>,
-    /// The launch command runs at most once per run of Aoide.
-    launched_once: AtomicBool,
     /// Something in this run has needed the engine (see [`EngineStatusView::wanted`]).
     wanted: AtomicBool,
     events: Arc<dyn Events>,
@@ -93,10 +94,10 @@ impl Engine {
                 profile,
                 engine,
                 model: None,
-                launched: None,
             }),
+            answered: Mutex::new(None),
+            server: Mutex::new(None),
             status: Mutex::new(None),
-            launched_once: AtomicBool::new(false),
             wanted: AtomicBool::new(false),
             events,
         }
@@ -120,6 +121,7 @@ impl Engine {
             active.engine = engine;
             active.model = None;
         }
+        *lock(&self.answered) = None;
         *lock(&self.status) = None;
     }
 
@@ -295,29 +297,18 @@ impl Engine {
         }
     }
 
-    /// One look at the engine (skipped while it is `busy` making audio): launches an offline
-    /// one that has a launch command (once per run), learns its model and voices once it is
-    /// ready, and sends its status if that changed.
-    pub async fn poll(&self, busy: bool) -> Polled {
+    /// One look at the engine (skipped while it is `busy` making audio): learns its model and
+    /// voices once it is ready, and sends its status if that changed. Returns what it answered,
+    /// for the server Aoide starts for it.
+    pub async fn poll(&self, busy: bool) -> (Polled, Option<Answer>) {
         if busy {
-            return Polled::Nothing;
+            return (Polled::Nothing, None);
         }
-        let (engine, name, launch) = {
+        let (engine, name) = {
             let active = lock(&self.active);
-            (
-                Arc::clone(&active.engine),
-                active.profile.name.clone(),
-                active.profile.launch.clone(),
-            )
+            (Arc::clone(&active.engine), active.profile.name.clone())
         };
         let status = engine.status().await;
-        if status == EngineStatus::Offline {
-            if let Some(launch) = launch {
-                if !self.launched_once.swap(true, Ordering::SeqCst) {
-                    self.launch(&launch);
-                }
-            }
-        }
         let mut polled = Polled::Nothing;
         if let EngineStatus::Ready(model) = &status {
             {
@@ -333,11 +324,11 @@ impl Engine {
                 }
             }
         }
-        let (state, detail) = match status {
-            EngineStatus::Offline => (EngineState::Offline, None),
-            EngineStatus::Loading => (EngineState::Loading, None),
-            EngineStatus::Ready(model) => (EngineState::Ready, model),
-            EngineStatus::Error(message) => (EngineState::Error, Some(message)),
+        let (state, detail, answer) = match status {
+            EngineStatus::Offline => (EngineState::Offline, None, Answer::Offline),
+            EngineStatus::Loading => (EngineState::Loading, None, Answer::Loading),
+            EngineStatus::Ready(model) => (EngineState::Ready, model, Answer::Ready),
+            EngineStatus::Error(message) => (EngineState::Error, Some(message), Answer::Error),
         };
         self.set_status(EngineStatusView {
             profile_name: name,
@@ -345,7 +336,13 @@ impl Engine {
             detail,
             wanted: false,
         });
-        polled
+        (polled, Some(answer))
+    }
+
+    /// The server Aoide starts for the engine changed (`None`: there is none).
+    pub fn set_server(&self, view: Option<ServerView>) {
+        *lock(&self.server) = view;
+        self.publish();
     }
 
     /// The engine started making audio.
@@ -362,14 +359,14 @@ impl Engine {
 
     /// The status last sent, or "checking" before the first look.
     pub fn status(&self) -> EngineStatusView {
-        lock(&self.status)
-            .clone()
-            .unwrap_or_else(|| EngineStatusView {
+        lock(&self.status).clone().unwrap_or_else(|| {
+            self.folded().unwrap_or_else(|| EngineStatusView {
                 profile_name: self.profile_name(),
                 state: EngineState::Offline,
                 detail: Some("checking…".into()),
                 wanted: self.wanted.load(Ordering::SeqCst),
             })
+        })
     }
 
     /// The user asked for something the engine does (listening, preparing, a voice sample):
@@ -378,10 +375,7 @@ impl Engine {
         if self.wanted.swap(true, Ordering::SeqCst) {
             return;
         }
-        let last = lock(&self.status).clone();
-        if let Some(status) = last {
-            self.set_status(status);
-        }
+        self.publish();
     }
 
     /// Speaks a short sample sentence with a profile that may not be saved yet (the settings
@@ -429,16 +423,38 @@ impl Engine {
         aoide_tts::encode_wav(&audio).map_err(|e| e.to_string())
     }
 
-    /// Stops the process Aoide launched for the engine, if any.
-    pub fn shutdown(&self) {
-        if let Some(mut child) = lock(&self.active).launched.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
+    fn set_status(&self, status: EngineStatusView) {
+        *lock(&self.answered) = Some(status);
+        self.publish();
     }
 
-    fn set_status(&self, mut status: EngineStatusView) {
+    /// What the window is shown: the engine's answer, with the server folded in.
+    fn folded(&self) -> Option<EngineStatusView> {
+        let answered = lock(&self.answered).clone();
+        let server = lock(&self.server).clone();
+        let mut status = match (answered, &server) {
+            (Some(status), _) => status,
+            (None, Some(_)) => EngineStatusView {
+                profile_name: self.profile_name(),
+                state: EngineState::Offline,
+                detail: None,
+                wanted: false,
+            },
+            (None, None) => return None,
+        };
         status.wanted = self.wanted.load(Ordering::SeqCst);
+        if let Some(server) = server {
+            if let Some((state, detail)) = server_status(&server) {
+                status.state = state;
+                status.detail = Some(detail);
+            }
+        }
+        Some(status)
+    }
+
+    /// Sends the status to the window if it changed.
+    fn publish(&self) {
+        let Some(status) = self.folded() else { return };
         let mut last = lock(&self.status);
         let before = last.as_ref().map(|s| s.state);
         if before != Some(status.state) {
@@ -460,31 +476,59 @@ impl Engine {
             }
         }
     }
+}
 
-    fn launch(&self, launch: &LaunchCommand) {
-        let mut command = std::process::Command::new(&launch.program);
-        command
-            .args(&launch.args)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
-        if let Some(dir) = &launch.working_dir {
-            command.current_dir(dir);
-        }
-        match command.spawn() {
-            Ok(child) => {
-                tracing::info!(
-                    event = "proc.spawn",
-                    program = "engine",
-                    pid = child.id(),
-                    outcome = "ok",
-                    "Launched the speech engine"
-                );
-                lock(&self.active).launched = Some(child);
-            }
-            Err(error) => {
-                tracing::error!(event = "proc.spawn", program = "engine", outcome = "failed", %error, "Could not launch the speech engine")
-            }
-        }
+/// The engine status the window shows for the server's state, when it is not the engine's own
+/// answer (a server that runs answers for itself).
+fn server_status(server: &ServerView) -> Option<(EngineState, String)> {
+    let detail = |text: &str| text.to_owned();
+    Some(match server.state {
+        ServerState::Running | ServerState::External => return None,
+        ServerState::Stopped => (
+            EngineState::Offline,
+            match (server.stopped, server.idle_minutes) {
+                (Some(StoppedKind::Idle), Some(minutes)) => {
+                    format!("Stopped after {minutes} minutes unused; starts when needed")
+                }
+                _ => detail("Starts when needed"),
+            },
+        ),
+        ServerState::Starting => (EngineState::Loading, detail("Starting the voice…")),
+        ServerState::Stopping => (EngineState::Offline, detail("Stopping…")),
+        ServerState::Waiting => (
+            EngineState::Loading,
+            detail("The voice stopped; starting it again"),
+        ),
+        ServerState::Failed => (EngineState::Error, failure_message(server)),
+    })
+}
+
+/// Why the server failed, in words.
+fn failure_message(server: &ServerView) -> String {
+    let ended = match (server.exit_code, server.signal) {
+        (Some(code), _) => format!("exit code {code}"),
+        (None, Some(signal)) => format!("signal {signal}"),
+        (None, None) => "no exit code".into(),
+    };
+    match server.failure {
+        Some(FailureKind::Spawn) => format!(
+            "The speech server could not be started: {}.",
+            server.error.as_deref().unwrap_or("unknown error")
+        ),
+        Some(FailureKind::PortTaken) => "Something else listens at the speech engine's address, \
+             so Aoide did not start its server."
+            .into(),
+        Some(FailureKind::StartTimedOut) => format!(
+            "The speech server did not answer or print anything for {} seconds, so Aoide stopped it.",
+            server.start_timeout_seconds
+        ),
+        Some(FailureKind::TooManyRestarts) => format!(
+            "The speech server kept stopping ({ended}), so Aoide stopped starting it. \
+             Its last lines are in Settings › Speech engine."
+        ),
+        Some(FailureKind::Exited) | None => format!(
+            "The speech server ended ({ended}). Its last lines are in Settings › Speech engine."
+        ),
     }
 }
 
@@ -525,6 +569,7 @@ impl super::Core {
         params: Params,
         language: Option<String>,
     ) -> Result<Vec<u8>, String> {
+        self.speech_server.want();
         self.engine
             .preview(profile, voice_id, params, language)
             .await
@@ -543,6 +588,10 @@ impl super::Core {
         profile: EngineProfile,
         engine: Arc<dyn SpeechEngine>,
     ) -> Result<(), String> {
+        self.speech_server.switch(super::engine_process::Spec::of(
+            &profile.launch,
+            &profile.base_url,
+        ));
         self.engine.switch(profile, Arc::clone(&engine));
         self.plan(super::PlanEvent::EngineSwitched(engine));
         self.restart_session().await
@@ -550,6 +599,23 @@ impl super::Core {
 
     pub fn engine_status(&self) -> EngineStatusView {
         self.engine.status()
+    }
+}
+
+/// The speech server's view of the rest of the app.
+pub(super) struct SpeechServer<'a>(pub &'a super::Core);
+
+impl super::engine_process::ServerHost for SpeechServer<'_> {
+    fn now_ms(&self) -> i64 {
+        super::now_ms()
+    }
+
+    fn wanted(&self) -> bool {
+        self.0.generation.wants_speech()
+    }
+
+    fn server_changed(&self, view: Option<ServerView>) {
+        self.0.engine.set_server(view);
     }
 }
 
@@ -628,42 +694,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_offline_engine_is_launched_once_however_often_it_is_looked_at() {
-        let dir = tempfile::tempdir().unwrap();
-        let log = dir.path().join("launched.txt");
-        let offline = Scripted::new("offline", EngineStatus::Offline, &[], false);
-        let mut launching = profile("offline");
-        launching.launch = Some(LaunchCommand {
-            program: "sh".into(),
-            args: vec!["-c".into(), format!("echo launched >> '{}'", log.display())],
-            working_dir: None,
-        });
-        let (engine, _events) = engine(&offline, &[], launching);
-
-        for _ in 0..3 {
-            assert_eq!(engine.poll(false).await, Polled::Nothing);
-        }
-        let launched = || std::fs::read_to_string(&log).unwrap_or_default();
-        for _ in 0..200 {
-            if !launched().is_empty() {
-                break;
-            }
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-
-        assert_eq!(launched().lines().count(), 1, "{:?}", launched());
-        assert_eq!(offline.status_calls.load(Ordering::SeqCst), 3);
-    }
-
-    #[tokio::test]
     async fn its_status_is_sent_only_when_it_changes_and_not_while_busy() {
         let steady = Scripted::new("steady", EngineStatus::Ready(None), &["A.wav"], false);
         let (engine, events) = engine(&steady, &[], profile("steady"));
 
-        assert_eq!(engine.poll(false).await, Polled::VoicesKnown);
-        assert_eq!(engine.poll(false).await, Polled::Nothing);
-        assert_eq!(engine.poll(true).await, Polled::Nothing);
+        assert_eq!(engine.poll(false).await.0, Polled::VoicesKnown);
+        assert_eq!(engine.poll(false).await.0, Polled::Nothing);
+        assert_eq!(engine.poll(true).await, (Polled::Nothing, None));
         assert_eq!(events.count(CoreEvent::ENGINE_STATUS), 1);
         assert_eq!(
             steady.status_calls.load(Ordering::SeqCst),

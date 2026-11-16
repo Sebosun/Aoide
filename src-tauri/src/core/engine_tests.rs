@@ -284,24 +284,64 @@ async fn a_ready_engine_that_lists_no_voices_is_sent_the_saved_voice_as_it_is() 
 }
 
 #[tokio::test]
-async fn an_offline_engine_with_a_launch_command_is_launched_once() {
+async fn an_offline_engine_with_a_launch_command_is_launched_once_speech_is_wanted() {
     let dir = tempfile::tempdir().unwrap();
     let log = dir.path().join("launched.txt");
-    let engine = Scripted::new("offline", EngineStatus::Offline, &[], false);
+    let engine = Scripted::new("offline", EngineStatus::Offline, &["A.wav"], false);
     let launch = format!(
-        "[engine.launch]\nprogram = \"sh\"\nargs = [\"-c\", \"echo launched >> '{}'\"]",
+        "[engine.launch]\nprogram = \"sh\"\nargs = [\"-c\", \"echo launched >> '{}'; exec sleep 300\"]",
         log.display()
     );
-    let (_core, _events, _id) = start(dir.path(), &[&engine], &launch).await;
+    let (core, _events, id) = start(dir.path(), &[&engine], &launch).await;
+    let launched = || std::fs::read_to_string(&log).unwrap_or_default();
 
     until_rounds("a second look at the engine", || {
         engine.status_calls.load(Ordering::SeqCst) >= 2
     })
     .await;
     tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(launched(), "", "nothing wants speech yet");
+    assert_eq!(
+        core.engine_status().detail.as_deref(),
+        Some("Starts when needed")
+    );
 
-    let launched = std::fs::read_to_string(&log).unwrap_or_default();
-    assert_eq!(launched.lines().count(), 1, "{launched:?}");
+    let _ = core.prepare_book(&id).await;
+    until_rounds("the launch", || !launched().is_empty()).await;
+    until_rounds("another look at the engine", || {
+        engine.status_calls.load(Ordering::SeqCst) >= 4
+    })
+    .await;
+    assert_eq!(launched().lines().count(), 1, "{:?}", launched());
+    assert_eq!(
+        core.engine_status().detail.as_deref(),
+        Some("Starting the voice…")
+    );
+    core.shutdown();
+}
+
+#[tokio::test]
+async fn a_launched_server_that_ends_at_once_shows_its_exit_code_not_offline() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = Scripted::new("offline", EngineStatus::Offline, &["A.wav"], false);
+    let launch =
+        "[engine.launch]\nprogram = \"sh\"\nargs = [\"-c\", \"echo 'no such script' >&2; exit 2\"]";
+    let (core, events, id) = start(dir.path(), &[&engine], launch).await;
+
+    let _ = core.prepare_book(&id).await;
+    until_rounds("the failure", || {
+        core.engine_status().state == super::EngineState::Error
+    })
+    .await;
+
+    let status = core.engine_status();
+    assert!(status.wanted);
+    let detail = status.detail.unwrap();
+    assert!(detail.contains("exit code 2"), "{detail}");
+    let sent = events.payloads(CoreEvent::ENGINE_STATUS);
+    assert_eq!(sent.last().unwrap()["state"], "error", "{sent:?}");
+    let log = dir.path().join("data/logs/speech-server.log");
+    assert_eq!(std::fs::read_to_string(log).unwrap(), "no such script\n");
 }
 
 #[tokio::test]

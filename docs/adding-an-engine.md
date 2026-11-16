@@ -55,8 +55,12 @@ overrides.
 
 Must not fail. Return `Offline` when nothing is listening (connection refused), `Loading` when
 the server answers but its model is not ready, `Ready(Some(model description))` when it can
-synthesize, and `Error(message)` otherwise. Aoide polls this every few seconds and, if the
-profile has a launch command, starts the server when it reports `Offline`.
+synthesize, and `Error(message)` otherwise. Aoide polls this every few seconds. If the profile
+has a launch command, Aoide starts the server once speech is wanted (play, prepare, a voice
+preview) and it reports `Offline`, waits for `Ready` while showing "Starting the voice…", notices
+when the process ends, and starts it again after a crash; `core/engine_process.rs` owns that. An
+engine that already answers `Ready` or `Loading` is someone else's and is never started or
+stopped.
 
 ### `voices()`
 
