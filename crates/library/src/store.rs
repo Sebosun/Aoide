@@ -4,11 +4,18 @@ use rusqlite::{Connection, Row};
 
 use crate::{BookId, BookRecord, BookStatus, ItemKind, Library, LibraryError, Result};
 
+/// One step of the schema: SQL, or Rust where SQL alone cannot say it.
+enum Step {
+    Sql(&'static str),
+    Run(fn(&rusqlite::Transaction) -> rusqlite::Result<()>),
+}
+
 /// The schema, one step per version: step `n` (counting from one) takes a database at
-/// version `n - 1` to version `n`. A new version is a new step at the end.
-const MIGRATIONS: &[&str] = &[
+/// version `n - 1` to version `n`. A new version is a new step at the end; a step that has
+/// shipped is never edited, since databases that already ran it would not run it again.
+const MIGRATIONS: &[Step] = &[
     // Version 1.
-    "CREATE TABLE books (
+    Step::Sql("CREATE TABLE books (
                         id TEXT PRIMARY KEY NOT NULL,
                         path TEXT NOT NULL,
                         status TEXT NOT NULL CHECK(status IN ('present', 'missing', 'error')),
@@ -41,9 +48,9 @@ const MIGRATIONS: &[&str] = &[
                     CREATE TABLE settings (
                         key TEXT PRIMARY KEY NOT NULL,
                         value TEXT NOT NULL
-                    );",
+                    );"),
     // Version 2.
-    "CREATE TABLE bookmarks (
+    Step::Sql("CREATE TABLE bookmarks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     chapter INTEGER NOT NULL CHECK(chapter >= 0),
@@ -63,15 +70,15 @@ const MIGRATIONS: &[&str] = &[
                     book_id TEXT PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     json TEXT NOT NULL
                 );
-                CREATE INDEX segments_created_at ON segments(created_at);",
+                CREATE INDEX segments_created_at ON segments(created_at);"),
     // Version 3.
-    "CREATE TABLE metadata_cache (
+    Step::Sql("CREATE TABLE metadata_cache (
                     query TEXT PRIMARY KEY NOT NULL,
                     json TEXT NOT NULL,
                     fetched_at INTEGER NOT NULL
-                );",
+                );"),
     // Version 4.
-    "CREATE TABLE discovered_files (
+    Step::Sql("CREATE TABLE discovered_files (
                     path TEXT PRIMARY KEY NOT NULL,
                     size INTEGER NOT NULL,
                     modified_ns INTEGER NOT NULL,
@@ -85,9 +92,9 @@ const MIGRATIONS: &[&str] = &[
                     error TEXT,
                     seen_at INTEGER NOT NULL
                 );
-                CREATE INDEX discovered_files_hash ON discovered_files(hash);",
+                CREATE INDEX discovered_files_hash ON discovered_files(hash);"),
     // Version 5.
-    "CREATE TABLE collections (
+    Step::Sql("CREATE TABLE collections (
                     id INTEGER PRIMARY KEY,
                     name TEXT NOT NULL COLLATE NOCASE UNIQUE,
                     created_at INTEGER NOT NULL
@@ -97,9 +104,9 @@ const MIGRATIONS: &[&str] = &[
                     collection_id INTEGER NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
                     PRIMARY KEY (book_id, collection_id)
                 );
-                CREATE INDEX book_collections_collection ON book_collections(collection_id);",
+                CREATE INDEX book_collections_collection ON book_collections(collection_id);"),
     // Version 6.
-    "CREATE TABLE recordings (
+    Step::Sql("CREATE TABLE recordings (
                     book_id TEXT PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     files TEXT NOT NULL,
                     total_ms INTEGER NOT NULL CHECK(total_ms >= 0),
@@ -123,13 +130,13 @@ const MIGRATIONS: &[&str] = &[
                     map BLOB NOT NULL,
                     report TEXT NOT NULL,
                     created_at INTEGER NOT NULL
-                );",
+                );"),
     // Version 7.
     // Values that belong to a book and go with it when it is removed. Asked on
     // 2026-11-15, the user chose that a book removed and added again keeps its voice
     // settings and its place, so `BookKey::Settings` and `BookKey::ProgressFraction`
     // stay in `settings`; only the prepared mark moves here.
-    "CREATE TABLE book_values (
+    Step::Sql("CREATE TABLE book_values (
                     book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     key TEXT NOT NULL,
                     value TEXT NOT NULL,
@@ -139,28 +146,28 @@ const MIGRATIONS: &[&str] = &[
                     SELECT substr(key, 6, length(key) - 14), 'prepared', value FROM settings
                     WHERE key LIKE 'book.%.prepared'
                     AND substr(key, 6, length(key) - 14) IN (SELECT id FROM books);
-                DELETE FROM settings WHERE key LIKE 'book.%.prepared';",
+                DELETE FROM settings WHERE key LIKE 'book.%.prepared';"),
     // Version 8.
     // Reading without listening: when a book was finished, its length in words (known
     // once it has been parsed), and time spent reading per local day.
-    "ALTER TABLE books ADD COLUMN finished_at INTEGER;
+    Step::Sql("ALTER TABLE books ADD COLUMN finished_at INTEGER;
                 ALTER TABLE books ADD COLUMN word_count INTEGER CHECK(word_count >= 0);
                 CREATE TABLE reading (
                     book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     day TEXT NOT NULL,
                     ms INTEGER NOT NULL CHECK(ms >= 0),
                     PRIMARY KEY (book_id, day)
-                );",
+                );"),
     // Version 9.
     // Items that are not EPUBs: an audiobook on its own (and, later, an article). An
     // audiobook's place is a time on its recording, not a character offset.
-    "ALTER TABLE books ADD COLUMN kind TEXT NOT NULL DEFAULT 'book'
+    Step::Sql("ALTER TABLE books ADD COLUMN kind TEXT NOT NULL DEFAULT 'book'
                     CHECK(kind IN ('book', 'audiobook', 'article'));
                 ALTER TABLE progress ADD COLUMN position_ms INTEGER CHECK(position_ms >= 0);
-                ALTER TABLE bookmarks ADD COLUMN position_ms INTEGER CHECK(position_ms >= 0);",
+                ALTER TABLE bookmarks ADD COLUMN position_ms INTEGER CHECK(position_ms >= 0);"),
     // Version 10.
     // Articles saved from the web: their source and their fetch.
-    "CREATE TABLE articles (
+    Step::Sql("CREATE TABLE articles (
                     book_id TEXT PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     url TEXT NOT NULL,
                     canonical_url TEXT NOT NULL,
@@ -175,11 +182,11 @@ const MIGRATIONS: &[&str] = &[
                     word_count INTEGER CHECK(word_count >= 0),
                     declared_words INTEGER CHECK(declared_words >= 0),
                     lead TEXT
-                );",
+                );"),
     // Version 11.
     // Feeds and their entries; an entry opened without being saved is an item on the
     // feed shelf, out of the library's lists.
-    "ALTER TABLE books ADD COLUMN shelf TEXT NOT NULL DEFAULT 'library'
+    Step::Sql("ALTER TABLE books ADD COLUMN shelf TEXT NOT NULL DEFAULT 'library'
                     CHECK(shelf IN ('library', 'feed'));
                 CREATE TABLE feeds (
                     id INTEGER PRIMARY KEY,
@@ -211,29 +218,56 @@ const MIGRATIONS: &[&str] = &[
                     book_id TEXT REFERENCES books(id) ON DELETE SET NULL,
                     UNIQUE(feed_id, guid)
                 );
-                CREATE INDEX feed_entries_feed ON feed_entries(feed_id, published_at);",
+                CREATE INDEX feed_entries_feed ON feed_entries(feed_id, published_at);"),
     // Version 12.
     // Sites that needed the user (a sign-in, a check) and whether they are passed.
-    "CREATE TABLE sites (
+    Step::Sql("CREATE TABLE sites (
                     host TEXT PRIMARY KEY NOT NULL,
                     signed_in_at INTEGER,
                     check_passed_at INTEGER,
                     last_wall TEXT,
                     last_wall_at INTEGER
-                );",
+                );"),
     // Version 13.
     // Audio per book is summed from the index alone, without reading the segments' word times.
-    "CREATE INDEX IF NOT EXISTS segments_book_audio ON segments(book_id, bytes, created_at);
-                DROP INDEX IF EXISTS segments_book_id;",
+    Step::Sql("CREATE INDEX IF NOT EXISTS segments_book_audio ON segments(book_id, bytes, created_at);
+                DROP INDEX IF EXISTS segments_book_id;"),
     // Version 14.
     // What the last scan of the library folder hashed, so unchanged files are not read again.
-    "CREATE TABLE IF NOT EXISTS library_files (
+    Step::Sql("CREATE TABLE IF NOT EXISTS library_files (
                     path TEXT PRIMARY KEY NOT NULL,
                     book_id TEXT NOT NULL,
                     size INTEGER NOT NULL,
                     modified_ns INTEGER NOT NULL
-                );",
+                );"),
+    // Version 15.
+    // `articles.lead` and `feeds.failing_since` were added by editing steps 10 and 11 after
+    // they shipped, so a library that ran those steps before then lacks the columns and one
+    // made since has them.
+    Step::Run(|tx| {
+        add_column_if_missing(tx, "articles", "lead", "TEXT")?;
+        add_column_if_missing(tx, "feeds", "failing_since", "INTEGER")
+    }),
 ];
+
+fn add_column_if_missing(
+    tx: &rusqlite::Transaction,
+    table: &str,
+    column: &str,
+    declaration: &str,
+) -> rusqlite::Result<()> {
+    let present: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info(?1) WHERE name = ?2)",
+        [table, column],
+        |row| row.get(0),
+    )?;
+    if !present {
+        tx.execute_batch(&format!(
+            "ALTER TABLE {table} ADD COLUMN {column} {declaration};"
+        ))?;
+    }
+    Ok(())
+}
 
 impl Library {
     pub(super) fn initialize(mut conn: Connection) -> Result<Self> {
@@ -252,7 +286,10 @@ impl Library {
             )));
         }
         for (done, step) in MIGRATIONS.iter().enumerate().skip(version as usize) {
-            tx.execute_batch(step)?;
+            match step {
+                Step::Sql(sql) => tx.execute_batch(sql)?,
+                Step::Run(run) => run(&tx)?,
+            }
             tx.pragma_update(None, "user_version", done as i64 + 1)?;
         }
         tx.commit()?;
