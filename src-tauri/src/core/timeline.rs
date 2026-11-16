@@ -258,8 +258,7 @@ impl Core {
             if let Some(part) = part {
                 self.seek_part(id, part)?;
             }
-            self.playback.play();
-            return self.ensure_output();
+            return self.follow_through(self.playback.play());
         }
         let timeline = self.timeline_of(id)?;
         let at = match part {
@@ -275,17 +274,14 @@ impl Core {
                 .filter(|at| at + AT_END_MS < timeline.total_ms)
                 .unwrap_or(0),
         };
-        self.playback.start_timeline(Arc::new(timeline), at);
-        self.plan(super::PlanEvent::ListeningChanged { jump: true });
-        self.ensure_output()
+        self.follow_through(self.playback.start_timeline(Arc::new(timeline), at))
     }
 
     /// Moves to `position_ms` on audiobook `id`'s timeline: the playhead when it plays, else
     /// its saved place.
     pub fn seek_to(&self, id: &str, position_ms: u64) -> Result<(), String> {
         if self.playback.time_of(id).is_some() {
-            self.save_place(self.playback.seek_time(id, position_ms)?);
-            return Ok(());
+            return self.follow_through(self.playback.seek_time(id, position_ms)?);
         }
         let timeline = self.timeline_of(id)?;
         let at = position_ms.min(timeline.total_ms);
@@ -376,8 +372,7 @@ impl Core {
         let last = timeline.parts.len().saturating_sub(1) as i64;
         let part = (timeline.part_at(at) as i64 + delta).clamp(0, last) as usize;
         self.seek_part(&timeline.id, part)?;
-        self.playback.play();
-        self.ensure_output()
+        self.follow_through(self.playback.play())
     }
 
     fn seek_part(&self, id: &str, part: usize) -> Result<(), String> {
@@ -387,8 +382,7 @@ impl Core {
             .get(part)
             .ok_or("that part is not in the audiobook")?
             .start_ms;
-        self.save_place(self.playback.seek_time(id, start)?);
-        Ok(())
+        self.follow_through(self.playback.seek_time(id, start)?)
     }
 }
 
@@ -524,12 +518,17 @@ mod tests {
         ));
         assert_eq!(timeline.total_ms, 20_000);
         let playback = Playback::new(PlayerCore::new(RATE));
-        playback.start_timeline(timeline, 9_000);
+        let _ = playback.start_timeline(timeline, 9_000);
         // Over a stretch's end (10 s) and a file's (12 s).
         hear(&playback, 9_000, 4_000);
         assert_eq!(playback.time_of("a"), Some(13_000));
 
-        let Some(Place::Time { position_ms, .. }) = playback.seek_time("a", 3_000).unwrap() else {
+        let moved = playback.seek_time("a", 3_000).unwrap();
+        assert!(
+            moved.listening.is_none(),
+            "the speech Generation makes does not depend on a timeline's playhead"
+        );
+        let Some(Place::Time { position_ms, .. }) = moved.place else {
             panic!("a place on the timeline")
         };
         assert_eq!(position_ms, 3_000);

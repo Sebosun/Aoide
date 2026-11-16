@@ -450,10 +450,9 @@ impl Core {
             .or_else(|| chapter.and_then(|c| book.chapter_start(c)));
         if same_book {
             if let Some(index) = start {
-                self.seek(index);
+                self.follow_through(self.playback.seek(index, None))?;
             }
-            self.playback.play();
-            return self.ensure_output();
+            return self.follow_through(self.playback.play());
         }
         let start = start
             .or_else(|| {
@@ -466,9 +465,7 @@ impl Core {
             .or_else(|| book.chapter_start(0))
             .ok_or("the book has no readable text")?;
         let target = self.narration_target(book).await?;
-        self.playback.start(target, start);
-        self.plan(PlanEvent::ListeningChanged { jump: true });
-        self.ensure_output()
+        self.follow_through(self.playback.start(target, start))
     }
 
     /// What narrates `book`: its synced recording when it has one and it is chosen (with the
@@ -516,11 +513,12 @@ impl Core {
         let segment = book
             .segment(self.playback.position().index)
             .map(|seg| seg.id.clone());
-        // The playhead stays where it is, so there is no new place to save.
-        let _ = self.playback.stop();
+        // The playhead stays where it is, so there is no new place to save, and playing again
+        // at once follows the stop through.
+        drop(self.playback.stop());
         self.play(&book.id, None, segment).await?;
         if !playing {
-            let _ = self.playback.pause();
+            drop(self.playback.pause());
         }
         Ok(())
     }
@@ -570,10 +568,15 @@ impl Core {
                 () = self.playback.changed() => lively_until = Instant::now() + LINGER,
                 () = tokio::time::sleep(wait) => {}
             }
-            if self.provide_audio() {
-                self.plan(PlanEvent::ListeningChanged { jump: false });
-                self.save_place(self.playback.place_to_save(false));
-            }
+            let audio = playback::LibraryAudio {
+                library: &self.library,
+                audio_dir: &self.paths.audio_dir,
+            };
+            let moved = self
+                .playback
+                .advance(&audio, |to_align| self.align(to_align));
+            // Advancing never opens or closes the output.
+            let _ = self.follow_through(moved);
             self.output.keep_alive(&self.playback);
             let state = self.player_state();
             if self.controls.sleep_due(state.chapter) {
@@ -606,19 +609,6 @@ impl Core {
                 lively_until = Instant::now() + LINGER;
             }
         }
-    }
-
-    /// Gives the player the audio near the playhead it does not have yet, and asks for exact
-    /// word times for it. Returns whether the playhead moved to another entry.
-    fn provide_audio(&self) -> bool {
-        let Some(tick) = self.playback.tick(&playback::LibraryAudio {
-            library: &self.library,
-            audio_dir: &self.paths.audio_dir,
-        }) else {
-            return false;
-        };
-        self.align(tick.to_align);
-        tick.moved
     }
 
     /// Runs the sync job on a thread of its own until Core is dropped.

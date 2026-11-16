@@ -591,11 +591,8 @@ impl Core {
         if self.playback.recording_of(id).is_none() {
             self.play(id, None, None).await?;
         }
-        let place = self.playback.seek_recording(id, at_ms)?;
-        self.save_place(place);
-        self.plan(PlanEvent::ListeningChanged { jump: true });
-        self.playback.play();
-        self.ensure_output()
+        self.follow_through(self.playback.seek_recording(id, at_ms)?)?;
+        self.follow_through(self.playback.play())
     }
 
     /// The spoken sentences of `chapter` that the book's recording has no audio for, when the
@@ -636,9 +633,8 @@ impl Core {
                 return tracing::warn!(event = "sync.follow", book = crate::logging::book(id), %error, "Cannot follow the sync")
             }
         };
-        if self.playback.follow(id, target) == Some(true) {
-            self.plan(PlanEvent::ListeningChanged { jump: false });
-        }
+        // Following the sync never opens or closes the output.
+        let _ = self.follow_through(self.playback.follow(id, target));
     }
 
     // ------------------------------------------------------------ playback

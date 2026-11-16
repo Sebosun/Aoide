@@ -139,6 +139,49 @@ impl Place {
     }
 }
 
+/// What a move of the playhead asks of the rest of the app. Every move of the playhead
+/// returns one; [`super::Core::follow_through`] does it, the one place that does, in this
+/// order: save the place, tell Generation, then open or close the audio output.
+#[must_use = "a move of the playhead is followed through with Core::follow_through"]
+#[derive(Default)]
+pub struct Moved {
+    /// The place to save now.
+    pub place: Option<Place>,
+    /// What to tell Generation about what is listened to.
+    pub listening: Option<Listening>,
+    /// What the audio output should do.
+    pub output: Option<OutputNeed>,
+}
+
+/// A change to what is listened to, for Generation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Listening {
+    /// Something else is listened to, or the playhead jumped in a book's entries: the speech
+    /// to make starts from the playhead at once.
+    Jumped,
+    /// The playhead moved on, or the narration changed under it: the speech to make follows
+    /// once the work under way is done.
+    Carried,
+    /// Nothing is listened to any more.
+    Stopped,
+}
+
+/// What the audio output should do after a move.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputNeed {
+    /// Something plays: the output must be running.
+    Open,
+    /// Nothing plays any more.
+    Close,
+}
+
+impl Moved {
+    #[cfg(test)]
+    pub fn parts(&self) -> (bool, Option<Listening>, Option<OutputNeed>) {
+        (self.place.is_some(), self.listening, self.output)
+    }
+}
+
 /// What is being listened to.
 enum Playing {
     /// A book's entries (its segments), read by a speech engine or its recording.
@@ -270,16 +313,24 @@ impl Playback {
         matches!(self.position().status, Status::Playing | Status::Buffering)
     }
 
-    pub fn play(&self) {
+    /// Plays (or carries on playing) what is loaded.
+    pub fn play(&self) -> Moved {
         lock(&self.player).play();
         self.stir();
+        Moved {
+            output: Some(OutputNeed::Open),
+            ..Moved::default()
+        }
     }
 
-    #[must_use = "the place is lost unless it is saved"]
-    pub fn pause(&self) -> Option<Place> {
+    /// Pauses; the place is saved.
+    pub fn pause(&self) -> Moved {
         lock(&self.player).pause();
         self.stir();
-        self.place_to_save(true)
+        Moved {
+            place: self.place_to_save(true),
+            ..Moved::default()
+        }
     }
 
     pub fn speed(&self) -> f32 {
@@ -308,7 +359,7 @@ impl Playback {
     }
 
     /// Plays `target` from entry `start`, in place of anything playing.
-    pub fn start(&self, target: Target, start: usize) {
+    pub fn start(&self, target: Target, start: usize) -> Moved {
         let entries = target.narration.player_entries(&target.book);
         let offset = target
             .narration
@@ -318,15 +369,26 @@ impl Playback {
         *lock(&self.playing) = Some(Playing::Entries(Session::new(target, rate)));
         *lock(&self.error) = None;
         self.stir();
+        Self::started()
+    }
+
+    /// What follows a start: something else is listened to, and it plays.
+    fn started() -> Moved {
+        Moved {
+            place: None,
+            listening: Some(Listening::Jumped),
+            output: Some(OutputNeed::Open),
+        }
     }
 
     /// Plays `timeline` from `at_ms`, in place of anything playing.
-    pub fn start_timeline(&self, timeline: Arc<Timeline>, at_ms: u64) {
+    pub fn start_timeline(&self, timeline: Arc<Timeline>, at_ms: u64) -> Moved {
         let (start, offset) = timeline.locate(at_ms);
         let rate = self.load(timeline.entries(), start, offset);
         *lock(&self.playing) = Some(Playing::Timeline(TimelineSession::new(timeline, rate)));
         *lock(&self.error) = None;
         self.stir();
+        Self::started()
     }
 
     /// Gives the player `entries` and plays from `offset` ms into entry `start`; returns the
@@ -339,31 +401,37 @@ impl Playback {
         player.output_rate()
     }
 
-    /// Ends the session; returns where it was.
-    #[must_use = "the place is lost unless it is saved"]
-    pub fn stop(&self) -> Option<Place> {
+    /// Ends the session; its place is saved.
+    pub fn stop(&self) -> Moved {
         let place = self.place_to_save(true);
         lock(&self.player).load(Vec::new(), 0);
         *lock(&self.playing) = None;
         self.stir();
-        place
+        Moved {
+            place,
+            listening: Some(Listening::Stopped),
+            output: Some(OutputNeed::Close),
+        }
     }
 
     /// Moves the playhead `offset_ms` into entry `index`; `None` starts where the entry's text
     /// does (for a recording, just before its first word; on a timeline, the stretch's start).
-    #[must_use = "the place is lost unless it is saved"]
-    pub fn seek(&self, index: usize, offset_ms: Option<u32>) -> Option<Place> {
-        let (offset, released) = match lock(&self.playing).as_mut() {
+    /// The place is saved; a jump in a book's entries is a jump for Generation too, while the
+    /// speech it makes does not depend on where an audiobook's timeline is.
+    pub fn seek(&self, index: usize, offset_ms: Option<u32>) -> Moved {
+        let (offset, released, listening) = match lock(&self.playing).as_mut() {
             Some(Playing::Entries(session)) => {
                 let offset = offset_ms.unwrap_or_else(|| {
                     session
                         .recording()
                         .map_or(0, |plan| plan.start_offset(index))
                 });
-                (offset, session.restart_feed())
+                (offset, session.restart_feed(), Some(Listening::Jumped))
             }
-            Some(Playing::Timeline(session)) => (offset_ms.unwrap_or(0), session.restart_feed()),
-            None => (0, Vec::new()),
+            Some(Playing::Timeline(session)) => {
+                (offset_ms.unwrap_or(0), session.restart_feed(), None)
+            }
+            None => (0, Vec::new(), None),
         };
         {
             let mut player = lock(&self.player);
@@ -373,12 +441,15 @@ impl Playback {
             player.seek_to(index, offset);
         }
         self.stir();
-        self.place_to_save(true)
+        Moved {
+            place: self.place_to_save(true),
+            listening,
+            output: None,
+        }
     }
 
     /// Moves the playhead to `at_ms` on the timeline of book `id`'s recording.
-    #[must_use = "the place is lost unless it is saved"]
-    pub fn seek_recording(&self, id: &str, at_ms: u64) -> Result<Option<Place>, String> {
+    pub fn seek_recording(&self, id: &str, at_ms: u64) -> Result<Moved, String> {
         let plan = self
             .recording_of(id)
             .ok_or("the recording is not playing")?;
@@ -399,8 +470,7 @@ impl Playback {
     }
 
     /// Moves the playhead to `at_ms` on audiobook `id`'s timeline.
-    #[must_use = "the place is lost unless it is saved"]
-    pub fn seek_time(&self, id: &str, at_ms: u64) -> Result<Option<Place>, String> {
+    pub fn seek_time(&self, id: &str, at_ms: u64) -> Result<Moved, String> {
         let timeline = self
             .timeline()
             .filter(|t| t.id == id)
@@ -530,17 +600,42 @@ impl Playback {
     }
 
     /// Book `id` plays by `target`, its recording synced further, from now on. Audio the player
-    /// has stays; what turned out not to be in the recording is passed over. Returns whether the
-    /// speech engine has other entries to say now; `None` when the book is not playing.
-    pub fn follow(&self, id: &str, target: Target) -> Option<bool> {
-        let followed = self
+    /// has stays; what turned out not to be in the recording is passed over. Generation is
+    /// told when the speech engine has other entries to say now. Nothing follows when the book
+    /// is not playing.
+    pub fn follow(&self, id: &str, target: Target) -> Moved {
+        let Some(followed) = self
             .session(|session| (session.target.book.id == id).then(|| session.follow(target)))
-            .flatten()?;
+            .flatten()
+        else {
+            return Moved::default();
+        };
         let mut player = lock(&self.player);
         for index in followed.passed_over {
             player.finish(index);
         }
-        Some(followed.speech_changed)
+        Moved {
+            listening: followed.speech_changed.then_some(Listening::Carried),
+            ..Moved::default()
+        }
+    }
+
+    /// One tick of playback: gives the player audio near the playhead (see [`Playback::tick`]).
+    /// When the playhead reached another entry, Generation follows it and the place is saved
+    /// every few seconds. `aligned` gets what was given to the player without exact word times.
+    pub fn advance(&self, audio: &dyn SpeechAudio, aligned: impl FnOnce(Vec<Alignable>)) -> Moved {
+        let Some(tick) = self.tick(audio) else {
+            return Moved::default();
+        };
+        aligned(tick.to_align);
+        if !tick.moved {
+            return Moved::default();
+        }
+        Moved {
+            listening: Some(Listening::Carried),
+            place: self.place_to_save(false),
+            output: None,
+        }
     }
 
     // ------------------------------------------------------------ views
@@ -745,30 +840,46 @@ impl super::Core {
             .map(drop)
     }
 
-    pub(super) fn seek(&self, index: usize) {
-        self.seek_at(index, None);
-    }
-
-    /// Moves the playhead `offset_ms` into entry `index`; `None` starts where the entry's text
-    /// does (for a recording, just before its first word).
-    pub(super) fn seek_at(&self, index: usize, offset_ms: Option<u32>) {
-        self.save_place(self.playback.seek(index, offset_ms));
-        self.plan(super::PlanEvent::ListeningChanged { jump: true });
+    /// Does what a move of the playhead asks for (see [`Moved`]): saves the place, tells
+    /// Generation, then opens or closes the audio output. The one place that does; an `Err`
+    /// says the output could not be opened.
+    pub(super) fn follow_through(&self, moved: Moved) -> Result<(), String> {
+        let Moved {
+            place,
+            listening,
+            output,
+        } = moved;
+        self.save_place(place);
+        match listening {
+            Some(Listening::Jumped) => self.plan(super::PlanEvent::ListeningChanged { jump: true }),
+            Some(Listening::Carried) => {
+                self.plan(super::PlanEvent::ListeningChanged { jump: false });
+            }
+            Some(Listening::Stopped) => self.plan(super::PlanEvent::ListeningStopped),
+            None => {}
+        }
+        match output {
+            Some(OutputNeed::Open) => self.ensure_output(),
+            Some(OutputNeed::Close) => {
+                self.output.close();
+                Ok(())
+            }
+            None => Ok(()),
+        }
     }
 
     pub fn pause(&self) {
-        self.save_place(self.playback.pause());
+        // A pause leaves the output as it is: nothing in it can fail.
+        let _ = self.follow_through(self.playback.pause());
     }
 
     pub fn resume(&self) -> Result<(), String> {
-        self.playback.play();
-        self.ensure_output()
+        self.follow_through(self.playback.play())
     }
 
     pub fn stop(&self) {
-        self.save_place(self.playback.stop());
-        self.output.close();
-        self.plan(super::PlanEvent::ListeningStopped);
+        // Closing the output cannot fail.
+        let _ = self.follow_through(self.playback.stop());
     }
 
     pub fn toggle(&self) {
@@ -903,7 +1014,7 @@ mod tests {
     #[test]
     fn made_speech_reaches_the_player_and_the_playhead_moving_is_told_once() {
         let playback = Playback::new(PlayerCore::new(RATE));
-        playback.start(speech(&[0, 1]), 0);
+        let _ = playback.start(speech(&[0, 1]), 0);
         let audio = memory(&["k0", "k1"]);
         let first = playback.tick(&audio).unwrap();
         assert!(first.moved, "a session's first tick");
@@ -924,7 +1035,7 @@ mod tests {
     #[test]
     fn speech_made_later_is_given_on_the_next_tick() {
         let playback = Playback::new(PlayerCore::new(RATE));
-        playback.start(speech(&[]), 0);
+        let _ = playback.start(speech(&[]), 0);
         playback.tick(&memory(&[])).unwrap();
         assert_eq!(playback.state().status, PlaybackStatus::Buffering);
         playback.segment_made("k0", 1_000);
@@ -935,7 +1046,7 @@ mod tests {
     #[test]
     fn deleted_speech_is_not_given_until_made_again() {
         let playback = Playback::new(PlayerCore::new(RATE));
-        playback.start(speech(&[0]), 0);
+        let _ = playback.start(speech(&[0]), 0);
         playback.audio_lost(&HashSet::from(["k0".to_string()]));
         playback.tick(&memory(&["k0"])).unwrap();
         assert_eq!(playback.state().status, PlaybackStatus::Buffering);
@@ -952,7 +1063,7 @@ mod tests {
     async fn each_change_to_playback_is_told_to_whoever_waits_for_it() {
         let playback = Playback::new(PlayerCore::new(RATE));
         assert!(!told(&playback).await, "nothing changed yet");
-        playback.start(speech(&[0]), 0);
+        let _ = playback.start(speech(&[0]), 0);
         assert!(told(&playback).await);
         assert!(!told(&playback).await, "told once");
         let _ = playback.pause();
@@ -968,9 +1079,9 @@ mod tests {
     #[test]
     fn nothing_plays_after_stopping() {
         let playback = Playback::new(PlayerCore::new(RATE));
-        playback.start(speech(&[0]), 0);
+        let _ = playback.start(speech(&[0]), 0);
         assert!(playback.is_book("b") && playback.book().is_some());
-        let Some(Place::Entry { book, index }) = playback.stop() else {
+        let Some(Place::Entry { book, index }) = playback.stop().place else {
             panic!("where it stopped")
         };
         assert_eq!((book.id.as_str(), index), ("b", 0));
@@ -1010,14 +1121,18 @@ mod tests {
             book: Arc::clone(&book),
         };
         let playback = Playback::new(PlayerCore::new(RATE));
-        playback.start(recording(1), 1);
+        let _ = playback.start(recording(1), 1);
         let state = playback.state();
         assert!(state.waiting_for_sync);
         assert_eq!(state.status, PlaybackStatus::Buffering);
         assert!(playback.should_follow("b", false).is_some(), "it waits");
         assert!(playback.should_follow("other", true).is_none());
 
-        assert_eq!(playback.follow("b", recording(4)), Some(false));
+        assert_eq!(
+            playback.follow("b", recording(4)).listening,
+            None,
+            "the speech engine has nothing new to say"
+        );
         assert!(
             playback.should_follow("b", false).is_none(),
             "followed just now"
@@ -1035,14 +1150,57 @@ mod tests {
     #[test]
     fn a_seek_plays_from_the_entry_sought() {
         let playback = Playback::new(PlayerCore::new(RATE));
-        playback.start(speech(&[0, 1, 2, 3]), 0);
+        let _ = playback.start(speech(&[0, 1, 2, 3]), 0);
         playback.tick(&memory(&["k0", "k1", "k2", "k3"])).unwrap();
-        let Some(Place::Entry { index, .. }) = playback.seek(2, None) else {
+        let Some(Place::Entry { index, .. }) = playback.seek(2, None).place else {
             panic!("the place sought")
         };
         assert_eq!(index, 2);
         let tick = playback.tick(&memory(&["k0", "k1", "k2", "k3"])).unwrap();
         assert_eq!((playback.position().index, tick.moved), (2, true));
         assert_eq!(playback.state().segment_id, Some("1:0:0".into()));
+    }
+
+    #[test]
+    fn each_move_of_the_playhead_says_what_follows_it() {
+        use Listening::*;
+        use OutputNeed::*;
+        let playback = Playback::new(PlayerCore::new(RATE));
+        assert_eq!(
+            playback.start(speech(&[0, 1, 2, 3]), 0).parts(),
+            (false, Some(Jumped), Some(Open)),
+            "something else is listened to, and plays"
+        );
+        assert_eq!(
+            playback.seek(2, None).parts(),
+            (true, Some(Jumped), None),
+            "a jump in a book's entries"
+        );
+        assert_eq!(playback.pause().parts(), (true, None, None));
+        assert_eq!(playback.play().parts(), (false, None, Some(Open)));
+        assert_eq!(
+            playback.stop().parts(),
+            (true, Some(Stopped), Some(Close)),
+            "nothing is listened to"
+        );
+        assert_eq!(playback.stop().parts(), (false, Some(Stopped), Some(Close)));
+    }
+
+    #[test]
+    fn advancing_to_another_entry_carries_generation_along_and_saves_the_place_now_and_then() {
+        let playback = Playback::new(PlayerCore::new(RATE));
+        drop(playback.start(speech(&[0, 1]), 0));
+        let audio = memory(&["k0", "k1"]);
+        let mut aligned = 0;
+        let first = playback.advance(&audio, |to_align| aligned += to_align.len());
+        assert_eq!(aligned, 2);
+        assert_eq!(
+            first.listening,
+            Some(Listening::Carried),
+            "a session's first tick"
+        );
+        assert!(first.place.is_none(), "saved a moment ago, at the start");
+        let still = playback.advance(&audio, |_| {});
+        assert_eq!(still.parts(), (false, None, None), "the playhead stayed");
     }
 }
