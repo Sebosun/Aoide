@@ -30,6 +30,19 @@ fn a_rule_or_an_empty_scene_break_marks_the_block_after_it_without_adding_one() 
 }
 
 #[test]
+fn a_scene_break_inside_running_text_neither_splits_it_nor_marks_it() {
+    // Blocks are addresses (segment ids): a break marker that sits in a line of text must not
+    // cut that line into two blocks, as nothing did before scene breaks were read.
+    let found = blocks(
+        r#"<p>Before<span class="transition"></span> and after.</p><div>Text<hr/>more.</div><div><hr/>Next.</div>"#,
+    );
+    let texts: Vec<&str> = found.iter().map(|b| b.text.as_str()).collect();
+    assert_eq!(texts, ["Before and after.", "Textmore.", "Next."]);
+    let breaks: Vec<bool> = found.iter().map(|b| b.break_before).collect();
+    assert_eq!(breaks, [false, false, true]);
+}
+
+#[test]
 fn chapter_blocks_carry_kinds_and_join_to_the_chapter_text() {
     let bytes = support::single(
         "<h1>The  Arrival</h1><p>A boat reached<br/>the shore.</p><ul><li>One oar</li><li><p>Two sails</p></li></ul><pre>let x = 1;</pre><h2>Later</h2><div>Loose text</div>",

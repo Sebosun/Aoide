@@ -13,7 +13,7 @@ pub(crate) struct Content {
     pub sections: Vec<Section>,
     pub notes: Vec<Note>,
     refs: HashMap<usize, (String, String)>,
-    /// Line-break tokens that stand for a scene break (see [`is_scene_break`]).
+    /// Empty tokens that mark a scene break (see [`is_scene_break`]).
     breaks: HashSet<usize>,
 }
 
@@ -98,7 +98,11 @@ impl Content {
             let token = &self.tokens[index];
             if token == "\n" {
                 finish(&mut line, &mut kind, &mut pending, &mut after_break);
-                after_break |= self.breaks.contains(&index);
+                continue;
+            }
+            if self.breaks.contains(&index) {
+                // A break counts between lines, not inside one that has begun.
+                after_break |= line.trim().is_empty();
                 continue;
             }
             if let Some((label, href)) = self.refs.get(&index) {
@@ -210,16 +214,17 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
                     if let Some(level) = heading_level(element.name()) {
                         heading_start = Some((content.tokens.len(), level));
                     }
-                    if is_scene_break(current) {
-                        content.breaks.insert(content.tokens.len());
-                        content.push("\n", &stack);
-                    }
                     if is_block(element.name()) {
                         let top = *stack.last().unwrap();
                         stack.push(block_kind(element.name()).unwrap_or(top));
                         content.push("\n", &stack);
                     } else if matches!(element.name(), "td" | "th") {
                         content.push(" ", &stack);
+                    }
+                    if is_scene_break(current) {
+                        // A marker, not a line break: one inside running text splits nothing.
+                        content.breaks.insert(content.tokens.len());
+                        content.push("", &stack);
                     }
                 }
                 Node::Text(text) if suppressed == 0 => content.push(
