@@ -168,6 +168,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `engine.state` | info | `engine`, `from`, `to`, `detail` | `core/engine.rs` `publish` |
 | `engine.server.stage` | info (warn into `failed`, `waiting`) | `program` (`engine`, `aligner`), `from`, `to`, `cause` (the event), `attempt`, `failure` (kind) | `core/engine_process.rs` `step`, where `next` is applied |
 | `engine.server.stop` | info | `program`, `why` (`idle`, `switched`, `timeout`, `asked`, `quit`, `leftover`), `outcome` (`terminated`, `killed` after the grace period), `took_ms` | `core/engine_process.rs`, a server stopped |
+| `engine.server.reclaim` | warn | `program`, `pid`, `outcome` (`stopped`: a server an earlier run lost in a crash was stopped; `stale`: the pidfile named another program by now; `unwritten`: the pidfile could not be written), `error` | `core/engine_process.rs` `reclaim`, at start, and `launch` |
 | `engine.server.log` | warn | `program`, `file`, `error` (the server log cannot be written) | `core/engine_process.rs` |
 | `engine.voice` | warn | `engine`, `voice`, `error` | `core.rs`, a voice the engine lacks |
 | `engine.session` | warn | `error` | `core.rs` |

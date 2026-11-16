@@ -910,6 +910,8 @@ impl ServerProcess {
         spec: Option<Spec>,
         base: Timing,
     ) -> Self {
+        let pidfile = data_dir.join(format!("{}.pid", names.file));
+        reclaim(&pidfile, names, base.grace());
         let (events, receiver) = tokio::sync::mpsc::unbounded_channel();
         let output = Arc::new(Mutex::new(Output::default()));
         let (spawner, requests) = mpsc::channel();
@@ -925,7 +927,7 @@ impl ServerProcess {
         }
         Self {
             names,
-            pidfile: data_dir.join(format!("{}.pid", names.file)),
+            pidfile,
             logs_dir: logs_dir.to_owned(),
             base,
             tick: TICK,
@@ -1120,6 +1122,9 @@ impl ServerProcess {
             if before.name() != after.name() {
                 self.log_stage(&before, &after, cause);
             }
+            if before.pid().is_some() && after.pid().is_none() {
+                let _ = std::fs::remove_file(&self.pidfile);
+            }
             if let Some((then, stop)) = stopped {
                 self.log_stop(&then, &stop);
             }
@@ -1255,6 +1260,7 @@ impl ServerProcess {
         // Its own process group, so a stop reaches what a wrapper (`sh`, `uv run`) started.
         #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(&mut command, 0);
+        end_with_the_spawner(&mut command);
         let (reply, answer) = mpsc::channel();
         let sent = lock(&self.spawner).send(SpawnRequest { command, reply });
         let spawned = match sent {
@@ -1273,6 +1279,10 @@ impl ServerProcess {
                     outcome = "ok",
                     "Launched the server"
                 );
+                if let Err(error) = leftover::Record::of(pid, &launch.program).write(&self.pidfile)
+                {
+                    tracing::warn!(event = "engine.server.reclaim", program = self.names.program, outcome = "unwritten", %error, "Cannot write the server's pidfile");
+                }
                 ServerEvent::Spawned { pid }
             }
             Err(error) => {
@@ -1354,12 +1364,71 @@ impl ServerProcess {
             process::signal(pid, process::Sig::Kill);
             process::gone_within(pid, Duration::from_secs(1));
         }
+        let _ = std::fs::remove_file(&self.pidfile);
         if let Some(mut stop) = lock(&self.inner).stopping.take() {
             stop.killed |= killed;
             self.log_stop(&After::Stopped(StopWhy::Quit), &stop);
         }
     }
 }
+
+/// Stops a server an earlier run started and lost (a crash, a `kill -9`), named by the pidfile
+/// it left, and removes the file.
+fn reclaim(pidfile: &Path, names: Names, grace: Duration) {
+    let Some(record) = leftover::Record::read(pidfile) else {
+        let _ = std::fs::remove_file(pidfile);
+        return;
+    };
+    let ours = record.still_ours();
+    tracing::warn!(
+        event = "engine.server.reclaim",
+        program = names.program,
+        pid = record.pid,
+        outcome = if ours { "stopped" } else { "stale" },
+        "A server from an earlier run was left behind"
+    );
+    if ours {
+        let started = Instant::now();
+        process::signal(record.pgid, process::Sig::Term);
+        let killed = !process::gone_within(record.pgid, grace);
+        if killed {
+            process::signal(record.pgid, process::Sig::Kill);
+            process::gone_within(record.pgid, Duration::from_secs(1));
+        }
+        tracing::info!(
+            event = "engine.server.stop",
+            program = names.program,
+            why = "leftover",
+            outcome = if killed { "killed" } else { "terminated" },
+            took_ms = crate::logging::took(started),
+            "Stopped the server"
+        );
+    }
+    let _ = std::fs::remove_file(pidfile);
+}
+
+/// On Linux, the server gets SIGTERM when the thread that started it ends: the spawner thread
+/// lives as long as Aoide, so a crash or a `kill -9` of Aoide ends the server too. If Aoide was
+/// gone before the signal was set up, the server does not start.
+#[cfg(target_os = "linux")]
+fn end_with_the_spawner(command: &mut Command) {
+    use std::os::unix::process::CommandExt;
+    let parent = std::process::id();
+    // SAFETY: between fork and exec this makes only async-signal-safe system calls (prctl,
+    // getppid) and allocates nothing.
+    unsafe {
+        command.pre_exec(move || {
+            rustix::process::set_parent_process_death_signal(Some(rustix::process::Signal::TERM))?;
+            match rustix::process::getppid() {
+                Some(pid) if pid.as_raw_nonzero().get() as u32 == parent => Ok(()),
+                _ => Err(std::io::Error::from(std::io::ErrorKind::BrokenPipe)),
+            }
+        });
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn end_with_the_spawner(_command: &mut Command) {}
 
 fn failure_kind(failure: &Failure) -> FailureKind {
     match failure {
@@ -1478,6 +1547,119 @@ fn exit_of(status: Option<std::process::ExitStatus>, started: Instant) -> Exit {
         code: status.and_then(|s| s.code()),
         signal,
         ran_ms: crate::logging::took(started),
+    }
+}
+
+/// The pidfile, and servers an earlier run of Aoide lost in a crash or a `kill -9`.
+mod leftover {
+    use std::path::Path;
+
+    /// What the pidfile says about the server Aoide started.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Record {
+        pub pid: u32,
+        pub pgid: u32,
+        /// When the process started, in clock ticks since boot (Linux), to tell it from
+        /// another program that got the same pid later.
+        pub start: Option<u64>,
+        /// The program's file name.
+        pub program: String,
+    }
+
+    impl Record {
+        /// The record of server `pid` (leading its own group) running `program`.
+        pub fn of(pid: u32, program: &str) -> Self {
+            Self {
+                pid,
+                pgid: pid,
+                start: stat(pid).map(|s| s.start),
+                program: Path::new(program)
+                    .file_name()
+                    .map_or_else(|| program.to_owned(), |n| n.to_string_lossy().into_owned()),
+            }
+        }
+
+        pub fn write(&self, path: &Path) -> std::io::Result<()> {
+            let start = self.start.map_or_else(String::new, |s| s.to_string());
+            std::fs::write(
+                path,
+                format!(
+                    "pid={}\npgid={}\nstart={start}\nprogram={}\n",
+                    self.pid, self.pgid, self.program
+                ),
+            )
+        }
+
+        pub fn read(path: &Path) -> Option<Self> {
+            let text = std::fs::read_to_string(path).ok()?;
+            let field = |name: &str| {
+                text.lines()
+                    .find_map(|line| line.strip_prefix(name)?.strip_prefix('='))
+                    .map(str::trim)
+            };
+            Some(Self {
+                pid: field("pid")?.parse().ok()?,
+                pgid: field("pgid")?.parse().ok()?,
+                start: field("start").and_then(|s| s.parse().ok()),
+                program: field("program").unwrap_or_default().to_owned(),
+            })
+        }
+
+        /// Whether the process group it names is still the server Aoide started: its leader
+        /// runs with the same start time, or the leader is gone and members it started remain.
+        /// Off Linux nothing can be checked, and nothing is taken for Aoide's.
+        pub fn still_ours(&self) -> bool {
+            let Some(start) = self.start else {
+                return false;
+            };
+            match stat(self.pid) {
+                Some(leader) => leader.start == start && leader.pgrp == self.pgid,
+                None => members_since(self.pgid, start),
+            }
+        }
+    }
+
+    struct Stat {
+        pgrp: u32,
+        start: u64,
+    }
+
+    /// Fields 5 (process group) and 22 (start time) of `/proc/<pid>/stat`.
+    #[cfg(target_os = "linux")]
+    fn stat(pid: u32) -> Option<Stat> {
+        let text = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+        // The command name in field 2 may hold spaces and parentheses: count from the last ')'.
+        let fields: Vec<&str> = text
+            .get(text.rfind(')')? + 1..)?
+            .split_whitespace()
+            .collect();
+        Some(Stat {
+            pgrp: fields.get(2)?.parse().ok()?,
+            start: fields.get(19)?.parse().ok()?,
+        })
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn stat(_pid: u32) -> Option<Stat> {
+        None
+    }
+
+    /// Whether a process of group `pgid` started at or after `since` still runs.
+    #[cfg(target_os = "linux")]
+    fn members_since(pgid: u32, since: u64) -> bool {
+        let Ok(entries) = std::fs::read_dir("/proc") else {
+            return false;
+        };
+        entries
+            .flatten()
+            .filter_map(|e| e.file_name().to_str()?.parse::<u32>().ok())
+            .filter_map(stat)
+            .any(|s| s.pgrp == pgid && s.start >= since)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn members_since(_pgid: u32, _since: u64) -> bool {
+        false
     }
 }
 
@@ -2164,5 +2346,122 @@ pub(super) mod process_tests {
         assert_eq!(alive_in(&pid), Some(false));
         assert_eq!(alive_in(&child), Some(false));
         task.abort();
+    }
+
+    /// A group of its own running `script`, as a server Aoide lost in a crash would be.
+    #[cfg(target_os = "linux")]
+    fn lost(script: &str) -> std::process::Child {
+        let mut command = std::process::Command::new("sh");
+        command.args(["-c", script]);
+        std::os::unix::process::CommandExt::process_group(&mut command, 0);
+        command.spawn().unwrap()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn server_over(dir: &Path) -> ServerProcess {
+        ServerProcess::new(
+            Names::SPEECH,
+            dir,
+            &dir.join("logs"),
+            Some(spec(script("exec sleep 300"))),
+            timing(),
+        )
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn the_pidfile_names_the_server_while_it_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let pidfile = dir.path().join("speech-server.pid");
+        let (server, _host, task) = running(dir.path(), script("exec sleep 300"));
+        server.answered(Answer::Offline);
+        server.want();
+        until("the pidfile", || pidfile.exists()).await;
+        let written = std::fs::read_to_string(&pidfile).unwrap();
+        assert!(written.contains("program=sh"), "{written}");
+
+        server.stop_now();
+        until("the stop", || state(&server) == Some(ServerState::Stopped)).await;
+        assert!(!pidfile.exists());
+        task.abort();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn a_server_left_by_a_crash_is_stopped_at_the_next_start() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut leftover = lost("exec sleep 300");
+        let pid = leftover.id();
+        leftover::Record::of(pid, "sh")
+            .write(&dir.path().join("speech-server.pid"))
+            .unwrap();
+
+        let _server = server_over(dir.path());
+
+        let ended = leftover.try_wait().unwrap().or_else(|| {
+            std::thread::sleep(Duration::from_millis(200));
+            leftover.try_wait().unwrap()
+        });
+        assert!(ended.is_some(), "the leftover server was stopped");
+        assert!(!dir.path().join("speech-server.pid").exists());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn what_is_left_of_a_lost_servers_group_is_stopped_too() {
+        let dir = tempfile::tempdir().unwrap();
+        let child = dir.path().join("child");
+        let mut leader = lost(&format!("sleep 300 & echo $! > '{}'", child.display()));
+        let record = leftover::Record::of(leader.id(), "sh");
+        leader.wait().unwrap();
+        until("the child", || alive_in(&child) == Some(true)).await;
+        record.write(&dir.path().join("speech-server.pid")).unwrap();
+
+        let _server = server_over(dir.path());
+
+        until("the child to be stopped", || {
+            alive_in(&child) == Some(false)
+        })
+        .await;
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn a_pidfile_naming_another_program_now_is_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut other = lost("exec sleep 300");
+        let mut record = leftover::Record::of(other.id(), "sh");
+        record.start = record.start.map(|s| s.saturating_sub(1_000));
+        record.write(&dir.path().join("speech-server.pid")).unwrap();
+
+        let _server = server_over(dir.path());
+
+        assert!(
+            other.try_wait().unwrap().is_none(),
+            "not ours: left running"
+        );
+        assert!(!dir.path().join("speech-server.pid").exists());
+        other.kill().unwrap();
+        other.wait().unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn the_server_gets_sigterm_when_the_thread_that_started_it_ends() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid = dir.path().join("pid");
+        let (server, _host, task) = running(
+            dir.path(),
+            script(&format!("echo $$ > '{}'; exec sleep 300", pid.display())),
+        );
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || alive_in(&pid) == Some(true)).await;
+
+        task.abort();
+        let _ = task.await;
+        drop(server); // Ends the spawner thread, without stopping anything.
+
+        until("the parent-death signal", || alive_in(&pid) == Some(false)).await;
     }
 }
