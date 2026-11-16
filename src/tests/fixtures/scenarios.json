@@ -1215,13 +1215,6 @@
         "call": "scanForAudiobooks",
         "error": null,
         "expect": {
-          "[bookId=book-3].candidates.0.bytes": 9190,
-          "[bookId=book-3].candidates.0.exact": false,
-          "[bookId=book-3].candidates.0.files.length": 2,
-          "[bookId=book-3].candidates.0.folder": false,
-          "[bookId=book-3].candidates.0.paths.0": "~/Audiobooks/Unfinished Atlas Radio Play 1.mp3",
-          "[bookId=book-3].candidates.length": 1,
-          "[bookId=book-3].stage.kind": "found",
           "[bookId=book-1].candidates.0.bytes": 213000,
           "[bookId=book-1].candidates.0.exact": true,
           "[bookId=book-1].candidates.0.files.length": 15,
@@ -1230,6 +1223,13 @@
           "[bookId=book-1].candidates.1.paths.0": "~/Audiobooks/A Map of Quiet Places (Unabridged).m4b",
           "[bookId=book-1].candidates.length": 2,
           "[bookId=book-1].stage.kind": "found",
+          "[bookId=book-3].candidates.0.bytes": 9190,
+          "[bookId=book-3].candidates.0.exact": false,
+          "[bookId=book-3].candidates.0.files.length": 2,
+          "[bookId=book-3].candidates.0.folder": false,
+          "[bookId=book-3].candidates.0.paths.0": "~/Audiobooks/Unfinished Atlas Radio Play 1.mp3",
+          "[bookId=book-3].candidates.length": 1,
+          "[bookId=book-3].stage.kind": "found",
           "length": 2
         }
       },
@@ -1267,7 +1267,6 @@
         "call": "audiobookMatches",
         "error": null,
         "expect": {
-          "[bookId=book-3].stage.kind": "found",
           "[bookId=book-1]": {
             "bookId": "book-1",
             "candidates": [
@@ -1319,6 +1318,7 @@
               "kind": "paired"
             }
           },
+          "[bookId=book-3].stage.kind": "found",
           "length": 2
         }
       },
