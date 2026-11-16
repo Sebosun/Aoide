@@ -16,6 +16,7 @@ by `aoide_tts::cache_key`. Almost everything below is a change to what goes into
 ## 1.1 Say one sentence again
 
 **Size:** S
+**Built:** 2026-11-16 (640b03f..e9c7c04)
 
 ### Outcome
 
