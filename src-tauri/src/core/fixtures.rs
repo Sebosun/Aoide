@@ -1021,6 +1021,44 @@ async fn scenarios_for_the_ui_mock() {
         &core.say_again(&second, "99:0:0").await,
         &[],
     );
+    let spoken: Vec<String> = core
+        .chapter(&second, 1)
+        .unwrap()
+        .blocks
+        .into_iter()
+        .flat_map(|b| b.segments)
+        .filter(|s| s.can_say_again)
+        .map(|s| s.id)
+        .collect();
+    // A book not listened to is listened to from the sentence.
+    let said = core.say_again(&second, &spoken[1]).await;
+    s.step(
+        "sayAgain",
+        json!({"bookId": second, "segmentId": spoken[1]}),
+        &said,
+        &[],
+    );
+    s.then(
+        "onPlayerState",
+        &core.player_state(),
+        &["bookId", "chapter", "segmentId"],
+    );
+    core.pause();
+    s.step("pause", json!({}), &Ok(()), &[]);
+    // Paused, the playhead moves to the sentence and stays paused.
+    let said = core.say_again(&second, &spoken[0]).await;
+    s.step(
+        "sayAgain",
+        json!({"bookId": second, "segmentId": spoken[0]}),
+        &said,
+        &[],
+    );
+    s.then(
+        "onPlayerState",
+        &core.player_state(),
+        &["bookId", "status", "segmentId"],
+    );
+    core.stop();
     scenarios.push(s.done());
 
     let mut s = Scenario::new("collections are named once and hold books", "");

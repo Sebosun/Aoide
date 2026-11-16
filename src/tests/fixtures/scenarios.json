@@ -279,6 +279,46 @@
         "call": "sayAgain",
         "error": "no such sentence",
         "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "segmentId": "1:1:0"
+        },
+        "call": "sayAgain",
+        "error": null,
+        "event": {
+          "expect": {
+            "bookId": "book-1",
+            "chapter": 1,
+            "segmentId": "1:1:0"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "pause",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "segmentId": "1:0:0"
+        },
+        "call": "sayAgain",
+        "error": null,
+        "event": {
+          "expect": {
+            "bookId": "book-1",
+            "segmentId": "1:0:0",
+            "status": "paused"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
       }
     ]
   },
