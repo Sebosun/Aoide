@@ -19,7 +19,8 @@ export type ShortcutId =
   | "zoomIn"
   | "zoomOut"
   | "zoomReset"
-  | "back";
+  | "back"
+  | "help";
 
 /** Keys pressed together. `key` is the `KeyboardEvent.key` (a letter in lower case); `also`
  *  are other keys that do the same without being listed (`=` for `+`). `arg` is what the action
@@ -94,6 +95,7 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "zoomOut", label: "Smaller interface", keys: [{ key: "-", ctrl: true, also: ["_"] }], typing: true },
   { id: "zoomReset", label: "Interface at 100%", keys: [{ key: "0", ctrl: true }], typing: true },
   { id: "back", label: "Close a dialog or menu, or leave the reader", keys: [{ key: "Escape" }] },
+  { id: "help", label: "Show this list", keys: [{ key: "?" }] },
 ];
 
 const NAMES: Record<string, string> = {

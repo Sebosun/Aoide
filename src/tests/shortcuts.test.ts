@@ -302,3 +302,21 @@ it("opens the sleep timer menu with T, in the library and in the reader", async 
   expect(menu()).not.toBeNull();
   wrapper.unmount();
 });
+
+it("shows the list of shortcuts with ?, the same list as Settings › About, and Escape closes it", async () => {
+  const wrapper = await app();
+  expect(press("?", { shiftKey: true }).defaultPrevented).toBe(true);
+  await flushPromises();
+  const sheet = wrapper.get('[role="dialog"][aria-label="Keyboard shortcuts"]');
+  for (const shortcut of SHORTCUTS) expect(sheet.text()).toContain(shortcut.label);
+  expect(sheet.text()).toContain("Shift");
+  press("Escape");
+  await flushPromises();
+  expect(wrapper.find('[role="dialog"][aria-label="Keyboard shortcuts"]').exists()).toBe(false);
+  // Not while typing.
+  wrapper.get<HTMLInputElement>('[aria-label="Search library"]').element.focus();
+  expect(press("?", { shiftKey: true }).defaultPrevented).toBe(false);
+  await flushPromises();
+  expect(wrapper.find('[role="dialog"][aria-label="Keyboard shortcuts"]').exists()).toBe(false);
+  wrapper.unmount();
+});

@@ -6,8 +6,8 @@ import { getVersion } from "@tauri-apps/api/app";
 import SettingsSection from "@/components/settings/SettingsSection.vue";
 import SettingsField from "@/components/settings/SettingsField.vue";
 import SettingsNote from "@/components/settings/SettingsNote.vue";
+import ShortcutList from "@/components/shell/ShortcutList.vue";
 import { TOKENS } from "@/theme";
-import { SHORTCUTS, keyLabels } from "@/shortcuts";
 import { usePreferencesStore } from "@/stores/preferences";
 import { useUiStore } from "@/stores/ui";
 
@@ -73,17 +73,7 @@ ground = "#101326"</code></pre>
       </details>
     </SettingsSection>
     <SettingsSection title="Keyboard shortcuts" :icon="Keyboard">
-      <dl class="about-settings__keys" aria-label="Keyboard shortcuts">
-        <div v-for="shortcut in SHORTCUTS" :key="shortcut.id" class="about-settings__shortcut">
-          <dt>
-            <template v-for="(combo, i) in shortcut.keys" :key="i"
-              ><span v-if="i" class="about-settings__or">or</span
-              ><kbd v-for="key in keyLabels(combo)" :key="key">{{ key }}</kbd></template
-            >
-          </dt>
-          <dd>{{ shortcut.label }}</dd>
-        </div>
-      </dl>
+      <ShortcutList />
     </SettingsSection>
     <SettingsSection title="Aoide">
       <p class="about-settings__line">
@@ -131,44 +121,6 @@ ground = "#101326"</code></pre>
   font-size: 12px;
   line-height: 1.6;
   overflow-x: auto;
-}
-.about-settings__keys {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  font-size: 13px;
-}
-.about-settings__shortcut {
-  display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-2) 0;
-}
-.about-settings__shortcut dt {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-.about-settings__shortcut dd {
-  margin: 0;
-  color: var(--dim);
-  font-weight: 600;
-}
-.about-settings__shortcut kbd {
-  min-width: 26px;
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: var(--ground);
-  box-shadow: inset 0 -1px 0 var(--line);
-  font: 700 12px/1.4 var(--font-ui);
-  text-align: center;
-}
-.about-settings__or {
-  margin: 0 var(--space-1);
-  font-size: 12px;
-  color: var(--faint);
 }
 .about-settings__line {
   font-size: 13px;

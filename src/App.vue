@@ -17,6 +17,7 @@ import SignInDialog from "@/components/article/SignInDialog.vue";
 import { useSignInStore } from "@/stores/signin";
 import SettingsDialog from "@/components/settings/SettingsDialog.vue";
 import AddDialog from "@/components/library/AddDialog.vue";
+import ShortcutsDialog from "@/components/shell/ShortcutsDialog.vue";
 import PairRecordingDialog from "@/components/recording/PairRecordingDialog.vue";
 import SyncReport from "@/components/recording/SyncReport.vue";
 import { useLibraryStore } from "@/stores/library";
@@ -211,6 +212,7 @@ function browserDrop(event: DragEvent) {
     <DropOverlay v-if="dragging" />
     <AddDialog v-if="navigation.addOpen" />
     <SettingsDialog v-if="navigation.settingsOpen" />
+    <ShortcutsDialog v-if="navigation.shortcutsOpen" />
     <PairRecordingDialog v-if="recordings.pairing" :key="recordings.pairing.paths.join('|')" />
     <SyncReport v-if="recordings.report" :key="recordings.report" />
     <SignInDialog v-if="signIn.shown && signIn.view" />

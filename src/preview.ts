@@ -20,12 +20,13 @@ import { useRecordingsStore } from "@/stores/recordings";
  *  core made it; `settings=engine` shows it in Settings);
  *  `browser=off|missing|ready` sets the browser for articles (off, on with none found, on with
  *  one found; `settings=sites` shows it); `signin=waiting|fetching` opens a sign-in on the
- *  preview's article */
+ *  preview's article; `shortcuts=1` shows the list of keyboard shortcuts (the ? key) */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
   const view = query.get("view") as View | null,
     settings = query.get("settings") as SettingsTab | null;
   if (settings) useNavigationStore().openSettings(settings);
+  if (query.has("shortcuts")) useNavigationStore().openShortcuts();
   for (const id of query.get("prepare")?.split(",").filter(Boolean) ?? []) await api.prepareBook({ bookId: id });
   if (query.has("audiobook")) await api.addAudiobook({ paths: ["~/Audiobooks/Winter Radio"] });
   if (query.has("shelves")) {

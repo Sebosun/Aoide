@@ -40,6 +40,7 @@ const volumeLabel = (volume: number) => (volume > 0 ? `Volume ${Math.round(volum
  *    (↑ and ↓ alone keep scrolling); M mutes. Each says the new value in a toast.
  *  - B bookmarks the playing (or open) book's place; T opens the player's sleep timer menu.
  *  - Escape leaves the reader for the screen it was opened from, when nothing is open over it.
+ *  - ? shows the list of shortcuts.
  *  - Ctrl F searches the open book (in the reader) or the library; Ctrl , opens Settings;
  *    Ctrl N opens Add.
  *  - Ctrl + / Ctrl − / Ctrl 0 and Ctrl + wheel zoom, also while typing. */
@@ -139,6 +140,7 @@ export function useShortcuts() {
       if (navigation.view !== "reader" || document.querySelector(OVERLAYS)) return false;
       navigation.leaveReader();
     },
+    help: () => navigation.openShortcuts(),
   };
   function onKeydown(event: KeyboardEvent) {
     if (event.defaultPrevented || event.altKey) return;

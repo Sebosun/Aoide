@@ -243,6 +243,7 @@ Then turn on **Settings → Word highlighting → Exact word timing** with the a
 | <kbd>Ctrl</kbd> <kbd>,</kbd> | Settings |
 | <kbd>Ctrl</kbd> <kbd>+</kbd> / <kbd>Ctrl</kbd> <kbd>−</kbd> / <kbd>Ctrl</kbd> <kbd>0</kbd> | Larger, smaller, or normal interface size (or <kbd>Ctrl</kbd> + mouse wheel) |
 | <kbd>Esc</kbd> | Close a dialog or menu |
+| <kbd>?</kbd> | Show this list |
 
 The same list is in **Settings → About**.
 

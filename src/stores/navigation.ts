@@ -49,6 +49,10 @@ export const useNavigationStore = defineStore("navigation", () => {
     addOpen.value = true;
   };
   const closeAdd = () => (addOpen.value = false);
+  /** The list of keyboard shortcuts, over the current screen (the ? key). */
+  const shortcutsOpen = ref(false);
+  const openShortcuts = () => (shortcutsOpen.value = true);
+  const closeShortcuts = () => (shortcutsOpen.value = false);
   /** Settings is a dialog over the current screen; it reopens on the last tab. */
   const settingsOpen = ref(false),
     settingsTab = ref<SettingsTab>("appearance");
@@ -96,6 +100,9 @@ export const useNavigationStore = defineStore("navigation", () => {
     addMode,
     openAdd,
     closeAdd,
+    shortcutsOpen,
+    openShortcuts,
+    closeShortcuts,
     settingsOpen,
     settingsTab,
     openSettings,
