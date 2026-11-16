@@ -69,7 +69,7 @@ const { isArticle } = useOpenArticle();
         :aria-label="`Back to ${backLabel}`"
         @click="navigation.leaveReader()"
       >
-        <ArrowLeft :size="16" aria-hidden="true" />{{ backLabel }}
+        <ArrowLeft :size="16" aria-hidden="true" /><span class="reader__back-label">{{ backLabel }}</span>
       </UiButton>
       <ArticleOutline v-if="isArticle" class="reader__outline" :title="reader.book.title" :chapter="reader.chapter" />
       <ChapterMenu
@@ -232,6 +232,15 @@ const { isArticle } = useOpenArticle();
 @media (max-width: 760px) {
   .reader {
     padding: 0 var(--space-5);
+  }
+  /* A narrow window keeps the actions (with Say this again) clear of the back button: it shows
+     only its arrow (its aria-label still names it). */
+  .reader__header .reader__back {
+    width: var(--control-lg);
+    padding: 0;
+  }
+  .reader__back-label {
+    display: none;
   }
 }
 </style>
