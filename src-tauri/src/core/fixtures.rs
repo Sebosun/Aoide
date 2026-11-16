@@ -266,10 +266,13 @@ fn epub(book: &Book) -> Vec<u8> {
                 .collect::<String>()
         ),
     ));
+    // Stored and dated 1980, so the bytes (and the ids made from them) are the same everywhere.
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored)
+        .last_modified_time(zip::DateTime::default());
     let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     for (name, body) in files {
-        zip.start_file(name, zip::write::SimpleFileOptions::default())
-            .unwrap();
+        zip.start_file(name, options).unwrap();
         zip.write_all(body.as_bytes()).unwrap();
     }
     zip.finish().unwrap().into_inner()
@@ -1893,4 +1896,26 @@ async fn speech_server_states_for_the_ui_mock() {
         serde_json::to_value(core.engine_status()).unwrap(),
     );
     write("speech-server", &views, &renames);
+}
+
+/// The preview's EPUBs are the same bytes on every machine and in every build: their ids are
+/// in the fixtures, so they must not depend on the compressor `flate2` happens to be built
+/// with (another crate can switch it) or on the time they are written.
+#[test]
+fn the_preview_books_are_the_same_bytes_everywhere() {
+    for book in BOOKS.iter().chain(&FOUND) {
+        let bytes = epub(book);
+        let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).unwrap();
+        for index in 0..zip.len() {
+            let entry = zip.by_index(index).unwrap();
+            assert_eq!(
+                entry.compression(),
+                zip::CompressionMethod::Stored,
+                "{} in {}",
+                entry.name(),
+                book.title
+            );
+            assert_eq!(entry.last_modified(), Some(zip::DateTime::default()));
+        }
+    }
 }
