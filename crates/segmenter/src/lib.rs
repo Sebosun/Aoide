@@ -21,7 +21,8 @@ pub struct SegmentOptions {
     pub heading_pause_ms: u32,
     /// Silence after the last segment of a paragraph (of any block).
     pub paragraph_pause_ms: u32,
-    /// Silence at a scene break: a block with no letter or digit (`* * *`) carries it.
+    /// Silence at a scene break: a block with no letter or digit (`* * *`) carries it, and
+    /// so does the block before one marked [`Block::break_before`] (a rule).
     pub break_pause_ms: u32,
 }
 
@@ -73,7 +74,8 @@ pub fn segment_chapter(chapter: u32, blocks: &[Block], options: &SegmentOptions)
             .flat_map(|sentence| split_long(&chars, sentence, options.max_chars))
             .collect();
         let heading = matches!(block.kind, BlockKind::Heading { .. });
-        let scene_break = !block.text.chars().any(char::is_alphanumeric);
+        let scene_break = !block.text.chars().any(char::is_alphanumeric)
+            || blocks.get(index + 1).is_some_and(|next| next.break_before);
         let groups = group(&units, options);
         let last = groups.len().saturating_sub(1);
         for (n, group) in groups.into_iter().enumerate() {

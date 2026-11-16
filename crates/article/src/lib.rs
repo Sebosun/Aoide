@@ -184,6 +184,7 @@ fn paragraphs(text: &str, options: &ExtractOptions) -> Vec<Block> {
         blocks.push(Block {
             kind: BlockKind::Paragraph,
             text,
+            break_before: false,
         });
     }
     blocks

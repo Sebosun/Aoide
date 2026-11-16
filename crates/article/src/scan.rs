@@ -139,7 +139,8 @@ pub(crate) fn nesting(html: &str) -> usize {
 pub(crate) fn plain(html: &str, options: &ExtractOptions) -> Body {
     let mut blocks = Vec::new();
     let (mut running, mut bytes) = (String::new(), 0usize);
-    let mut flush = |running: &mut String, blocks: &mut Vec<Block>| {
+    let mut after_break = false;
+    let mut flush = |running: &mut String, blocks: &mut Vec<Block>, after_break: &mut bool| {
         let text = collapse(&html_escape::decode_html_entities(running));
         running.clear();
         if !text.is_empty() && blocks.len() < options.max_blocks && bytes < options.max_text_bytes {
@@ -147,6 +148,7 @@ pub(crate) fn plain(html: &str, options: &ExtractOptions) -> Body {
             blocks.push(Block {
                 kind: BlockKind::Paragraph,
                 text,
+                break_before: std::mem::take(after_break),
             });
         }
     };
@@ -183,10 +185,11 @@ pub(crate) fn plain(html: &str, options: &ExtractOptions) -> Body {
             continue;
         }
         if BREAKS.contains(&name) {
-            flush(&mut running, &mut blocks);
+            flush(&mut running, &mut blocks, &mut after_break);
         }
+        after_break |= name == "hr";
     }
-    flush(&mut running, &mut blocks);
+    flush(&mut running, &mut blocks, &mut after_break);
     Body {
         blocks,
         warnings: Vec::new(),

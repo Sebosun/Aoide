@@ -9,6 +9,7 @@ fn segment(text: &str) -> aoide_text::Segment {
     let blocks = [Block {
         kind: BlockKind::Paragraph,
         text: text.into(),
+        break_before: false,
     }];
     segment_chapter(
         0,

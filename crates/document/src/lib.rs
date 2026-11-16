@@ -141,6 +141,27 @@ pub struct NoteRef {
 pub struct Block {
     pub kind: BlockKind,
     pub text: String,
+    /// A scene break stands before this block: a rule (`<hr>`) or an empty element styled as
+    /// one. It adds no block of its own, so block indexes (and segment ids) stay the same.
+    pub break_before: bool,
+}
+
+/// Whether a class or type name marks an element as a scene break (`scene-break`,
+/// `sectionbreak`, `transition`, ...). A page marker (`pagebreak`) is not one.
+pub fn names_scene_break(name: &str) -> bool {
+    const NAMES: &[&str] = &[
+        "scenebreak",
+        "scene-break",
+        "scene_break",
+        "sectionbreak",
+        "section-break",
+        "section_break",
+        "spacebreak",
+        "space-break",
+        "space_break",
+        "transition",
+    ];
+    NAMES.iter().any(|known| known.eq_ignore_ascii_case(name))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

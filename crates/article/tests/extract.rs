@@ -128,6 +128,35 @@ const FILLER: &str =
     clear the paths, turn the beds and see what the winter left behind for the season ahead.</p>";
 
 #[test]
+fn a_rule_marks_the_block_after_it_as_after_a_scene_break_without_adding_one() {
+    let html = format!(
+        "<html><head><title>Notes</title></head><body><article>{FILLER}<hr>\
+         <p>The second half of the season is quieter.</p>{FILLER}</article></body></html>"
+    );
+    let extracted = extract(&html, &url(), &ExtractOptions::default());
+    let blocks = &extracted.document.chapters[0].blocks;
+    assert_eq!(blocks.len(), 3);
+    let breaks: Vec<bool> = blocks.iter().map(|b| b.break_before).collect();
+    assert_eq!(breaks, [false, true, false]);
+
+    // A page too deep for a tree is read as plain text, and keeps its rules too.
+    let plain = extract(
+        &html,
+        &url(),
+        &ExtractOptions {
+            max_depth: 1,
+            ..ExtractOptions::default()
+        },
+    );
+    let breaks: Vec<bool> = plain.document.chapters[0]
+        .blocks
+        .iter()
+        .map(|b| b.break_before)
+        .collect();
+    assert_eq!(breaks, [false, true, false]);
+}
+
+#[test]
 fn a_list_item_written_as_paragraphs_is_one_item_and_what_follows_it() {
     let blocks = blocks_of(&format!(
         "{FILLER}<ol><li><p>Turn the compost before the frost.</p><p>Give it a week to settle.</p></li>\

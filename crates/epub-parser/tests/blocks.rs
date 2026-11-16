@@ -11,7 +11,22 @@ fn block(kind: BlockKind, text: &str) -> Block {
     Block {
         kind,
         text: text.into(),
+        break_before: false,
     }
+}
+
+#[test]
+fn a_rule_or_an_empty_scene_break_marks_the_block_after_it_without_adding_one() {
+    let found = blocks(
+        r#"<p>Before.</p><hr/><p>After.</p><p>Then<span epub:type="pagebreak" id="p5" title="5"/> on.</p><div class="scene-break"></div><p>Later.</p><p class="center">* * *</p><p>Last.</p>"#,
+    );
+    let texts: Vec<&str> = found.iter().map(|b| b.text.as_str()).collect();
+    assert_eq!(
+        texts,
+        ["Before.", "After.", "Then on.", "Later.", "* * *", "Last."]
+    );
+    let breaks: Vec<bool> = found.iter().map(|b| b.break_before).collect();
+    assert_eq!(breaks, [false, true, false, true, false, false]);
 }
 
 #[test]

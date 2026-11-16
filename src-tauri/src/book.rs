@@ -555,6 +555,7 @@ mod tests {
         Block {
             kind,
             text: text.into(),
+            break_before: false,
         }
     }
 

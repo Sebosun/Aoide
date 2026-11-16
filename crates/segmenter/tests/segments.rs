@@ -7,6 +7,7 @@ fn p(text: &str) -> Block {
     Block {
         kind: BlockKind::Paragraph,
         text: text.into(),
+        break_before: false,
     }
 }
 
@@ -14,6 +15,7 @@ fn h(text: &str) -> Block {
     Block {
         kind: BlockKind::Heading { level: 1 },
         text: text.into(),
+        break_before: false,
     }
 }
 
@@ -117,6 +119,20 @@ fn a_scene_break_without_letters_carries_the_break_pause_itself() {
     assert_eq!(pauses(&blocks, &options), vec![250, 1200, 250, 700]);
     let segments = segment_chapter(0, &blocks, &options);
     assert!(segments[1].speech.is_empty(), "the break stays silent");
+}
+
+#[test]
+fn a_rule_before_a_block_gives_the_segment_before_it_the_break_pause() {
+    let after_rule = Block {
+        break_before: true,
+        ..p("After.")
+    };
+    let blocks = [p("Before. And more before."), after_rule, p("The end.")];
+    let options = SegmentOptions {
+        min_chars: 0,
+        ..Default::default()
+    };
+    assert_eq!(pauses(&blocks, &options), vec![0, 1200, 250, 700]);
 }
 
 #[test]

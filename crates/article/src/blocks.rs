@@ -65,6 +65,8 @@ struct Builder<'o> {
     /// For each list item being read, how many blocks there were when it began: its first
     /// block is the item, later ones are paragraphs that continue it.
     items: Vec<usize>,
+    /// A scene break was read since the last block.
+    after_break: bool,
 }
 
 impl Builder<'_> {
@@ -85,7 +87,11 @@ impl Builder<'_> {
             kind => kind,
         };
         self.bytes += text.len();
-        self.blocks.push(Block { kind, text });
+        self.blocks.push(Block {
+            kind,
+            text,
+            break_before: std::mem::take(&mut self.after_break),
+        });
     }
 
     fn run_on(&mut self, text: &str, kind: BlockKind) {
@@ -111,6 +117,7 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
         running: String::new(),
         running_kind: BlockKind::Paragraph,
         items: Vec::new(),
+        after_break: false,
     };
     let mut steps = vec![Step::Visit(fragment.tree.root(), BlockKind::Paragraph)];
     while let Some(step) = steps.pop() {
@@ -146,6 +153,11 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
             continue;
         }
         if SILENT.contains(&name) {
+            continue;
+        }
+        if scene_break(node) {
+            builder.flush();
+            builder.after_break = true;
             continue;
         }
         if name == "br" {
@@ -192,6 +204,17 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
         blocks: builder.blocks,
         warnings,
     }
+}
+
+/// A rule, or an element with nothing to read whose class names a scene break.
+fn scene_break(node: NodeRef<'_, Node>) -> bool {
+    let Some(element) = scraper::ElementRef::wrap(node) else {
+        return false;
+    };
+    let value = element.value();
+    value.name() == "hr"
+        || (value.classes().any(aoide_document::names_scene_break)
+            && element.text().all(|text| text.trim().is_empty()))
 }
 
 /// A `pre` element's text as written, without its first line break and trailing blank space.

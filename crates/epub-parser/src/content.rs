@@ -1,7 +1,7 @@
 use crate::{Block, BlockKind, ExclusionReason, Note, NoteRef};
 use ego_tree::iter::Edge;
 use scraper::{Html, Node};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub(crate) struct Content {
     pub title: String,
@@ -13,6 +13,8 @@ pub(crate) struct Content {
     pub sections: Vec<Section>,
     pub notes: Vec<Note>,
     refs: HashMap<usize, (String, String)>,
+    /// Line-break tokens that stand for a scene break (see [`is_scene_break`]).
+    breaks: HashSet<usize>,
 }
 
 pub(crate) struct Section {
@@ -65,9 +67,11 @@ impl Content {
         let mut pending = Vec::new();
         let mut line = String::new();
         let mut kind = None;
+        let mut after_break = false;
         let mut finish = |line: &mut String,
                           kind: &mut Option<BlockKind>,
-                          pending: &mut Vec<(usize, String, String)>| {
+                          pending: &mut Vec<(usize, String, String)>,
+                          after_break: &mut bool| {
             let text = line.split_whitespace().collect::<Vec<_>>().join(" ");
             if let (false, Some(kind)) = (text.is_empty(), kind.take()) {
                 for (offset, label, href) in pending.drain(..) {
@@ -81,7 +85,11 @@ impl Content {
                         href,
                     ));
                 }
-                blocks.push(Block { kind, text });
+                blocks.push(Block {
+                    kind,
+                    text,
+                    break_before: std::mem::take(after_break),
+                });
             }
             pending.clear();
             line.clear();
@@ -89,7 +97,8 @@ impl Content {
         for index in start..end {
             let token = &self.tokens[index];
             if token == "\n" {
-                finish(&mut line, &mut kind, &mut pending);
+                finish(&mut line, &mut kind, &mut pending, &mut after_break);
+                after_break |= self.breaks.contains(&index);
                 continue;
             }
             if let Some((label, href)) = self.refs.get(&index) {
@@ -103,7 +112,7 @@ impl Content {
             }
             line.push_str(token);
         }
-        finish(&mut line, &mut kind, &mut pending);
+        finish(&mut line, &mut kind, &mut pending, &mut after_break);
         (blocks, refs)
     }
 }
@@ -141,6 +150,7 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
         sections: Vec::new(),
         notes: Vec::new(),
         refs: HashMap::new(),
+        breaks: HashSet::new(),
     };
     let mut suppressed = 0;
     let mut heading_start = None;
@@ -199,6 +209,10 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
                     }
                     if let Some(level) = heading_level(element.name()) {
                         heading_start = Some((content.tokens.len(), level));
+                    }
+                    if is_scene_break(current) {
+                        content.breaks.insert(content.tokens.len());
+                        content.push("\n", &stack);
                     }
                     if is_block(element.name()) {
                         let top = *stack.last().unwrap();
@@ -430,6 +444,20 @@ fn note_text(body: scraper::ElementRef<'_>) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// A rule, or an element with nothing to read whose class or type names a scene break. A page
+/// marker (`epub:type="pagebreak"`) is not one.
+fn is_scene_break(element: scraper::ElementRef<'_>) -> bool {
+    let value = element.value();
+    value.name() == "hr"
+        || (value
+            .attr("class")
+            .into_iter()
+            .chain(value.attr("epub:type"))
+            .flat_map(str::split_whitespace)
+            .any(aoide_document::names_scene_break)
+            && element.text().all(|text| text.trim().is_empty()))
 }
 
 fn heading_level(name: &str) -> Option<u8> {
