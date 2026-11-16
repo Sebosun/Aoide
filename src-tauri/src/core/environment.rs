@@ -3,6 +3,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
 use aoide_audio::output::OutputCommand;
 use aoide_tts::{EngineProfile, NetworkScope, Registry};
@@ -54,6 +55,40 @@ pub type ShowInFolder = Arc<dyn Fn(&Path) -> Result<(), String> + Send + Sync>;
 /// Opens a web address in the system's browser.
 pub type OpenLink = Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
 
+/// What time it is, for how long jobs ran: the system's clock in the app, one tests move on.
+#[derive(Clone)]
+pub struct Clock(Arc<dyn Fn() -> Instant + Send + Sync>);
+
+impl Clock {
+    pub fn now(&self) -> Instant {
+        (self.0)()
+    }
+
+    /// A clock that moves on by `step` each time it is read.
+    #[cfg(test)]
+    pub fn stepping(step: std::time::Duration) -> Self {
+        let start = Instant::now();
+        let reads = std::sync::atomic::AtomicU32::new(0);
+        Self(Arc::new(move || {
+            start + step * reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+        }))
+    }
+
+    /// A clock that stands still until the returned handle moves it on.
+    #[cfg(test)]
+    pub fn manual() -> (Self, Arc<std::sync::Mutex<Instant>>) {
+        let now = Arc::new(std::sync::Mutex::new(Instant::now()));
+        let read = Arc::clone(&now);
+        (Self(Arc::new(move || *read.lock().unwrap())), now)
+    }
+}
+
+impl Default for Clock {
+    fn default() -> Self {
+        Self(Arc::new(Instant::now))
+    }
+}
+
 pub struct Environment {
     pub events: Arc<dyn Events>,
     pub engines: Registry,
@@ -73,6 +108,10 @@ pub struct Environment {
     pub browser: Arc<dyn super::browsing::BrowserDriver>,
     /// The browser "Download Chrome" gets; `None` where none is offered.
     pub browser_download: Option<super::browser_download::Source>,
+    /// Shows desktop notifications, and knows whether the window is in front.
+    pub notifier: Arc<dyn super::notices::Notifier>,
+    /// How long jobs ran.
+    pub clock: Clock,
 }
 
 impl Environment {
@@ -93,6 +132,8 @@ impl Environment {
             fetcher: super::articles::web_fetcher(),
             browser: Arc::new(super::browsing::ChromeDriver::default()),
             browser_download: super::browser_download::Source::pinned(),
+            notifier: Arc::new(super::notices::Unsent),
+            clock: Clock::default(),
         }
     }
 

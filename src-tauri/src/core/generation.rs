@@ -9,6 +9,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use aoide_audio::{codec, Pcm};
 use aoide_generation::{
@@ -22,9 +23,11 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::book::BookModel;
 
 use super::engine::Speech;
+use super::environment::Clock;
 use super::error::Reporter;
 use super::narration::NarrationPlan;
-use super::preparation::{Plan, Preparation, PrepareView};
+use super::notices::Happened;
+use super::preparation::{Finished, Plan, Preparation, PrepareView};
 use super::{lock, now_ms, CoreEvent, Events, GenerationStateView, PreparingView};
 
 /// How far ahead of the playhead speech is made.
@@ -105,6 +108,17 @@ pub(super) trait GenerationHost {
     /// The speech plan for book `id` (only `chapters` of it, when given), or `None` while there
     /// is no voice to plan it with.
     fn book_plan(&self, id: &str, chapters: Option<&[usize]>) -> Option<Result<Plan, String>>;
+    /// A book finished preparing, or its preparation stalled; `took` is how long it ran.
+    fn happened(&self, happened: Happened, took: Duration);
+}
+
+/// What a change to preparation tells the user of: books finished, or one stalled.
+type Told = Vec<(Happened, Duration)>;
+
+fn prepared(finished: Vec<Finished>) -> impl Iterator<Item = (Happened, Duration)> {
+    finished
+        .into_iter()
+        .map(|(id, took)| (Happened::Prepared(id), took))
 }
 
 pub(super) struct Generation {
@@ -131,6 +145,7 @@ impl Generation {
         engine: Arc<dyn SpeechEngine>,
         reporter: Reporter,
         events: Arc<dyn Events>,
+        clock: Clock,
     ) -> (Self, UnboundedReceiver<WorkerEvent>) {
         let (worker_events, receiver) = tokio::sync::mpsc::unbounded_channel();
         let store = Arc::new(Store {
@@ -143,7 +158,7 @@ impl Generation {
             WorkerOptions::default(),
             worker_events.clone(),
         );
-        let preparation = Preparation::load(&lock(&library), reporter);
+        let preparation = Preparation::load(&lock(&library), reporter).with_clock(clock);
         let generation = Self {
             worker: Mutex::new(worker),
             worker_events,
@@ -221,11 +236,15 @@ impl Generation {
     /// Makes the change `event` stands for, plans the work again and sends the view if it
     /// changed. The one way generation changes.
     pub fn apply(&self, event: PlanEvent, host: &dyn GenerationHost) {
-        let replan = self.change(event);
+        let mut told = Told::new();
+        let replan = self.change(event, &mut told);
         if let Some(jump) = replan {
             self.replan(jump, host);
         }
         self.send_view();
+        for (happened, took) in told {
+            host.happened(happened, took);
+        }
     }
 
     /// Book `id`'s preparation as the window shows it, if it is queued or prepared.
@@ -261,7 +280,7 @@ impl Generation {
 
     /// Makes the change; returns whether to plan again, and if so whether from the playhead
     /// at once (`Some(true)`).
-    fn change(&self, event: PlanEvent) -> Option<bool> {
+    fn change(&self, event: PlanEvent, told: &mut Told) -> Option<bool> {
         match event {
             PlanEvent::ListeningChanged { jump } => Some(jump),
             PlanEvent::ListeningStopped => {
@@ -361,9 +380,10 @@ impl Generation {
                     let mut preparation = lock(&self.preparation);
                     preparation.segment_made(&lock(&self.library), &key, duration_ms)
                 };
-                if finished {
+                if !finished.is_empty() {
                     self.emit(CoreEvent::LibraryChanged);
                 }
+                told.extend(prepared(finished));
                 let mut state = lock(&self.state);
                 state.generating_segment_id = None;
                 state.error = None;
@@ -374,6 +394,9 @@ impl Generation {
                 None
             }
             PlanEvent::WorkFailed { error } => {
+                if let Some(id) = lock(&self.preparation).work_failed() {
+                    told.push((Happened::PreparationStalled(id), Duration::ZERO));
+                }
                 let mut state = lock(&self.state);
                 state.generating_segment_id = None;
                 state.error = Some(error);
@@ -458,6 +481,7 @@ impl Generation {
     fn plan_waiting_books(&self, host: &dyn GenerationHost) {
         let waiting = lock(&self.preparation).unplanned();
         let mut changed = false;
+        let mut told = Told::new();
         for id in waiting {
             let chapters = lock(&self.preparation).chapters(&id);
             let Some(built) = host.book_plan(&id, chapters.as_deref()) else {
@@ -466,7 +490,7 @@ impl Generation {
             let mut preparation = lock(&self.preparation);
             let library = lock(&self.library);
             match built {
-                Ok(plan) => preparation.planned(&library, &id, plan),
+                Ok(plan) => told.extend(prepared(preparation.planned(&library, &id, plan))),
                 Err(error) => {
                     tracing::warn!(event = "prep.plan", book = crate::logging::book(&id), %error, "Cannot plan the book's preparation");
                     preparation.cancel(&library, &id);
@@ -476,6 +500,9 @@ impl Generation {
         }
         if changed {
             self.emit(CoreEvent::LibraryChanged);
+        }
+        for (happened, took) in told {
+            host.happened(happened, took);
         }
     }
 
@@ -591,6 +618,10 @@ impl GenerationHost for super::Core {
             }
             Ok(plan)
         }))
+    }
+
+    fn happened(&self, happened: Happened, took: Duration) {
+        self.tell(happened, took);
     }
 }
 
@@ -731,6 +762,8 @@ mod tests {
                     .collect(),
             }))
         }
+
+        fn happened(&self, _: Happened, _: Duration) {}
     }
 
     type Made = UnboundedReceiver<WorkerEvent>;
@@ -758,6 +791,7 @@ mod tests {
             Arc::clone(engine) as Arc<dyn SpeechEngine>,
             Reporter::default(),
             Arc::new(Recorder::default()),
+            Clock::default(),
         );
         let host = Host {
             voice: Mutex::new("Guess.wav".into()),

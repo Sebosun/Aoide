@@ -222,6 +222,8 @@ pub struct Core {
     browsing: Arc<browsing::Browsing>,
     /// A sign-in in a visible browser window.
     sign_in: signin::SignIn,
+    /// Desktop notifications when long jobs end.
+    notices: notices::Notices,
 }
 
 impl Core {
@@ -252,6 +254,8 @@ impl Core {
             fetcher,
             browser,
             browser_download,
+            notifier,
+            clock,
         } = environment;
         for dir in [&paths.library_dir, &paths.covers_dir, &paths.audio_dir] {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
@@ -278,6 +282,7 @@ impl Core {
             Arc::clone(&engine),
             reporter.clone(),
             Arc::clone(&events),
+            clock,
         );
         let mut player = PlayerCore::new(OUTPUT_RATE);
         if let Some(settings) = settings {
@@ -378,6 +383,7 @@ impl Core {
             settings: config::Settings::new(config),
             recordings,
             audiobooks,
+            notices: notices::Notices::new(notifier),
         });
         Ok((core, worker_events))
     }

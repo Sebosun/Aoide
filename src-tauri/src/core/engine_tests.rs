@@ -207,6 +207,8 @@ pub(super) async fn start(
         fetcher: super::articles::offline(),
         browser: Arc::new(super::browsing::testing::ScriptedBrowser::default()),
         browser_download: None,
+        notifier: Arc::new(super::notices::testing::Recorded::default()),
+        clock: super::environment::Clock::default(),
     };
     let core = Core::start(environment, paths(root)).unwrap();
     until("the library scan", || {

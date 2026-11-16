@@ -5,12 +5,14 @@
 //! so the queue survives restarts; plans are rebuilt in each run.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::time::{Duration, Instant};
 
 use aoide_generation::PlanItem;
 use aoide_library::{BookId, BookKey, GlobalKey, Library};
 use aoide_tts::SynthesisRequest;
 use serde::Serialize;
 
+use super::environment::Clock;
 use super::error::Reporter;
 
 /// Where a book is in whole-book preparation.
@@ -203,7 +205,27 @@ struct Entry {
     stage: Stage,
     /// Present exactly while the stage is `Queued` or `Preparing`.
     plan: Option<Plan>,
+    /// When it was first promoted to `Preparing` in this run.
+    since: Option<Instant>,
+    /// The engine failed while it was being prepared, and no segment was made since.
+    stalled: bool,
 }
+
+impl Entry {
+    fn new(id: String, scope: Scope, stage: Stage) -> Self {
+        Self {
+            id,
+            scope,
+            stage,
+            plan: None,
+            since: None,
+            stalled: false,
+        }
+    }
+}
+
+/// A book whose preparation finished, and how long it was being prepared in this run.
+pub type Finished = (String, Duration);
 
 /// The preparation queue. Methods that change what is saved take the library.
 #[derive(Default)]
@@ -211,6 +233,7 @@ pub struct Preparation {
     queue: Vec<Entry>,
     /// Tells the user when the queue cannot be saved.
     reporter: Reporter,
+    clock: Clock,
 }
 
 impl Preparation {
@@ -233,15 +256,20 @@ impl Preparation {
                 } else {
                     Stage::Waiting
                 };
-                Entry {
-                    id,
-                    scope,
-                    stage,
-                    plan: None,
-                }
+                Entry::new(id, scope, stage)
             })
             .collect();
-        Self { queue, reporter }
+        Self {
+            queue,
+            reporter,
+            clock: Clock::default(),
+        }
+    }
+
+    /// Times preparation with `clock`.
+    pub fn with_clock(mut self, clock: Clock) -> Self {
+        self.clock = clock;
+        self
     }
 
     pub fn stage(&self, library: &Library, id: &str) -> Stage {
@@ -298,12 +326,7 @@ impl Preparation {
         let stage = next(before, Event::Enqueue);
         logged(id, Event::Enqueue, before, stage);
         clear_done(library, &self.reporter, id);
-        self.queue.push(Entry {
-            id: id.into(),
-            scope: Scope::Book,
-            stage,
-            plan: None,
-        });
+        self.queue.push(Entry::new(id.into(), Scope::Book, stage));
         self.save(library);
     }
 
@@ -323,12 +346,11 @@ impl Preparation {
         let before = self.stage(library, id);
         let stage = next(before, Event::Enqueue);
         logged(id, Event::Enqueue, before, stage);
-        self.queue.push(Entry {
-            id: id.into(),
-            scope: Scope::Chapters(BTreeSet::from([chapter])),
+        self.queue.push(Entry::new(
+            id.into(),
+            Scope::Chapters(BTreeSet::from([chapter])),
             stage,
-            plan: None,
-        });
+        ));
         self.save(library);
     }
 
@@ -377,18 +399,20 @@ impl Preparation {
             .collect()
     }
 
-    /// Gives a waiting book its plan. A plan with nothing left to make finishes at once.
-    pub fn planned(&mut self, library: &Library, id: &str, plan: Plan) {
+    /// Gives a waiting book its plan. A plan with nothing left to make finishes at once;
+    /// returns the books that finished.
+    pub fn planned(&mut self, library: &Library, id: &str, plan: Plan) -> Vec<Finished> {
         let Some(entry) = self.entry_mut(id) else {
-            return;
+            return Vec::new();
         };
         if entry.stage != Stage::Waiting {
-            return;
+            return Vec::new();
         }
         entry.plan = Some(plan);
         apply(entry, Event::Planned);
-        self.finish_complete(library);
+        let finished = self.finish_complete(library);
         self.settle();
+        finished
     }
 
     /// Plans no longer match the engine or book settings; `None` drops every plan.
@@ -403,15 +427,34 @@ impl Preparation {
         self.settle();
     }
 
-    /// A segment's audio was made. Returns whether any book finished.
-    pub fn segment_made(&mut self, library: &Library, key: &str, duration_ms: u32) -> bool {
+    /// A segment's audio was made. Returns the books that finished.
+    pub fn segment_made(
+        &mut self,
+        library: &Library,
+        key: &str,
+        duration_ms: u32,
+    ) -> Vec<Finished> {
         // Keys are content hashes, so several books can share one.
-        for plan in self.queue.iter_mut().filter_map(|e| e.plan.as_mut()) {
-            plan.mark_cached(key, duration_ms);
+        for entry in self.queue.iter_mut() {
+            entry.stalled = false;
+            if let Some(plan) = entry.plan.as_mut() {
+                plan.mark_cached(key, duration_ms);
+            }
         }
         let finished = self.finish_complete(library);
         self.settle();
         finished
+    }
+
+    /// The engine failed to make a segment. Returns the book being prepared, the first time
+    /// since a segment was last made: its preparation is stalled.
+    pub fn work_failed(&mut self) -> Option<String> {
+        let entry = self
+            .queue
+            .iter_mut()
+            .find(|e| e.stage == Stage::Preparing && !e.stalled)?;
+        entry.stalled = true;
+        Some(entry.id.clone())
     }
 
     /// Audio was deleted (cache limit, regenerate): those books need it made again.
@@ -470,13 +513,15 @@ impl Preparation {
             }
             if matches!(entry.stage, Stage::Preparing) {
                 first = false;
+                entry.since.get_or_insert_with(|| self.clock.now());
             }
         }
     }
 
-    /// Moves planned books with every segment made to done. Returns whether any did.
-    fn finish_complete(&mut self, library: &Library) -> bool {
+    /// Moves planned books with every segment made to done. Returns those that did.
+    fn finish_complete(&mut self, library: &Library) -> Vec<Finished> {
         let mut finished = Vec::new();
+        let now = self.clock.now();
         for entry in self.queue.iter_mut() {
             let Some((done, total)) = entry.plan.as_ref().map(Plan::progress) else {
                 continue;
@@ -498,14 +543,15 @@ impl Preparation {
                         );
                     }
                 }
-                finished.push(entry.id.clone());
+                let took = entry.since.map_or(Duration::ZERO, |since| now - since);
+                finished.push((entry.id.clone(), took));
             }
         }
         self.queue.retain(|e| e.stage != Stage::Done);
         if !finished.is_empty() {
             self.save(library);
         }
-        !finished.is_empty()
+        finished
     }
 
     fn save(&self, library: &Library) {
@@ -591,6 +637,7 @@ fn clear_done(library: &Library, reporter: &Reporter, id: &str) {
 
 #[cfg(test)]
 mod tests {
+    use super::super::environment::Clock;
     use super::*;
 
     #[test]
@@ -709,8 +756,8 @@ mod tests {
         let mut p = Preparation::default();
         p.enqueue(&lib, "a");
         p.planned(&lib, "a", plan(&[("k1", true), ("k2", false)]));
-        assert!(!p.segment_made(&lib, "other", 500));
-        assert!(p.segment_made(&lib, "k2", 500));
+        assert!(p.segment_made(&lib, "other", 500).is_empty());
+        assert!(!p.segment_made(&lib, "k2", 500).is_empty());
         assert_eq!(p.stage(&lib, "a"), Done);
         assert!(!p.contains("a"));
         let view = Preparation::load(&lib, Reporter::default())
@@ -802,7 +849,7 @@ mod tests {
         assert_eq!(p.view(&lib, "a").unwrap().chapters, Some(vec![2]));
         p.planned(&lib, "a", plan(&[("k1", false)]));
         assert_eq!(p.stage(&lib, "a"), Preparing);
-        assert!(p.segment_made(&lib, "k1", 500));
+        assert!(!p.segment_made(&lib, "k1", 500).is_empty());
         assert!(!p.contains("a"));
         assert_eq!(p.stage(&lib, "a"), NotPrepared);
         assert_eq!(p.view(&lib, "a"), None);
@@ -847,6 +894,49 @@ mod tests {
         assert_eq!(p.stage(&lib, "a"), Waiting);
         p.planned(&lib, "a", plan(&[("k1", true)]));
         assert_eq!(p.stage(&lib, "a"), Done);
+    }
+
+    #[test]
+    fn a_finished_book_says_how_long_it_was_prepared_for() {
+        let lib = library();
+        let (clock, now) = Clock::manual();
+        let mut p = Preparation::default().with_clock(clock);
+        p.enqueue(&lib, "a");
+        p.enqueue(&lib, "b");
+        p.planned(&lib, "a", plan(&[("a1", false), ("a2", false)]));
+        p.planned(&lib, "b", plan(&[("b1", false)]));
+        *now.lock().unwrap() += std::time::Duration::from_secs(50);
+        assert_eq!(p.segment_made(&lib, "a1", 500), []);
+        *now.lock().unwrap() += std::time::Duration::from_secs(40);
+        // "b" was promoted only when "a" finished: its time starts then.
+        assert_eq!(
+            p.segment_made(&lib, "a2", 500),
+            [("a".to_string(), std::time::Duration::from_secs(90))]
+        );
+        *now.lock().unwrap() += std::time::Duration::from_secs(5);
+        assert_eq!(
+            p.segment_made(&lib, "b1", 500),
+            [("b".to_string(), std::time::Duration::from_secs(5))]
+        );
+        // A book with all its audio made finishes as it is planned, having taken no time.
+        p.enqueue(&lib, "c");
+        assert_eq!(
+            p.planned(&lib, "c", plan(&[("c1", true)])),
+            [("c".to_string(), std::time::Duration::ZERO)]
+        );
+    }
+
+    #[test]
+    fn a_failure_while_a_book_is_prepared_stalls_it_once_until_a_segment_is_made() {
+        let lib = library();
+        let mut p = Preparation::default();
+        assert_eq!(p.work_failed(), None, "nothing is being prepared");
+        p.enqueue(&lib, "a");
+        p.planned(&lib, "a", plan(&[("a1", false), ("a2", false)]));
+        assert_eq!(p.work_failed(), Some("a".to_string()));
+        assert_eq!(p.work_failed(), None, "already stalled");
+        p.segment_made(&lib, "a1", 500);
+        assert_eq!(p.work_failed(), Some("a".to_string()));
     }
 
     #[test]

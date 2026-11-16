@@ -9,6 +9,7 @@ use std::time::Duration;
 use aoide_library::Library;
 use aoide_tts::testing::FakeEngine;
 
+use super::notices::testing::Recorded;
 use super::preparation::Preparation;
 use super::settings::{AppSettingsPatch, LibrarySort};
 use super::{BookSettings, Core, CoreEvent, Environment, Events, Paths, PrepareStage};
@@ -196,6 +197,50 @@ pub(super) fn start_downloading(
     browser: Arc<dyn super::browsing::BrowserDriver>,
     browser_download: Option<super::browser_download::Source>,
 ) -> (Arc<Core>, Arc<Recorder>) {
+    start_environment(
+        root,
+        engine,
+        transcribers,
+        fetcher,
+        browser,
+        browser_download,
+        Arc::default(),
+        super::environment::Clock::default(),
+    )
+}
+
+/// A core whose notices are kept by the returned notifier (the window not in front), timing
+/// jobs with a clock that moves on a minute and a second each time it is read: every job is
+/// a long one.
+pub(super) fn start_noticing(
+    root: &Path,
+    engine: &Arc<FakeEngine>,
+) -> (Arc<Core>, Arc<Recorder>, Arc<Recorded>) {
+    let notifier = Arc::new(Recorded::default());
+    let (core, events) = start_environment(
+        root,
+        engine,
+        Arc::new(|_| Err("no speech recognition in this test".into())),
+        super::articles::offline(),
+        Arc::new(super::browsing::testing::ScriptedBrowser::default()),
+        None,
+        Arc::clone(&notifier),
+        super::environment::Clock::stepping(Duration::from_secs(61)),
+    );
+    (core, events, notifier)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn start_environment(
+    root: &Path,
+    engine: &Arc<FakeEngine>,
+    transcribers: super::recording::TranscriberFactory,
+    fetcher: Arc<dyn super::articles::Fetcher>,
+    browser: Arc<dyn super::browsing::BrowserDriver>,
+    browser_download: Option<super::browser_download::Source>,
+    notifier: Arc<Recorded>,
+    clock: super::environment::Clock,
+) -> (Arc<Core>, Arc<Recorder>) {
     let events = Arc::new(Recorder::default());
     let mut engines = aoide_tts::Registry::new();
     engine.register(&mut engines);
@@ -219,6 +264,8 @@ pub(super) fn start_downloading(
         fetcher,
         browser,
         browser_download,
+        notifier,
+        clock,
     };
     (Core::start(environment, paths(root)).unwrap(), events)
 }
@@ -271,6 +318,52 @@ async fn prepares_a_queued_book_with_the_engine_and_reports_it_done() {
         engine.calls()
     );
     assert!(events.count(CoreEvent::LIBRARY_CHANGED) >= 2);
+}
+
+#[tokio::test]
+async fn a_book_prepared_while_aoide_is_not_in_front_ends_with_one_notice_that_opens_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events, notifier) = start_noticing(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+
+    core.prepare_book(&id).await.unwrap();
+    until("preparation to finish", || {
+        stage(&core, &id) == Some(PrepareStage::Done)
+    })
+    .await;
+    until("the notice", || !notifier.sent().is_empty()).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let sent = notifier.sent();
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    assert_eq!(sent[0].title, "Quay Lights");
+    assert_eq!(sent[0].opens.as_deref(), Some(id.as_str()));
+}
+
+#[tokio::test]
+async fn a_book_prepared_while_aoide_is_in_front_says_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events, notifier) = start_noticing(dir.path(), &engine);
+    notifier.set_focused(true);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+
+    core.prepare_book(&id).await.unwrap();
+    until("preparation to finish", || {
+        stage(&core, &id) == Some(PrepareStage::Done)
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(notifier.sent(), []);
 }
 
 #[tokio::test]

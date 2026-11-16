@@ -3,9 +3,8 @@
 //! [`notice`] is the rule: what happened, how long it took and whether the window is in front
 //! decide whether there is anything to say. Feed arrivals never notify.
 
-// Wired to the jobs in the next slice.
-#![allow(dead_code)]
-
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 /// Jobs shorter than this end while the user is still looking: they do not notify.
@@ -13,6 +12,7 @@ pub const LONG_JOB: Duration = Duration::from_secs(60);
 
 /// A long job that ended, or one that needs the user. Each names the book it is about.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)] // Sync, export and import tell of theirs in the next slice.
 pub enum Happened {
     Prepared(String),
     /// The speech engine failed while the book was being prepared.
@@ -126,6 +126,138 @@ pub fn notice(happened: &Happened, title: &str, moment: Moment) -> Option<Notice
         body: body.into(),
         opens: happened.book().map(str::to_owned),
     })
+}
+
+/// Where notices go: the desktop's notification service in the app, a recorder in tests.
+pub trait Notifier: Send + Sync {
+    /// Whether Aoide's window is in front.
+    fn focused(&self) -> bool;
+    fn send(&self, notice: Notice) -> Result<(), String>;
+}
+
+/// Sends nothing, as if the window were always in front: where the desktop has no
+/// notifications Aoide can send.
+pub struct Unsent;
+
+impl Notifier for Unsent {
+    fn focused(&self) -> bool {
+        true
+    }
+
+    fn send(&self, _: Notice) -> Result<(), String> {
+        Ok(())
+    }
+}
+
+/// Decides and sends notices: one per long job that ended, or one that needs the user.
+pub struct Notices {
+    notifier: Arc<dyn Notifier>,
+    /// A failed send was logged in this run: the desktop may have no notification service, and
+    /// saying so once is enough.
+    failure_logged: AtomicBool,
+}
+
+impl Notices {
+    pub fn new(notifier: Arc<dyn Notifier>) -> Self {
+        Self {
+            notifier,
+            failure_logged: AtomicBool::new(false),
+        }
+    }
+
+    /// Tells the desktop that `happened` (to the book titled `title`, after `took`), when the
+    /// rule says to. `enabled` is the user's switch.
+    pub fn happened(&self, happened: &Happened, title: &str, took: Duration, enabled: bool) {
+        let moment = Moment {
+            took,
+            focused: enabled && self.notifier.focused(),
+            enabled,
+        };
+        let Some(notice) = notice(happened, title, moment) else {
+            return;
+        };
+        let kind = happened.kind();
+        let book = happened
+            .book()
+            .map(crate::logging::book)
+            .unwrap_or_default();
+        match self.notifier.send(notice) {
+            Ok(()) => {
+                tracing::info!(
+                    event = "notice.sent",
+                    kind,
+                    book,
+                    outcome = "sent",
+                    "Notified the desktop"
+                )
+            }
+            Err(error) => {
+                if !self.failure_logged.swap(true, Ordering::Relaxed) {
+                    tracing::warn!(event = "notice.sent", kind, book, outcome = "failed", %error, "Cannot notify the desktop");
+                }
+            }
+        }
+    }
+}
+
+impl super::Core {
+    /// Tells the desktop that `happened`, `took` after the job started, when the rule says to.
+    /// A book prepared for its export says nothing: the export's own notice follows.
+    pub(super) fn tell(&self, happened: Happened, took: Duration) {
+        if let Happened::Prepared(id) = &happened {
+            if self.exports.exporting().as_deref() == Some(id.as_str()) {
+                return;
+            }
+        }
+        let title = happened
+            .book()
+            .and_then(|id| {
+                let library = super::lock(&self.library);
+                library
+                    .book(&aoide_library::BookId(id.into()))
+                    .ok()
+                    .flatten()
+            })
+            .and_then(|book| book.title)
+            .unwrap_or_else(|| "Untitled".into());
+        self.notices.happened(&happened, &title, took, true);
+    }
+}
+
+#[cfg(test)]
+pub mod testing {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Mutex;
+
+    use super::{Notice, Notifier};
+
+    /// Keeps what it is asked to show; the window is in front only when told it is.
+    #[derive(Default)]
+    pub struct Recorded {
+        pub focused: AtomicBool,
+        pub sent: Mutex<Vec<Notice>>,
+    }
+
+    impl Recorded {
+        pub fn sent(&self) -> Vec<Notice> {
+            self.sent.lock().unwrap().clone()
+        }
+
+        pub fn set_focused(&self, focused: bool) {
+            self.focused.store(focused, Ordering::SeqCst);
+        }
+    }
+
+    impl Notifier for Recorded {
+        fn focused(&self) -> bool {
+            self.focused.load(Ordering::SeqCst)
+        }
+
+        fn send(&self, notice: Notice) -> Result<(), String> {
+            self.sent.lock().unwrap().push(notice);
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]

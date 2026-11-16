@@ -188,6 +188,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `feeder.read` | warn | `error` | `core/feeder.rs` |
 | `cache.evict` | info | `segments`, `books` | `core/storage.rs` `enforce_cache_limit` |
 | `export.done` | info, warn | `kind`, `book`, `file`, `took_ms`, `outcome`, `error` | `core/export.rs` (`Exports`) |
+| `notice.sent` | info, warn | `kind` (`prepared`, `preparationStalled`, `synced`, `syncNeedsYou`, `syncFailed`, `exported`, `exportFailed`, `importFinished`), `book`, `outcome` (`sent`, `failed`: logged once per run, as the desktop may have no notification service), `error` | `core/notices.rs` `Notices::happened`, a desktop notification sent (never its text: it names the book) |
 | `proc.spawn` | info, warn, error | `program`, `pid`, `why` (`wanted`, `restart`, `idle_wake`, `retry`), `outcome` (`ok`, `address_taken`, `failed`), `error` | `core/engine_process.rs` (engine, aligner) |
 | `proc.exit` | warn | `program`, `code`, `stderr_tail` (ffmpeg); for `engine` and `aligner`: `pid`, `code`, `signal`, `ran_ms`, `file` and no `stderr_tail` | `core/export.rs`, `core/read_along.rs` (ffmpeg), `core/engine_process.rs` (the reaper thread) |
 | **Smoke runs** | | | |
