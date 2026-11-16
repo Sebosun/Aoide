@@ -623,6 +623,18 @@ impl super::Core {
     pub fn engine_status(&self) -> EngineStatusView {
         self.engine.status()
     }
+
+    /// Try again: launches a speech server that failed once more.
+    pub fn retry_speech_server(&self) {
+        self.speech_server.retry();
+        self.speech_server.want();
+    }
+
+    /// Stop now: stops the speech server Aoide started, freeing the graphics card; the next
+    /// want starts it again.
+    pub fn stop_speech_server(&self) {
+        self.speech_server.stop_now();
+    }
 }
 
 /// The speech server's view of the rest of the app.

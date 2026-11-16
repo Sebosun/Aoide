@@ -414,3 +414,69 @@ async fn a_book_is_read_to_the_end_with_a_failing_engine_and_its_problem_waits_f
     assert_eq!(sent.last().unwrap()["state"], "error");
     core.stop();
 }
+
+#[tokio::test]
+async fn saving_a_new_voice_keeps_the_launched_server_and_a_new_command_replaces_it() {
+    use super::engine_process::process_tests::alive_in;
+    let dir = tempfile::tempdir().unwrap();
+    let (pid, other) = (dir.path().join("pid"), dir.path().join("other"));
+    let engine = Scripted::new("local", EngineStatus::Offline, &["A.wav", "B.wav"], false);
+    let launch = format!(
+        "voiceId = \"A.wav\"\n[engine.launch]\nprogram = \"sh\"\nargs = [\"-c\", \"echo $$ > '{}'; exec sleep 300\"]",
+        pid.display()
+    );
+    let (core, _events, id) = start(dir.path(), &[&engine], &launch).await;
+    core.prepare_book(&id).await.unwrap();
+    until_rounds("the launch", || alive_in(&pid) == Some(true)).await;
+    engine.set_status(EngineStatus::Ready(None));
+    until_rounds("ready", || {
+        core.engine_status().state != super::EngineState::Loading
+    })
+    .await;
+
+    let mut profile = core.engine_options().profile;
+    profile.voice_id = Some("B.wav".into());
+    core.save_engine_profile(profile.clone()).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(alive_in(&pid), Some(true), "only the voice changed");
+
+    let launch = profile.launch.as_mut().unwrap();
+    launch.args[1] = format!("echo $$ > '{}'; exec sleep 300", other.display());
+    engine.set_status(EngineStatus::Offline);
+    core.save_engine_profile(profile).await.unwrap();
+    until_rounds("the old server to stop", || alive_in(&pid) == Some(false)).await;
+
+    core.prepare_book(&id).await.unwrap();
+    until_rounds("the new server", || alive_in(&other) == Some(true)).await;
+    core.stop_speech_server();
+    until_rounds("stop now", || alive_in(&other) == Some(false)).await;
+    core.shutdown();
+}
+
+#[tokio::test]
+async fn try_again_launches_a_failed_server_once_more() {
+    let dir = tempfile::tempdir().unwrap();
+    let marks = dir.path().join("launched.txt");
+    let engine = Scripted::new("offline", EngineStatus::Offline, &["A.wav"], false);
+    let launch = format!(
+        "[engine.launch]\nprogram = \"sh\"\nargs = [\"-c\", \"echo x >> '{}'; exit 2\"]",
+        marks.display()
+    );
+    let (core, _events, id) = start(dir.path(), &[&engine], &launch).await;
+    let launched = || {
+        std::fs::read_to_string(&marks)
+            .unwrap_or_default()
+            .lines()
+            .count()
+    };
+    let _ = core.prepare_book(&id).await;
+    until_rounds("the failure", || {
+        core.engine_status().state == super::EngineState::Error
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(launched(), 1);
+
+    core.retry_speech_server();
+    until_rounds("the second launch", || launched() == 2).await;
+}

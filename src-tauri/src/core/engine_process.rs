@@ -2471,4 +2471,175 @@ pub(super) mod process_tests {
 
         until("the parent-death signal", || alive_in(&pid) == Some(false)).await;
     }
+
+    /// Answers Ready for the server every few milliseconds, as an engine whose port is open.
+    fn answering(server: &Arc<ServerProcess>) -> tokio::task::JoinHandle<()> {
+        let server = Arc::clone(server);
+        tokio::spawn(async move {
+            loop {
+                if server.view().map(|v| v.state) == Some(ServerState::Starting) {
+                    server.answered(Answer::Ready);
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        })
+    }
+
+    #[tokio::test]
+    async fn a_crashed_server_is_started_again_three_times_and_then_given_up() {
+        let dir = tempfile::tempdir().unwrap();
+        let marks = dir.path().join("launched.txt");
+        let (server, host, task) = running(
+            dir.path(),
+            script(&format!(
+                "echo x >> '{}'; sleep 0.3; exit 1",
+                marks.display()
+            )),
+        );
+        host.wanted.store(true, std::sync::atomic::Ordering::SeqCst);
+        let answers = answering(&server);
+        server.answered(Answer::Offline);
+        server.want();
+        until("the failure", || {
+            state(&server) == Some(ServerState::Failed)
+        })
+        .await;
+
+        let view = server.view().unwrap();
+        assert_eq!(view.failure, Some(FailureKind::TooManyRestarts));
+        assert_eq!(view.exit_code, Some(1));
+        assert_eq!(lines(&marks), 4, "launched, then started again three times");
+        let waited = host
+            .views
+            .lock()
+            .unwrap()
+            .iter()
+            .flatten()
+            .any(|v| v.state == ServerState::Waiting);
+        assert!(waited);
+
+        // Try again (by now the engine's address answers that nothing listens).
+        server.answered(Answer::Offline);
+        server.retry();
+        server.want();
+        until("the relaunch", || lines(&marks) == 5).await;
+        answers.abort();
+        server.stop(&*host);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn a_server_that_answers_before_any_want_is_used_and_never_started_or_stopped() {
+        let dir = tempfile::tempdir().unwrap();
+        let marks = dir.path().join("launched.txt");
+        let (server, host, task) = running(
+            dir.path(),
+            script(&format!("echo x >> '{}'; exec sleep 300", marks.display())),
+        );
+        server.answered(Answer::Ready);
+        server.want();
+        until("external", || state(&server) == Some(ServerState::External)).await;
+        server.stop_now();
+        server.stop(&*host);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        assert_eq!(lines(&marks), 0);
+        assert_eq!(state(&server), Some(ServerState::External));
+
+        // It went away: ours may start on the next want.
+        server.answered(Answer::Offline);
+        until("stopped", || state(&server) == Some(ServerState::Stopped)).await;
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn a_server_saying_its_address_is_in_use_fails_with_the_port_taken() {
+        let dir = tempfile::tempdir().unwrap();
+        let (server, _host, task) = running(
+            dir.path(),
+            script("echo 'ERROR: [Errno 98] Address already in use' >&2; exit 1"),
+        );
+        server.answered(Answer::Offline);
+        server.want();
+        until("the failure", || {
+            state(&server) == Some(ServerState::Failed)
+        })
+        .await;
+        assert_eq!(server.view().unwrap().failure, Some(FailureKind::PortTaken));
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn something_else_listening_at_the_address_keeps_the_server_from_starting() {
+        let dir = tempfile::tempdir().unwrap();
+        let marks = dir.path().join("launched.txt");
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut taken = spec(script(&format!("echo x >> '{}'", marks.display())));
+        taken.base_url = format!("http://{}", listener.local_addr().unwrap());
+        let server = Arc::new(
+            ServerProcess::new(
+                Names::SPEECH,
+                dir.path(),
+                &dir.path().join("logs"),
+                Some(taken),
+                timing(),
+            )
+            .with_tick(Duration::from_millis(20)),
+        );
+        let host = Host::new();
+        let task = {
+            let (server, host) = (Arc::clone(&server), Arc::clone(&host));
+            tokio::spawn(async move { server.run(&*host).await })
+        };
+        server.answered(Answer::Error);
+        server.want();
+        until("the failure", || {
+            state(&server) == Some(ServerState::Failed)
+        })
+        .await;
+
+        let view = server.view().unwrap();
+        assert_eq!(view.failure, Some(FailureKind::PortTaken));
+        assert_eq!(view.exit_code, None);
+        assert_eq!(lines(&marks), 0, "not launched");
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn switching_to_another_launch_command_stops_the_old_server_and_a_voice_change_does_not()
+    {
+        let dir = tempfile::tempdir().unwrap();
+        let (pid, other) = (dir.path().join("pid"), dir.path().join("other"));
+        let first = script(&format!("echo $$ > '{}'; exec sleep 300", pid.display()));
+        let (server, host, task) = running(dir.path(), first.clone());
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || alive_in(&pid) == Some(true)).await;
+        server.answered(Answer::Ready);
+        until("ready", || state(&server) == Some(ServerState::Running)).await;
+
+        server.switch(Some(spec(first)));
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(
+            state(&server),
+            Some(ServerState::Running),
+            "the same launch command"
+        );
+        assert_eq!(alive_in(&pid), Some(true));
+
+        server.switch(Some(spec(script(&format!(
+            "echo $$ > '{}'; exec sleep 300",
+            other.display()
+        )))));
+        until("the old server to stop", || alive_in(&pid) == Some(false)).await;
+        until("stopped", || state(&server) == Some(ServerState::Stopped)).await;
+        assert_eq!(server.view().unwrap().stopped, Some(StoppedKind::Switched));
+        assert!(!other.exists(), "the new one waits for a want");
+
+        server.answered(Answer::Offline);
+        server.want();
+        until("the new launch", || alive_in(&other) == Some(true)).await;
+        server.stop(&*host);
+        task.abort();
+    }
 }
