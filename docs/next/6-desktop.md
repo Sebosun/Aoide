@@ -433,7 +433,9 @@ start does not outlive Aoide, even when Aoide crashes, is killed or is stopped w
   most. Its test `the_browser_is_shut_down_once_idle_or_turned_off_and_started_again_on_need`
   is the shape for the idle slice.
 - `core/align.rs` `launch_aligner` (`:328`) and `stop_aligner` (`:375`) repeat the same
-  spawn-and-kill pattern for the aligner. This plan does not change them (see Open questions).
+  spawn-and-kill pattern for the aligner. (Decided later: the aligner moves onto the same
+  component; see Also settled. As built, `Aligner` owns a `ServerProcess` named `aligner`, asks
+  the service's `/health` while one it manages does not run yet, and is wanted while work waits.)
 - `crates/generation` `Backoff` waits up to 60 s after failed requests. Failures while a server
   is starting would push generation into that backoff and fill Settings › Speech engine ›
   Problems.

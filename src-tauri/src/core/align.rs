@@ -8,6 +8,9 @@
 
 use std::collections::VecDeque;
 
+use super::engine_process::{
+    Answer, Names, ServerHost, ServerProcess, ServerState, ServerView, Spec, Timing,
+};
 use super::recording::RecordingPlan;
 use super::*;
 
@@ -15,6 +18,8 @@ use super::*;
 const IDLE: Duration = Duration::from_millis(150);
 /// How long to wait after the aligner could not be reached.
 const RETRY: Duration = Duration::from_secs(20);
+/// How often a service Aoide is starting is asked whether it is ready.
+const STARTING: Duration = Duration::from_secs(2);
 /// Waiting work kept; the oldest goes first when there is more.
 const QUEUE: usize = 32;
 
@@ -57,8 +62,6 @@ pub(super) struct Aligning {
     done: HashSet<String>,
     /// Exact word times of recording clips aligned in this run, by key, relative to the clip.
     clips: HashMap<String, Vec<aoide_text::WordEstimate>>,
-    child: Option<std::process::Child>,
-    launched: bool,
 }
 
 /// Names a clip's spoken stretch: the same sentence over the same part of the recording.
@@ -99,16 +102,41 @@ pub(super) struct Aligner {
     aligning: Mutex<Aligning>,
     /// Told when work is queued.
     queued: tokio::sync::Notify,
+    /// The aligner service Aoide starts, when the settings give a launch command.
+    server: ServerProcess,
 }
 
 impl Aligner {
-    pub fn new(library: Arc<Mutex<Library>>, audio_dir: PathBuf) -> Self {
+    /// Its pidfile goes in `data_dir`, the service's log in `logs_dir`.
+    pub fn new(
+        library: Arc<Mutex<Library>>,
+        audio_dir: PathBuf,
+        data_dir: &Path,
+        logs_dir: &Path,
+    ) -> Self {
         Self {
             library,
             audio_dir,
             aligning: Default::default(),
             queued: tokio::sync::Notify::new(),
+            server: ServerProcess::new(Names::ALIGNER, data_dir, logs_dir, None, Timing::default()),
         }
+    }
+
+    /// The service Aoide starts for the settings' launch command, as it is now.
+    pub fn server_view(&self) -> Option<ServerView> {
+        self.server.view()
+    }
+
+    /// Keeps the service Aoide starts in step with the settings.
+    fn follow(&self, settings: Option<&AlignerSettings>) {
+        self.server
+            .follow(settings.and_then(|s| Spec::of(&s.launch, &s.base_url)));
+    }
+
+    /// Runs the service Aoide starts (launches, exits, idle stops) for as long as Aoide runs.
+    pub async fn serve(&self) {
+        self.server.run(&AlignerServer(self)).await
     }
 
     /// How many things wait to be aligned.
@@ -120,7 +148,9 @@ impl Aligner {
     /// Asks for exact word times of what playback just gave the player: clips aligned earlier
     /// in this run get theirs at once, the rest wait for the aligner (when there is one).
     pub fn want(&self, wanted: Vec<Alignable>, host: &dyn AlignHost) {
-        let configured = host.settings().is_some();
+        let settings = host.settings();
+        self.follow(settings.as_ref());
+        let configured = settings.is_some();
         // The playback and aligning locks are never held together.
         let mut known = Vec::new();
         {
@@ -147,6 +177,9 @@ impl Aligner {
             }
         }
         self.queued.notify_one();
+        if !lock(&self.aligning).queue.is_empty() {
+            self.server.want();
+        }
         for (book, index, timings) in known {
             host.aligned(&book, index, timings);
         }
@@ -169,16 +202,18 @@ impl Aligner {
 
     /// Aligns the next thing waiting, unless the aligner was offline until after now.
     pub async fn step(&self, host: &dyn AlignHost, offline_until: &mut Option<Instant>) {
-        let Some(settings) = host.settings() else {
+        let settings = host.settings();
+        self.follow(settings.as_ref());
+        let Some(settings) = settings else {
             lock(&self.aligning).queue.clear();
             return;
         };
         if offline_until.is_some_and(|t| Instant::now() < t) {
             return;
         }
-        let Some((key, item)) = lock(&self.aligning).queue.pop_front() else {
+        if lock(&self.aligning).queue.is_empty() {
             return;
-        };
+        }
         let aligner = match aoide_aligner::Aligner::new(aoide_aligner::Options {
             base_url: settings.base_url.clone(),
             network: settings.network,
@@ -187,8 +222,30 @@ impl Aligner {
             Ok(aligner) => aligner,
             Err(error) => {
                 tracing::warn!(event = "align.settings", %error, "Aligner settings are not usable");
+                lock(&self.aligning).queue.pop_front(); // As each would fail.
                 return;
             }
+        };
+        // A service Aoide starts and that does not run yet: ask whether it answers, which
+        // starts it when it does not.
+        let starting = self
+            .server
+            .view()
+            .is_some_and(|v| !matches!(v.state, ServerState::Running | ServerState::External));
+        if starting {
+            let answer = match aligner.ready().await {
+                Ok(true) => Answer::Ready,
+                Ok(false) => Answer::Loading,
+                Err(_) => Answer::Offline,
+            };
+            self.server.answered(answer);
+            if answer != Answer::Ready {
+                *offline_until = Some(Instant::now() + STARTING);
+                return;
+            }
+        }
+        let Some((key, item)) = lock(&self.aligning).queue.pop_front() else {
+            return;
         };
         let started = Instant::now();
         let aligned = match &item {
@@ -204,15 +261,14 @@ impl Aligner {
             Ok(()) => {
                 tracing::debug!(event = "align.request", %key, took_ms = crate::logging::took(started), outcome = "ok", "Aligned words");
                 lock(&self.aligning).done.insert(key);
+                self.server.used();
             }
             Err(aoide_aligner::Error::Unavailable(_) | aoide_aligner::Error::Timeout) => {
                 tracing::info!(event = "align.offline", %key, "The aligner is not answering; trying again later");
                 // Try again later; start the service if Aoide may.
                 lock(&self.aligning).queue.push_front((key, item));
                 *offline_until = Some(Instant::now() + RETRY);
-                if let Some(launch) = &settings.launch {
-                    self.launch_aligner(launch);
-                }
+                self.server.answered(Answer::Offline);
             }
             Err(error) => {
                 tracing::warn!(event = "align.error", %key, %error, "Alignment failed");
@@ -325,44 +381,25 @@ impl Aligner {
         Ok(())
     }
 
-    fn launch_aligner(&self, launch: &LaunchCommand) {
-        let mut aligning = lock(&self.aligning);
-        if aligning.launched {
-            return;
-        }
-        aligning.launched = true;
-        let mut command = std::process::Command::new(&launch.program);
-        command
-            .args(&launch.args)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null());
-        if let Some(dir) = &launch.working_dir {
-            command.current_dir(dir);
-        }
-        match command.spawn() {
-            Ok(child) => {
-                tracing::info!(
-                    event = "proc.spawn",
-                    program = "aligner",
-                    pid = child.id(),
-                    outcome = "ok",
-                    "Launched the aligner"
-                );
-                aligning.child = Some(child)
-            }
-            Err(error) => {
-                tracing::error!(event = "proc.spawn", program = "aligner", outcome = "failed", %error, "Could not launch the aligner")
-            }
-        }
-    }
-
     /// Stops an aligner Aoide started.
     pub fn stop(&self) {
-        if let Some(mut child) = lock(&self.aligning).child.take() {
-            let _ = child.kill();
-            let _ = child.wait();
-        }
+        self.server.stop(&AlignerServer(self))
     }
+}
+
+/// The aligner service's view of the rest of the app: it is wanted while work waits.
+struct AlignerServer<'a>(&'a Aligner);
+
+impl ServerHost for AlignerServer<'_> {
+    fn now_ms(&self) -> i64 {
+        super::now_ms()
+    }
+
+    fn wanted(&self) -> bool {
+        !lock(&self.0.aligning).queue.is_empty()
+    }
+
+    fn server_changed(&self, _view: Option<ServerView>) {}
 }
 
 impl Core {
@@ -472,7 +509,12 @@ mod tests {
 
     #[test]
     fn work_waits_only_when_an_aligner_is_set_up_and_only_once() {
-        let aligner = Aligner::new(super::super::tests::library_with(&["b"]), "/nowhere".into());
+        let aligner = Aligner::new(
+            super::super::tests::library_with(&["b"]),
+            "/nowhere".into(),
+            Path::new("/nowhere"),
+            Path::new("/nowhere"),
+        );
         aligner.want(vec![speech("k")], &Host { settings: None });
         assert_eq!(aligner.waiting(), 0);
 
@@ -484,7 +526,12 @@ mod tests {
 
     #[tokio::test]
     async fn speech_whose_audio_is_gone_is_not_asked_for_again() {
-        let aligner = Aligner::new(super::super::tests::library_with(&["b"]), "/nowhere".into());
+        let aligner = Aligner::new(
+            super::super::tests::library_with(&["b"]),
+            "/nowhere".into(),
+            Path::new("/nowhere"),
+            Path::new("/nowhere"),
+        );
         let host = Host { settings: set_up() };
         aligner.want(vec![speech("evicted")], &host);
 
@@ -499,6 +546,8 @@ mod tests {
         let aligner = Arc::new(Aligner::new(
             super::super::tests::library_with(&["b"]),
             "/nowhere".into(),
+            Path::new("/nowhere"),
+            Path::new("/nowhere"),
         ));
         let host = Arc::new(Host { settings: set_up() });
         let running = {
@@ -510,5 +559,78 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(30)).await;
         assert_eq!(aligner.waiting(), 0);
         running.abort();
+    }
+
+    fn launching(script: &str) -> Option<AlignerSettings> {
+        Some(AlignerSettings {
+            launch: Some(super::super::engine_process::process_tests::script(script)),
+            ..set_up().unwrap()
+        })
+    }
+
+    fn aligner_over(dir: &std::path::Path) -> Arc<Aligner> {
+        Arc::new(Aligner::new(
+            super::super::tests::library_with(&["b"]),
+            "/nowhere".into(),
+            dir,
+            &dir.join("logs"),
+        ))
+    }
+
+    #[tokio::test]
+    async fn an_aligner_aoide_starts_runs_as_its_server_and_is_stopped_with_its_group() {
+        use super::super::engine_process::process_tests::{alive_in, until};
+        let dir = tempfile::tempdir().unwrap();
+        let pid = dir.path().join("pid");
+        let aligner = aligner_over(dir.path());
+        let host = Arc::new(Host {
+            settings: launching(&format!("echo $$ > '{}'; exec sleep 300", pid.display())),
+        });
+        let serving = {
+            let aligner = Arc::clone(&aligner);
+            tokio::spawn(async move { aligner.serve().await })
+        };
+
+        aligner.want(vec![speech("k")], &*host);
+        aligner.step(&*host, &mut None).await;
+        until("the aligner to be launched", || {
+            alive_in(&pid) == Some(true)
+        })
+        .await;
+        assert!(dir.path().join("logs/aligner.log").exists());
+
+        aligner.stop();
+        assert_eq!(alive_in(&pid), Some(false));
+        serving.abort();
+    }
+
+    #[tokio::test]
+    async fn an_aligner_that_ends_at_once_is_noticed_and_not_launched_again() {
+        use super::super::engine_process::process_tests::until;
+        use super::super::engine_process::ServerState;
+        let dir = tempfile::tempdir().unwrap();
+        let marks = dir.path().join("launched");
+        let aligner = aligner_over(dir.path());
+        let host = Arc::new(Host {
+            settings: launching(&format!("echo x >> '{}'; exit 3", marks.display())),
+        });
+        let serving = {
+            let aligner = Arc::clone(&aligner);
+            tokio::spawn(async move { aligner.serve().await })
+        };
+
+        aligner.want(vec![speech("k")], &*host);
+        aligner.step(&*host, &mut None).await;
+        until("the failure", || {
+            aligner.server_view().map(|v| v.state) == Some(ServerState::Failed)
+        })
+        .await;
+        aligner.step(&*host, &mut None).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        assert_eq!(aligner.server_view().unwrap().exit_code, Some(3));
+        let launched = std::fs::read_to_string(&marks).unwrap();
+        assert_eq!(launched.lines().count(), 1);
+        serving.abort();
     }
 }

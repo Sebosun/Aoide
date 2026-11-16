@@ -319,7 +319,12 @@ impl Core {
             Arc::clone(&events),
             reporter.clone(),
         ));
-        let aligner = align::Aligner::new(Arc::clone(&library), paths.audio_dir.clone());
+        let aligner = align::Aligner::new(
+            Arc::clone(&library),
+            paths.audio_dir.clone(),
+            &data_dir,
+            &data_dir.join("logs"),
+        );
         let exports = export::Exports::new(Arc::clone(&library), &paths, Arc::clone(&events));
         let metadata = metadata::Metadata::new(
             Arc::clone(&library),
@@ -398,6 +403,8 @@ impl Core {
         });
         let aligning = Arc::clone(core);
         tokio::spawn(async move { aligning.aligner.run(&*aligning).await });
+        let serving = Arc::clone(core);
+        tokio::spawn(async move { serving.aligner.serve().await });
         let scanner = Arc::clone(core);
         let runtime = tokio::runtime::Handle::current();
         tokio::task::spawn_blocking(move || {

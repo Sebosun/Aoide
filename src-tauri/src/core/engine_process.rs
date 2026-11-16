@@ -992,6 +992,13 @@ impl ServerProcess {
         self.send(ServerEvent::StopChosen);
     }
 
+    /// Launches `spec` from now on, if that is a change (as [`ServerProcess::switch`]).
+    pub fn follow(&self, spec: Option<Spec>) {
+        if lock(&self.inner).spec != spec {
+            self.switch(spec);
+        }
+    }
+
     /// Another profile is in use, launching `spec`.
     pub fn switch(&self, spec: Option<Spec>) {
         let same_launch = {
