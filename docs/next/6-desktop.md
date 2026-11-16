@@ -388,6 +388,7 @@ field and `From` arm), in Settings › Library beside **Carry on preparing**.
 ## 6.4 The speech server Aoide starts
 
 **Size:** M (about a week; slices 1–6 are the supervision, 7–8 the idle stop)
+**Built:** 2026-11-16 (00097fd..fe686d1)
 
 ### Outcome
 
