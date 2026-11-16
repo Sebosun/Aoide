@@ -457,15 +457,15 @@ the process as an event.
 ```rust
 pub enum Server {
     /// None of ours runs. One is launched when speech is wanted.
-    Stopped { why: StopWhy },              // Never, Idle, Exited, Switched, Retry, Quit
-    /// Launched. Waiting for the engine to answer Ready.
-    Starting { pid: u32, attempt: u32, since_ms: i64 },
+    Stopped { why: StopWhy },              // Never, Idle, Exited, Switched, Retry, Asked, Quit
+    /// Launched (`pid` once spawned). Waiting for the engine to answer Ready.
+    Starting { pid: Option<u32>, restarts: Restarts, since_ms: i64 },
     /// Ours, answering Ready.
-    Running { pid: u32, last_used_ms: i64, ready_since_ms: i64 },
+    Running { pid: u32, restarts: Restarts, last_used_ms: i64, ready_since_ms: i64 },
     /// SIGTERM sent to its process group. SIGKILL at `kill_at_ms`. Then `then`.
     Stopping { pid: u32, kill_at_ms: i64, then: After },   // After: Stopped(StopWhy) | Failed(Failure)
     /// Ours ended after it had been Ready. Launched again at `retry_at_ms` if still wanted.
-    Waiting { attempt: u32, retry_at_ms: i64, exit: Exit },
+    Waiting { restarts: Restarts, retry_at_ms: i64, exit: Exit },
     /// Given up until the user says Try again or saves the profile.
     Failed { why: Failure },
     /// Another program answers at the engine's address. Aoide uses it and never stops it.
@@ -474,12 +474,18 @@ pub enum Server {
 pub enum Failure {
     Spawn { error: String },        // the program could not be started at all
     Exited(Exit),                   // ended before it was ever Ready
-    PortTaken(Exit),                // ended saying its address is in use
+    PortTaken(Option<Exit>),        // something accepted a connection before the launch (None),
+                                    // or it ended saying its address is in use
     StartTimedOut,                  // no answer and no output for the start timeout
     TooManyRestarts(Exit),          // crashed more than the cap allows
 }
 pub struct Exit { code: Option<i32>, signal: Option<i32>, ran_ms: u64 }
+/// Crashes after Ready counted against the cap, and when the first of them happened.
+pub struct Restarts { count: u32, since_ms: i64 }
 ```
+
+(As built: `restarts` travels through `Starting`, `Running` and `Waiting`, so the cap's window
+and the five-minutes-Ready reset are part of the state.)
 
 | State | Our process | Engine status the window shows |
 |---|---|---|
@@ -499,22 +505,28 @@ except that it no longer launches.
 
 ```rust
 pub enum ServerEvent {
-    Wanted,                          // want(): play, prepare, preview, voice listing
-    Answered(EngineStatus),          // one poll's answer
+    Wanted,                          // play, prepare or preview needs speech now
+    Answered(Answer),                // one poll's answer: Offline, Loading, Ready, Error
     Spawned { pid: u32 },
     SpawnFailed { error: String },
-    Exited(Exit),                    // the group leader was reaped
+    AddressTaken,                    // the port check found something listening
+    Exited { pid: u32, exit: Exit }, // the group leader was reaped (another pid is ignored)
     Used,                            // a request was made (mark_busy)
     Tick,                            // timers: start timeout, idle, retry, kill grace
     Switched { same_launch: bool },  // another profile is in use
     RetryChosen,                     // "Try again" in Settings
+    StopChosen,                      // "Stop now"
     Quit,
 }
-pub enum ServerAction { None, Launch { why: LaunchWhy }, Terminate, Kill, Forget }
-pub struct Ctx { now_ms: i64, wanted: bool, last_output_ms: Option<i64>, tail: Vec<String>, timing: Timing }
+pub enum ServerAction { None, Launch { why: LaunchWhy }, Terminate, Kill }
+pub struct Ctx { now_ms: i64, wanted: bool, last_answer: Option<Answer>, last_output_ms: Option<i64>, tail: &[String], timing: &Timing }
 
 fn next(state: Server, event: ServerEvent, ctx: &Ctx) -> (Server, ServerAction)
 ```
+
+(As built: there is no `Forget` action. Any state without a process removes the pidfile, and the
+leftover group is cleaned up by the thread that reaps the leader. `Answer` is the engine's status
+without its text, so the aligner can use the same machine.)
 
 The rules, each one a row of the table-driven test:
 

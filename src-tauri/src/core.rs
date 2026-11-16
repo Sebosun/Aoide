@@ -29,6 +29,7 @@ mod controls;
 pub use config::PreferencesView;
 mod discovery;
 mod engine;
+mod engine_process;
 mod environment;
 mod output;
 use environment::{default_profile, OUTPUT_RATE};
