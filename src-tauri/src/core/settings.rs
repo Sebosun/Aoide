@@ -196,22 +196,10 @@ impl Core {
     }
 
     /// Merges `patch` into the saved app settings, checks and saves them, and does what the
-    /// change asks for. Returns the settings now saved; an invalid change saves nothing.
+    /// change asks for (see [`super::config::ConfigHost::app_changed`]). Returns the settings
+    /// now saved; an invalid change saves nothing.
     pub fn update_app_settings(&self, patch: AppSettingsPatch) -> Result<AppSettings, String> {
-        let (before, settings) = self.settings.update_app(patch)?;
-        if before.recognition != settings.recognition {
-            // Another model size or a recognition server may be what a waiting sync needs.
-            self.models_changed();
-        }
-        if settings.verify_audiobooks && !before.verify_audiobooks {
-            self.verify_found_audiobooks();
-        }
-        self.storage.limit_changed();
-        self.enforce_cache_limit();
-        if before.feeds != settings.feeds {
-            self.feeds.settings_changed();
-        }
-        Ok(settings)
+        self.settings.update_app(patch, self)
     }
 }
 

@@ -55,6 +55,11 @@ pub(super) struct Config {
     text: Option<String>,
     /// Why a hand-edited `[engine]` section was not applied.
     rejected_engine: Option<String>,
+    /// The app settings in use: the `[app]` section as last checked. A hand edit that fails
+    /// the checks leaves them as they were (and says why in `rejected_app`).
+    app: AppSettings,
+    /// Why a hand-edited `[app]` section was not applied.
+    rejected_app: Option<String>,
 }
 
 impl Config {
@@ -63,13 +68,19 @@ impl Config {
     pub(super) fn open(dir: &Path, library: &Library) -> Self {
         let path = dir.join(SETTINGS_FILE);
         match SettingsFile::load(&path) {
-            Ok(Some(file)) => Self {
-                dir: dir.to_path_buf(),
-                text: std::fs::read_to_string(&path).ok(),
-                file,
-                parse_error: None,
-                rejected_engine: None,
-            },
+            Ok(Some(file)) => {
+                let mut config = Self {
+                    dir: dir.to_path_buf(),
+                    text: std::fs::read_to_string(&path).ok(),
+                    file,
+                    parse_error: None,
+                    rejected_engine: None,
+                    app: AppSettings::default(),
+                    rejected_app: None,
+                };
+                config.adopt_app();
+                config
+            }
             Ok(None) => {
                 let mut config = Self {
                     dir: dir.to_path_buf(),
@@ -77,8 +88,11 @@ impl Config {
                     parse_error: None,
                     text: None,
                     rejected_engine: None,
+                    app: AppSettings::default(),
+                    rejected_app: None,
                 };
                 config.migrate(library);
+                config.adopt_app();
                 config
             }
             Err(error) => Self {
@@ -87,7 +101,29 @@ impl Config {
                 parse_error: Some(error.to_string()),
                 text: std::fs::read_to_string(&path).ok(),
                 rejected_engine: None,
+                app: AppSettings::default(),
+                rejected_app: None,
             },
+        }
+    }
+
+    /// Takes the `[app]` section as the settings in use when it passes [`check_app`]. Returns
+    /// the settings before and after when they changed; a section that fails the checks is
+    /// not taken, and the reason is listed among the problems.
+    fn adopt_app(&mut self) -> Option<(AppSettings, AppSettings)> {
+        let found = self.get::<AppSettings>(APP).unwrap_or_default();
+        match check_app(&found) {
+            Ok(()) => {
+                self.rejected_app = None;
+                (found != self.app)
+                    .then(|| (std::mem::replace(&mut self.app, found.clone()), found))
+            }
+            Err(error) => {
+                tracing::warn!(event = "config.rejected", section = "app", %error, "Hand-edited app settings not applied");
+                self.rejected_app =
+                    Some(format!("[app] in settings.toml was not applied: {error}"));
+                None
+            }
         }
     }
 
@@ -185,6 +221,7 @@ impl Config {
         check(self.file.section::<AppSettings>(APP).map(drop));
         check(self.file.section::<EngineProfile>(ENGINE).map(drop));
         problems.extend(self.rejected_engine.clone());
+        problems.extend(self.rejected_app.clone());
         problems
     }
 
@@ -198,6 +235,41 @@ impl Config {
     }
 }
 
+/// Checks app settings before they are used, wherever they came from.
+fn check_app(settings: &AppSettings) -> Result<(), String> {
+    settings.recognition.validate()?;
+    if !super::settings::READING_WPM.contains(&settings.reading_wpm) {
+        return Err(format!(
+            "Reading speed must be {} to {} words a minute",
+            super::settings::READING_WPM.start(),
+            super::settings::READING_WPM.end()
+        ));
+    }
+    if !super::feeds::CHECK_MINUTES.contains(&settings.feeds.check_minutes) {
+        return Err(format!(
+            "Feeds are checked every {} to {} minutes",
+            super::feeds::CHECK_MINUTES.start(),
+            super::feeds::CHECK_MINUTES.end()
+        ));
+    }
+    if !super::browsing::IDLE_SECONDS.contains(&settings.browser.idle_seconds) {
+        return Err(format!(
+            "The browser is shut down after {} to {} idle seconds",
+            super::browsing::IDLE_SECONDS.start(),
+            super::browsing::IDLE_SECONDS.end()
+        ));
+    }
+    if let Some(aligner) = &settings.aligner {
+        aoide_aligner::Aligner::new(aoide_aligner::Options {
+            base_url: aligner.base_url.clone(),
+            network: aligner.network,
+            ..Default::default()
+        })
+        .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// What the settings ask of the rest of the app.
 pub(super) trait ConfigHost {
     /// settings.toml was edited by hand: play at `player`'s speed and volume and switch to
@@ -208,6 +280,9 @@ pub(super) trait ConfigHost {
         engine: Option<EngineProfile>,
         runtime: &tokio::runtime::Handle,
     ) -> Result<(), String>;
+    /// The app settings changed from `before` to `after`, from the Settings window or a hand
+    /// edit that passed the checks: do what the change asks for.
+    fn app_changed(&self, before: &AppSettings, after: &AppSettings);
     /// The window shows `preferences` from now on.
     fn preferences_changed(&self, preferences: PreferencesView);
     /// Something in the config folder changed (the site rules may have).
@@ -236,63 +311,64 @@ impl Settings {
         lock(&self.config).update(|file| file.set_section(section, value))
     }
 
+    /// The app settings in use (as last saved or hand-edited, once they passed the checks).
     pub fn app(&self) -> AppSettings {
-        self.get(APP).unwrap_or_default()
+        lock(&self.config).app.clone()
     }
 
-    /// Merges `patch` into the app settings, checks and saves them. Returns the settings
-    /// before and after; an invalid change saves nothing.
+    /// Merges `patch` into the app settings, checks and saves them, and tells `host` what
+    /// changed. Returns the settings now in use; an invalid change saves nothing.
     pub fn update_app(
         &self,
         patch: AppSettingsPatch,
-    ) -> Result<(AppSettings, AppSettings), String> {
+        host: &dyn ConfigHost,
+    ) -> Result<AppSettings, String> {
         // Read, merge and write under one lock, so concurrent patches both land.
         let mut config = lock(&self.config);
-        let before = config.get::<AppSettings>(APP).unwrap_or_default();
+        let before = config.app.clone();
         let settings = patch.apply(before.clone());
-        settings.recognition.validate()?;
-        if !super::settings::READING_WPM.contains(&settings.reading_wpm) {
-            return Err(format!(
-                "Reading speed must be {} to {} words a minute",
-                super::settings::READING_WPM.start(),
-                super::settings::READING_WPM.end()
-            ));
-        }
-        if !super::feeds::CHECK_MINUTES.contains(&settings.feeds.check_minutes) {
-            return Err(format!(
-                "Feeds are checked every {} to {} minutes",
-                super::feeds::CHECK_MINUTES.start(),
-                super::feeds::CHECK_MINUTES.end()
-            ));
-        }
-        if !super::browsing::IDLE_SECONDS.contains(&settings.browser.idle_seconds) {
-            return Err(format!(
-                "The browser is shut down after {} to {} idle seconds",
-                super::browsing::IDLE_SECONDS.start(),
-                super::browsing::IDLE_SECONDS.end()
-            ));
-        }
-        if let Some(aligner) = &settings.aligner {
-            aoide_aligner::Aligner::new(aoide_aligner::Options {
-                base_url: aligner.base_url.clone(),
-                network: aligner.network,
-                ..Default::default()
-            })
-            .map_err(|e| e.to_string())?;
-        }
+        check_app(&settings)?;
         config.update(|file| file.set_section(APP, &settings))?;
+        config.app = settings.clone();
+        config.rejected_app = None;
         drop(config);
         tracing::info!(event = "config.saved", section = "app", changed = %changed_keys(&before, &settings), "Saved the app settings");
-        Ok((before, settings))
+        if before != settings {
+            host.app_changed(&before, &settings);
+        }
+        Ok(settings)
+    }
+
+    /// Applies settings.toml as it is now on disk, after a change there: the player and
+    /// engine sections, and the app settings when they pass the checks (each change told to
+    /// `host`); then sends the new [`PreferencesView`].
+    pub fn apply_edits(&self, host: &dyn ConfigHost, runtime: &tokio::runtime::Handle) {
+        let (changed, app) = {
+            let mut config = lock(&self.config);
+            let changed = config.reload();
+            (changed, if changed { config.adopt_app() } else { None })
+        };
+        if changed {
+            let (player, engine) = (self.get(PLAYER), self.get(ENGINE));
+            let applied = host.settings_edited(player, engine, runtime);
+            lock(&self.config).rejected_engine = applied
+                .err()
+                .map(|e| format!("[engine] in settings.toml was not applied: {e}"));
+            if let Some((before, after)) = app {
+                tracing::info!(event = "config.edited", section = "app", changed = %changed_keys(&before, &after), "Applied hand-edited app settings");
+                host.app_changed(&before, &after);
+            }
+        }
+        host.preferences_changed(self.preferences());
+        host.folder_changed();
     }
 
     pub fn preferences(&self) -> PreferencesView {
         lock(&self.config).preferences()
     }
 
-    /// Watches the config folder. Hand edits to settings.toml are applied through `host`
-    /// (speed, engine; app settings are read on use), and every change is sent to it as new
-    /// [`PreferencesView`]s. Returns only if the folder cannot be watched.
+    /// Watches the config folder and applies each change through [`Settings::apply_edits`].
+    /// Returns only if the folder cannot be watched.
     pub fn watch(&self, host: &dyn ConfigHost, runtime: &tokio::runtime::Handle) {
         use notify::{RecursiveMode, Watcher};
         let dir = lock(&self.config).dir().to_path_buf();
@@ -315,16 +391,7 @@ impl Settings {
         while rx.recv().is_ok() {
             // Editors save in several steps (temporary file, rename, chmod).
             while rx.recv_timeout(Duration::from_millis(250)).is_ok() {}
-            let changed = lock(&self.config).reload();
-            if changed {
-                let (player, engine) = (self.get(PLAYER), self.get(ENGINE));
-                let applied = host.settings_edited(player, engine, runtime);
-                lock(&self.config).rejected_engine = applied
-                    .err()
-                    .map(|e| format!("[engine] in settings.toml was not applied: {e}"));
-            }
-            host.preferences_changed(self.preferences());
-            host.folder_changed();
+            self.apply_edits(host, runtime);
         }
         drop(watcher);
     }
@@ -357,6 +424,23 @@ impl ConfigHost for Core {
                 runtime.block_on(self.activate_profile(profile, engine))
             }
             _ => Ok(()),
+        }
+    }
+
+    fn app_changed(&self, before: &AppSettings, after: &AppSettings) {
+        if before.recognition != after.recognition {
+            // Another model size or a recognition server may be what a waiting sync needs.
+            self.models_changed();
+        }
+        if after.verify_audiobooks && !before.verify_audiobooks {
+            self.verify_found_audiobooks();
+        }
+        if before.cache_limit_bytes != after.cache_limit_bytes {
+            self.storage.limit_changed();
+            self.enforce_cache_limit();
+        }
+        if before.feeds != after.feeds {
+            self.feeds.settings_changed();
         }
     }
 
@@ -523,6 +607,34 @@ mod tests {
         assert_eq!(themes[0].dark["accent"], "#FFB000");
     }
 
+    /// Records what the settings told it.
+    #[derive(Default)]
+    struct Host {
+        app_changes: Mutex<Vec<(AppSettings, AppSettings)>>,
+        edited: Mutex<Vec<Option<PlayerSettings>>>,
+    }
+
+    impl ConfigHost for Host {
+        fn settings_edited(
+            &self,
+            player: Option<PlayerSettings>,
+            _engine: Option<EngineProfile>,
+            _runtime: &tokio::runtime::Handle,
+        ) -> Result<(), String> {
+            lock(&self.edited).push(player);
+            Ok(())
+        }
+        fn app_changed(&self, before: &AppSettings, after: &AppSettings) {
+            lock(&self.app_changes).push((before.clone(), after.clone()));
+        }
+        fn preferences_changed(&self, _preferences: PreferencesView) {}
+        fn folder_changed(&self) {}
+    }
+
+    fn patch(json: &str) -> AppSettingsPatch {
+        serde_json::from_str(json).unwrap()
+    }
+
     #[test]
     fn patches_to_different_app_settings_both_land_and_a_bad_one_saves_nothing() {
         let dir = tempfile::tempdir().unwrap();
@@ -530,14 +642,14 @@ mod tests {
             dir.path(),
             &Library::open_in_memory().unwrap(),
         ));
+        let host = Host::default();
         settings
-            .update_app(serde_json::from_str(r#"{"cacheLimitBytes":1000}"#).unwrap())
+            .update_app(patch(r#"{"cacheLimitBytes":1000}"#), &host)
             .unwrap();
         settings
-            .update_app(serde_json::from_str(r#"{"verifyAudiobooks":true}"#).unwrap())
+            .update_app(patch(r#"{"verifyAudiobooks":true}"#), &host)
             .unwrap();
-        let refused = settings
-            .update_app(serde_json::from_str(r#"{"aligner":{"baseUrl":"not a url"}}"#).unwrap());
+        let refused = settings.update_app(patch(r#"{"aligner":{"baseUrl":"not a url"}}"#), &host);
 
         assert!(refused.is_err());
         let saved = Settings::new(Config::open(
@@ -550,5 +662,89 @@ mod tests {
             (Some(1000), true)
         );
         assert_eq!(saved.aligner, None);
+        assert_eq!(
+            lock(&host.app_changes).len(),
+            2,
+            "the refused change told nothing"
+        );
+    }
+
+    fn edit(dir: &Path, text: &str) {
+        std::fs::write(dir.join(SETTINGS_FILE), text).unwrap();
+    }
+
+    #[test]
+    fn a_hand_edit_to_the_app_settings_is_checked_and_told_like_a_change_from_the_window() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = Settings::new(Config::open(
+            dir.path(),
+            &Library::open_in_memory().unwrap(),
+        ));
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let host = Host::default();
+
+        edit(dir.path(), "[app]\ncacheLimitBytes = 5000\n");
+        settings.apply_edits(&host, runtime.handle());
+
+        assert_eq!(settings.app().cache_limit_bytes, Some(5000));
+        let changes = lock(&host.app_changes).clone();
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].0.cache_limit_bytes, None);
+        assert_eq!(changes[0].1.cache_limit_bytes, Some(5000));
+    }
+
+    #[test]
+    fn a_hand_edit_that_fails_the_checks_keeps_the_settings_in_use_and_says_why() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = Settings::new(Config::open(
+            dir.path(),
+            &Library::open_in_memory().unwrap(),
+        ));
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let host = Host::default();
+        edit(dir.path(), "[app]\nreadingWpm = 300\n");
+        settings.apply_edits(&host, runtime.handle());
+
+        edit(
+            dir.path(),
+            "[app]\nreadingWpm = 300\n\n[app.feeds]\ncheckMinutes = 0\n",
+        );
+        settings.apply_edits(&host, runtime.handle());
+
+        assert_eq!(settings.app().reading_wpm, 300);
+        assert_eq!(
+            settings.app().feeds,
+            AppSettings::default().feeds,
+            "the refused feed interval is not used"
+        );
+        assert_eq!(
+            lock(&host.app_changes).len(),
+            1,
+            "only the first edit was told"
+        );
+        let problems = settings.preferences().problems;
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.contains("[app]") && p.contains("Feeds")),
+            "{problems:?}"
+        );
+
+        edit(dir.path(), "[app]\nreadingWpm = 320\n");
+        settings.apply_edits(&host, runtime.handle());
+        assert_eq!(settings.app().reading_wpm, 320);
+        assert!(settings.preferences().problems.is_empty());
+    }
+
+    #[test]
+    fn app_settings_that_fail_the_checks_at_start_are_not_used() {
+        let dir = tempfile::tempdir().unwrap();
+        edit(
+            dir.path(),
+            "[app]\nreadingWpm = 5\nmetadataLookup = false\n",
+        );
+        let config = Config::open(dir.path(), &Library::open_in_memory().unwrap());
+        assert_eq!(config.app, AppSettings::default());
+        assert_eq!(config.problems().len(), 1, "{:?}", config.problems());
     }
 }

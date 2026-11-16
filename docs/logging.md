@@ -71,7 +71,9 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `app.log` | warn | `error` | `logging.rs`, the file cannot be written |
 | `app.emit` | error | `name`, `error` | `core.rs`, an event the window did not get |
 | `app.poisoned` | error | `error` (reported) | `core.rs` `lock`, the first lock a panic poisoned |
-| `config.saved` | info | `section`, `changed` (setting names) | `core/settings.rs` `update_app_settings` |
+| `config.saved` | info | `section`, `changed` (setting names) | `core/config.rs` `Settings::update_app`, a change from the Settings window |
+| `config.edited` | info | `section` (`app`), `changed` (setting names) | `core/config.rs` `Settings::apply_edits`, a hand edit to `settings.toml` that passed the checks |
+| `config.rejected` | warn | `section` (`app`), `error` | `core/config.rs`, a hand-edited `[app]` that failed the checks; the settings in use stay |
 | `config.save` | warn | `kind`, `error`, `repeat` (reported); `section`, `outcome` from the first-run migration | `core.rs` (player), `core/config.rs` (migration) |
 | `config.problem` | warn | `error` | `core.rs`, a settings file Aoide cannot read |
 | `config.watch` | warn | `error` | `core/config.rs`, watching settings files |
