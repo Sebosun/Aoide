@@ -1,18 +1,17 @@
 import type { Component } from "vue";
 import { BookDown, Check, Download, FileText, Headphones, Pause, Play, RotateCcw, Trash2 } from "@lucide/vue";
-import type { RecordingView, SyncStage } from "@/api/types";
+import type { RecordingAction, RecordingView, SyncStage } from "@/api/types";
 import { formatDuration } from "@/estimate";
 
 /** An audiobook to pair, by name: its file or folder name, and how many files. */
 export const audiobookName = (paths: string[]) =>
   (paths[0].split("/").pop() ?? paths[0]) + (paths.length > 1 ? ` · ${paths.length} files` : "");
 
-/** What a person can do about a book's recording. */
-export type RecordingAction =
-  "listen" | "pause" | "resume" | "retry" | "accept" | "resync" | "download" | "report" | "export" | "remove";
+/** What a person can do about a book's recording; which apply is decided in the core. */
+export type { RecordingAction };
 
-/** How a recording's sync reads and what it offers, for every view that shows it. The stage is
- *  decided in the core (core/syncing.rs); this only presents it. */
+/** How a recording's sync reads and what it offers, for every view that shows it. The stage and
+ *  what can be done about it are decided in the core (core/syncing.rs); this only presents them. */
 export interface RecordingStatus {
   stage: SyncStage;
   label: string;
@@ -42,19 +41,20 @@ const LABELS: Record<SyncStage, string> = {
   failed: "Sync failed",
   standalone: "Audio only",
 };
-const ACTIONS: Record<SyncStage, RecordingAction[]> = {
-  checking: ["remove"],
-  waiting: ["pause", "remove"],
-  needsModel: ["download", "remove"],
-  transcribing: ["pause", "remove"],
-  matching: [],
-  ready: ["report", "export", "resync", "remove"],
-  sampleMismatch: ["accept", "remove"],
-  poorMatch: ["report", "accept", "remove"],
-  paused: ["resume", "remove"],
-  missing: ["remove"],
-  failed: ["retry", "remove"],
-  standalone: [],
+/** A recording's stage in a few words, for a library card. */
+export const RECORDING_SHORT_LABELS: Record<SyncStage, string> = {
+  checking: "checking recording",
+  waiting: "recording waiting to sync",
+  needsModel: "recording needs a model",
+  transcribing: "syncing recording",
+  matching: "matching recording",
+  ready: "narrated recording",
+  sampleMismatch: "recording needs review",
+  poorMatch: "recording needs review",
+  paused: "recording paused",
+  missing: "recording missing",
+  failed: "recording sync failed",
+  standalone: "audio only",
 };
 export const RECORDING_ACTION_LABELS: Record<RecordingAction, string> = {
   listen: "Listen now",
@@ -84,7 +84,7 @@ export const RECORDING_ACTION_ICONS: Record<RecordingAction, Component> = {
 const share = (part: number, whole: number) => Math.floor((part / Math.max(1, whole)) * 100);
 
 export function recordingStatus(recording: RecordingView): RecordingStatus {
-  const { stage, transcribedMs, totalMs, summary, listenable } = recording;
+  const { stage, transcribedMs, totalMs, summary, listenable, actions } = recording;
   const percent =
     ["transcribing", "paused", "waiting"].includes(stage) && transcribedMs
       ? share(transcribedMs, totalMs)
@@ -116,14 +116,12 @@ export function recordingStatus(recording: RecordingView): RecordingStatus {
     failed: recording.error,
     standalone: null,
   };
-  // While it syncs, what is synced so far can be listened to (the core waits at the edge).
-  const listenEarly = listenable && stage !== "ready" && stage !== "matching" && stage !== "standalone";
   return {
     stage,
     label: LABELS[stage],
     detail: detail[stage],
     percent,
-    actions: listenEarly ? ["listen", ...ACTIONS[stage]] : ACTIONS[stage],
+    actions,
     playable: stage === "ready",
     listenable,
     working: ["checking", "transcribing", "matching"].includes(stage),

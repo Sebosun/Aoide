@@ -277,6 +277,8 @@ pub struct RecordingView {
     pub listenable: bool,
     /// It narrates the book: chosen as the book's narration, and listenable.
     pub narrates: bool,
+    /// What can be done about it now (see [`super::syncing::actions`]).
+    pub actions: Vec<super::syncing::RecordingAction>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

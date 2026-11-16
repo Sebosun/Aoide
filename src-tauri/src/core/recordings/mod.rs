@@ -535,6 +535,7 @@ impl Recordings {
             model_id: self.model_for_book(host, id).id.to_owned(),
             listenable,
             narrates,
+            actions: syncing::actions(stage, listenable),
         })
     }
 

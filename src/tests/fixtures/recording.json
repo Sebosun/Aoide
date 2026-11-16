@@ -23,5 +23,11 @@
   "accepted": false,
   "modelId": "base.en",
   "listenable": true,
-  "narrates": true
+  "narrates": true,
+  "actions": [
+    "report",
+    "export",
+    "resync",
+    "remove"
+  ]
 }

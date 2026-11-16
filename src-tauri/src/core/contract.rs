@@ -52,6 +52,7 @@ fn contract() -> String {
         crate::logging::UiLog,
         // Preparation
         super::preparation::Stage,
+        super::preparation::PrepareAction,
         super::preparation::PrepareView,
         // Reading
         aoide_epub::BlockKind,
@@ -155,6 +156,7 @@ fn contract() -> String {
         super::recording::RecordingProblemView,
         super::recording::InspectionView,
         super::recording::MatchSummaryView,
+        super::syncing::RecordingAction,
         super::recording::RecordingView,
         super::recording::ChapterMatchView,
         super::recording::OffTextView,

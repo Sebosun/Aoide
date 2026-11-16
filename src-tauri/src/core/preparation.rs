@@ -73,6 +73,45 @@ pub fn next(stage: Stage, event: Event) -> Stage {
     }
 }
 
+/// What the user can do about a book's whole-book preparation. The UI words and draws these;
+/// which ones apply is decided by [`actions`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum PrepareAction {
+    /// Prepare the whole book (also widens a preparation of some chapters).
+    Prepare,
+    /// Plan a book left waiting from an earlier run now.
+    Start,
+    Pause,
+    Resume,
+    Cancel,
+}
+
+/// What can be done about a preparation at `stage` (`some_chapters`: only some chapters are
+/// being prepared), in the order the UI offers them. Pause, resume and cancel are offered
+/// exactly when [`next`] moves the stage on that event.
+pub fn actions(stage: Stage, some_chapters: bool) -> Vec<PrepareAction> {
+    let moves = |event: Event| next(stage, event) != stage;
+    let mut offered = Vec::new();
+    if stage == Stage::NotPrepared || (some_chapters && stage != Stage::Done) {
+        offered.push(PrepareAction::Prepare);
+    }
+    if stage == Stage::Waiting {
+        offered.push(PrepareAction::Start);
+    }
+    for (event, action) in [
+        (Event::Pause, PrepareAction::Pause),
+        (Event::Resume, PrepareAction::Resume),
+        (Event::Cancel, PrepareAction::Cancel),
+    ] {
+        if moves(event) {
+            offered.push(action);
+        }
+    }
+    offered
+}
+
 /// A book's generation plan: one item and request per playlist entry.
 pub struct Plan {
     pub items: Vec<PlanItem>,
@@ -137,6 +176,8 @@ pub struct PrepareView {
     pub position: Option<usize>,
     /// The chapters being prepared, in order; `None` for the whole book.
     pub chapters: Option<Vec<usize>>,
+    /// What can be done about it now (see [`actions`]).
+    pub actions: Vec<PrepareAction>,
 }
 
 /// What of a book is being prepared.
@@ -215,12 +256,14 @@ impl Preparation {
         if let Some(position) = self.position(id) {
             let entry = &self.queue[position];
             let (done, total) = entry.plan.as_ref().map_or((0, 0), Plan::progress);
+            let chapters = entry.scope.chapters();
             return Some(PrepareView {
                 state: entry.stage,
                 done,
                 total,
                 position: Some(position),
-                chapters: entry.scope.chapters(),
+                actions: actions(entry.stage, chapters.is_some()),
+                chapters,
             });
         }
         let made = done_count(library, id)?;
@@ -230,6 +273,7 @@ impl Preparation {
             total: made,
             position: None,
             chapters: None,
+            actions: actions(Stage::Done, false),
         })
     }
 
@@ -548,6 +592,24 @@ fn clear_done(library: &Library, reporter: &Reporter, id: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn what_each_preparation_stage_offers() {
+        use PrepareAction::*;
+        let table: [(Stage, bool, &[PrepareAction]); 8] = [
+            (Stage::NotPrepared, false, &[Prepare]),
+            (Stage::Waiting, false, &[Start, Pause, Cancel]),
+            (Stage::Queued, false, &[Pause, Cancel]),
+            (Stage::Preparing, false, &[Pause, Cancel]),
+            (Stage::Paused, false, &[Resume, Cancel]),
+            (Stage::Done, false, &[]),
+            (Stage::Preparing, true, &[Prepare, Pause, Cancel]),
+            (Stage::Done, true, &[]),
+        ];
+        for (stage, some, expected) in table {
+            assert_eq!(actions(stage, some), expected, "{stage:?} {some}");
+        }
+    }
 
     fn plan(keys: &[(&str, bool)]) -> Plan {
         Plan {

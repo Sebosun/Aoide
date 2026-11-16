@@ -1,14 +1,16 @@
 import type { Component } from "vue";
 import { Pause, Play, Sparkles, X } from "@lucide/vue";
 import { api } from "@/api";
-import type { BookSummary, PrepareState } from "@/api/types";
+import type { BookSummary, PrepareAction, PrepareState } from "@/api/types";
 import { useUiStore } from "@/stores/ui";
 
-/** What a person can do about a book's whole-book preparation. */
-export type PrepareAction = "prepare" | "start" | "pause" | "resume" | "cancel";
+/** What a person can do about a book's whole-book preparation; which apply is decided in the
+ *  core, and a book that is not being prepared can only be prepared. */
+export type { PrepareAction };
 
 /** How a book's preparation reads and what it offers, for every view that shows it. The stage
- *  itself is decided in the core (core/preparation.rs); this only presents it. */
+ *  and what can be done about it are decided in the core (core/preparation.rs); this only
+ *  presents them. */
 export interface PreparationStatus {
   state: PrepareState | null;
   /** "Preparing", "Queued", …; null when the book is not being prepared. */
@@ -28,14 +30,6 @@ const LABELS: Record<PrepareState, string> = {
   paused: "Paused",
   done: "Ready offline",
 };
-const ACTIONS: Record<PrepareState | "none", PrepareAction[]> = {
-  none: ["prepare"],
-  waiting: ["start", "cancel"],
-  queued: ["pause", "cancel"],
-  preparing: ["pause", "cancel"],
-  paused: ["resume", "cancel"],
-  done: [],
-};
 /** Button and menu wording for each action (also its accessible name, with the title appended in lists). */
 export const ACTION_LABELS: Record<PrepareAction, string> = {
   prepare: "Prepare whole book",
@@ -54,16 +48,15 @@ export const ACTION_ICONS: Record<PrepareAction, Component> = {
 };
 
 export function preparationStatus(prepare: BookSummary["prepare"]): PreparationStatus {
-  if (!prepare) return { state: null, label: null, scope: null, count: null, percent: 0, actions: ACTIONS.none };
-  const { state, done, total, chapters } = prepare;
+  if (!prepare) return { state: null, label: null, scope: null, count: null, percent: 0, actions: ["prepare"] };
+  const { state, done, total, chapters, actions } = prepare;
   return {
     state,
     label: LABELS[state],
     scope: chapterScope(chapters),
     count: total && state !== "done" ? `${done.toLocaleString()} / ${total.toLocaleString()}` : null,
     percent: state === "done" ? 100 : total ? Math.floor((done / total) * 100) : 0,
-    // A chapter-only preparation can still be widened to the whole book.
-    actions: chapters && state !== "done" ? ["prepare", ...ACTIONS[state]] : ACTIONS[state],
+    actions,
   };
 }
 

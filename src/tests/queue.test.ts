@@ -66,7 +66,8 @@ it("offers to start a book left waiting in the queue, as after a start with resu
   const { wrapper } = await openQueue();
   expect(rows()[0].textContent).toContain("Waiting");
   expect(rows()[0].textContent).not.toContain("0 / 0");
-  expect(document.body.querySelector('[aria-label="Pause preparing A Map of Quiet Places"]')).toBeNull();
+  // The core's machine lets a waiting book be paused too (core/preparation.rs).
+  expect(document.body.querySelector('[aria-label="Pause preparing A Map of Quiet Places"]')).not.toBeNull();
   button("Start preparing A Map of Quiet Places").click();
   await flushPromises();
   expect(prepare).toHaveBeenCalledWith("book-1");

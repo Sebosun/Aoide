@@ -16,7 +16,7 @@ import {
   TriangleAlert,
 } from "@lucide/vue";
 import { NEEDS, fetching } from "@/articles";
-import type { SyncStage } from "@/api/types";
+import { RECORDING_SHORT_LABELS } from "@/recording";
 import { useRecordingsStore } from "@/stores/recordings";
 import { useCollections } from "@/composables/useCollections";
 import { useLibraryStore } from "@/stores/library";
@@ -35,21 +35,6 @@ const props = defineProps<{ book: BookSummary; busy?: boolean }>();
 const emit = defineEmits<{ open: []; details: []; remove: [] }>();
 const unavailable = computed(() => props.book.status.kind !== "present");
 const percent = computed(() => Math.round((props.book.progress?.fraction ?? 0) * 100));
-/** A recording's stage in a few words, for the card. */
-const RECORDING: Record<SyncStage, string> = {
-  checking: "checking recording",
-  waiting: "recording waiting to sync",
-  needsModel: "recording needs a model",
-  transcribing: "syncing recording",
-  matching: "matching recording",
-  ready: "narrated recording",
-  sampleMismatch: "recording needs review",
-  poorMatch: "recording needs review",
-  paused: "recording paused",
-  missing: "recording missing",
-  failed: "recording sync failed",
-  standalone: "audio only",
-};
 /** What the book has, then how far along it is: "Text + voice · 38%", "Text · unread". While it
  *  is being prepared, or its recording syncs, that progress is shown instead. */
 const HAS = { none: "Text", speech: "Text + voice", recording: "Text + recording" } as const;
@@ -70,8 +55,8 @@ const status = computed(() => {
   if (prepare && prepare.state !== "done") return describePreparation(preparationStatus(prepare));
   if (recording && recording !== "ready")
     return progress?.fraction
-      ? `${percent.value}% · ${RECORDING[recording]}`
-      : RECORDING[recording].replace(/^./, (c) => c.toUpperCase());
+      ? `${percent.value}% · ${RECORDING_SHORT_LABELS[recording]}`
+      : RECORDING_SHORT_LABELS[recording].replace(/^./, (c) => c.toUpperCase());
   const left = progress && props.book.readState === "inProgress" ? timeLeft(props.book, library.readingWpm) : "";
   const has = article.value ? (audio === "none" ? "Article" : "Article + voice") : HAS[audio];
   return [has, along, left].filter(Boolean).join(" · ");

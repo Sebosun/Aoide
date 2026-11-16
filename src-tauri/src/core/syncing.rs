@@ -160,11 +160,133 @@ impl Stage {
     }
 }
 
+/// What the user can do about a book's recording. The UI words and draws these; which ones
+/// apply is decided by [`actions`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum RecordingAction {
+    /// Play what is synced so far, while it syncs.
+    Listen,
+    /// Download the speech-recognition model it waits for.
+    Download,
+    /// Read the sync report.
+    Report,
+    /// Export the book as a read-along EPUB.
+    Export,
+    Pause,
+    Resume,
+    Retry,
+    Accept,
+    Resync,
+    Remove,
+}
+
+impl RecordingAction {
+    /// The stage event this action sends, for the actions that are one.
+    fn event(self) -> Option<Event> {
+        match self {
+            RecordingAction::Pause => Some(Event::Pause),
+            RecordingAction::Resume => Some(Event::Resume),
+            RecordingAction::Retry => Some(Event::Retry),
+            RecordingAction::Accept => Some(Event::Accept),
+            RecordingAction::Resync => Some(Event::Resync),
+            _ => None,
+        }
+    }
+}
+
+/// What can be done about a recording at `stage` (`listenable`: what is synced so far can be
+/// played), in the order the UI offers them. An action that sends a stage event is offered
+/// exactly when [`next`] moves the stage on that event.
+pub fn actions(stage: Stage, listenable: bool) -> Vec<RecordingAction> {
+    use RecordingAction::*;
+    let moves = |action: RecordingAction| {
+        action
+            .event()
+            .is_some_and(|event| next(stage, event) != stage)
+    };
+    let mut offered = Vec::new();
+    if listenable && !matches!(stage, Stage::Ready | Stage::Matching | Stage::Standalone) {
+        offered.push(Listen);
+    }
+    if stage == Stage::NeedsModel {
+        offered.push(Download);
+    }
+    if matches!(stage, Stage::Ready | Stage::PoorMatch) {
+        offered.push(Report);
+    }
+    if stage == Stage::Ready {
+        offered.push(Export);
+    }
+    offered.extend(
+        [Pause, Resume, Retry, Accept, Resync]
+            .into_iter()
+            .filter(|a| moves(*a)),
+    );
+    // Matching runs to its end; an audiobook on its own goes with its item.
+    if !matches!(stage, Stage::Matching | Stage::Standalone) {
+        offered.push(Remove);
+    }
+    offered
+}
+
 #[cfg(test)]
 mod tests {
     use super::Event::*;
     use super::Stage::*;
     use super::*;
+
+    #[test]
+    fn every_stage_event_the_machine_accepts_is_offered_and_no_other() {
+        for stage in ALL {
+            let offered = actions(stage, false);
+            for action in [
+                RecordingAction::Pause,
+                RecordingAction::Resume,
+                RecordingAction::Retry,
+                RecordingAction::Accept,
+                RecordingAction::Resync,
+            ] {
+                let event = action.event().unwrap();
+                assert_eq!(
+                    offered.contains(&action),
+                    next(stage, event) != stage,
+                    "{action:?} at {stage:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn what_each_stage_offers() {
+        use RecordingAction::*;
+        let table: [(Stage, &[RecordingAction]); 12] = [
+            (Checking, &[Remove]),
+            (Waiting, &[Pause, Remove]),
+            (NeedsModel, &[Download, Pause, Remove]),
+            (Transcribing, &[Pause, Remove]),
+            (Matching, &[]),
+            (Ready, &[Report, Export, Resync, Remove]),
+            (SampleMismatch, &[Accept, Resync, Remove]),
+            (PoorMatch, &[Report, Accept, Resync, Remove]),
+            (Paused, &[Resume, Resync, Remove]),
+            (Missing, &[Remove]),
+            (Failed, &[Retry, Resync, Remove]),
+            (Standalone, &[]),
+        ];
+        for (stage, expected) in table {
+            assert_eq!(actions(stage, false), expected, "{stage:?}");
+        }
+    }
+
+    #[test]
+    fn what_is_synced_so_far_can_be_listened_to_while_it_syncs() {
+        assert_eq!(actions(Transcribing, true)[0], RecordingAction::Listen);
+        assert_eq!(actions(Paused, true)[0], RecordingAction::Listen);
+        assert!(!actions(Ready, true).contains(&RecordingAction::Listen));
+        assert!(!actions(Matching, true).contains(&RecordingAction::Listen));
+    }
 
     const ALL: [Stage; 12] = [
         Checking,

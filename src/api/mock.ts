@@ -16,7 +16,11 @@ import type {
   SiteView,
   SignInView,
   SyncReportView,
+  SyncAction,
+  RecordingAction,
+  PrepareAction,
   PrepareState,
+  PrepareView,
   Preferences,
   Candidate,
   ScanProgress,
@@ -49,7 +53,11 @@ import fixtureHome from "@/tests/fixtures/home.json";
 import fixtureAudiobook from "@/tests/fixtures/audiobook.json";
 import fixtureArticle from "@/tests/fixtures/article.json";
 import fixtureFeeds from "@/tests/fixtures/feeds.json";
+import fixtureStages from "@/tests/fixtures/stages.json";
+import { ApiError } from "@/api/errors";
 
+/** A refusal, as the core answers one: an error of a kind (its `String` errors are `internal`). */
+const refused = (message: string) => new ApiError({ kind: "internal", message });
 /** The views the core made for the preview's books (see src-tauri/src/core/fixtures.rs), with
  *  covers as the window sees them. */
 const coreBooks = (): BookSummary[] =>
@@ -407,21 +415,39 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
    *  explicit sync stage. `?recording=syncing|ready|review|missing|model|mismatch|failed` gives
    *  book-0 a recording in that stage. */
   const recordings = new Map<string, RecordingView>();
+  /** A recording before the core's decisions about it are added. */
+  type Undecided = Omit<RecordingView, "listenable" | "narrates" | "actions">;
+  /** The core's sync stage machine: where each event leads from each stage, and what it offers. */
+  const syncStages = fixtureStages.sync as unknown as Record<
+    SyncStage,
+    {
+      next: Record<SyncAction | "promote", SyncStage>;
+      actions: RecordingAction[];
+      listenableActions: RecordingAction[];
+      /** Whether it can be listened to with none of it transcribed, and with some. */
+      listenable: [boolean, boolean];
+    }
+  >;
   const syncHandlers = new Set<(r: RecordingView) => void>();
   const downloadHandlers = new Set<(d: ModelDownloadView) => void>();
   const problemHandlers = new Set<(p: ProblemView) => void>();
   const downloaded = new Set<string>(["base.en"]);
   const hour = 3_600_000;
   /** What the core decides about a recording (core/recording.rs): what is synced so far can be
-   *  listened to, and it narrates the book once chosen. */
-  const decide = (r: Omit<RecordingView, "listenable" | "narrates">): RecordingView => {
-    const listenable =
-      r.stage === "ready" ||
-      (["waiting", "transcribing", "paused", "matching"].includes(r.stage) && r.transcribedMs > 0);
-    return { ...r, listenable, narrates: listenable && settingsOf(r.bookId).narration === "recording" };
+   *  listened to, it narrates the book once chosen, and what can be done about it (the core's
+   *  own table, from the stages fixture). */
+  const decide = (r: Undecided): RecordingView => {
+    const stage = syncStages[r.stage],
+      listenable = stage.listenable[r.transcribedMs > 0 ? 1 : 0];
+    return {
+      ...r,
+      listenable,
+      narrates: listenable && settingsOf(r.bookId).narration === "recording",
+      actions: listenable ? stage.listenableActions : stage.actions,
+    };
   };
   /** The recording the core synced (its fixture), as it stands in `stage`. */
-  const recordingIn = (bookId: string, stage: SyncStage): Omit<RecordingView, "listenable" | "narrates"> => {
+  const recordingIn = (bookId: string, stage: SyncStage): Undecided => {
     const synced = structuredClone(fixtureRecording) as RecordingView,
       matched = stage === "ready" || stage === "poorMatch";
     return {
@@ -440,7 +466,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
             : null,
     };
   };
-  const emitSync = (undecided: Omit<RecordingView, "listenable" | "narrates">) => {
+  const emitSync = (undecided: Undecided) => {
     const recording = decide(undecided);
     recordings.set(recording.bookId, recording);
     const book = books.find((b) => b.id === recording.bookId);
@@ -455,6 +481,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       const r = recordings.get(bookId);
       if (!r) return clearInterval(syncTimer);
       if (r.stage === "checking") emitSync({ ...r, stage: "transcribing", position: 0 });
+      else if (r.stage === "waiting") emitSync({ ...r, stage: syncStages.waiting.next.promote, position: 0 });
       else if (r.stage === "transcribing") {
         const transcribedMs = Math.min(r.totalMs, r.transcribedMs + 45 * 60_000);
         const remainingMs = Math.round((r.totalMs - transcribedMs) / 27);
@@ -754,18 +781,27 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   /** Whole-book preparation, like the app (core/preparation.rs): each queued book has an explicit
    *  stage; the mock plans a book as soon as it is queued (books from `queueWaitingForTest` wait). */
   type PrepareEvent = "planned" | "pause" | "resume" | "promote" | "demote";
-  const nextStage = (stage: PrepareState, event: PrepareEvent): PrepareState =>
-    stage === "waiting" && event === "planned"
-      ? "queued"
-      : (stage === "waiting" || stage === "queued" || stage === "preparing") && event === "pause"
-        ? "paused"
-        : stage === "paused" && event === "resume"
-          ? "waiting"
-          : stage === "queued" && event === "promote"
-            ? "preparing"
-            : stage === "preparing" && event === "demote"
-              ? "queued"
-              : stage;
+  /** The core's preparation stage machine, from the stages fixture. */
+  const prepareStages = fixtureStages.prepare as Record<
+    PrepareState,
+    { next: Record<PrepareEvent, PrepareState>; actions: PrepareAction[]; someChaptersActions: PrepareAction[] }
+  >;
+  const nextStage = (stage: PrepareState, event: PrepareEvent): PrepareState => prepareStages[stage].next[event];
+  /** A preparation view as the core makes it, with what it offers. */
+  const prepareView = (
+    state: PrepareState,
+    done: number,
+    total: number,
+    position: number | null,
+    chapters: number[] | null,
+  ): PrepareView => ({
+    state,
+    done,
+    total,
+    position,
+    chapters,
+    actions: chapters ? prepareStages[state].someChaptersActions : prepareStages[state].actions,
+  });
   const prepareQueue: { id: string; stage: PrepareState; chapters: number[] | null }[] = [];
   const prepareEntry = (id: string) => prepareQueue.find((e) => e.id === id);
   /** The first planned book is prepared; the others wait behind it. Then publishes the stages. */
@@ -778,7 +814,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     }
     prepareQueue.forEach((entry, position) => {
       const b = books.find((b) => b.id === entry.id);
-      if (b?.prepare) b.prepare = { ...b.prepare, position, state: entry.stage, chapters: entry.chapters };
+      if (b?.prepare) b.prepare = prepareView(entry.stage, b.prepare.done, b.prepare.total, position, entry.chapters);
     });
     changed();
   }
@@ -1205,7 +1241,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       const entry = prepareEntry(id) ?? prepareQueue[prepareQueue.push({ id, stage: "waiting", chapters: null }) - 1];
       entry.chapters = null;
       entry.stage = nextStage(entry.stage, "planned");
-      if (entry.stage === "queued") b.prepare = { state: "queued", done: 3, total: 120, position: 0, chapters: null };
+      if (entry.stage === "queued") b.prepare = prepareView("queued", 3, 120, 0, null);
       settlePrepare();
     },
     async setPreparePaused(id, paused) {
@@ -1226,7 +1262,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       }
       const added = prepareQueue[prepareQueue.push({ id, stage: "waiting", chapters: [chapter] }) - 1];
       added.stage = nextStage(added.stage, "planned");
-      b.prepare = { state: added.stage, done: 0, total: 12, position: 0, chapters: [chapter] };
+      b.prepare = prepareView(added.stage, 0, 12, 0, [chapter]);
       settlePrepare();
     },
     async chapterAudio(id) {
@@ -1891,25 +1927,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async syncAction(bookId, action) {
       const r = recordings.get(bookId);
-      if (!r) throw new Error("the book has no recording");
-      const next: Partial<Record<SyncStage, SyncStage>> =
-        action === "pause"
-          ? { waiting: "paused", transcribing: "paused", needsModel: "paused" }
-          : action === "resume"
-            ? { paused: "transcribing" }
-            : action === "retry"
-              ? { failed: "checking" }
-              : action === "accept"
-                ? { sampleMismatch: "transcribing", poorMatch: "ready" }
-                : {
-                    ready: "checking",
-                    poorMatch: "checking",
-                    sampleMismatch: "checking",
-                    failed: "checking",
-                    paused: "checking",
-                  };
-      const stage = next[r.stage];
-      if (!stage) return;
+      if (!r) throw refused("the book has no recording");
+      const stage = syncStages[r.stage].next[action];
+      if (stage === r.stage) return;
       emitSync({
         ...r,
         stage,
@@ -1918,7 +1938,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         summary: action === "resync" ? null : r.summary,
       });
       changed();
-      if (stage === "transcribing" || stage === "checking") simulateSync(bookId);
+      if (stage === "waiting" || stage === "checking") simulateSync(bookId);
     },
     async removeRecording(bookId) {
       recordings.delete(bookId);
@@ -2115,7 +2135,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   /** A book left in the queue by an earlier run that has not started again (resuming at startup is off). */
   const queueWaitingForTest = (id: string) => {
     prepareQueue.push({ id, stage: "waiting", chapters: null });
-    getBook(id).prepare = { state: "waiting", done: 0, total: 0, position: 0, chapters: null };
+    getBook(id).prepare = prepareView("waiting", 0, 0, 0, null);
     settlePrepare();
   };
   /** Gives a book a recording in a stage (and, when ready, the recording as its narration). */

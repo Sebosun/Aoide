@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
+import { flushPromises } from "@vue/test-utils";
 import { createMockApi } from "@/api/mock";
 import type { RecordingView, SyncStage } from "@/api/types";
 import { recordingStatus } from "@/recording";
@@ -37,57 +38,51 @@ const view = (stage: SyncStage, more: Partial<RecordingView> = {}): RecordingVie
   modelId: "base.en",
   listenable: stage === "ready",
   narrates: false,
+  actions: [],
   ...more,
 });
 
-it("words each stage and offers only what applies to it", () => {
-  expect(recordingStatus(view("checking"))).toMatchObject({
-    label: "Checking the audio",
-    actions: ["remove"],
-    playable: false,
-  });
+it("words each stage", () => {
+  expect(recordingStatus(view("checking"))).toMatchObject({ label: "Checking the audio", playable: false });
   expect(recordingStatus(view("waiting", { position: 2 }))).toMatchObject({
     label: "Waiting to sync",
     detail: "2 recordings ahead",
-    actions: ["pause", "remove"],
   });
   expect(
     recordingStatus(
       view("transcribing", { transcribedMs: 2.5 * 3_600_000, remainingMs: 17 * 60_000, listenable: true }),
     ),
-  ).toMatchObject({
-    label: "Syncing",
-    detail: "25% · about 17 min left",
-    percent: 25,
-    actions: ["listen", "pause", "remove"],
-    listenable: true,
-  });
-  expect(recordingStatus(view("needsModel"))).toMatchObject({ actions: ["download", "remove"] });
+  ).toMatchObject({ label: "Syncing", detail: "25% · about 17 min left", percent: 25, listenable: true });
   expect(
     recordingStatus(view("ready", { summary: { words: 1000, matchedWords: 940, timedWords: 995 } })),
-  ).toMatchObject({
-    label: "Synced",
-    detail: "94% of the text found in the recording",
-    actions: ["report", "export", "resync", "remove"],
-    playable: true,
-  });
+  ).toMatchObject({ label: "Synced", detail: "94% of the text found in the recording", playable: true });
   expect(
     recordingStatus(view("poorMatch", { summary: { words: 1000, matchedWords: 500, timedWords: 600 } })),
-  ).toMatchObject({ label: "Needs review", actions: ["report", "accept", "remove"] });
-  expect(recordingStatus(view("sampleMismatch")).actions).toEqual(["accept", "remove"]);
+  ).toMatchObject({ label: "Needs review" });
   expect(recordingStatus(view("paused", { transcribedMs: 3_600_000, listenable: true }))).toMatchObject({
     percent: 10,
-    actions: ["listen", "resume", "remove"],
   });
-  expect(recordingStatus(view("transcribing", { transcribedMs: 0 }))).toMatchObject({
-    actions: ["pause", "remove"],
-    listenable: false,
-  });
-  expect(recordingStatus(view("failed", { error: "no audio" }))).toMatchObject({
-    detail: "no audio",
-    actions: ["retry", "remove"],
-  });
-  expect(recordingStatus(view("missing")).actions).toEqual(["remove"]);
+  expect(recordingStatus(view("transcribing", { transcribedMs: 0 }))).toMatchObject({ listenable: false });
+  expect(recordingStatus(view("failed", { error: "no audio" }))).toMatchObject({ detail: "no audio" });
+});
+
+it("offers what the core says can be done, in its order", () => {
+  expect(recordingStatus(view("failed", { actions: ["retry", "resync", "remove"] })).actions).toEqual([
+    "retry",
+    "resync",
+    "remove",
+  ]);
+});
+
+it("offers what the core's stage machine accepts when a sync is paused and resumed", async () => {
+  const store = useRecordingsStore();
+  await store.start();
+  mock.setRecordingForTest("book-0", "paused");
+  await flushPromises();
+  expect(recordingStatus(store.byBook["book-0"]).actions).toContain("resume");
+  await mock.syncAction("book-0", "resume");
+  // The core puts a resumed recording back in line (core/syncing.rs), not straight to work.
+  expect(store.byBook["book-0"].stage).toBe("waiting");
 });
 
 it("keeps each book's recording up to date from sync events", async () => {

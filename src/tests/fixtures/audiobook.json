@@ -1,6 +1,7 @@
 {
   "recording": {
     "accepted": false,
+    "actions": [],
     "bookId": "book-5",
     "chapters": 2,
     "error": null,

@@ -113,6 +113,8 @@ view?: string, };
 
 export type PrepareState = "waiting" | "queued" | "preparing" | "paused" | "done";
 
+export type PrepareAction = "prepare" | "start" | "pause" | "resume" | "cancel";
+
 export type PrepareView = { state: PrepareState, done: number, total: number, 
 /**
  * Place in the queue (0 is first); `None` once done.
@@ -121,7 +123,11 @@ position: number | null,
 /**
  * The chapters being prepared, in order; `None` for the whole book.
  */
-chapters: Array<number> | null, };
+chapters: Array<number> | null, 
+/**
+ * What can be done about it now (see [`actions`]).
+ */
+actions: Array<PrepareAction>, };
 
 export type BlockKind = { "Heading": { level: number, } } | "Paragraph" | "ListItem" | "Preformatted";
 
@@ -789,6 +795,8 @@ suggestedBook: string | null, };
 
 export type MatchSummaryView = { words: number, matchedWords: number, timedWords: number, };
 
+export type RecordingAction = "listen" | "download" | "report" | "export" | "pause" | "resume" | "retry" | "accept" | "resync" | "remove";
+
 export type RecordingView = { bookId: string, stage: SyncStage, error: string | null, files: Array<RecordingFileView>, totalMs: number, chapters: number, 
 /**
  * How much of the recording is transcribed.
@@ -814,7 +822,11 @@ listenable: boolean,
 /**
  * It narrates the book: chosen as the book's narration, and listenable.
  */
-narrates: boolean, };
+narrates: boolean, 
+/**
+ * What can be done about it now (see [`super::syncing::actions`]).
+ */
+actions: Array<RecordingAction>, };
 
 export type ChapterMatchView = { index: number, title: string, words: number, matchedWords: number, timedWords: number, startMs: number | null, endMs: number | null, };
 

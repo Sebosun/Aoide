@@ -29,9 +29,9 @@ const at = (
   done = 3,
   total = 120,
   chapters: number[] | null = null,
-) => ({ state, done, total, position: 0, chapters });
+) => ({ state, done, total, position: 0, chapters, actions: [] });
 
-it("words each stage and offers only the actions that apply to it", () => {
+it("words each stage, and offers to prepare a book that is not being prepared", () => {
   expect(preparationStatus(null)).toEqual({
     state: null,
     label: null,
@@ -40,30 +40,15 @@ it("words each stage and offers only the actions that apply to it", () => {
     percent: 0,
     actions: ["prepare"],
   });
-  expect(preparationStatus(at("waiting", 0, 0))).toMatchObject({
-    label: "Waiting to start",
-    count: null,
-    actions: ["start", "cancel"],
-  });
-  expect(preparationStatus(at("queued"))).toMatchObject({
-    label: "Queued",
-    count: "3 / 120",
-    percent: 2,
-    actions: ["pause", "cancel"],
-  });
-  expect(preparationStatus(at("preparing", 60))).toMatchObject({
-    label: "Preparing",
-    count: "60 / 120",
-    percent: 50,
-    actions: ["pause", "cancel"],
-  });
-  expect(preparationStatus(at("paused"))).toMatchObject({ label: "Paused", actions: ["resume", "cancel"] });
-  expect(preparationStatus(at("done", 120))).toMatchObject({
-    label: "Ready offline",
-    count: null,
-    percent: 100,
-    actions: [],
-  });
+  expect(preparationStatus(at("waiting", 0, 0))).toMatchObject({ label: "Waiting to start", count: null });
+  expect(preparationStatus(at("queued"))).toMatchObject({ label: "Queued", count: "3 / 120", percent: 2 });
+  expect(preparationStatus(at("preparing", 60))).toMatchObject({ label: "Preparing", count: "60 / 120", percent: 50 });
+  expect(preparationStatus(at("paused"))).toMatchObject({ label: "Paused" });
+  expect(preparationStatus(at("done", 120))).toMatchObject({ label: "Ready offline", count: null, percent: 100 });
+});
+
+it("offers what the core says can be done", () => {
+  expect(preparationStatus({ ...at("paused"), actions: ["resume", "cancel"] }).actions).toEqual(["resume", "cancel"]);
 });
 
 it("runs each action and says so once when a book starts preparing", async () => {
@@ -102,9 +87,9 @@ it("shows a queued book as queued on its page, not as preparing", async () => {
   wrapper.unmount();
 });
 
-it("names the chapters of a chapter-only preparation and still offers the whole book", () => {
+it("names the chapters of a chapter-only preparation", () => {
   const one = preparationStatus(at("preparing", 4, 12, [2]));
-  expect(one).toMatchObject({ label: "Preparing", scope: "Chapter 3", actions: ["prepare", "pause", "cancel"] });
+  expect(one).toMatchObject({ label: "Preparing", scope: "Chapter 3" });
   expect(describePreparation(one)).toBe("Preparing · Chapter 3 · 4 / 12");
   expect(preparationStatus(at("queued", 0, 20, [1, 4])).scope).toBe("Chapters 2 and 5");
   expect(preparationStatus(at("queued", 0, 20, [0, 1, 4])).scope).toBe("Chapters 1, 2 and 5");

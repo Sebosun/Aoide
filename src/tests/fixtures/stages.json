@@ -1,0 +1,364 @@
+{
+  "prepare": {
+    "done": {
+      "actions": [],
+      "next": {
+        "demote": "done",
+        "pause": "done",
+        "planned": "done",
+        "promote": "done",
+        "resume": "done"
+      },
+      "someChaptersActions": []
+    },
+    "paused": {
+      "actions": [
+        "resume",
+        "cancel"
+      ],
+      "next": {
+        "demote": "paused",
+        "pause": "paused",
+        "planned": "paused",
+        "promote": "paused",
+        "resume": "waiting"
+      },
+      "someChaptersActions": [
+        "prepare",
+        "resume",
+        "cancel"
+      ]
+    },
+    "preparing": {
+      "actions": [
+        "pause",
+        "cancel"
+      ],
+      "next": {
+        "demote": "queued",
+        "pause": "paused",
+        "planned": "preparing",
+        "promote": "preparing",
+        "resume": "preparing"
+      },
+      "someChaptersActions": [
+        "prepare",
+        "pause",
+        "cancel"
+      ]
+    },
+    "queued": {
+      "actions": [
+        "pause",
+        "cancel"
+      ],
+      "next": {
+        "demote": "queued",
+        "pause": "paused",
+        "planned": "queued",
+        "promote": "preparing",
+        "resume": "queued"
+      },
+      "someChaptersActions": [
+        "prepare",
+        "pause",
+        "cancel"
+      ]
+    },
+    "waiting": {
+      "actions": [
+        "start",
+        "pause",
+        "cancel"
+      ],
+      "next": {
+        "demote": "waiting",
+        "pause": "paused",
+        "planned": "queued",
+        "promote": "waiting",
+        "resume": "waiting"
+      },
+      "someChaptersActions": [
+        "prepare",
+        "start",
+        "pause",
+        "cancel"
+      ]
+    }
+  },
+  "sync": {
+    "checking": {
+      "actions": [
+        "remove"
+      ],
+      "listenable": [
+        false,
+        false
+      ],
+      "listenableActions": [
+        "listen",
+        "remove"
+      ],
+      "next": {
+        "accept": "checking",
+        "pause": "checking",
+        "promote": "checking",
+        "resume": "checking",
+        "resync": "checking",
+        "retry": "checking"
+      }
+    },
+    "failed": {
+      "actions": [
+        "retry",
+        "resync",
+        "remove"
+      ],
+      "listenable": [
+        false,
+        false
+      ],
+      "listenableActions": [
+        "listen",
+        "retry",
+        "resync",
+        "remove"
+      ],
+      "next": {
+        "accept": "failed",
+        "pause": "failed",
+        "promote": "failed",
+        "resume": "failed",
+        "resync": "checking",
+        "retry": "checking"
+      }
+    },
+    "matching": {
+      "actions": [],
+      "listenable": [
+        false,
+        true
+      ],
+      "listenableActions": [],
+      "next": {
+        "accept": "matching",
+        "pause": "matching",
+        "promote": "matching",
+        "resume": "matching",
+        "resync": "matching",
+        "retry": "matching"
+      }
+    },
+    "missing": {
+      "actions": [
+        "remove"
+      ],
+      "listenable": [
+        false,
+        false
+      ],
+      "listenableActions": [
+        "listen",
+        "remove"
+      ],
+      "next": {
+        "accept": "missing",
+        "pause": "missing",
+        "promote": "missing",
+        "resume": "missing",
+        "resync": "missing",
+        "retry": "missing"
+      }
+    },
+    "needsModel": {
+      "actions": [
+        "download",
+        "pause",
+        "remove"
+      ],
+      "listenable": [
+        false,
+        false
+      ],
+      "listenableActions": [
+        "listen",
+        "download",
+        "pause",
+        "remove"
+      ],
+      "next": {
+        "accept": "needsModel",
+        "pause": "paused",
+        "promote": "needsModel",
+        "resume": "needsModel",
+        "resync": "needsModel",
+        "retry": "needsModel"
+      }
+    },
+    "paused": {
+      "actions": [
+        "resume",
+        "resync",
+        "remove"
+      ],
+      "listenable": [
+        false,
+        true
+      ],
+      "listenableActions": [
+        "listen",
+        "resume",
+        "resync",
+        "remove"
+      ],
+      "next": {
+        "accept": "paused",
+        "pause": "paused",
+        "promote": "paused",
+        "resume": "waiting",
+        "resync": "checking",
+        "retry": "paused"
+      }
+    },
+    "poorMatch": {
+      "actions": [
+        "report",
+        "accept",
+        "resync",
+        "remove"
+      ],
+      "listenable": [
+        false,
+        false
+      ],
+      "listenableActions": [
+        "listen",
+        "report",
+        "accept",
+        "resync",
+        "remove"
+      ],
+      "next": {
+        "accept": "ready",
+        "pause": "poorMatch",
+        "promote": "poorMatch",
+        "resume": "poorMatch",
+        "resync": "checking",
+        "retry": "poorMatch"
+      }
+    },
+    "ready": {
+      "actions": [
+        "report",
+        "export",
+        "resync",
+        "remove"
+      ],
+      "listenable": [
+        true,
+        true
+      ],
+      "listenableActions": [
+        "report",
+        "export",
+        "resync",
+        "remove"
+      ],
+      "next": {
+        "accept": "ready",
+        "pause": "ready",
+        "promote": "ready",
+        "resume": "ready",
+        "resync": "checking",
+        "retry": "ready"
+      }
+    },
+    "sampleMismatch": {
+      "actions": [
+        "accept",
+        "resync",
+        "remove"
+      ],
+      "listenable": [
+        false,
+        false
+      ],
+      "listenableActions": [
+        "listen",
+        "accept",
+        "resync",
+        "remove"
+      ],
+      "next": {
+        "accept": "waiting",
+        "pause": "sampleMismatch",
+        "promote": "sampleMismatch",
+        "resume": "sampleMismatch",
+        "resync": "checking",
+        "retry": "sampleMismatch"
+      }
+    },
+    "standalone": {
+      "actions": [],
+      "listenable": [
+        true,
+        true
+      ],
+      "listenableActions": [],
+      "next": {
+        "accept": "standalone",
+        "pause": "standalone",
+        "promote": "standalone",
+        "resume": "standalone",
+        "resync": "standalone",
+        "retry": "standalone"
+      }
+    },
+    "transcribing": {
+      "actions": [
+        "pause",
+        "remove"
+      ],
+      "listenable": [
+        false,
+        true
+      ],
+      "listenableActions": [
+        "listen",
+        "pause",
+        "remove"
+      ],
+      "next": {
+        "accept": "transcribing",
+        "pause": "paused",
+        "promote": "transcribing",
+        "resume": "transcribing",
+        "resync": "transcribing",
+        "retry": "transcribing"
+      }
+    },
+    "waiting": {
+      "actions": [
+        "pause",
+        "remove"
+      ],
+      "listenable": [
+        false,
+        true
+      ],
+      "listenableActions": [
+        "listen",
+        "pause",
+        "remove"
+      ],
+      "next": {
+        "accept": "waiting",
+        "pause": "paused",
+        "promote": "transcribing",
+        "resume": "waiting",
+        "resync": "waiting",
+        "retry": "waiting"
+      }
+    }
+  }
+}
