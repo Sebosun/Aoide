@@ -1058,9 +1058,13 @@ impl ServerProcess {
         })
     }
 
-    /// The timings for `spec`.
-    fn timing(&self, _spec: Option<&Spec>) -> Timing {
-        self.base.clone()
+    /// The timings for `spec`: the start timeout is the launch command's.
+    fn timing(&self, spec: Option<&Spec>) -> Timing {
+        let mut timing = self.base.clone();
+        if let Some(spec) = spec {
+            timing.start_timeout_ms = i64::from(spec.launch.start_timeout_seconds) * 1000;
+        }
+        timing
     }
 
     /// Applies `event` with [`next`], logs the transition, tells the host, and carries out
@@ -1784,6 +1788,7 @@ pub(super) mod process_tests {
             program: "sh".into(),
             args: vec!["-c".into(), script.into()],
             working_dir: None,
+            ..LaunchCommand::default()
         }
     }
 
@@ -1923,6 +1928,7 @@ pub(super) mod process_tests {
             program: dir.path().join("no-such-server").display().to_string(),
             args: vec![],
             working_dir: None,
+            ..LaunchCommand::default()
         };
         let (server, _host, task) = running(dir.path(), missing);
         server.answered(Answer::Offline);
@@ -1935,6 +1941,101 @@ pub(super) mod process_tests {
         let view = server.view().unwrap();
         assert_eq!(view.failure, Some(FailureKind::Spawn));
         assert!(view.error.is_some());
+        task.abort();
+    }
+
+    /// Whether process `pid`, written by a script to `file`, still runs.
+    pub fn alive_in(file: &Path) -> Option<bool> {
+        let pid: u32 = std::fs::read_to_string(file).ok()?.trim().parse().ok()?;
+        Some(super::process::alive(pid))
+    }
+
+    #[tokio::test]
+    async fn the_server_is_starting_until_the_engine_answers_ready() {
+        let dir = tempfile::tempdir().unwrap();
+        let (server, host, task) = running(dir.path(), script("exec sleep 300"));
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || {
+            state(&server) == Some(ServerState::Starting)
+        })
+        .await;
+
+        server.answered(Answer::Loading);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(state(&server), Some(ServerState::Starting));
+        server.answered(Answer::Ready);
+        until("ready", || state(&server) == Some(ServerState::Running)).await;
+        server.stop(&*host);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn a_silent_server_is_stopped_after_the_start_timeout() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid = dir.path().join("pid");
+        let (server, host, task) = running(
+            dir.path(),
+            script(&format!("echo $$ > '{}'; exec sleep 300", pid.display())),
+        );
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || alive_in(&pid) == Some(true)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await; // Its one line of output is old.
+
+        host.advance(Timing::default().start_timeout_ms);
+        until("the failure", || {
+            state(&server) == Some(ServerState::Failed)
+        })
+        .await;
+
+        let view = server.view().unwrap();
+        assert_eq!(view.failure, Some(FailureKind::StartTimedOut));
+        assert_eq!(alive_in(&pid), Some(false));
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn output_keeps_a_starting_server_starting() {
+        let dir = tempfile::tempdir().unwrap();
+        let (server, host, task) = running(
+            dir.path(),
+            script("while true; do echo 'downloading weights'; sleep 0.02; done"),
+        );
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || {
+            state(&server) == Some(ServerState::Starting)
+        })
+        .await;
+
+        host.advance(Timing::default().start_timeout_ms);
+        tokio::time::sleep(Duration::from_millis(300)).await;
+
+        assert_eq!(state(&server), Some(ServerState::Starting));
+        server.stop(&*host);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn the_start_timeout_comes_from_the_launch_command() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut launch = script("exec sleep 300");
+        launch.start_timeout_seconds = 5;
+        let (server, host, task) = running(dir.path(), launch);
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || {
+            state(&server) == Some(ServerState::Starting)
+        })
+        .await;
+
+        host.advance(5_000);
+        until("the failure", || {
+            state(&server) == Some(ServerState::Failed)
+        })
+        .await;
+        assert_eq!(server.view().unwrap().start_timeout_seconds, 5);
         task.abort();
     }
 }

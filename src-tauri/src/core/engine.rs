@@ -569,10 +569,33 @@ impl super::Core {
         params: Params,
         language: Option<String>,
     ) -> Result<Vec<u8>, String> {
-        self.speech_server.want();
+        if profile.launch.is_some() && profile.launch == self.engine.profile().launch {
+            self.speech_server.want();
+            self.wait_for_speech_server().await?;
+        }
         self.engine
             .preview(profile, voice_id, params, language)
             .await
+    }
+
+    /// Waits while the speech server Aoide starts is on its way: until it answers, or fails.
+    async fn wait_for_speech_server(&self) -> Result<(), String> {
+        let started = std::time::Instant::now();
+        while started.elapsed() < Duration::from_secs(600) {
+            let Some(view) = self.speech_server.view() else {
+                return Ok(());
+            };
+            match view.state {
+                ServerState::Running | ServerState::External => return Ok(()),
+                ServerState::Failed => {
+                    return Err(failure_message(&view));
+                }
+                // Not launched: nothing answered yet to say the engine is offline.
+                ServerState::Stopped if started.elapsed() > Duration::from_secs(5) => return Ok(()),
+                _ => tokio::time::sleep(Duration::from_millis(100)).await,
+            }
+        }
+        Ok(())
     }
 
     /// Validates, persists and activates a new engine profile. Must run inside the runtime.
@@ -615,7 +638,17 @@ impl super::engine_process::ServerHost for SpeechServer<'_> {
     }
 
     fn server_changed(&self, view: Option<ServerView>) {
+        let held = view
+            .as_ref()
+            .is_some_and(|v| !matches!(v.state, ServerState::Running | ServerState::External));
         self.0.engine.set_server(view);
+        if held != self.0.generation.held() {
+            self.0.plan(if held {
+                super::PlanEvent::EngineHeld
+            } else {
+                super::PlanEvent::EngineReady
+            });
+        }
     }
 }
 

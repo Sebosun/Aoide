@@ -416,6 +416,24 @@ pub struct LaunchCommand {
     #[serde(default)]
     pub args: Vec<String>,
     pub working_dir: Option<String>,
+    /// Seconds without an answer and without output after which a start is given up.
+    #[serde(default = "default_start_timeout")]
+    pub start_timeout_seconds: u32,
+}
+
+fn default_start_timeout() -> u32 {
+    180
+}
+
+impl Default for LaunchCommand {
+    fn default() -> Self {
+        Self {
+            program: String::new(),
+            args: vec![],
+            working_dir: None,
+            start_timeout_seconds: default_start_timeout(),
+        }
+    }
 }
 
 /// Builds an adapter from a profile. A plain `fn` works; tests can pass a closure that hands

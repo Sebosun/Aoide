@@ -141,7 +141,7 @@ it("turns on exact word timing with an aligner address and launch command", asyn
       aligner: {
         baseUrl: "http://127.0.0.1:8890",
         network: "loopback",
-        launch: { program: "/venv/bin/python", args: ["aoide_aligner.py", "--port", "8890"], workingDir: null },
+        launch: { program: "/venv/bin/python", args: ["aoide_aligner.py", "--port", "8890"], workingDir: null, startTimeoutSeconds: 180 },
       },
     }),
   });

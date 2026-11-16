@@ -42,6 +42,7 @@ function submit() {
                 .map((a) => a.trim())
                 .filter(Boolean),
               workingDir: dir.value.trim() || null,
+              startTimeoutSeconds: settings.value?.aligner?.launch?.startTimeoutSeconds ?? 180,
             }
           : null,
       }

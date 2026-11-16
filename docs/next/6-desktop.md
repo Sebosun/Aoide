@@ -579,6 +579,9 @@ which is how `External` is noticed. The polling is cheap and launches nothing.
 When the server becomes `Running`, `Core` re-plans (`PlanEvent::EngineReady`, which resets
 `Backoff` like `NewPlan`). Check: `crates/generation`'s worker may need a gate (a `watch` the
 worker reads before starting a request). Holding back the plan from `Core` may be simpler.
+(As built: `Generation` holds the plan back. `PlanEvent::EngineHeld` while the server is not
+`Running` or `External`, `PlanEvent::EngineReady` when it is; the held work still counts as
+pending, which is what "wanted" reads. A voice preview waits for the server the same way.)
 
 **Process handling (Unix; Windows and macOS are 6.5's).**
 

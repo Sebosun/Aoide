@@ -91,6 +91,7 @@ const draft = computed<EngineProfile | null>(() => {
             .map((a) => a.trim())
             .filter(Boolean),
           workingDir: launchDir.value.trim() || null,
+          startTimeoutSeconds: profile.value.launch?.startTimeoutSeconds ?? 180,
         }
       : null,
   };

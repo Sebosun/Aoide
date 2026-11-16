@@ -54,6 +54,11 @@ pub(super) enum PlanEvent {
     BookSettingsChanged(String),
     /// Another engine makes speech from now on.
     EngineSwitched(Arc<dyn SpeechEngine>),
+    /// The server Aoide starts for the engine is not running: nothing is asked of it, so
+    /// nothing fails into the worker's backoff or the speech problems.
+    EngineHeld,
+    /// That server answers: the work held back is asked for, the backoff reset.
+    EngineReady,
     /// The engine's voices became known: plans made without them are made again.
     VoicesKnown,
     /// Audio was deleted to keep the cache small.
@@ -106,6 +111,8 @@ pub(super) struct Generation {
     sent: Mutex<Option<GenerationStateView>>,
     library: Arc<Mutex<Library>>,
     events: Arc<dyn Events>,
+    /// Work is held back until the engine's server runs (see [`PlanEvent::EngineHeld`]).
+    held: std::sync::atomic::AtomicBool,
 }
 
 impl Generation {
@@ -139,6 +146,7 @@ impl Generation {
             sent: Mutex::new(None),
             library,
             events,
+            held: Default::default(),
         };
         (generation, receiver)
     }
@@ -226,6 +234,11 @@ impl Generation {
         lock(&self.state).pending > 0
     }
 
+    /// Whether work is held back until the engine's server runs.
+    pub fn held(&self) -> bool {
+        self.held.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
     /// Whether the worker is making a segment now.
     pub fn busy(&self) -> bool {
         lock(&self.state).generating_segment_id.is_some()
@@ -286,6 +299,12 @@ impl Generation {
                 lock(&self.state).generating_segment_id = None;
                 lock(&self.preparation).drop_plans(None);
                 Some(true)
+            }
+            PlanEvent::EngineHeld | PlanEvent::EngineReady => {
+                let held = matches!(event, PlanEvent::EngineHeld);
+                let was = self.held.swap(held, std::sync::atomic::Ordering::SeqCst);
+                // A new plan resets the worker's backoff.
+                (was != held).then_some(true)
             }
             PlanEvent::VoicesKnown => {
                 let mut preparation = lock(&self.preparation);
@@ -348,6 +367,9 @@ impl Generation {
         self.plan_waiting_books(host);
         let mut work = Vec::new();
         host.with_listening(&mut |listening| work = self.work(listening));
+        if self.held.load(std::sync::atomic::Ordering::SeqCst) {
+            work.clear(); // Counted as pending all the same, so the server is wanted.
+        }
         let worker = lock(&self.worker);
         if jump {
             worker.set_plan(work);

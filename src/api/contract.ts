@@ -320,7 +320,11 @@ maxChars: number, params: Array<ParamSpec>, };
 
 export type NetworkScope = "loopback" | "privateNetwork";
 
-export type LaunchCommand = { program: string, args: Array<string>, workingDir: string | null, };
+export type LaunchCommand = { program: string, args: Array<string>, workingDir: string | null, 
+/**
+ * Seconds without an answer and without output after which a start is given up.
+ */
+startTimeoutSeconds: number, };
 
 export type EngineProfile = { id: string, name: string, kind: string, baseUrl: string, 
 /**

@@ -387,3 +387,37 @@ async fn a_failed_segment_is_reported() {
         "{problems:?}"
     );
 }
+
+// ------------------------------------------------------------ a launched server
+
+#[tokio::test]
+async fn nothing_is_asked_of_a_launched_server_until_it_is_ready_and_no_problem_is_recorded() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = Scripted::new("main", EngineStatus::Offline, &["A.wav"], false);
+    engine
+        .synthesis_fails
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let launch = "voiceId = \"A.wav\"\n[engine.launch]\nprogram = \"sh\"\nargs = [\"-c\", \"exec sleep 300\"]";
+    let (core, _events, id) = start(dir.path(), &[&engine], launch).await;
+
+    core.prepare_book(&id).await.unwrap();
+    until("the launch", || {
+        core.engine_status().detail.as_deref() == Some("Starting the voice…")
+    })
+    .await;
+    settle().await;
+    assert!(engine.texts().is_empty(), "{:?}", engine.texts());
+    assert!(core.speech_problems().is_empty());
+
+    engine
+        .synthesis_fails
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    engine.set_status(EngineStatus::Ready(None));
+    until("the book to be prepared", || {
+        stage(&core, &id) == Some(PrepareStage::Done)
+    })
+    .await;
+    assert!(core.speech_problems().is_empty());
+    assert_eq!(engine.texts().len(), texts(&core, &id, None).len());
+    core.shutdown();
+}
