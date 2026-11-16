@@ -2,6 +2,9 @@
 
 Read [plan.md](plan.md) first.
 
+Checked against the code on 2026-11-16: the "Check" items are answered in place, and the open
+questions the user decided are under **Settled**.
+
 What these five features share: `aoide_text::Segment` (`crates/segmenter/src/lib.rs`) already
 separates `display` (what the page shows) from `speech` (what is sent to the engine) and carries
 `pause_after_ms`. `Generation::speech_plan` (`src-tauri/src/core/generation.rs:148`) turns each
@@ -30,23 +33,35 @@ deletes the whole book's audio.
   the same path for one key.
 - `NarrationPlan::request(index)` and the plan's items give the key of an entry.
 - The cache key holds the request only. The same request gives the same key.
+- `aoide_generation::plan` (`crates/generation/src/lib.rs`) makes speech **from the playhead
+  forward** only. The sentence just heard is behind the playhead, so forgetting its key alone
+  would never get it made again.
+- The player holds audio for up to `PROVIDE_AHEAD` (12) entries ahead and `KEEP_BEHIND` (2)
+  behind (`core/session.rs`). `PlayerCore::release(index)` (`crates/audio/src/player.rs`)
+  drops one entry's audio; `Session` tracks what it gave the player in `provided`.
+- `segments.key` is the primary key, with one `book_id`: two books saying the same text with
+  the same voice already share one row.
 
 ### Design
 
-**Rule (core).** A sentence can be said again when its entry is spoken by an engine (`Fate`
-says so in `core/narration.rs`; not a recording clip, not a silent entry) and its audio exists.
-The chapter view's `SegmentView` gains `can_say_again: bool`, so the interface never works this
-out.
+**Rule (core).** A sentence can be said again when it is spoken by an engine: not a recording
+clip, not a silent entry, not a sentence the recording lacks. The chapter view's `SegmentView`
+(`src-tauri/src/book.rs`) gains `can_say_again: bool`, so the interface never works this out.
+It does not depend on whether audio exists yet: the chapter view does not change as audio is
+made, and saying again a sentence with no audio simply plays it.
 
-**Two steps, because engines differ.**
+**Say this again = throw the audio away and play from that sentence.** Decided 2026-11-16.
 
 1. *Make it again.* Forget the key, await `Forgotten`, delete the segment row and file, report
-   the loss to the session, and let the normal plan make it: it is at or near the playhead, so
-   it is first in line. If it is the sentence playing now, playback restarts that sentence once
-   the new audio is in.
+   the loss to the session (`audio_lost`), drop the entry from `Session::provided` and release
+   its audio in the player, then move the playhead to the start of that sentence, keeping play
+   or pause, as clicking a sentence does. The sentence is now at the playhead, so the normal
+   plan makes it first; no new job reason is needed. Playback waits on it (the player stalls on
+   a speakable entry without audio) and plays the new take when it arrives.
 2. *Make it differently.* An engine that is deterministic for a fixed seed returns the same
-   audio. When the engine's descriptor has an integer parameter named `seed`, saying a sentence
-   again must vary it. Store a **take** per sentence:
+   audio. Breeze, run through the OpenAI-compatible adapter, has no `seed` parameter and its
+   server fixes the seed at 42, so step 1 alone would give back the same audio. Store a **take**
+   per sentence:
 
    ```
    CREATE TABLE segment_takes (
@@ -58,16 +73,24 @@ out.
    );
    ```
 
-   `Voicing::request` takes the take and, when the descriptor has `seed`, adds it to the seed
-   parameter. The request differs, so the key differs, and nothing else needs to know. For an
-   engine with no `seed` the take changes nothing and step 1 alone applies (a sampling engine
-   gives a different result anyway).
+   The take goes in the request, not in the parameters: `SynthesisRequest` gains `take: u32`,
+   and `cache_key` includes it only when it is above 0, so every key made so far stays the same.
+   (Adding a `seed` parameter to the OpenAI-compatible descriptor would not do: `resolve_params`
+   fills in defaults, so a new parameter changes every key of that engine and loses all its
+   audio.) `Voicing::request` takes the take. Each adapter decides what a take means:
+
+   - Chatterbox: the seed sent is the profile's seed plus the take.
+   - OpenAI-compatible: with a take above 0, the body carries `"seed": take`. Servers that
+     honour it vary; ones that ignore it and sample give a different result anyway.
+   - `tools/breeze-tts/aoide_breeze_tts.py` reads an optional `seed` from the body instead of
+     always using `SEED`.
 
 **Component.** A small `core/takes.rs` owning the table access, or methods on `Generation` if it
 stays under about 60 lines. Host needs: none beyond the library.
 
 **IPC.** `say_again(book_id, segment_id) -> ()`. The existing generation and player events
-report the rest.
+report the rest. Saying again in a book other than the one being listened to starts listening
+to it at that sentence, as `play_from` does.
 
 **Interface.** In the sentence's context menu (3.1 builds the menu; until then, a button in
 `ReaderTools.vue` acting on the current sentence). While the sentence is being made, it shows
@@ -75,17 +98,21 @@ the same "being made" state the reader already shows ahead of the playhead.
 
 ### Slices
 
-1. `say_again` on a cached, not-playing sentence: the segment row is gone, the worker is asked
-   for the key again, the scripted engine receives one more request. Seam: `Generation` with
-   `aoide_tts::testing`, beside `core/generation_tests.rs`.
-2. On the playing sentence: playback pauses on it and replays it from its start when the audio
-   arrives. Seam: core test with the scripted engine.
-3. `can_say_again` on `SegmentView`: false for recording clips, silent entries and uncached
-   sentences. Fixture and mock scenario.
-4. Takes: with a `seed` parameter in the descriptor, the second request's seed differs and its
-   key differs; a take whose `speech_hash` no longer matches is ignored. Seam: `Voicing` unit
-   test and a library test for the table.
-5. Interface: the menu entry, its busy state, preview screenshot.
+1. The take in the request: `cache_key` is unchanged for take 0 and differs for take 1;
+   Chatterbox sends seed plus take; the OpenAI-compatible body carries `seed` only for a take
+   above 0. Seam: `cargo test -p aoide-tts`, each adapter's loopback tests.
+2. The `segment_takes` table: a take is counted up per sentence; one whose `speech_hash` no
+   longer matches is ignored. Seam: library test.
+3. `say_again` on a sentence behind the playhead: its row and file are gone, no other row is
+   touched, the playhead is on it, and the scripted engine receives one request, with take 1.
+   Seam: core test with the scripted engine (see `core/tests.rs`).
+4. On the sentence playing now and on one the player already holds ahead: its old audio is
+   released and the new take is what plays. Seam: core test.
+5. `can_say_again` on `SegmentView`: false for recording clips, silent entries and sentences
+   the recording lacks. Fixture and mock scenario.
+6. The Breeze script accepts `seed`.
+7. Interface: a **Say this again** button in `ReaderTools.vue` acting on the current sentence
+   (3.1 later adds it to the menu on selected text), its busy state, preview screenshot.
 
 ### Logging
 
@@ -94,15 +121,16 @@ the same "being made" state the reader already shows ahead of the playhead.
 ### Done when
 
 - A garbled sentence can be replaced without touching any other audio.
-- With Chatterbox's seed set to a fixed value, the replacement differs from the original.
+- With Chatterbox's seed set to a fixed value, and with Breeze, the replacement differs from the
+  original.
 - A book's `prepared` mark and its M4B export still hold after a sentence is replaced.
 
-### Open questions
+### Settled
 
-- The same text with the same voice in two books shares a key. Deleting it for one book makes
-  the other book make it again too. Acceptable, or should deletion wait until no book's plan
-  holds the key?
-- Keep the previous take for an "undo"? The plan says no: the old file is deleted.
+- The same text with the same voice in two books shares a key; saying it again in one book
+  deletes that audio, so the other book makes its own again when it needs it. Acceptable: it is
+  rare.
+- No undo: the old file is deleted.
 
 ---
 
@@ -122,11 +150,15 @@ voice changes. Sentences that contain the word are made again; nothing else is.
   removes note markers.
 - `Voicing` (`src-tauri/src/core/voicing.rs`): "how a book is voiced". `Voicing::request(text)`
   is the one place a request is made from a segment's text.
-- Word timings are "per whitespace-separated word of the request text"
-  (`aoide_tts::Synthesis::word_timings`), and the estimate in the segmenter works per word of
-  the segment. **Check** how `Session::provided` and `book::word_index` map timings to
-  `Segment::words`: this is where a replacement that changes the number of words would break
-  the word highlight.
+- Word timings. No engine adapter returns any (`word_timings: false` in every descriptor). An
+  entry's timings come from one of two places:
+  - `aoide_text::align_to_pauses`, fitted to the *written* words of the segment
+    (`Session::provided`).
+  - The optional local aligner (`align_speech` in `core/align.rs`), which aligns the written
+    words to the made audio and stores the result with it.
+
+  `Session::provided` drops stored timings whose count differs from `Segment::words` and falls
+  back to fitting pauses, so a mismatch makes the highlight rougher, not broken.
 
 ### Design
 
@@ -163,27 +195,31 @@ CREATE TABLE pronunciations (
   created_at INTEGER NOT NULL,
   UNIQUE(book_id, written)
 );
+-- SQLite treats NULLs as distinct in UNIQUE, so the list for all books needs its own index:
+CREATE UNIQUE INDEX pronunciations_all_books ON pronunciations(written) WHERE book_id IS NULL;
 ```
 
-The global list also has to survive a lost database and be shareable. **Decide** (open
-question) whether it lives in `~/.config/aoide/pronunciations.toml` instead, like site rules.
+Both lists live in the database (decided 2026-11-16). Keeping them safe and moving them to
+another computer is 4.8's job.
 
 **Where it is applied.** `Voicing` gains `rules: Arc<[Rule]>` (book rules then global), and
 `Voicing::request` runs `pronounce` on the segment's speech. The cache key then differs for the
 sentences a rule touches and for no others. Voice preview and export go through the same
 request, so they follow without more work. A paired recording is not affected.
 
-**Timings.** Wherever engine timings or the estimate are attached to an entry, fold them with
-`word_of` first so they are again one per word of `Segment::words`. The local aligner aligns
-audio to text: it must be given the *spoken* text and its result folded the same way (check
-`core/align.rs`).
+**Timings.** Only the aligner hears the difference: give `align_speech` the words of the
+*spoken* text and fold its result with `word_of` before it is stored, so it is again one timing
+per word of `Segment::words`. Fitting to pauses works on the written words and stays as it is.
+If an adapter ever returns its own timings, they are folded the same way.
 
 **Component.** `core/pronunciation.rs` (model: `core/bookmarks.rs`): list, add, change, remove,
 and "what does this change": `affected(book_id) -> AffectedView { sentences, cached }`, so the
 interface can say "12 sentences will be made again" before saving.
 
-**After a change.** The plan of the book being listened to is rebuilt (the path
-`save_book_settings` takes when the voice changes; check that it calls `follow`). A prepared
+**After a change.** The plan of the book being listened to is rebuilt, the way saving a book's
+voice settings does it (`core/shelf.rs`: `restart_session`, then
+`PlanEvent::BookSettingsChanged`). A rule for all books does this for the book being listened
+to and drops the plans of queued books so they are made again. A prepared
 book loses its `prepared` mark for the affected sentences and the item page offers to prepare
 the rest.
 
@@ -205,8 +241,9 @@ with the word filled in and a **Hear it** button.
    test with a temporary library.
 3. `Voicing::request` applies the rules: a plan built with a rule has a different key for the
    sentence with the word and the same keys elsewhere. Seam: `Generation::speech_plan` test.
-4. Timings folded: a rule turning one word into three still highlights one word per written
-   word. Seam: session test with scripted timings.
+4. Timings folded: with a rule turning one word into three, the aligner is given the spoken
+   words and the stored timings have one per written word. Seam: the align component's test
+   with a scripted aligner.
 5. Saving a rule while listening re-plans; the affected count is right. Seam: core test.
 6. Interface: the two lists, the dialog, preview. Mock scenario for "save a rule, the sentence
    is made again".
@@ -222,11 +259,11 @@ words.
 - Changing a rule makes only the sentences that contain the word again.
 - The word highlight stays on the written word whatever the rule says.
 
-### Open questions
+### Settled
 
-- Global list in the database or in a hand-editable file?
-- Engines that accept phonemes (Kokoro takes `[word](/phonemes/)`): allow raw engine markup in
-  `spoken`? It would not carry over to another engine. The plan says plain respelling only.
+- The list for all books is in the database, like the per-book lists.
+- Plain respelling only, no raw engine markup such as Kokoro's `[word](/phonemes/)`: it would
+  not carry over to another engine.
 
 ---
 
@@ -250,19 +287,30 @@ read.
 - `skip_chapter` moves the playhead by chapters.
 - The parser already excludes some sections and reports them (`ExcludedView`); that is
   extraction, and this is a listening choice. Keep them apart.
+- The player passes over an entry that is not speakable and has no pause at once
+  (`PlayerCore::pull`, `crates/audio/src/player.rs`); that is how `Fate::Unrecorded` entries
+  are skipped today. The generation planner never makes an unspeakable item.
+- `BookSettings` (`core/wire.rs`) is more than the voice: it already holds `read_notes`,
+  `narration`, `speak_missing` and `mode`, outlives the book, and changing it re-plans
+  (`save_book_settings` in `core/shelf.rs`).
 
 ### Design
 
-**Data.** A book value `BookKey::LeftOut` (in `crates/library/src/values.rs`), a JSON list of
-chapter indexes. It should outlive the book being removed and added again, like the voice
-settings, so it is stored in `settings` (`Place::Settings`).
+**Data.** `BookSettings` gains `left_out: Vec<usize>` (`#[serde(default)]`), the chapter
+indexes not narrated. It outlives the book being removed and added again like the rest of the
+book's settings, and needs no new library value or migration.
 
 **Rule (core), in a new `core/leaving_out.rs`.**
 
-- Playback that reaches the start of a left-out chapter continues at the start of the next
-  chapter that is not left out; at the end of the book it finishes as a book does.
+- Entries of a left-out chapter get a new `Fate::LeftOut`: unspeakable with no pause, so the
+  player passes over them and the planner never makes them. Playback that reaches a left-out
+  chapter therefore continues at the next chapter that is not left out; at the end of the book
+  it finishes as a book does.
 - Starting playback *inside* a left-out chapter (the user clicked a sentence there) plays it:
-  an explicit request wins. Leaving out only applies to arriving from the chapter before.
+  an explicit request wins. Seeking into a left-out chapter sends a new `Event::Admitted` to
+  its entries, turning them back into what they would otherwise be, for the rest of the
+  session. Leaving out only applies to arriving from the chapter before. A table-driven test
+  covers `next` with the two new cases.
 - Whole-book preparation and M4B export leave the chapters out. `prepare_chapter` on a left-out
   chapter still works.
 - Listening estimates (item page, time left in book) leave them out. Reading progress and the
@@ -281,7 +329,8 @@ uncertain content.
 carries the actions that apply (review A3); add the count of left-out chapters for the item
 page's Audio card ("3 chapters left out").
 
-**IPC.** `set_left_out(book_id, chapters: Vec<usize>) -> BookView`.
+**IPC.** `set_left_out(book_id, chapters: Vec<usize>) -> BookView`, which saves the field
+through the same path as the other book settings.
 
 **Interface.** A checkbox per chapter in `BookContents.vue` while its "choose what is narrated"
 mode is on; left-out chapters are dimmed with a small "not narrated" label. In the reader's
@@ -291,15 +340,16 @@ chapter menu they carry the same label.
 
 1. `front_and_back_matter`: English titles, case and punctuation, nothing proposed for a novel
    whose chapters are all numbered. Seam: `cargo test -p aoide-text`.
-2. The value is stored, listed in `ChapterSummary`, and kept across remove and add.
-3. Playback arrives at a left-out chapter and continues after it; the last chapter left out
+2. The setting is stored, listed in `ChapterSummary`, and kept across remove and add.
+3. `Fate::LeftOut` and `Event::Admitted` in `next`: table-driven test in `core/narration.rs`.
+4. Playback arrives at a left-out chapter and continues after it; the last chapter left out
    ends the book. Seam: core test with the scripted engine (see how `tests.rs` drives chapter
    ends).
-4. Clicking a sentence in a left-out chapter plays it.
-5. Preparation and its progress count leave the chapters out; the `prepared` mark is reached.
-6. Export leaves them out, with chapter markers still right.
-7. Recording: the same for a paired audiobook.
-8. Interface and mock scenario.
+5. Clicking a sentence in a left-out chapter plays it.
+6. Preparation and its progress count leave the chapters out; the `prepared` mark is reached.
+7. Export leaves them out, with chapter markers still right.
+8. Recording: the same for a paired audiobook.
+9. Interface and mock scenario.
 
 ### Logging
 
@@ -311,11 +361,10 @@ chapter menu they carry the same label.
 - A book with front matter starts speaking at chapter one after one click.
 - No audio is made for a left-out chapter unless the user asks for that chapter.
 
-### Open questions
+### Settled
 
-- Should M4B export have its own switch ("export everything")?
-- Per-book only, or also a global "always leave out copyright pages" setting? The plan says
-  per-book, with the suggestion one click away.
+- M4B export has no "export everything" switch: it follows the book's choice.
+- Per-book only, with the suggestion one click away; no global setting.
 
 ---
 
@@ -335,11 +384,17 @@ adjustable. Today only headings are followed by a pause (700 ms).
 - Silent entries are planned as `silent:{index}` with `duration_ms = pause_after_ms`
   (`core/generation.rs:171`). Pauses are not part of any cache key, so changing them makes no
   audio again.
-- **Check** `NarrationPlan::player_entries`: how a spoken segment's `pause_after_ms` reaches
-  the player, and whether export (`core/export.rs`) writes the same silence.
-- **Check** what the EPUB parser does with `<hr>` and with paragraphs such as `* * *` or `⁂`.
-  A paragraph with no letter or digit already becomes a segment with empty speech. An `<hr>`
-  is probably dropped.
+- Every entry's `pause_after_ms`, spoken or silent, reaches the player through
+  `NarrationPlan::player_entries`. The M4B export writes the same silence after each entry and
+  counts it in its chapter marks (`core/export.rs`). Both read the segments, so new pauses
+  reach them with no change there.
+- `<hr>` is a void element that both parsers drop (`crates/epub-parser/src/xhtml.rs`,
+  `crates/article/src/scan.rs`). A paragraph with no letter or digit, such as `* * *`, already
+  becomes a segment with empty speech.
+- Book models are built at load, never stored: `BookModel::from_parsed` (`src-tauri/src/book.rs`)
+  segments with `SegmentOptions::default()`, and `Shelf::load` (`core/shelf.rs`) keeps them in
+  memory until `Shelf::unload`. The per-book `read_notes` setting already reaches
+  `from_parsed` this way. A new field on `Block` needs no migration.
 
 ### Design
 
@@ -356,7 +411,9 @@ segment of a block gets `paragraph_pause_ms`; a segment before a scene break get
   `aoide_document::Block`, set by `crates/epub-parser` and `crates/article`. No offsets move.
 
 **Settings.** `AppSettings.pauses { paragraph_ms, break_ms, heading_ms }`, defaults 250, 1200
-and 700, each 0–3000. Changing them rebuilds the open book's segments and re-plans. Settings ›
+and 700, each 0–3000. They reach `from_parsed` as `SegmentOptions`, the way `read_notes`
+does. Changing them unloads every book model the shelf holds, restarts the session of the book
+being listened to and re-plans. Settings ›
 Speech engine: three sliders and a **Hear it** button that plays two short paragraphs with the
 current values through the preview path.
 
@@ -370,7 +427,7 @@ entries).
 2. `break_before` from `<hr>` in a synthetic EPUB and in an article. Seam: each parser's tests.
 3. Settings carried into `SegmentOptions`; a change re-plans without new requests to the
    engine. Seam: core test counting scripted-engine requests.
-4. Export writes the same silences.
+4. Export writes the same silences: a test only, since export already reads `pause_after_ms`.
 5. Interface.
 
 ### Logging
@@ -422,9 +479,14 @@ the same sentence stays with the narration (too short to switch voice without so
 chopped). `Segment` gains `role: Role { Narration, Dialogue }`.
 
 **Segment ids change for a book when this is turned on or off.** Stored places survive because
-they carry `char_offset`: on open, progress and bookmarks whose `segment_id` is not found are
-looked up with `index_at`. **Check** that every reader of a stored `segment_id` falls back this
-way before building anything else; add the fallback where it is missing, as its own slice.
+they carry `char_offset`, and this is already in place:
+
+- Resuming playback finds the place by chapter and `char_offset` (`index_at` in `play_from`,
+  `src-tauri/src/core.rs`).
+- Bookmarks try the `segment_id`, then `index_at` (`core/bookmarks.rs`).
+- A recording's sync is stored by character offsets (`crates/sync`).
+- The other `index_of` callers (`play_from`, `set_reading_place`) take ids from the chapter
+  view on screen, which is built from the current segments.
 
 **Voicing.** `BookSettings.dialogue_voice_id: Option<String>`; `Voicing::request(text, role)`
 picks the voice. Narration sentences keep their keys (same text, same voice) unless the cut
@@ -440,8 +502,9 @@ sentence and a quoted sentence from the book. Dialogue is not marked on the page
 
 ### Slices
 
-1. Stored places fall back to `char_offset` when their `segment_id` is unknown. Seam: core test
-   that re-segments a book with different options and reopens it.
+1. A regression test that stored places survive new segment ids: re-segment a book with
+   different options, reopen it, and check that progress and a bookmark land on the same text.
+   Seam: core test.
 2. `quoted_spans`: each quote style, apostrophes, a speech over two paragraphs, an unclosed
    quote at the end of a chapter (treated as closed).
 3. Segmenter with `split_dialogue`: roles, the short-span rule, `display` still equal to the
