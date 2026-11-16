@@ -2,10 +2,20 @@
 
 Read [plan.md](plan.md) first.
 
-The library is `crates/library` (SQLite; schema in `src/store.rs`). In the core, `Shelf`
-(`core/shelf.rs`) imports and removes, `core/item.rs` knows an item's kind, `core/facets.rs`
-builds Home and the filters, `core/metadata.rs` looks details up on Open Library. A book's id
-is the hash of its content.
+Checked against the code on 2026-11-16: the "Check" items are answered in place, and decided
+questions are under **Settled**.
+
+The library is `crates/library` (SQLite; schema in `src/store.rs`, at version 16). In the core,
+`Shelf` (`core/shelf.rs`) imports, scans and removes, `core/item.rs` knows an item's kind and
+keeps covers, `core/facets.rs` builds Home, `core/metadata.rs` looks details up on Open Library.
+The library's filters, search and sort run in the interface (`src/stores/library.ts`), each
+reading fields of `BookSummary` the core sends. A book's id is the hash of its content, so a
+changed file is a new item: the old record goes missing and the new one is read from scratch,
+without the old one's settings, place or edits.
+
+Since this plan was written, PDFs joined the library (`crates/pdf`, commits 702969e and
+ca27eff) and tags came (library v16, `book_tags`; commits 58be77b and fdaae68). 4.3 and 4.5 are
+updated for both.
 
 ---
 
@@ -20,54 +30,105 @@ rescan does not undo the edit.
 
 ### What exists
 
-- `books.title`, `authors`, `language`, `cover_path` come from the file at scan time and are
-  rewritten when the file changes (review P8: only changed EPUBs are read again).
-- `book_details` holds what Open Library gave, as JSON, applied by `apply_metadata`. **Check**
-  what `apply_metadata` writes and which of `books` and `book_details` wins in `BookSummary`:
-  the edit must sit above both.
-- One cover store (`core/item.rs`, review A5).
+- `books.title`, `authors`, `language`, `cover_path` are written from the file only when a
+  record is described: a new id, or a record whose file could not be read (`Shelf::describe`,
+  `core/shelf.rs`). A rescan copies an existing record's fields as they are and does not read the
+  file again (`Shelf::rescan`, the `Some(record)` branch). Changing the file changes its hash,
+  so a changed file is a new book, not a rewritten one.
+- An article's `books.title` is rewritten on every fetch (`core/articles.rs`, the `upsert_book`
+  in `receive`). An audiobook's comes from its tags, else its file or folder name, when it is added
+  (`store_audiobook`, `core/audiobook.rs`).
+- `apply_metadata` (`Metadata::apply`, `core/metadata.rs`) never writes a title or authors. It
+  stores `BookDetails { description, publisher, isbn, published, subjects, open_library_key }`
+  as JSON in `book_details`, adds the subjects as tags, and, only when the book has no cover,
+  writes Open Library's cover to `covers/{id}-online.{ext}` and sets `books.cover_path`.
+  `BookSummary` reads `books` only; `book_details` is served apart by the `book_details` command
+  (`Metadata::details`: stored values over the file's description, publisher and ISBN). So for
+  title and authors there are two layers (the file's record, the edit); for `published` the
+  looked-up value is the only one below the edit; for the cover, `books.cover_path` holds the
+  file's or Open Library's.
+- Title and authors are read in two places: `BookSummary` from `books` (`Shelf::summary`), and
+  `BookModel.title`/`authors` from the parse (`book.rs`, `BookModel::from_parsed`). The model
+  feeds `BookView` (the reader's tools, `BookInfo.vue`), the now-playing panel
+  (`core/controls.rs`), the M4B export (`core/export.rs`), the read-along EPUB
+  (`core/read_along.rs`) and the Open Library query. Audiobooks read `books.title` in
+  `Core::timeline_of` and in their `BookView` (`core/timeline.rs`). The two sources already
+  disagree for a PDF with no title: the record falls back to the file name, the model to
+  "Untitled".
+- Sort and search are in `src/stores/library.ts` (`visible`, the `order` table) over
+  `BookSummary.title` and `authors`. Home (`facets::home`) does not look at titles.
+- One cover store (`core/item.rs`, `store_cover`, `{id}.{ext}`, removing the cover it had in
+  another type). Thumbnails are named after the cover's file (`shown_cover`). Open Library's
+  cover does not go through it.
+- `Library::set_cover` sets or clears `books.cover_path` alone.
+- The item page is `src/views/ItemView.vue` (title from the library store's summary).
+  `BookInfo.vue` is the reader's tools sheet.
 - `BookSettings.language` is the language sent to the speech engine. It is not the book's
   displayed language; leave it alone.
 
 ### Design
 
 **Data.** A book value `BookKey::Details` holding `DetailsEdit { title, authors, cover, series,
-series_index, published }`, each optional. Stored in `settings` (`Place::Settings`) so a book
-removed and added again keeps its corrections, as it keeps its voice.
+series_index, published }`, each optional. Stored in `settings` (`Place::Settings`, as
+`book.{id}.details`) so a book removed and added again keeps its corrections, as it keeps its
+voice. `Stored::read` reads every book's with `book_values(BookKey::Details)`, as it reads
+settings.
 
-**Rule.** For each field: the edit, else Open Library's applied value, else the file's. One
-function, `item::details(file, looked_up, edit) -> Details`, used everywhere a title or author
-is shown, sorted by, searched, exported (M4B tags, read-along EPUB metadata) or sent to the
-desktop's now-playing panel. `BookSummary` gains `edited: Vec<Field>` so the page can mark
-edited fields and offer **Use the file's**.
+**Rule.** For each field: the edit, else what is stored for the item (`books` for title,
+authors and cover; `book_details.published`; the series columns of 4.2). One pure function,
+`item::details(record, looked_up, edit) -> Details`, called by:
 
-**Cover.** A chosen image (JPEG, PNG, WebP) is decoded with the `image` crate, scaled, and
-written through the cover store under the book's id with a marker that it is the user's, so a
-rescan does not replace it. Dropping an image on the cover does the same.
+- `Shelf::summary`, so the library list, its sort and search (in `src/stores/library.ts`) and
+  Home use the edited values with no change in the interface;
+- `Shelf::load`, which sets the loaded model's `title` and `authors` from it instead of from the
+  parse, so `BookView`, now-playing, both exports and the lookup query follow (and a PDF's title
+  is the same everywhere);
+- `Core::timeline_of` and the audiobook `BookView` in `core/timeline.rs`;
+- `Core::book_details`, for `published`.
 
-**IPC.** `edit_details(book_id, patch: DetailsPatch) -> BookView` (a patch, like
-`AppSettingsPatch`: absent keeps, `null` clears), `choose_cover(book_id)`.
+`BookSummary` gains `edited: Vec<Field>` so the page can mark edited fields and offer **Use the
+file's**.
 
-**Interface.** **Edit details** on the item page (`BookInfo.vue`): a dialog with title, authors
-(one per line), series and number (4.2), cover. Works for books, audiobooks and articles.
+**Cover.** A chosen image (JPEG, PNG, WebP, GIF, BMP: the `image` features in
+`src-tauri/Cargo.toml`) is checked by reading its dimensions with the `image` crate and kept as
+`covers/{id}-own.{ext}`: a stem of its own, so the file's `{id}.{ext}` and Open Library's
+`{id}-online.{ext}` stay, and its thumbnail is made by `shown_cover` as for any cover (no
+scaling on write). `DetailsEdit.cover` names it. **Use the file's** clears the field and
+deletes the file; the summary then shows `books.cover_path` again, which was never overwritten.
+Dropping an image on the cover does the same as choosing one.
+
+**IPC.** `edit_details(book_id, patch: DetailsPatch) -> ()` (a patch, like
+`AppSettingsPatch`: absent keeps, `null` clears; the cover as a path). It unloads the parsed
+book (`Shelf::unload`) and emits `LibraryChanged`, as `apply_metadata` does. `choose_image() ->
+Option<String>` opens the file chooser, beside `choose_books` in `commands/discovery.rs`.
+
+**Interface.** **Edit details** on the item page (`ItemView.vue`): a dialog with title, authors
+(one per line), series and number (4.2), cover. Works for books, audiobooks and articles: unlike
+`apply_metadata`, it does not `require` `Needs::Book`.
 
 ### Slices
 
-1. `item::details`: precedence table.
+1. `item::details`: precedence table (edit over record for title, authors, cover; edit over
+   looked-up for `published`; nothing edited gives the record's).
 2. The value: stored, cleared per field, kept across remove and add.
-3. A rescan of a changed file keeps the edit.
-4. Sort, search and Home use the edited values.
-5. Cover: set, replace, clear back to the file's.
-6. Exports and now-playing carry the edited values.
-7. Interface; mock scenario.
+3. A rescan keeps the edit; for an article, a refetch that rewrites `books.title` does too.
+4. Every reader uses it: `BookSummary`, the loaded model (`BookView`, now-playing, M4B tags,
+   read-along metadata), an audiobook's timeline. Seam: core test reading each after an edit.
+5. Cover: set, replace, clear back to the file's (and to Open Library's when that was the one).
+6. Interface; mock scenario.
 
 ### Logging
 
-`details.edited` (`book`, `fields` as names).
+`details.edited` (`book`, `fields` as names). A row in `docs/logging.md`.
 
 ### Done when
 
 - A book titled "untitled_final(2)" can be given its name and keeps it.
+
+### Settled
+
+- A changed file is a new item and does not carry the edit over, as it does not carry voice
+  settings or the place (plan's default: the book's id is its content hash).
 
 ---
 
@@ -83,42 +144,65 @@ book of a series you just finished first.
 
 ### What exists
 
-- No series field anywhere in the core. EPUBs commonly carry it: EPUB 3
-  `belongs-to-collection` with `group-position`, and Calibre's
-  `<meta name="calibre:series">` and `calibre:series_index`.
-- `facets::home` is a pure function over `BookSummary` (`core/facets.rs:62`).
-- `LibrarySort` has recent, title, author, progress.
+- No series field anywhere: not in `aoide_document::ParsedBook` (`crates/document/src/lib.rs`,
+  shared by EPUB, PDF and articles), not in `aoide_epub::BookMetadata` (the package-only read,
+  `crates/epub-parser/src/model.rs`), not in `books`. EPUBs commonly carry it: EPUB 3
+  `belongs-to-collection` refined by `collection-type` `series` and `group-position`, and
+  Calibre's `<meta name="calibre:series">` and `calibre:series_index`. The package is read with
+  `roxmltree` in `crates/epub-parser/src/package.rs`. A PDF's Info dictionary has no series.
+- Books already listed are not read again: an existing record keeps its fields on every scan
+  (see 4.1). `library_files` (v14) only saves hashing; clearing it would make the scan hash
+  every file again but still not read their metadata. Neither v14 nor v15 cleared anything.
+- The model for reading something once for books already listed is tags: `GlobalKey::SubjectsRead`
+  (`crates/library/src/values.rs`), checked in `Shelf::rescan`, which reads each existing
+  book's subjects with `subjects_of` (`aoide_epub::read_metadata`, the package only, or
+  `aoide_pdf::read_pdf_metadata`) and then sets the flag.
+- `facets::home` is a pure function over `BookSummary` (`core/facets.rs:62`). `BookSummary`
+  carries `read_state` but not when an item was finished; `books.finished_at` has it.
+- `LibrarySort` (`core/settings.rs:170`) has title, author, progress and recent (`#[serde(other)]`
+  falls back to recent). The comparators are in `src/stores/library.ts` (`order`).
+- An audiobook paired with a book is merged into it (`Library::merge_audiobook`,
+  `crates/library/src/merge.rs`): the book is the item. An audiobook on its own has no series in
+  its tags that Aoide reads.
 
 ### Design
 
-**Parser.** `aoide_epub` metadata gains `series: Option<Series { name, position: Option<f32>
-}>`: `belongs-to-collection` of type `series` first, else the Calibre pair. Positions can be
-fractional (2.5).
+**Parser.** `aoide_document` gains `Series { name, position: Option<f32> }`; `ParsedBook` and
+`aoide_epub::BookMetadata` gain `series: Option<Series>`: `belongs-to-collection` of type
+`series` first, else the Calibre pair. Positions can be fractional (2.5). PDFs and articles
+give `None`.
 
-**Data (next library version).** `ALTER TABLE books ADD COLUMN series TEXT; ADD COLUMN
-series_position REAL;` Books already scanned are not read again unless changed, so this
-version also clears whatever the scan uses to skip unchanged files (see how library v14 and v15
-did it in `store.rs`), making the next scan read every EPUB once.
+**Data (next library version).** `ALTER TABLE books ADD COLUMN series TEXT; ALTER TABLE books
+ADD COLUMN series_position REAL;` `NewBook` gains `series`; `upsert_book` writes it; the rescan's
+branch for an existing record copies it. Books already listed get theirs once, the way subjects
+did: a `GlobalKey::SeriesRead` flag, and `subjects_of` becomes one package read returning
+subjects and series, so the first scan after the update reads each EPUB's package (not the
+whole book) once. No clearing of `library_files`.
 
-**Rule.** The series comes through `item::details` (4.1), so a hand edit wins. Audiobooks get
-it from an edit or from the book they are paired with.
+**Rule.** The series comes through `item::details` (4.1), so a hand edit wins. An audiobook on
+its own gets one only from an edit.
 
-**Views.** `BookSummary.series: Option<SeriesView { name, position }>`. The item page asks
-`series(book_id) -> SeriesShelfView { name, items: Vec<{ book_id, position, state }> }`.
+**Views.** `BookSummary.series: Option<SeriesView { name, position }>` and
+`BookSummary.finished_at: Option<i64>`. The item page asks `series(book_id) -> SeriesShelfView
+{ name, items: Vec<{ book_id, position, state }> }`, built in the core from the library list.
 
-**Home.** In `facets::home`: when the most recently finished item has a series, the unstarted
-library item with the next higher position in that series goes first in `up_next_ids`.
+**Home.** In `facets::home`: when the most recently finished item (by `finished_at`) has a
+series, the unstarted library item with the next higher position in that series goes first in
+`up_next_ids`. With 4.3, an archived item is not offered.
 
 **Library.** `LibrarySort::Series` (series name, then position, then title; books without a
-series after, by title). Cards in that sort show the position as a small badge.
+series after, by title), with its comparator in `src/stores/library.ts`. Cards in that sort show
+the position as a small badge (`BookCard.vue`).
 
 **Series name matching** is exact after trimming and case folding. No fuzzy matching: a wrong
 merge is worse than two shelves, and 4.1 lets the user fix a name.
 
 ### Slices
 
-1. Parser: both sources, fractional position, neither. Synthetic EPUB fixtures.
-2. Migration and one full rescan; the columns filled.
+1. Parser: both sources, fractional position, neither. Synthetic EPUB fixtures. Seam:
+   `cargo test -p aoide-epub`.
+2. Migration; new books get the columns; books already listed get them on the next scan, once
+   (the flag). Seam: shelf test with a library made before the flag.
 3. `details` carries the series; edit wins.
 4. `facets::home`: next in series first; none when the next is already started or absent.
 5. Sort by series.
@@ -126,7 +210,7 @@ merge is worse than two shelves, and 4.1 lets the user fix a name.
 
 ### Logging
 
-`library.series` on scan only as a count (`with_series`).
+`library.scan` gains `with_series` (a count). The row in `docs/logging.md` is updated.
 
 ### Done when
 
@@ -144,47 +228,83 @@ Finished with an article? Archive it: it leaves Home and the library's default v
 still there under **Archive**. Putting something in a collection takes one keystroke and a few
 letters.
 
-### Why not tags
+### What exists
 
-Collections (`collections`, `book_collections`; `set_book_collections`) already are many-to-many
-labels. A second, parallel system would confuse more than it helps. What is missing is speed
-and an out-of-the-way place for read things.
+- Collections (`collections`, `book_collections`; `set_book_collections`), shown in the
+  sidebar, toggled from checkbox rows in the item menus (`ItemView.vue`, `BookCard.vue`) or by
+  dragging an item to the sidebar.
+- Tags came after this plan was written: library v16 (`tags`, `book_tags` with a source of
+  `user`, `metadata`, `classifier` or `removed`), set in `TagsDialog.vue` (which already
+  offers the tags in use while typing), and the library's include/exclude tag filter
+  (`AppSettings.library_tags`).
+- The library's built-in filters are in `src/stores/library.ts` (`filters`: all, unread,
+  progress, finished, listen, preparing), each reading one `BookSummary` field. There are no
+  filter rules in `core/facets.rs`; it builds Home and `AudioSource`.
+- Read state is an enum with a transition function (`next_read`, `core/reading.rs`);
+  `Core::read_event` applies it and emits only `LibraryChanged` when it changes. Nothing tells
+  the user an item was finished: there is no "finished" toast. Toasts take text only
+  (`ui.toast`, `src/stores/ui.ts:68`), with no action button.
+- `books.shelf` is `library` or `feed` with a `CHECK`, moved by `next_shelf` (`core/feeds.rs`).
+  Changing that `CHECK` would mean rebuilding `books`, so the archive is a column of its own.
+- `Storage::delete_book_audio` (`core/storage.rs`) deletes one item's generated audio.
+
+### Collections and tags
+
+Collections are the user's shelves, tags are labels from the item, the user or a model. A third
+system is not added: the archive is a state of the item (like finished), and "quicker" is about
+collections.
 
 ### Design
 
 **Archive.** `ALTER TABLE books ADD COLUMN archived_at INTEGER;` (next library version).
 
-- Archived items are left out of Home, of the default library filters and of "up next". A
-  built-in filter **Archive** shows them. Search finds them, marked.
-- `archive(book_id, on: bool)`. Finishing an article offers **Archive** in the finished toast;
-  a setting "Archive articles when I finish them" (off by default) does it without asking.
+- `BookSummary.archived: bool`. `facets::home` leaves archived items out of every list (so out
+  of "up next"). In `src/stores/library.ts`, archived items are left out of every built-in filter
+  and collection, and a new built-in filter **Archive** shows them. A search finds them too,
+  marked on the card.
+- `archive(book_id, on: bool)`.
+- Finishing an article: in `Core::read_event`, when an article goes to `Finished`, either the
+  setting "Archive articles when I finish them" (`AppSettings`, off by default) archives it, or
+  the core emits `CoreEvent::Finished { book_id }` and the window shows a toast with an
+  **Archive** action. Toasts gain an optional action for this.
+- 2.5 (decided 2026-11-16): a queued feed article that finishes playing is marked read and
+  archived through the same `archive`, with `from` = `queue`. The column is on `books`, so an
+  item still on the feed shelf can carry it too.
+- 5.1 sets it for items archived in the old app.
 - Archiving never deletes anything: text, audio and notes stay. The storage tab can offer
-  "Delete audio of archived items".
-- `BookSummary.archived: bool`; the rule for what each filter shows stays in `core/facets.rs`.
+  "Delete audio of archived items" (`delete_book_audio` for each).
 
 **Collections, faster.**
 
 - A "Add to collection" picker with type-to-filter and "Create *typed name*" as the last row,
-  opened with `C` on the item page and from every item menu.
+  opened with `C` on the item page and from every item menu, in place of the checkbox rows.
 - The Add dialog and the article header show collections as chips.
 - Collections are remembered per feed: "Save entries from this feed into …" (optional column
-  on `feeds`), applied when an entry is saved.
+  `feeds.collection_id`, next library version), applied when an entry moves to the library
+  shelf (`Core::move_shelf` with the save event).
 
 ### Slices
 
-1. Column, `archive`, the filter rules in `facets` (table-driven).
+1. Column, `archive`, `BookSummary.archived`, Home leaving them out (table-driven in
+   `facets`); the store's filters and the Archive filter (`src/tests/library.test.ts`).
 2. Search includes archived items, marked.
-3. The finished toast and the setting.
+3. The finished event, the toast's action and the setting.
 4. The picker.
 5. A feed's default collection.
 
 ### Logging
 
-`item.archived` (`book`, `on`, `from` = `user` or `finished`).
+`item.archived` (`book`, `on`, `from` = `user`, `finished` or `queue`). A row in
+`docs/logging.md`.
 
 ### Done when
 
 - A reader with 300 saved articles sees only the unread ones without deleting anything.
+
+### Settled
+
+- The quick picker is for collections; tags keep `TagsDialog.vue` (plan's default; tags came
+  after the plan, and their dialog already filters as you type).
 
 ---
 
@@ -199,10 +319,19 @@ show how today and the year are going.
 
 ### What exists
 
-- `ActivityStats` (`crates/library/src/activity.rs`): reading and listening per day and per
-  book. Streaks are computed in the interface (`src/stats.ts`, tested in
-  `src/tests/stats.test.ts`).
-- `books.finished_at`.
+- `ActivityStats` (`crates/library/src/activity.rs`): reading and listening per local day
+  (`YYYY-MM-DD`) and per book. Streaks (`current`, `best`) are computed in the interface
+  (`streaks` in `src/stats.ts`, tested in `src/tests/stats.test.ts`) and shown only in
+  `ActivityView.vue`, over reading and listening added up. `WeekCard.vue` (on Home) shows the
+  last seven days and no streak.
+- The rest of `src/stats.ts` (`lastDays`, `lastMonths`, `summary`, `weekdays`, `heatmap`,
+  `series`) arranges the core's per-day totals for charts.
+- `books.finished_at` (v8), set and cleared by the read-state transitions (`Reading::apply`,
+  `core/reading.rs`). Marking an item unread clears it, so a book read twice counts in the year
+  it was last finished.
+- Local days in the core come from `chrono` local time, as `ReadingClock` does.
+- Settings › Library is `LibrarySettings.vue`; `AppSettings` and `AppSettingsPatch` in
+  `core/settings.rs`.
 
 ### Design
 
@@ -210,8 +339,9 @@ show how today and the year are going.
   Reading | Listening }`.
 - Move the streak rule into the core while here: `core/goals.rs`, pure,
   `progress(stats, finished, goals, today) -> GoalsView { today_ms, daily_target_ms, streak_days,
-  goal_streak_days, year_finished, yearly_target, on_pace: Option<bool> }`. `src/stats.ts` then
-  only formats. (AGENTS.md: let the core decide.)
+  best_streak_days, goal_streak_days, year_finished, year_articles, yearly_target, on_pace:
+  Option<bool> }`. `streaks` leaves `src/stats.ts`; the chart helpers stay, since they arrange
+  numbers rather than decide anything. (AGENTS.md: let the core decide.)
 - A "streak" stays "days with any activity"; a "goal streak" is days that met the goal. Both
   use local days, as the tables do.
 - What counts as a finished item for the year: books and audiobooks; articles are counted
@@ -225,8 +355,7 @@ two numbers in Settings › Library.
 
 1. `progress`: a day at, under and over the goal; streaks across a gap; year boundaries; pace.
 2. Settings and patch.
-3. Streaks served by the core; `stats.ts` trimmed; its tests moved to Rust where they tested
-   the rule.
+3. Streaks served by the core; `streaks` removed from `stats.ts`; its tests moved to Rust.
 4. Interface.
 
 ### Done when
@@ -237,35 +366,59 @@ two numbers in Settings › Library.
 
 ## 4.5 More formats
 
-**Size:** M each. Build after PDF support lands: it decides how a book that is not an EPUB
-enters the library, and these follow the same path.
+**Size:** M each. PDF support has landed (702969e, ca27eff); these follow the path it made.
 
 ### What exists
 
-- Import refuses anything but `.epub` (`core/shelf.rs:288`); discovery looks for `.epub`
-  (`crates/discovery/src/lib.rs:104`, `names.rs`).
-- Everything downstream works on `aoide_document`'s parsed model, which articles already
-  produce without being EPUBs.
-- The read-along EPUB export needs an EPUB source.
+- One list of book file extensions: `aoide_library::BOOK_EXTENSIONS` (`["epub", "pdf"]`) and
+  `is_book_file` (`crates/library/src/lib.rs`), used by import (`Shelf::import_files`, which
+  refuses anything else with "not an .epub or .pdf file", `core/shelf.rs:333`), the file chooser
+  (`choose_books`, `commands/discovery.rs`) and the library folder scan (`scan_folder`). Drops
+  go through import.
+- The parser is chosen by content, not by a stored format: `book::parse_document`
+  (`src-tauri/src/book.rs`) runs `aoide_pdf::parse_pdf` when `aoide_pdf::is_pdf` sees the PDF
+  header, else `aoide_epub::parse_epub`. `Shelf::describe` and `BookModel::parse` both call it.
+  There is no `books.format` column, and a PDF's `ItemKind` is `Book`.
+- Subjects for tags are read without a full parse by `subjects_of` (`core/shelf.rs`), which
+  branches on `is_pdf` too.
+- A file with no text: import refuses a PDF before copying it (`aoide_pdf::check_text`); the
+  scan passes over a PDF that cannot be read (`is_pdf_file`, by extension) instead of listing
+  it with an error. An EPUB that cannot be read is listed with its error.
+- Find books (`crates/discovery`: `find_epubs`, `names.rs` `is_epub`) still looks for EPUBs
+  only; PDF support left it so.
+- Everything downstream works on `aoide_document::ParsedBook`, which articles already produce
+  through `aoide_article::extract(html, url, options).document` (as `Articles::document` does).
+- The read-along EPUB export (`core/read_along.rs`) is built from the parsed model and the
+  synced recording, not from a source EPUB, so it is not limited to EPUBs. The M4B export also
+  works from the model.
+- Test PDFs are written by hand in `aoide_pdf::testing`; each format can do the same.
+- Already dependencies: `roxmltree` and `zip` (in `aoide-epub`), `encoding_rs` (in
+  `aoide-fetch`). Markdown needs a parser crate (for example `pulldown-cmark`), a new
+  dependency.
 
-### Shared groundwork (once, with or after PDF)
+### Shared groundwork (once, with the first format)
 
-- `books.format` (or whatever PDF introduces) and one function, `item::format_of(path, head
-  bytes)`, that recognises a file by its content first and its extension second.
-- Import, discovery and the inbox folder (4.7) accept the list of supported formats from one
-  place.
-- Each format's parser is a pure crate or module returning the document model, with warnings
-  for what it could not carry, tested with tiny synthetic fixtures.
-- Views carry the actions that apply (review A3): no read-along EPUB export for a text file.
+- `book::Format` and `format_of(bytes, extension)`, recognising a file by its content first and
+  its extension second: `%PDF-`; a zip whose `mimetype` is `application/epub+zip`; a zip with
+  `word/document.xml` (DOCX); an XML file whose root is `FictionBook`, or a zip holding one
+  `.fb2`; then `.txt`, `.md`, `.html` by extension. `parse_document` and `subjects_of` dispatch
+  on it. No column: the check is cheap and is made on each parse, as for PDF.
+- `BOOK_EXTENSIONS` grows with each format, so import, the chooser, the scan and the inbox
+  folder (4.7) follow from one place. The chooser's filter is labelled from it.
+- The scan's rule for a file that cannot be read becomes the format's: passed over when the
+  format may hold no text at all (a scanned PDF), listed with its error otherwise. `is_pdf_file`
+  goes.
+- Each format's parser is a pure crate or module returning `ParsedBook`, with warnings for what
+  it could not carry, tested with tiny synthetic fixtures.
 
 ### The formats, easiest first
 
 | Format | Where | Notes |
 |--------|-------|-------|
-| Plain text (`.txt`) | `crates/plaintext` | Encoding: UTF-8, else detect with BOM and a fallback to Windows-1252, reporting a warning. Paragraphs: blank lines, or re-joined hard-wrapped lines (a line ending without punctuation followed by a lowercase start). Chapters: lines matching "Chapter N", "PART", roman numerals alone, or form feeds; else parts of about 5,000 words. Project Gutenberg's header and licence are detected and reported as excluded sections, not silently dropped. |
+| Plain text (`.txt`) | `crates/plaintext` | Encoding: UTF-8, else detect with BOM and a fallback to Windows-1252 (`encoding_rs`), reporting a warning. Paragraphs: blank lines, or re-joined hard-wrapped lines (a line ending without punctuation followed by a lowercase start). Chapters: lines matching "Chapter N", "PART", roman numerals alone, or form feeds; else parts of about 5,000 words. Project Gutenberg's header and licence are detected and reported as excluded sections, not silently dropped. |
 | Markdown (`.md`) | same crate | Headings are chapters (level 1, or level 2 when there is one level 1). Emphasis and links become text; code blocks are `Preformatted`; footnotes (`[^1]`) map to notes. Front matter gives title and author. |
-| HTML file (`.html`) | `crates/article` | A saved page is an article with no fetch: run `extract` on the file, source "file". |
-| FB2 (`.fb2`, `.fb2.zip`) | `crates/fb2` | XML: `<section>` with `<title>` and `<p>`; `<body name="notes">` gives notes; the cover is a base64 `<binary>`. Common in Russian-language libraries. |
+| HTML file (`.html`) | `crates/article` | A saved page read with `extract` and a `file:` URL. It is a book in the library folder (`ItemKind::Book`), not an article: articles need a row in `articles` and a stored snapshot. |
+| FB2 (`.fb2`, `.fb2.zip`) | `crates/fb2` | XML: `<section>` with `<title>` and `<p>`; `<body name="notes">` gives notes; the cover is a base64 `<binary>`; `<sequence name number>` gives the series (4.2). Common in Russian-language libraries. |
 | DOCX (`.docx`) | `crates/docx` | A zip: `word/document.xml`, paragraph styles `Heading1..` for chapters, `footnotes.xml` for notes, `docProps/core.xml` for title and author. Tracked changes: read the accepted text. |
 | MOBI, AZW3 | not planned | No dependable pure parser, and most such files carry DRM. Detect them and say "Convert this to EPUB with Calibre". |
 
@@ -273,21 +426,28 @@ enters the library, and these follow the same path.
 
 1. The parser on synthetic fixtures: structure, notes, warnings, a malformed file gives an
    error and no panic.
-2. `format_of` recognises it.
-3. Import and discovery accept it; the item opens, reads and narrates.
-4. The item page offers only what applies.
+2. `format_of` recognises it (the first format also brings `Format` and the dispatch).
+3. Import and the scan accept it; the item opens, reads and narrates. Seam: shelf test, as
+   `a_pdf_is_imported_and_scanned_like_an_epub_and_read_as_reflowed_text`.
 
 ### Logging
 
-`import.parsed` gains `format`.
+No new event. `library.import`'s per-failure lines gain `format`.
 
 ### Done when
 
 - A Gutenberg text file and a Markdown essay read and narrate like books.
 
+### Settled
+
+- Find books keeps looking for EPUBs only, as it did when PDFs came (plan's default: text,
+  Markdown and HTML files on a disk are mostly not books).
+
 ---
 
 ## 4.6 Calibre libraries and OPDS catalogues
+
+**Not planned for now** (decided 2026-11-16).
 
 **Size:** Calibre M; OPDS L. Needs 4.2 for series.
 
@@ -355,23 +515,44 @@ the library within seconds.
 
 ### What exists
 
-- `core/watching.rs::watch_folder` wakes on real changes only (not on reads).
-- The library folder itself is watched and scanned (`rescan_library`).
-- Import copies a file into the library and identifies it by content hash; `discovered_files`
-  remembers hashes seen by Find books.
+- `core/watching.rs::watch_folder(dir, settle, on_change)` wakes on real changes only (not on
+  opens or reads), once the folder has been quiet for `settle`. It watches recursively
+  (`RecursiveMode::Recursive`), blocks its thread, and returns only when it cannot watch or
+  `on_change` breaks. It does not notice the folder coming back after it went.
+- The library folder itself is watched (`Shelf::watch`, settling 1.2 s) and scanned
+  (`Shelf::rescan`).
+- `Shelf::import_files(paths)` checks the extension (`is_book_file`), refuses a PDF with no text,
+  copies a file from outside into the library folder (a numbered name when another file has the
+  name; nothing written when the same content is there), then rescans. It identifies by content
+  hash. It also **takes the id off the removed list** (`ignored.remove`): importing is how a
+  removed book is brought back on purpose.
+- Removed books are kept out of scans by `GlobalKey::IgnoredBooks` (`Shelf::ignored`,
+  `Shelf::remove`).
+- `discovered_files` is Find books' cache of files found on the disk, by path. It is not a
+  record of what was imported and is not needed here.
+- Book extensions come from `aoide_library::BOOK_EXTENSIONS`. A download in progress
+  (`x.epub.part`, `x.epub.crdownload`) has another extension and is ignored by that alone.
 
 ### Design
 
-- `AppSettings.inbox: Option<PathBuf>`; not recursive; supported formats only.
-- A file is taken when its size has not changed for 2 s (a download in progress, a `.part` or
-  `.crdownload` file, is left alone).
+- `AppSettings.inbox: Option<PathBuf>`; only the files directly in it; book extensions only. The
+  library folder, or a folder inside it, is refused as an inbox.
+- Component `core/inbox.rs`, with a host trait for: the ids in the library, the removed ids, and
+  importing (`Shelf::import_files`). It runs `watch_folder` on its own thread and lists the
+  folder's top level itself on each wake (`watch_folder` gains the recursive mode as an
+  argument, or the component ignores what is below the top level).
+- A file is taken when its size has not changed for 2 s, on top of the watcher's settling.
+- A file is skipped when its hash is already in the library or **on the removed list**: the
+  inbox checks this before calling `import_files`, which would otherwise bring a removed book
+  back. Hashes are kept in memory per (path, size, modification time), so a file is read once a
+  session.
 - It is **copied** into the library and the original is left where it is. Aoide never deletes
-  from the inbox. Its hash is remembered so it is not offered again after the user removes the
-  book from the library.
-- State, one enum: `Idle`, `Settling { since }`, `Importing`. One import at a time.
+  from the inbox.
+- State, one enum: `Idle`, `Settling { since }`, `Importing`, `Unavailable`. One import at a
+  time.
 - A toast names what was added; nothing opens by itself.
-- The folder disappearing (an unmounted drive) pauses watching and says so in Settings; it
-  resumes when the folder is back.
+- The folder disappearing (an unmounted drive) moves to `Unavailable`, says so in Settings, and
+  checks every 30 s for its return; watching starts again when it is back.
 
 ### Slices
 
@@ -385,6 +566,7 @@ the library within seconds.
 ### Logging
 
 `inbox.imported` (`book`, `file` name), `inbox.skipped` (`file`, `why`), `inbox.unavailable`.
+Rows in `docs/logging.md`.
 
 ### Done when
 
@@ -404,11 +586,25 @@ another computer brings it back. An automatic backup can be kept in a folder you
 
 ### What exists
 
-The README's "Where your files live" lists everything: `settings.toml`, `themes/` and
-`site-rules.toml` in `~/.config/aoide`; the library database, covers, articles, models and the
-browser profile in `~/.local/share/com.aoide.audiobooks`; generated audio in the cache; books
-in `~/Documents/Aoide/Books`. The library is in WAL mode (review P1). `zip` is already a
-dependency.
+- The README's "Where your files live" lists everything: `settings.toml`, `themes/` and
+  `site-rules.toml` in `~/.config/aoide`; the library database, covers, articles, models and the
+  browser profile in `~/.local/share/com.aoide.audiobooks`; generated audio in the cache; books
+  in `~/Documents/Aoide/Books`.
+- The library is in WAL mode with `synchronous = NORMAL` (`Library::initialize`, `store.rs`).
+  The app holds one connection, shared as `Arc<Mutex<Library>>` (opened in `Core::build`,
+  `core.rs`). `rusqlite` is bundled (0.32), so `VACUUM INTO` is available.
+- `Library::initialize` refuses a database whose `user_version` is newer than its migrations
+  ("unsupported schema version"), but opening runs pending migrations, which writes.
+- `zip` 2.4 (deflate only) is a dependency of `src-tauri`, used by `core/browser_download.rs`.
+- `Library::move_paths(from, to)` rewrites `books.path`, `books.cover_path` and the
+  `discovered_files` paths under a moved folder. `rename.rs` uses it, and runs before
+  `Core::start` (`lib.rs`), moving folders while nothing has the library open. It does not touch
+  `recordings.files` (a JSON list of the recording's paths) or `library_files` (the scan's
+  cache).
+- A missing book comes back when its file is anywhere in the library folder: the scan finds it
+  by hash and sets its path and `present`. Find books does **not** reconnect one: it lists a
+  missing book as "In library" (`CandidateStatus::InLibrary`, `core/discovery.rs`) and importing
+  it copies nothing.
 
 ### Design
 
@@ -424,21 +620,30 @@ dependency.
 | Generated audio, models, a downloaded browser | Never. They are made or fetched again. |
 | The browser profile (sign-ins) | Never. It holds session cookies. Say so in the dialog. |
 
+**The copy.** `VACUUM INTO` runs on a second, read-only connection to the library file. In WAL
+mode it reads one snapshot while the app's connection keeps writing, so nothing is paused and the
+shared connection's lock is not held for the copy.
+
 **Format.** A zip with `manifest.json` (`format: 1`, Aoide version, library schema version,
 date, what is included, checksums). The file can hold reading history: tell the user it is not
 encrypted.
 
 **Restore.**
 
-- Refuses a backup whose schema is newer than this Aoide; migrates an older one on open, as
-  any database is.
-- Replaces the current library after a confirmation that names what will be replaced, and
-  first writes an automatic backup of the current state. Then Aoide restarts its core (or asks
-  to be restarted; decide which is simpler).
-- Books included in the backup are written to the library folder. Books not included keep
-  their stored paths and show as *missing* until found: Find books already reconnects files by
-  content hash.
-- Absolute paths under the old home directory are rewritten to this computer's.
+- `inspect_backup` reads the copied database's `user_version` without migrating. A backup
+  whose schema is newer than this Aoide is refused; an older one is migrated when it is opened,
+  as any database is.
+- After a confirmation that names what will be replaced, the backup is unpacked into a staging
+  folder, an automatic backup of the current state is written, and Aoide restarts itself. At
+  start, before the core opens the library (where `rename.rs` runs), the staged files take the
+  place of the current ones; the current ones are moved aside first and put back if any step
+  fails, then removed.
+- Books included in the backup are written to the library folder. Books not included keep their
+  stored paths and show as *missing* until their files are in the library folder, where the scan
+  finds them by hash.
+- Absolute paths under the old home directory are rewritten to this computer's with
+  `move_paths`, extended to `recordings.files`. `library_files` is cleared (the next scan
+  hashes every file once).
 
 **Automatic backups.** `AppSettings.backup { folder, every_days, keep }`: a background job (a
 stage enum like preparation's) writes a dated file and removes the oldest beyond `keep`. Pointed
@@ -446,25 +651,29 @@ at a synced folder, this is the simple answer to "use my library on two computer
 time.
 
 **Component `core/backup.rs`:** `Stage { Idle, Copying, Packing { done, of }, Done, Failed }`,
-host trait for paths and for pausing writers while `VACUUM INTO` runs.
+host trait for paths.
 
 **IPC.** `back_up(path, options)`, `inspect_backup(path) -> BackupInfoView`, `restore(path)`,
 progress events.
 
 ### Slices
 
-1. `VACUUM INTO` copy is consistent while another connection writes. Seam: library test.
+1. `VACUUM INTO` from a second connection is consistent while the first writes. Seam: library
+   test.
 2. Pack and manifest; unpack into a temporary home and open the library there.
-3. Restore refuses a newer schema; migrates an older one.
-4. Path rewriting; missing books reconnect by hash.
-5. With books included.
-6. Automatic backups: schedule, retention, a failing folder is reported once.
-7. Interface in Settings › Storage; README section.
+3. Inspect refuses a newer schema without writing; an older one migrates on open.
+4. The staged restore at start: applied; a failure part way leaves the previous library in use.
+5. Path rewriting (books, covers, recordings); a missing book comes back when its file is put in
+   the library folder.
+6. With books included.
+7. Automatic backups: schedule, retention, a failing folder is reported once.
+8. Interface in Settings › Storage; README section.
 
 ### Logging
 
 `backup.written` (`bytes`, `books_included`, `took_ms`, `outcome`), `backup.restored`
-(`from_version`, `took_ms`, `outcome`), `backup.pruned` (`removed`).
+(`from_version`, `took_ms`, `outcome`), `backup.pruned` (`removed`). Rows in
+`docs/logging.md`.
 
 ### Done when
 
@@ -472,7 +681,11 @@ progress events.
   notes.
 - A restore that fails half-way leaves the previous library in use.
 
-### Open questions
+### Settled
 
-- Encrypt backups with a passphrase? Not planned; it can be added to the format later.
-- Live sync between two running computers is a different feature and is not planned.
+- Restore restarts Aoide and applies the backup at start, before the library is opened, rather
+  than rebuilding the core in place (plan's default, "decide which is simpler": the core is
+  built once in `Core::start`, and `rename.rs` already works this way).
+- Backups are not encrypted; a passphrase can be added to the format later (plan's default).
+- Live sync between two running computers is a different feature and is not planned (plan's
+  default).

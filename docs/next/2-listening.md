@@ -2,10 +2,17 @@
 
 Read [plan.md](plan.md) first.
 
-The player's state is `PlayerStateView` (`src-tauri/src/core/wire.rs:108`), built in
-`core/playback.rs`. What sits around playback (the sleep timer, media keys) is
-`core/controls.rs`. The interface side is `src/composables/usePlayerControls.ts` and
-`src/components/player/`.
+Checked against the code on 2026-11-16: the "Check" items are answered in place, and decided
+questions are under **Settled**.
+
+The player's state is `PlayerStateView` (`src-tauri/src/core/wire.rs:110`), built by
+`Playback::state` in `core/playback.rs` (`entries_state` for a book, `timeline_state` for an
+audiobook alone); `Core::player_state` adds the sleep timer. What sits around playback (the
+sleep timer, media keys) is `core/controls.rs`. The tick loop that drives all of it is
+`Core::tick_loop` in `src-tauri/src/core.rs`: every 33 ms (`TICK`) while something plays or a
+sleep timer runs, else once a second. It builds the state on each tick and emits it only when
+it differs from the last one sent (`Controls::observe`). The interface side is
+`src/composables/usePlayerControls.ts`, `src/stores/player.ts` and `src/components/player/`.
 
 ---
 
@@ -20,18 +27,36 @@ the start of the sentence after a short pause, a sentence or two earlier after a
 
 ### What exists
 
-- `pause`, `resume` and `play` in `commands/playback.rs`; `Playback` (`core/playback.rs`) owns
-  the player. Review A1 made every playhead move say what moved it (`Core::follow_through`):
-  read that first, a resume that moves the playhead is one more named move.
-- A saved place is a segment and a character offset; opening a book and pressing play starts
-  from it.
+- `pause`, `resume` and `play` in `commands/playback.rs` call `Core::pause`, `Core::resume`
+  and `Core::play`; the media keys call `Core::resume`, `Core::pause` and `Core::toggle`
+  (`src-tauri/src/media/mod.rs`). `Playback` (`core/playback.rs`) owns the player. Every move
+  of the playhead returns a `Moved` (place to save, what to tell Generation, what the output
+  should do), and `Core::follow_through` (`core/playback.rs:846`) is the one place that acts on
+  it. A `Moved` carries no cause: the cause of a step back is said in its log line, not in the
+  `Moved`.
+- Three routes resume a paused book, all through `Playback::play()`: `Core::resume`,
+  `Core::toggle`, and `Core::play` for the book already loaded with no chapter or segment
+  (`core.rs:462`; the reader's play button calls `play(book, null, null)`). The same holds for
+  an audiobook alone (`play_timeline`, `core/timeline.rs:249`).
+- A start from the saved place (`Core::play` with neither chapter nor segment, for a book not
+  loaded) resolves the saved `Progress` to an entry with `book.index_at(chapter, char_offset)`,
+  so it already starts at a sentence's start. `Progress.updated_at`
+  (`crates/library/src/lib.rs:132`, ms since the epoch) says when that place was saved, by
+  listening or by reading (`Core::store_place`).
+- A click on a sentence is `play` with a segment; a chapter skip is `play` with a chapter
+  (`Core::skip_chapter`); a seek is `Playback::seek`. All three name the place, so none of
+  them steps back.
+- **Clock.** Nothing injects a clock today: `controls.rs`, `session.rs` and `playback.rs` call
+  `Instant::now()` directly, and their tests do not fake time. This feature therefore keeps
+  time out of the rule (it takes a `Duration`) and passes `now` into the one method that needs
+  it.
 
 ### Design
 
 **Pure rule, in a new `core/resuming.rs`.**
 
 ```
-pub struct Away { pub paused_for: Duration, pub cold_start: bool }
+pub struct Away(pub Duration);
 pub enum StepBack { None, SentenceStart, Sentences(u8) }     // speech and synced recordings
 pub fn step_back(away: Away) -> StepBack
 pub fn step_back_ms(away: Away) -> u64                        // an audiobook with no text
@@ -42,39 +67,65 @@ pub fn step_back_ms(away: Away) -> u64                        // an audiobook wi
 | under 10 s | nothing | nothing |
 | 10 s to 5 min | start of the current sentence | 3 s |
 | 5 min to 1 h | one sentence earlier | 10 s |
-| over 1 h, or the first play after starting Aoide | two sentences earlier | 20 s |
+| over 1 h | two sentences earlier | 20 s |
 
-It never crosses the start of the chapter, and never applies after a seek, a click on a
-sentence or a chapter skip (the user chose that place).
+**How long the listener was away.**
 
-**State.** `Playback` records when it paused. A cold start is "no session has played since
-launch".
+- *Resuming a paused session:* the time since the pause. `Playback` keeps
+  `paused_at: Option<Instant>`, set by `Playback::pause`, cleared by `seek`, `start`,
+  `start_timeline` and `stop`. So a seek while paused (or a click on a sentence) means no step
+  back.
+- *Starting from the saved place* (the first play after starting Aoide, or coming back to a
+  book): the time since `Progress.updated_at`. This replaces the earlier idea of a "cold start"
+  flag: a restart two minutes after a crash then steps back as little as a two-minute pause,
+  and a place the user just set by reading or by `seek_to` on a stopped audiobook is not moved.
 
-**Setting.** `AppSettings.step_back_on_resume: bool`, on by default, in Settings › Library or
-wherever playback preferences end up (there is no playback tab yet; Speech engine is not the
-place).
+**Where it applies.** One method, `Playback::resume_at(now: Instant) -> Moved` (the tests pass
+`now = paused_at + 10 min`), used by the three resume routes above in place of
+`Playback::play()`, and one step in `Core::play` / `play_timeline` before `start` /
+`start_timeline` when they start from the saved place.
+
+- *Sentences* are counted over spoken entries (the narration's `Fate::Speech` and
+  `Fate::Clip`); silent and unrecorded entries are passed over. The start of the target entry
+  is `Playback::seek(index, None)`, which for a recording is just before its first word
+  (`RecordingPlan::start_offset`).
+- It never crosses the start of the chapter (`book.locate(index)` and the chapter's
+  `first_entry`), nor, on a timeline, the start of the part (`Timeline::parts`).
+- An audiobook alone steps back on its timeline with `Playback::seek_time`.
+- The step back is an ordinary seek, so its `Moved` (place saved, `Listening::Jumped`) goes
+  through `follow_through` like any other. Entries behind the playhead whose audio the player
+  released (it keeps `KEEP_BEHIND` = 2) are read again from the cache on the next tick.
+
+**Setting.** `AppSettings.step_back_on_resume: bool` (`core/settings.rs`, with its
+`AppSettingsPatch` field), on by default. There is no playback section in Settings; it goes in
+Settings › Library (`src/components/settings/LibrarySettings.vue`).
 
 ### Slices
 
-1. `step_back` and `step_back_ms`: the table above as a table-driven test.
-2. Resume after a scripted 10 minutes (inject the clock; see how `controls.rs` and the tests
-   deal with `Instant`) starts one sentence earlier and reports the move with its cause.
-3. Not across a chapter start; not after a seek.
-4. A recording alone steps back in milliseconds.
-5. The setting, off means nothing moves.
+1. `step_back` and `step_back_ms`: the table above as a table-driven test, boundaries included.
+2. `Playback::resume_at` after a scripted 10 minutes starts one sentence earlier, with the place
+   saved. Seam: `Playback` test in `core/playback.rs` with the four-entry test book.
+3. Not across a chapter start; nothing after a seek while paused; silent entries are not
+   counted.
+4. A start from the saved place uses `Progress.updated_at`. Seam: core test in `core/tests.rs`
+   with a stored progress row two hours old.
+5. An audiobook alone steps back in milliseconds, not across a part start. Seam: the timeline
+   tests in `core/timeline.rs`.
+6. The setting; off means nothing moves. Contract regenerated.
 
 ### Logging
 
-`playback.resumed` gains `stepped_back` (entries or ms) and `away_s`.
+A new event `playback.resumed` (`book`, `away_s`, `stepped_back` as entries or ms, `from` =
+`pause` or `saved`), one line per resume that steps back. New row in `docs/logging.md`.
 
 ### Done when
 
 - Resuming after lunch replays the last sentence or two.
 - Pause and play in quick succession changes nothing.
 
-### Open questions
+### Settled
 
-- Should the thresholds be settings? The plan says one switch.
+- One switch; the thresholds are not settings. (plan's default)
 
 ---
 
@@ -89,35 +140,66 @@ when the book would end ("ends 23:40"). Click the time to switch between chapter
 
 ### What exists
 
-- `chapter_left_ms` in `PlayerStateView`: exact for a recording, `None` for speech, where
-  `usePlayerControls.ts:44` estimates it from the words left.
+- `chapter_left_ms` in `PlayerStateView`: computed in `Playback::entries_state` only for a
+  synced recording (`recording.and_then(...)`, `core/playback.rs`), and in `timeline_state` for
+  an audiobook alone; `None` for speech, where `timeLeftMs` in `usePlayerControls.ts:44`
+  estimates it from the words left (`speechMs`, `wordsLeft` in `src/estimate.ts`).
 - `NarrationPlan::playing_ms(range)` (`core/narration.rs:270`) sums the durations of a range of
-  entries: real where audio is cached, estimated elsewhere.
-- For an audiobook alone, `position_ms` and `duration_ms` already give it.
+  entries, pauses included: exact where audio is made or a clip, estimated (`estimate_ms`,
+  about 15 characters a second) where speech is not made yet, `None` while part of the range
+  waits for the sync. It already works for speech: the recording-only gate in `entries_state`
+  is the only reason speech gets `None`.
+- For an audiobook alone, `position_ms` and `duration_ms` are in the view.
+- The buffered-ahead bar (`ahead` in `usePlayerControls.ts`) also estimates the chapter's
+  length from its words, to divide `GenerationStateView.buffered_ahead_ms` by.
+- The interface stores no view preference in local storage; view preferences live in
+  `Appearance` (`crates/config/src/lib.rs:206`, `[appearance]` in `settings.toml`).
+- The mock plays playback itself: it computes `chapterLeftMs` for an audiobook
+  (`src/api/mock.ts:793`) and sends `null` for speech (`src/api/mock.ts:1108`).
 
 ### Design
 
 **The core decides.** `PlayerStateView` gains `book_left_ms: Option<u64>`: from the playhead to
-the end, at the current speed, leaving out chapters left out by 1.3. For speech it is
-`playing_ms(playhead..end)` scaled by speed. It changes with every sentence, so compute it when
-the state is built (the plan's sums can be kept as a suffix-sum array rebuilt when the plan
-changes; do not sum a whole book 30 times a second).
+the end, at the current speed, leaving out chapters left out by 1.3 (`Fate::LeftOut` counts 0
+in `playing_ms` once 1.3 exists).
 
-While here, move the chapter estimate for speech into the core as well, so `chapter_left_ms` is
-always `Some` and `usePlayerControls.ts` stops estimating. That removes a rule from the
-interface (AGENTS.md: let the core decide).
+- Speech and synced recordings: `playing_ms(index..total_entries)` minus the playhead's offset
+  into its entry, through `at_speed`. `None` while part of the rest awaits the sync; the
+  interface then shows the chapter only.
+- Audiobook alone: `total_ms - position_ms`, at speed.
 
-**Interface.** `PlayerDock` and `MiniPlayer`: the time label toggles chapter and book; the
-choice is kept in `Appearance` or local storage (it is a view preference, not a core one). The
-tooltip gives the end time by the wall clock.
+**Cost.** The state is built on every tick (30 a second) while playing. Summing a long book's
+entries each time is a few microseconds per thousand entries; start with the plain sum and add
+a suffix-sum array (rebuilt in `segment_made`, `audio_lost` and `follow`) only if a test on a
+20 000-entry book shows it matters.
+
+**Emitted once a second, not 30 times.** `observe` emits when the state differs. A figure that
+falls by the millisecond would emit every tick (a synced recording's `chapter_left_ms` already
+does). Round both `chapter_left_ms` and `book_left_ms` down to whole seconds in the view.
+
+While here, move the chapter figure for speech into the core as well: drop the recording-only
+gate so `chapter_left_ms` is `Some` for speech, and delete the estimate in
+`usePlayerControls.ts`. For the buffered-ahead bar, the view gains `chapter_ms: Option<u64>`
+(the whole chapter's playing length at 1×), so `ahead` stops estimating too. The figures move
+a little: the core estimates from characters, the interface from words.
+
+**Interface.** `PlayerDock`, `PlayerTransport` and `MiniPlayer` show `timeLeft` from
+`usePlayerControls`; the label toggles chapter and book. The choice is
+`Appearance.time_left: TimeLeft { Chapter, Book }` (default `Chapter`). The tooltip gives the
+end time by the wall clock.
+
+**Mock.** The mock's player sends `bookLeftMs` and `chapterLeftMs` from the durations in its
+fixtures (`player.json` gains the core-made figures for its scripted positions) rather than
+estimating from words.
 
 ### Slices
 
-1. `book_left_ms` for speech: cached and estimated entries, speed 1.5. Seam: playback test.
-2. For a paired recording and for an audiobook alone.
-3. `chapter_left_ms` for speech from the core; delete the estimate in the composable; fixtures
-   regenerated.
-4. Interface toggle and end time.
+1. `book_left_ms` for speech: cached and estimated entries, speed 1.5. Seam: `Playback` test in
+   `core/playback.rs` (`speech(&[..])` builds the target).
+2. For a paired recording (`None` while awaiting the sync) and for an audiobook alone.
+3. Both figures in whole seconds; `chapter_left_ms` and `chapter_ms` for speech from the core;
+   the estimates in the composable deleted; fixtures and contract regenerated.
+4. `Appearance.time_left`, the interface toggle and the end time.
 
 ### Logging
 
@@ -141,36 +223,60 @@ everything else follows the usual speed.
 
 ### What exists
 
-- Speed is one value in `settings.toml` (`[player]`, `core/config.rs:148`), applied by
-  `Playback::set_speed`. A hand edit of the file changes it (review A4).
-- `BookSettings` holds per-book overrides. Its `params` may contain an engine parameter also
-  called `speed` (the engine's speaking rate, part of the request and the cache key). That is a
-  different thing: name the new field `playback_speed`.
+- Speed is one value in `settings.toml` (`[player]`, `PlayerSettings` at `core/config.rs:24`),
+  read at startup (`core.rs:264`) and applied by `Playback::set_speed`; `PlayerCore::set_speed`
+  clamps it to 0.5–3.0 (`crates/audio/src/player.rs:168`).
+- `Core::set_speed` and `Core::set_volume` both call `save_player_settings`, which writes the
+  **player's current** speed and volume to `[player]` (`core/playback.rs:917`).
+- A hand edit of `[player]` reaches `settings_edited` (`core/config.rs:400`), which sets the
+  player's speed directly.
+- `BookSettings` (`core/wire.rs:203`) holds per-book overrides, stored as
+  `BookKey::Settings` in the `settings` table, so it outlives the book. Its `params` may contain
+  Chatterbox's `speed_factor` (`crates/chatterbox-client/src/engine.rs:41`): the engine's
+  speaking rate, part of the request and the cache key. That is a different thing: name the new
+  field `playback_speed`.
+- `Core::save_book_settings` (`core/shelf.rs:869`) restarts the listening session and re-plans
+  generation; `Shelf::prefer_recording` shows a narrower read-modify-write of one field.
+- `SpeedPill.vue` is a `UiSelect` (`src/components/ui/UiSelect.vue`), a listbox of options
+  only: it has no room for a switch.
 
 ### Design
 
-- `BookSettings.playback_speed: Option<f32>`.
-- When a session starts, the core applies the book's speed if it has one, else the usual one.
-- `set_speed(speed)` while a book with its own speed plays changes that book's speed; otherwise
-  it changes the usual one. The command does not grow a flag: the core knows which applies.
+- `BookSettings.playback_speed: Option<f32>` (`#[serde(default)]` is already on the struct).
+- `Playback` keeps the usual speed (`usual: f32`) apart from the player's speed. When a session
+  starts (`Core::play`, `play_timeline`), the core applies the book's speed if it has one, else
+  the usual one.
+- `set_speed(speed)` while a book with its own speed plays changes that book's speed (written
+  with a narrow update of the one field, like `prefer_recording`, not through
+  `save_book_settings`, which would restart the session); otherwise it changes the usual one.
+  The command does not grow a flag: the core knows which applies.
+- `save_player_settings` writes `usual`, not the player's speed, so changing the volume while a
+  book's own speed plays does not make it the usual speed.
+- A hand edit of `[player].speed` sets `usual`, and the player only when the playing book has
+  no speed of its own.
 - `PlayerStateView` gains `speed_scope: SpeedScope { Usual, Book }` so the pill can show it.
 - `set_book_speed(book_id, on: bool)`: turning it on copies the current speed into the book;
   off removes it and returns to the usual speed.
+- Speeds are kept to two decimals in the core, so 2.7's ±0.1 steps do not drift (1.4000001).
 
-**Interface.** `SpeedPill.vue`: a switch "Only for this book" under the speeds, and a small dot
-on the pill when the book has its own.
+**Interface.** `SpeedPill.vue` becomes a small popover (`usePopover`, as `VolumeControl.vue`
+does) with the speeds and a switch "Only for this book" under them, and a small dot on the
+pill when the book has its own.
 
 ### Slices
 
-1. A book with its own speed starts at it; the next book returns to the usual one.
-2. `set_speed` goes to the right place in each case; the usual speed in `settings.toml` is not
-   touched by a book's.
-3. `speed_scope` in the view; fixture; mock scenario.
+1. A book with its own speed starts at it; the next book returns to the usual one. Seam: core
+   test in `core/tests.rs`.
+2. `set_speed` goes to the right place in each case; `[player].speed` in `settings.toml` is not
+   touched by a book's speed, also after `set_volume`; a hand edit while a book's speed plays
+   changes only the usual one.
+3. `speed_scope` in the view; `set_book_speed`; fixture; contract; mock scenario.
 4. The pill.
 
 ### Logging
 
-`playback.speed` gains `scope`.
+A new event `playback.book_speed` (`book`, `on`), when a book's own speed is turned on or off.
+New row in `docs/logging.md`.
 
 ### Done when
 
@@ -180,7 +286,7 @@ on the pill when the book has its own.
 
 ## 2.4 A gentler sleep timer
 
-**Size:** S
+**Size:** S (upper end)
 
 ### Outcome
 
@@ -189,45 +295,70 @@ are still awake, pressing play within a few minutes starts the same timer again.
 
 ### What exists
 
-- `Controls` in `core/controls.rs`: `SleepTimer { At(Instant), EndOfChapter(usize) }`,
-  `set_sleep`, `sleep_due(chapter)` checked by the player tick, `sleep_view`.
-- Volume is the user's setting (`set_volume`). **Check** `crates/audio/src/player.rs` for a
-  separate gain the fade can use; do not move the user's volume.
+- `Controls` in `core/controls.rs`: a private `SleepTimer { At(Instant), EndOfChapter(usize) }`
+  behind a mutex, `set_sleep`, `sleep_due(chapter)` and `sleep_view`. `Core::tick_loop` calls
+  `sleep_due(state.chapter)` each tick and `Core::pause` when it is due, so a timed sleep cuts
+  mid-word, and an end-of-chapter sleep fires on the tick after the next chapter has begun.
+  The tick loop stays at 30 Hz while `state.sleep` is `Some`.
+- **Checked:** `crates/audio/src/player.rs` has no gain apart from `volume`, which `render`
+  multiplies in after the stretcher. A fade needs a new one.
+- The player knows exactly when an entry ends: `pull` moves `index` on after the entry's audio
+  and its `pause_after_ms`. The tick sees it up to 33 ms (plus output latency) later.
+- The media keys and the play buttons reach `Core::resume`, `Core::toggle` and `Core::play`.
 
 ### Design
 
-**An explicit state** (the timer becomes a small machine, as AGENTS.md asks):
+**An explicit state** in `core/controls.rs` (the timer becomes a small machine, as AGENTS.md
+asks):
 
 ```
 enum Sleep {
     Off,
-    Running { until: Until, minutes: Option<u32> },      // Until::At(Instant) | EndOfChapter
-    Fading { ends: Instant, minutes: Option<u32> },      // last 20 s of a timed sleep
+    Running { until: Until, minutes: Option<u32> },      // Until::At(Instant) | EndOfChapter(usize)
+    Fading { ends: Instant, minutes: u32 },              // last 20 s of a timed sleep
+    Stopping { since: Instant, minutes: Option<u32> },   // due; waiting for the sentence's end
     Rang { at: Instant, minutes: Option<u32>, end_of_chapter: bool },
 }
-enum SleepEvent { Set(..), Cancelled, Tick(Instant), EntryEnded, ChapterEnded, Played(Instant) }
+enum SleepEvent { Set(..), Cancelled, Tick(Instant), Paused, Played(Instant) }
 fn next(sleep: Sleep, event: SleepEvent) -> (Sleep, Option<SleepAction>)
-enum SleepAction { Fade(f32), Pause, RestoreGain }
+enum SleepAction { Fade(f32), PauseAtEntryEnd, PauseAtChapterEnd(usize), Pause, RestoreGain }
 ```
 
-- A timed sleep that is due waits for `EntryEnded` (the end of the sentence) before pausing,
-  for at most 15 s.
-- During `Fading` the player's gain falls to about 20%, then the pause restores it.
-- `Rang` lasts 3 minutes: `Played` in that time starts the same timer again. After that it is
-  `Off`.
+- **The player stops at an entry boundary.** A new `PlayerCore::pause_before(index)`: `pull`
+  stops and pauses when the playhead would enter `index`. It is sample-exact, and what the
+  stretcher still holds then is the entry's pause, so no word is cut. A due timed sleep arms it
+  for the next entry; an end-of-chapter sleep arms it at once for the next chapter's first
+  entry, so it stops at the chapter's end rather than a tick into the next one.
+- `Stopping` lasts at most 15 s; then `Pause` stops wherever it is.
+- When the player has paused itself, the tick sees `Status::Paused` in `Stopping` and calls
+  `Core::pause`, which saves the place as any pause does.
+- **Fade.** A new `PlayerCore::set_fade(target)` with a per-sample ramp, multiplied in with
+  `volume` in `render`; `volume` is not touched. During `Fading` the target falls to about 20%;
+  the pause (and any cancel or play) restores it to 1.
+- `Rang` lasts 3 minutes: `Played` in that time starts the same timer again. Its expiry is
+  checked when `Played` arrives, so `Rang` needs no ticks and the tick loop does not stay at
+  30 Hz for it.
+- An audiobook alone has no sentences (its entries are 10 s stretches, `core/timeline.rs`): a
+  timed sleep fades and pauses when due, and end of chapter keeps today's check on the part
+  number.
 
-`SleepView` gains `fading: bool` and `extended: bool` only if the pill shows them.
+`SleepView` gains `extended: bool`, shown by the pill ("again, 15 min"); fading is not shown.
 
 ### Slices
 
-1. The transition table.
-2. The player's separate gain (if it does not exist): a ramp that does not change `volume`.
-3. Wiring: a due timer pauses at a sentence end; play within 3 minutes re-arms it.
-4. The pill shows "again, 15 min" after an extension.
+1. The transition table. Seam: `next` in `core/controls.rs`, table-driven, with `Instant`s in
+   the events.
+2. `PlayerCore::pause_before` and `set_fade`: the player stops exactly at the boundary; a fade
+   ramps without changing `volume()`. Seam: `cargo test -p aoide-audio`.
+3. Wiring: a due timer pauses at a sentence end; an end-of-chapter timer pauses before the next
+   chapter's first entry; play within 3 minutes re-arms it. Seam: core test.
+4. `extended` in the view; the pill shows "again, 15 min" after an extension.
 
 ### Logging
 
-`sleep.set`, `sleep.rang`, `sleep.extended` (`minutes`, `end_of_chapter`).
+`sleep.set` (`minutes`, `end_of_chapter`), `sleep.rang` (`minutes`, `end_of_chapter`),
+`sleep.extended` (`minutes`, `end_of_chapter`), each where `next` is applied. New rows in
+`docs/logging.md`.
 
 ### Done when
 
@@ -240,6 +371,8 @@ enum SleepAction { Fade(f32), Pause, RestoreGain }
 
 **Size:** M
 
+**Needs:** 2.2 for the time left; 4.3 for the archive step.
+
 ### Outcome
 
 Line up things to listen to. When one ends, the next starts by itself. Add from the library,
@@ -248,12 +381,28 @@ five and go for a walk.
 
 ### What exists
 
-- `HomeView.up_next_ids` (`core/facets.rs`): a suggestion list, nothing plays from it.
-- Finishing an item is an event in `core/reading.rs` (`ReadEvent`, `next_read`).
-- `aoide_generation::plan(listening, preparing)` decides what is made next; `Preparing` jobs
-  step aside for listening.
-- A feed entry becomes an item on the `feed` shelf when opened (`open_feed_entry`).
-- MPRIS is served in `src-tauri/src/media.rs`.
+- `HomeView.up_next_ids` (`core/facets.rs:52`): a suggestion list, nothing plays from it.
+- Finishing an item is `ReadEvent::Progressed { at_end: true }` in `core/reading.rs`
+  (`next_read`), sent when the place saved is the item's **last entry**, that is when the
+  playhead reaches it, not when it has played. Nothing reacts to the player reaching its end:
+  `PlayerCore` reports `Status::Finished`, which `status_of` maps to `PlaybackStatus::Stopped`
+  (`core/playback.rs:786`), and the session stays loaded.
+- `aoide_generation::plan(listening, preparing)` (`crates/generation/src/lib.rs:88`) orders
+  jobs: the listened book's next 90 s (`LOOKAHEAD_MS`, `core/generation.rs:31`), then each
+  `Preparing` target, all its uncached items. `Generation::work` builds the targets from the
+  preparation queue. `NarrationPlan::speech_items` already shows how to keep the planner off
+  items: they are passed as cached.
+- A feed entry becomes an item through `entry_item` (`core/feeds.rs:1134`): it creates the
+  article on the feed shelf (fetched later when the entry has no full text) and links the
+  entry. `open_feed_entry` (`core/feeds.rs:1064`) calls it and **marks the entry read at
+  once**. `library.entry_for_book` finds an item's entry.
+- The media keys are `src-tauri/src/media/` (`mod.rs`, `mpris.rs`, `souvlaki.rs`); Next and
+  Previous call `Core::skip_chapter(±1)`, which at the last chapter plays that chapter's start
+  again.
+- `merge_audiobook` (`crates/library/src/merge.rs`) moves an audiobook's rows to the book it is
+  paired with, table by table, then deletes the audiobook.
+- `src/drag.ts` is only the MIME type for dragging a library card onto a collection; nothing in
+  the interface reorders a list yet.
 
 ### Design
 
@@ -266,6 +415,9 @@ CREATE TABLE queue (
 );
 ```
 
+`merge_audiobook` moves the row (`UPDATE OR IGNORE queue SET book_id = ?2 WHERE book_id = ?1`).
+An item on the feed shelf that is deleted with its entry leaves the queue with it.
+
 **Component `core/queue.rs`** (model: `core/bookmarks.rs` for the store, `core/preparation.rs`
 for the stage):
 
@@ -274,60 +426,81 @@ enum Stage { Idle, Between { next: BookId, since: Instant }, }
 enum Event { ItemEnded(BookId), Tick(Instant), UserPlayed, UserStopped, Changed }
 ```
 
+- **An item ends** when the player first reports `Status::Finished`. `Playback::tick` gains a
+  `finished` flag for that tick; the tick loop sends `ItemEnded`.
 - When the playing item ends and the queue is not empty, wait 2 s (`Between`), then ask the
   host to play the first queued item from its saved place and take it off the queue. Anything
-  the user does in between cancels the hand-over.
-- An item is taken off the queue when it starts, not when it ends.
-- Items that cannot be listened to (an article still being fetched, a missing file, no voice)
-  are passed over and stay queued, marked with why.
-- Host trait: `play(book_id)`, `can_listen(book_id) -> Result<(), Why>`.
+  the user does in between cancels the hand-over. The tick loop idles at one tick a second once
+  nothing plays, so the gap is 2 to 3 s.
+- An item is taken off the queue when it starts, not when it ends. The component remembers the
+  item it started, for the feed rule below.
+- Items that cannot be listened to (an article still being fetched or failed, a missing file,
+  no voice) are passed over and stay queued, marked with why.
+- Host trait: `play(book_id)`, `can_listen(book_id) -> Result<(), Why>`,
+  `finished_from_feed(book_id)`.
+- **A queued feed article that finishes playing** has its entry marked read and is archived
+  (`archive(book_id, true)` with `from = finished`, from 4.3). Until 4.3 is built, only the
+  read mark.
+- **Next.** `Core::skip_chapter(+1)` at the last chapter hands over to the first queued item at
+  once (no 2 s wait) when the queue is not empty. The media keys and the transport's next
+  button both go through it.
 
-**Being ready in time.** When the playing item has under 2 minutes left, the first queued item
-is given to generation as a low-priority job for its first minute of audio, so the hand-over
-has no gap. Use the existing `Preparing` path limited to the entries needed; do not add a
-second planner.
+**Being ready in time.** When the playing item has under 2 minutes left (`book_left_ms`, 2.2),
+the first queued item is given to generation for its first minute of audio from its saved
+place, so the hand-over has no gap. `Generation` gains an up-next target set by a new
+`PlanEvent::UpNext(Option<(BookId, usize)>)`. `work()` puts it first among the `Preparing`
+targets, with a copy of its plan items in which every item outside that minute is passed as
+cached (as `speech_items` does). The listened book's own 90 s still comes first. No change to
+`crates/generation` and no second planner.
 
 **Views and IPC.** `QueueView { items: Vec<QueueItemView { book_id, why_not: Option<..> }> }`,
 `queue()`, `queue_add(book_id, place: Next | Last)`, `queue_remove`, `queue_move(book_id, to)`,
-`queue_clear()`, event `queue-changed`. `BookSummary` gains `queued: bool`. A feed entry is
-queued with `queue_add_entry(entry_id)`, which opens it onto the feed shelf first.
+`queue_clear()`, event `queue-changed` (`CoreEvent::QueueChanged`). `BookSummary` gains
+`queued: bool`. A feed entry is queued with `queue_add_entry(entry_id)`, which makes its item
+with `entry_item` and does **not** mark the entry read (`open_feed_entry` would).
 
-**Interface.** "Listen next" and "Add to queue" in the item menus and on `FeedEntry.vue`; a
-queue list in the player dock (a button with the count) with drag to reorder (`src/drag.ts`
-exists); "Then: *title*" under the time left when the item is nearly over. The media keys'
-*next* goes to the next queued item when the playing one has no further chapter.
+**Interface.** "Listen next" and "Add to queue" in the item menus and on `FeedEntry.vue`
+(`src/components/feeds/`); a queue list in the player dock (a button with the count), with
+move up and move down buttons and drag to reorder (a new drag type beside `ITEM_DRAG` in
+`src/drag.ts`); "Then: *title*" under the time left when the item is nearly over.
 
 ### Slices
 
-1. Store: add next and last, move, remove, removed with the book.
+1. Store: add next and last, move, remove, removed with the book, moved by
+   `merge_audiobook`. Seam: library test.
 2. Stage transitions (table).
-3. An item ends, the next plays from its place; a user action in the 2 s cancels. Seam:
-   component with a scripted host.
+3. An item ends (`Status::Finished`), the next plays from its place; a user action in the 2 s
+   cancels. Seam: component with a scripted host.
 4. Unlistenable items are passed over with a reason.
-5. The first minute of the next item is made ahead. Seam: generation test.
-6. Feed entries.
-7. Interface and mock scenario ("an item ends, the queued one plays").
+5. Next at the last chapter hands over.
+6. The first minute of the next item is made ahead. Seam: generation test in
+   `core/generation.rs`.
+7. Feed entries: queued without being marked read; marked read (and archived, with 4.3) when
+   finished.
+8. Interface and mock scenario ("an item ends, the queued one plays").
 
 ### Logging
 
 `queue.changed` (`size`), `queue.handover` (`from`, `to`, `outcome`), `queue.passed_over`
-(`book`, `why`).
+(`book`, `why`). New rows in `docs/logging.md`.
 
 ### Done when
 
 - Three queued articles play one after another with no click.
 - Closing and starting Aoide keeps the queue.
 
-### Open questions
+### Settled
 
-- Should finishing a queued feed article mark its entry read and archive it (4.3)? Probably yes.
-- A chime or a spoken title between items? The plan says the title is not spoken.
+- A queued feed article that finishes playing is marked read and archived (4.3's archive).
+  (decided 2026-11-16)
+- Nothing is played between items, neither a chime nor the title; only the 2 s gap. (plan's
+  default)
 
 ---
 
 ## 2.6 Shorter silences in recordings
 
-**Size:** M
+**Size:** M for paired recordings; standalone audiobooks (slice 5) add about as much again.
 
 ### Outcome
 
@@ -336,48 +509,76 @@ time that saves.
 
 ### What exists
 
-- A recording plays as clips per entry, decoded by the feeder (`core/feeder.rs`,
-  `core/recording.rs::clip_audio`), with word timings from the sync map.
-- The segmenter has frame-based pause detection for its word estimate
-  (`crates/segmenter/src/lib.rs:136`, `MIN_PAUSE_MS`, `FRAME_MS`).
-- An audiobook with no text plays from its timeline (`core/timeline.rs`); it has no clips per
-  sentence. **Check** how it is fed before planning its part.
+- A paired recording plays as one player entry per clip. `Session::feed`
+  (`core/session.rs:145`) asks the feeder for clips near the playhead (`clip_audio`,
+  `core/recording.rs:690`); the feeder (`core/feeder.rs`) decodes on its own thread and
+  delivers each clip **in pieces of 5 s** (`CHUNK_MS`), which `Playback::tick` appends to the
+  player (`PlayerCore::append`, then `finish`). A whole clip is never in hand at once.
+- Word timings, `off_text`, `start_offset` and `seek_recording` are all in the recording's own
+  time (`Clip.audio`, `Clip.words` in `crates/sync/src/clips.rs`); `Session::word_at` reads the
+  player's `offset_ms` against the clip's untrimmed length (`NarrationPlan::audio_ms`).
+  Exact word times from the aligner (`Alignable::Clip`) are in the same time.
+- `crates/segmenter` (package `aoide-text`) finds pauses for its word estimate
+  (`align_to_pauses`, `MIN_PAUSE_MS` and `FRAME_MS` at `lib.rs:136`), with a threshold relative
+  to the **whole clip's peak**: that needs the whole clip, which streaming does not give.
+- **Checked: how an audiobook alone is fed.** `TimelineSession` (`core/timeline.rs`) uses the
+  same `Feeder`. Its player entries are fixed stretches of the timeline (`Timeline::entries`,
+  `chunks` of `CHUNK_MS` = 10 s), not sentences, and every position is turned into a time by
+  `Timeline::time_at(index, offset_ms)` and back by `Timeline::locate`. Trimming a stretch
+  shortens it, so both have to map through the cuts.
 
 ### Design
 
-**Pure rule in `crates/audio`:** `trim(pcm, rate, options) -> Trimmed { pcm, cuts: Vec<Cut {
-at_ms, removed_ms }> }`. Silence is frames under a threshold relative to the clip's level;
-any run longer than `keep_ms` (default 500) is shortened to `keep_ms`, cut in its middle with a
-short cross-fade.
+**Pure rule in `crates/audio`, streaming.** A `Trimmer` per entry:
+`Trimmer::new(rate, options, keep_from_ms)`, `push(&[f32]) -> Vec<f32>`, `finish() -> Vec<f32>`,
+and `cuts() -> &[Cut { at_ms, removed_ms }]`. Silence is 10 ms frames under a threshold relative
+to the loudest frame heard so far in this recording (kept by the session), with a floor; a run
+longer than `keep_ms` (default 500) is shortened to `keep_ms`, cut in its middle with a short
+cross-fade. The trimmer holds back only the silent run it is in, until it ends or the entry
+does. Nothing before `keep_from_ms` is cut (see seeking).
 
-**Timings.** Cutting inside a clip moves every later word. `cuts` maps a time in the original
-to a time in the trimmed clip; word timings are passed through it when the clip is provided to
-the session. Leading and trailing silence are the common case and the cheapest: a tail cut
-moves nothing.
+**Keep every address in the recording's time.** Rather than rewriting word timings, the
+session keeps each entry's cuts, and `Playback` maps at the player's edge: offsets read from
+`PlayerCore::position()` are turned back into original time before anything uses them (word,
+`off_text`, the saved place, `time_at`, the time left), and offsets given to
+`PlayerCore::seek_to` are turned into trimmed time. Word timings, the sync map, bookmarks,
+aligned times and saved places then mean the same with the setting on or off, with no change
+to them.
 
-**Scope.** First version: paired recordings only (they have clips). Standalone audiobooks
-second, once it is clear how their stream is fed.
+**Seeking.** A seek lands at a time the trimmer has not reached yet. The trimmer for the
+entry sought into starts with `keep_from_ms` = the seek's offset, so the trimmed and original
+offsets agree up to that point.
+
+**Where it runs.** In the feeder thread, so the tick never trims: `Feeder::push` takes the
+options and `keep_from_ms`, and each `Fed` piece carries its new cuts.
+
+**Scope.** First version: paired recordings. Standalone audiobooks second (slice 5): the same
+mapping inside `time_at` and `locate`. A silence across two stretches is shortened in each, so
+it can keep up to twice `keep_ms`.
 
 **Settings.** `BookSettings.shorten_silences: Option<bool>` over
-`AppSettings.shorten_silences` (off by default). `PlayerStateView.chapter_left_ms` and the
-book's time left must use trimmed lengths where known and the original where not.
+`AppSettings.shorten_silences` (off by default). Saving book settings restarts the session
+(`save_book_settings`), which is what a change of this setting needs. `chapter_left_ms` and
+`book_left_ms` (2.2) subtract the cuts known so far.
 
-**Saved time.** Counted as it is played (`saved_ms` per book value), shown as "Shortened
-silences saved 14 min".
+**Saved time.** Counted as it is played: when the playhead leaves an entry, its removed ms are
+added to a new `BookKey::SilenceSaved` book value. Shown as "Shortened silences saved 14 min".
 
 ### Slices
 
-1. `trim`: a 2 s gap becomes 0.5 s, speech samples are untouched, `cuts` maps times correctly.
-   Seam: `cargo test -p aoide-audio` with synthetic tones and silence.
-2. Word timings pass through `cuts`. Seam: session test.
-3. The feeder trims clips when the setting is on; position saving still stores places in the
-   original recording's time.
+1. `Trimmer`: a 2 s gap becomes 0.5 s, also when it spans two pushes; speech samples are
+   untouched; nothing before `keep_from_ms` is cut; `cuts` maps times correctly. Seam:
+   `cargo test -p aoide-audio` with synthetic tones and silence.
+2. The mapping at the player's edge: with cuts in an entry, the word, the place saved and a
+   seek mean the same original time. Seam: `Playback` test with scripted cuts.
+3. The feeder trims clips when the setting is on. Seam: session test.
 4. Setting, saved time, interface.
-5. Standalone audiobooks.
+5. Standalone audiobooks: `time_at` and `locate` through the cuts.
 
 ### Logging
 
-`recording.trimmed` (`book`, `removed_ms`, per chapter, not per clip).
+`recording.trimmed` (`book`, `chapter`, `removed_ms`), once per chapter as the playhead leaves
+it, not per clip. New row in `docs/logging.md`.
 
 ### Done when
 
@@ -396,41 +597,58 @@ The keys audiobook players have, listed in Settings › About.
 
 ### What exists
 
-- `src/shortcuts.ts` (the list shown) and `src/composables/useShortcuts.ts` (the handling):
-  Space, ←/→ by sentence, Ctrl+F, Ctrl+N, Ctrl+comma, zoom, Esc. A test checks them
-  (`src/tests/`).
-- Commands that already exist: `skip_chapter`, `skip` (seconds, for audiobooks), `set_speed`,
-  `set_volume`, `add_bookmark`, `set_sleep_timer`.
+- `src/shortcuts.ts` is only the list shown in Settings › About (`AboutSettings.vue` renders
+  it inline); `src/composables/useShortcuts.ts` handles the keys with its own `if` chains:
+  Space, ← / →, Ctrl+F, Ctrl+N, Ctrl+comma, Ctrl + / − / 0 and Ctrl + wheel, Esc.
+  `src/tests/shortcuts.test.ts` checks them.
+- ← / → move a sentence for text; for an audiobook alone they move 10 s (`STEP_MS` in
+  `usePlayerControls.ts`, through the `skip` command). No ±30 s buttons exist in the interface.
+- `onKeydown` ignores every plain key pressed with Shift (`!event.shiftKey && plain(event)`)
+  and every key with Alt. Ctrl keys (zoom) work even while typing.
+- The reader and the library scroll, and ↑ / ↓ are their scroll keys.
+- Already in the interface: `player.skipChapter`, `player.skip`, `player.setSpeed`,
+  `player.toggleMute` (`src/stores/player.ts:71`, which remembers the level to go back to),
+  `controls.bookmark()`, `controls.setSleep`.
+- The README's table (`README.md:228`) has already drifted: it lacks Ctrl+N.
 
 ### Design
 
 | Keys | Action |
 |------|--------|
 | Shift+← / Shift+→ | Previous or next chapter |
-| Ctrl+← / Ctrl+→ | Back or forward 15 s (audiobook), three sentences (text) |
+| Ctrl+← / Ctrl+→ | Back or forward 30 s (audiobook), three sentences (text) |
 | `[` / `]` | Slower or faster by 0.1× |
 | `\` | Back to 1× |
-| ↑ / ↓ | Volume |
-| M | Mute |
+| Shift+↑ / Shift+↓ | Volume up or down by 10% |
+| M | Mute (`player.toggleMute`) |
 | B | Bookmark here |
 | H | Highlight the sentence being spoken (needs 3.2) |
 | T | Sleep timer menu |
 | F11 or F | Fullscreen (needs 3.7) |
 | `?` | Show this list |
 
-Rules: letter keys do nothing while a text field or an open dialog has focus (the existing
-guard); one table in `shortcuts.ts` drives both the list and the handler so they cannot drift
-apart. Rebinding is not planned.
+Rules:
+
+- Letter keys and the new arrow combinations do nothing while a text field or an open dialog
+  has focus (the existing guard). Ctrl+← / Ctrl+→ in a text field move by word as usual: the
+  Ctrl branch must apply the typing guard to them, unlike zoom.
+- Shift is part of a key now: the handler stops refusing Shift outright and matches it from the
+  table (`?` is Shift+/ on most layouts, so `?` matches on `event.key`).
+- ↑ / ↓ alone stay the page's scroll keys; volume is on Shift+↑ / Shift+↓.
+- One table in `shortcuts.ts` (keys, action id, label, and whether it works while typing)
+  drives both the list and the handler, so they cannot drift apart. Rebinding is not planned.
+- H and F join the table when 3.2 and 3.7 are built.
 
 ### Slices
 
-1. `shortcuts.ts` becomes the single table (key, action id, label); the handler dispatches from
-   it. The existing tests pass unchanged.
+1. `shortcuts.ts` becomes the single table; the handler dispatches from it. The existing tests
+   pass unchanged.
 2. Each new key, with a test that it calls the store action and one that it is ignored in a
    text field.
-3. The `?` sheet (reuse the list in `AboutSettings.vue`).
+3. The `?` sheet: the list in `AboutSettings.vue` becomes a `ShortcutList.vue` both use.
+4. The README's table matches `shortcuts.ts` (a test compares them).
 
 ### Done when
 
 - Every row works in the reader and from the library while something plays.
-- README's shortcut table is generated from or matches `shortcuts.ts`.
+- README's shortcut table matches `shortcuts.ts`.

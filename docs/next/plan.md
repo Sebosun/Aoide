@@ -5,8 +5,12 @@ choosing what to build. Read this file fully, then only the feature you are work
 
 These plans came out of a review of what a reading and listening app is expected to do and
 Aoide does not do yet. Each feature is planned on its own, so they can be built in any order
-unless "Needs" says otherwise. PDF support is being built separately and is not planned here;
+unless "Needs" says otherwise. PDF support has landed (`crates/pdf`);
 [4-library.md](4-library.md) (More formats) builds on it.
+
+**Checked against the code on 2026-11-16.** Every plan file answers its "Check" items in place
+and lists decided questions under **Settled**; questions still open are under **Open
+questions**. 3.4, 4.6, 5.4 and 6.5 are not planned for now (decided 2026-11-16).
 
 ## The features
 
@@ -24,13 +28,13 @@ an open design question.
 | 2.2 | Time left in the book | [2-listening.md](2-listening.md#22-time-left-in-the-book) | S | |
 | 2.3 | A speed for each book | [2-listening.md](2-listening.md#23-a-speed-for-each-book) | S | |
 | 2.4 | A gentler sleep timer | [2-listening.md](2-listening.md#24-a-gentler-sleep-timer) | S | |
-| 2.5 | Listen next: a queue | [2-listening.md](2-listening.md#25-listen-next-a-queue) | M | |
-| 2.6 | Shorter silences in recordings | [2-listening.md](2-listening.md#26-shorter-silences-in-recordings) | M | |
+| 2.5 | Listen next: a queue | [2-listening.md](2-listening.md#25-listen-next-a-queue) | M | 2.2, 4.3 |
+| 2.6 | Shorter silences in recordings | [2-listening.md](2-listening.md#26-shorter-silences-in-recordings) | M, more with audiobooks alone | |
 | 2.7 | More keyboard shortcuts | [2-listening.md](2-listening.md#27-more-keyboard-shortcuts) | S | |
 | 3.1 | A menu on selected text | [3-reading.md](3-reading.md#31-a-menu-on-selected-text) | M | |
 | 3.2 | Highlights, and exporting notes | [3-reading.md](3-reading.md#32-highlights-and-exporting-notes) | M | 3.1 |
 | 3.3 | Reader typography | [3-reading.md](3-reading.md#33-reader-typography) | S | |
-| 3.4 | Dictionary | [3-reading.md](3-reading.md#34-dictionary) | L | 3.1 |
+| 3.4 | Dictionary | [3-reading.md](3-reading.md#34-dictionary) | not planned for now | |
 | 3.5 | Search the whole library's text | [3-reading.md](3-reading.md#35-search-the-whole-librarys-text) | M | |
 | 3.6 | Pictures, tables and code | [3-reading.md](3-reading.md#36-pictures-tables-and-code) | L | |
 | 3.7 | Fullscreen and a quiet reader | [3-reading.md](3-reading.md#37-fullscreen-and-a-quiet-reader) | S | |
@@ -39,31 +43,32 @@ an open design question.
 | 4.3 | Archive, and quicker collections | [4-library.md](4-library.md#43-archive-and-quicker-collections) | S | |
 | 4.4 | Goals | [4-library.md](4-library.md#44-goals) | S | |
 | 4.5 | More formats | [4-library.md](4-library.md#45-more-formats) | M each | PDF |
-| 4.6 | Calibre libraries and OPDS catalogues | [4-library.md](4-library.md#46-calibre-libraries-and-opds-catalogues) | M, L | 4.2 |
+| 4.6 | Calibre libraries and OPDS catalogues | [4-library.md](4-library.md#46-calibre-libraries-and-opds-catalogues) | not planned for now | |
 | 4.7 | An inbox folder | [4-library.md](4-library.md#47-an-inbox-folder) | S | |
 | 4.8 | Backup and moving to another computer | [4-library.md](4-library.md#48-backup-and-moving-to-another-computer) | M | |
 | 5.1 | Import from read-later apps | [5-articles-feeds.md](5-articles-feeds.md#51-import-from-read-later-apps) | M | |
 | 5.2 | Send a page from the browser | [5-articles-feeds.md](5-articles-feeds.md#52-send-a-page-from-the-browser) | S | 6.1 |
 | 5.3 | Feed folders | [5-articles-feeds.md](5-articles-feeds.md#53-feed-folders) | S | |
-| 5.4 | Podcasts | [5-articles-feeds.md](5-articles-feeds.md#54-podcasts) | L | |
+| 5.4 | Podcasts | [5-articles-feeds.md](5-articles-feeds.md#54-podcasts) | not planned for now | |
 | 5.5 | Newsletters | [5-articles-feeds.md](5-articles-feeds.md#55-newsletters) | S | |
 | 6.1 | Open with Aoide, one running copy | [6-desktop.md](6-desktop.md#61-open-with-aoide-one-running-copy) | M | |
 | 6.2 | Notifications | [6-desktop.md](6-desktop.md#62-notifications) | S | |
 | 6.3 | Keep working in the background | [6-desktop.md](6-desktop.md#63-keep-working-in-the-background) | M | |
-| 6.4 | Stop an idle speech server | [6-desktop.md](6-desktop.md#64-stop-an-idle-speech-server) | S | |
-| 6.5 | Releases, Windows and macOS | [6-desktop.md](6-desktop.md#65-releases-windows-and-macos) | L | |
+| 6.4 | The speech server Aoide starts | [6-desktop.md](6-desktop.md#64-the-speech-server-aoide-starts) | M | |
+| 6.5 | Releases, Windows and macOS | [6-desktop.md](6-desktop.md#65-releases-windows-and-macos) | not planned for now | |
 | 6.6 | Listening on a phone | [6-desktop.md](6-desktop.md#66-listening-on-a-phone) | direction only | |
 
 ## Suggested order
 
-1. **The first week's annoyances:** 1.1, 1.4, 2.1, 2.2, 2.7, 6.2. All small, all noticed by
-   anyone who listens for an hour.
+1. **The first week's annoyances:** 6.4 first (a launched server that fails shows "Offline"
+   forever today), then 1.1, 1.4, 2.1, 2.2, 2.7, 6.2. All noticed by anyone who listens for an
+   hour.
 2. **What local speech needs:** 1.2, then 1.3.
 3. **The reader:** 3.3, 3.1, 3.2.
-4. **The desktop:** 6.1, then 5.2 and 4.7, then 6.3 and 6.4.
+4. **The desktop:** 6.1, then 5.2 and 4.7, then 6.3.
 5. **The library:** 4.1, 4.2, 4.3, 4.8.
-6. **Everything else**, by appetite. 1.5 and 5.4 are the two that would make Aoide stand out and
-   the two that cost the most.
+6. **Everything else**, by appetite. 1.5 is the one that would make Aoide stand out and costs
+   the most.
 
 ## Corrections to the review
 
