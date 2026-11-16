@@ -658,7 +658,8 @@ Rules:
 - H and F join the table when 3.2 and 3.7 are built.
 - Built: T asks the player store for the sleep timer's menu (`askSleep`), and every `SleepPill`
   opens on it. Outside the reader the pill lies unseen across the mini player, so the menu
-  opens over that card. The speed and volume keys say the new value in a toast, as zoom does;
+  opens over that card; in a book read silently while another plays, it lies unseen at the
+  right end of the reader's foot. The speed and volume keys say the new value in a toast, as zoom does;
   speed steps land on whole tenths (1.25 goes to 1.3 or 1.2) within 0.5× and 3×.
 
 ### Slices

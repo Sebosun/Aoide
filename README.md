@@ -248,7 +248,7 @@ Then turn on **Settings → Word highlighting → Exact word timing** with the a
 | <kbd>Esc</kbd> | Close a dialog or menu, or leave the reader |
 | <kbd>?</kbd> | Show this list |
 
-<kbd>Ctrl</kbd> + mouse wheel changes the interface size too. While you type in a field, only the <kbd>Ctrl</kbd> shortcuts for search, Add, Settings and size work (<kbd>Ctrl</kbd> <kbd>←</kbd> / <kbd>→</kbd> move by word as usual), and the player's keys wait while a dialog is open. ↑ and ↓ alone keep scrolling. <kbd>T</kbd> opens the sleep timer's menu in the player, or over the card at the foot of the sidebar.
+<kbd>Ctrl</kbd> + mouse wheel changes the interface size too. While you type in a field, only the <kbd>Ctrl</kbd> shortcuts for search, Add, Settings and size work (<kbd>Ctrl</kbd> <kbd>←</kbd> / <kbd>→</kbd> move by word as usual), and the player's keys wait while a dialog is open. ↑ and ↓ alone keep scrolling. <kbd>T</kbd> opens the sleep timer's menu in the player, over the card at the foot of the sidebar, or at the foot of a book you read while another plays.
 
 The same list is in **Settings → About**, and <kbd>?</kbd> shows it anywhere.
 

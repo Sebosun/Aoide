@@ -4,6 +4,7 @@ import { ArrowRight, LocateFixed } from "@lucide/vue";
 import ChapterText from "@/components/reader/ChapterText.vue";
 import BookMargin from "@/components/reader/BookMargin.vue";
 import PlayerDock from "@/components/player/PlayerDock.vue";
+import SleepPill from "@/components/player/SleepPill.vue";
 import ArticleHeader from "@/components/article/ArticleHeader.vue";
 import NeedsYouNotice from "@/components/article/NeedsYouNotice.vue";
 import { useFollow } from "@/composables/useFollow";
@@ -24,7 +25,9 @@ import { prepareChapter } from "@/preparation";
 /** Page mode: a full-width sheet with the text in a 640px column, the book in the left
  *  margin and footnotes and tools in the right margin. Listening (`readAlong`) docks the
  *  transport underneath and follows the playhead; reading silently (`read`) shows the progress
- *  through the book there instead, and the text is only read. */
+ *  through the book there instead, and the text is only read. While another book plays, the
+ *  sleep timer's menu (the T key) opens over that foot: its button lies unseen at its right end,
+ *  out of the way of the pointer and of Tab, as in the mini player. */
 const props = defineProps<{ shape: Shape }>();
 const emit = defineEmits<{ tools: [tab?: "details"] }>();
 const reader = useReaderStore(),
@@ -225,6 +228,7 @@ const next = computed(() => {
       <div class="sheet__facts">
         <span>{{ Math.round(fraction * 100) }}%</span><span>{{ bookLeft }}</span>
       </div>
+      <SleepPill v-if="player.state.bookId" class="sheet__sleep" tabindex="-1" />
     </footer>
   </section>
 </template>
@@ -318,10 +322,20 @@ const next = computed(() => {
   font-weight: 600;
 }
 .sheet__foot {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   padding: 0 var(--space-14) var(--space-7);
+}
+/* Over the time left, at the foot's right end, so the menu opens above it at a menu's width. */
+.sheet__foot .sheet__sleep {
+  position: absolute;
+  right: var(--space-14);
+  bottom: var(--space-7);
+  width: 220px;
+  opacity: 0;
+  pointer-events: none;
 }
 .sheet__progress {
   height: 3px;

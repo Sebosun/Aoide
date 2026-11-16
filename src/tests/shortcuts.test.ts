@@ -5,6 +5,7 @@ import { createMockApi } from "@/api/mock";
 import App from "@/App.vue";
 import { useNavigationStore } from "@/stores/navigation";
 import { usePlayerStore } from "@/stores/player";
+import { useReaderStore } from "@/stores/reader";
 import { SHORTCUTS, keyLabels, matchShortcut } from "@/shortcuts";
 import readme from "@/../README.md?raw";
 
@@ -301,6 +302,17 @@ it("opens the sleep timer menu with T, in the library and in the reader", async 
   press("t");
   await flushPromises();
   expect(menu()).not.toBeNull();
+  wrapper.unmount();
+});
+
+it("opens the sleep timer menu with T while reading another book silently", async () => {
+  const wrapper = await pausedOnABook();
+  await useReaderStore().open("book-1");
+  await flushPromises();
+  expect([useNavigationStore().view, useReaderStore().shape]).toEqual(["reader", "read"]);
+  expect(press("t").defaultPrevented).toBe(true);
+  await flushPromises();
+  expect(document.querySelector('[role="listbox"][aria-label="Sleep timer"]')).not.toBeNull();
   wrapper.unmount();
 });
 
