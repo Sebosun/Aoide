@@ -1252,6 +1252,9 @@ impl ServerProcess {
         {
             command.current_dir(dir);
         }
+        // Its own process group, so a stop reaches what a wrapper (`sh`, `uv run`) started.
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut command, 0);
         let (reply, answer) = mpsc::channel();
         let sent = lock(&self.spawner).send(SpawnRequest { command, reply });
         let spawned = match sent {
@@ -1346,17 +1349,10 @@ impl ServerProcess {
             (inner.state.pid(), grace)
         };
         let Some(pid) = pid else { return };
-        let deadline = Instant::now() + Duration::from_millis(grace.max(0) as u64);
-        while process::alive(pid) && Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(20));
-        }
-        let killed = process::alive(pid);
+        let killed = !process::gone_within(pid, Duration::from_millis(grace.max(0) as u64));
         if killed {
             process::signal(pid, process::Sig::Kill);
-            let deadline = Instant::now() + Duration::from_secs(1);
-            while process::alive(pid) && Instant::now() < deadline {
-                std::thread::sleep(Duration::from_millis(20));
-            }
+            process::gone_within(pid, Duration::from_secs(1));
         }
         if let Some(mut stop) = lock(&self.inner).stopping.take() {
             stop.killed |= killed;
@@ -1485,9 +1481,9 @@ fn exit_of(status: Option<std::process::ExitStatus>, started: Instant) -> Exit {
     }
 }
 
-/// Signals to a server process.
+/// Signals to a server's process group (its leader's pid is the group's id).
 mod process {
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     #[derive(Debug, Clone, Copy)]
     pub enum Sig {
@@ -1496,39 +1492,57 @@ mod process {
     }
 
     #[cfg(unix)]
-    pub fn signal(pid: u32, sig: Sig) {
-        use rustix::process::{kill_process, Pid, Signal};
-        let Some(pid) = Pid::from_raw(pid as i32) else {
+    pub fn signal(pgid: u32, sig: Sig) {
+        use rustix::process::{kill_process_group, Pid, Signal};
+        let Some(pgid) = Pid::from_raw(pgid as i32) else {
             return;
         };
         let sig = match sig {
             Sig::Term => Signal::TERM,
             Sig::Kill => Signal::KILL,
         };
-        let _ = kill_process(pid, sig);
+        let _ = kill_process_group(pgid, sig);
     }
 
-    /// Whether process `pid` still runs (or is not reaped yet).
+    /// Whether anything of group `pgid` still runs (or is not reaped yet).
     #[cfg(unix)]
-    pub fn alive(pid: u32) -> bool {
-        rustix::process::Pid::from_raw(pid as i32)
-            .is_some_and(|pid| rustix::process::test_kill_process(pid).is_ok())
+    pub fn alive(pgid: u32) -> bool {
+        rustix::process::Pid::from_raw(pgid as i32)
+            .is_some_and(|pgid| rustix::process::test_kill_process_group(pgid).is_ok())
     }
 
-    /// Ends what is left of the group led by `pid` once the leader has ended.
-    #[cfg(unix)]
-    pub fn end_group(_pid: u32, _grace: Duration) {}
+    #[cfg(not(unix))]
+    pub fn signal(_pgid: u32, _sig: Sig) {}
 
     #[cfg(not(unix))]
-    pub fn signal(_pid: u32, _sig: Sig) {}
-
-    #[cfg(not(unix))]
-    pub fn alive(_pid: u32) -> bool {
+    pub fn alive(_pgid: u32) -> bool {
         false
     }
 
-    #[cfg(not(unix))]
-    pub fn end_group(_pid: u32, _grace: Duration) {}
+    /// Waits up to `limit` for group `pgid` to be gone; whether it is.
+    pub fn gone_within(pgid: u32, limit: Duration) -> bool {
+        let deadline = Instant::now() + limit;
+        while alive(pgid) {
+            if Instant::now() >= deadline {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        true
+    }
+
+    /// Ends what is left of group `pgid` once its leader has ended: SIGTERM, then SIGKILL
+    /// after `grace`. A dead `uv run` with a live Python child holding the port is the case.
+    pub fn end_group(pgid: u32, grace: Duration) {
+        if !alive(pgid) {
+            return;
+        }
+        signal(pgid, Sig::Term);
+        if !gone_within(pgid, grace) {
+            signal(pgid, Sig::Kill);
+            gone_within(pgid, Duration::from_secs(1));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1946,8 +1960,19 @@ pub(super) mod process_tests {
 
     /// Whether process `pid`, written by a script to `file`, still runs.
     pub fn alive_in(file: &Path) -> Option<bool> {
-        let pid: u32 = std::fs::read_to_string(file).ok()?.trim().parse().ok()?;
-        Some(super::process::alive(pid))
+        let pid: i32 = std::fs::read_to_string(file).ok()?.trim().parse().ok()?;
+        let pid = rustix::process::Pid::from_raw(pid)?;
+        Some(rustix::process::test_kill_process(pid).is_ok())
+    }
+
+    /// A wrapper (as `uv run` or `conda run` are) whose child is the real server: writes its
+    /// own pid to `pid` and its child's to `child`.
+    pub fn wrapper(pid: &Path, child: &Path, child_script: &str) -> LaunchCommand {
+        script(&format!(
+            "sh -c '{child_script}' & echo $! > '{}'; echo $$ > '{}'; wait",
+            child.display(),
+            pid.display()
+        ))
     }
 
     #[tokio::test]
@@ -2036,6 +2061,108 @@ pub(super) mod process_tests {
         })
         .await;
         assert_eq!(server.view().unwrap().start_timeout_seconds, 5);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn a_stop_ends_the_wrappers_child_too() {
+        let dir = tempfile::tempdir().unwrap();
+        let (pid, child) = (dir.path().join("pid"), dir.path().join("child"));
+        let (server, host, task) = running(dir.path(), wrapper(&pid, &child, "exec sleep 300"));
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || alive_in(&child) == Some(true)).await;
+        server.answered(Answer::Ready);
+        until("ready", || state(&server) == Some(ServerState::Running)).await;
+
+        server.stop_now();
+        until("the stop", || state(&server) == Some(ServerState::Stopped)).await;
+
+        assert_eq!(alive_in(&pid), Some(false));
+        assert_eq!(
+            alive_in(&child),
+            Some(false),
+            "the real server is not left behind"
+        );
+        assert_eq!(server.view().unwrap().stopped, Some(StoppedKind::Asked));
+        drop(host);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn a_server_that_ignores_sigterm_is_killed_after_the_grace_period() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid = dir.path().join("pid");
+        let (server, host, task) = running(
+            dir.path(),
+            script(&format!(
+                "trap '' TERM; echo $$ > '{}'; while true; do sleep 0.05; done",
+                pid.display()
+            )),
+        );
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || alive_in(&pid) == Some(true)).await;
+        server.answered(Answer::Ready);
+        until("ready", || state(&server) == Some(ServerState::Running)).await;
+
+        server.stop_now();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(
+            state(&server),
+            Some(ServerState::Stopping),
+            "still in its grace"
+        );
+        until("the kill", || state(&server) == Some(ServerState::Stopped)).await;
+        assert_eq!(alive_in(&pid), Some(false));
+        drop(host);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn a_leader_that_ends_by_itself_leaves_no_member_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let child = dir.path().join("child");
+        let (server, _host, task) = running(
+            dir.path(),
+            script(&format!(
+                "sleep 300 & echo $! > '{}'; exit 1",
+                child.display()
+            )),
+        );
+        server.answered(Answer::Offline);
+        server.want();
+        until("the failure", || {
+            state(&server) == Some(ServerState::Failed)
+        })
+        .await;
+
+        assert_eq!(alive_in(&child), Some(false));
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn quitting_stops_the_whole_group_within_the_quit_grace() {
+        let dir = tempfile::tempdir().unwrap();
+        let (pid, child) = (dir.path().join("pid"), dir.path().join("child"));
+        let (server, host, task) = running(
+            dir.path(),
+            wrapper(
+                &pid,
+                &child,
+                "trap \"\" TERM; while true; do sleep 0.05; done",
+            ),
+        );
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || alive_in(&child) == Some(true)).await;
+
+        let started = Instant::now();
+        server.stop(&*host);
+
+        assert!(started.elapsed() < Duration::from_secs(2));
+        assert_eq!(alive_in(&pid), Some(false));
+        assert_eq!(alive_in(&child), Some(false));
         task.abort();
     }
 }

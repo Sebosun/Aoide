@@ -25,7 +25,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["protocol-asset"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["sync", "time", "rt", "macros", "fs", "io-util"] }
+tokio = { version = "1", features = ["sync", "time", "rt", "macros", "fs", "io-util", "signal"] }
 notify = "8"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 aoide-epub = { path = "../crates/epub-parser" }

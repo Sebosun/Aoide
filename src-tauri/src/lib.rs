@@ -21,6 +21,7 @@ pub fn run() {
         .setup(|app| {
             let core = start(app)?;
             app.manage(core);
+            exit_on_signals(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -167,6 +168,34 @@ pub fn run() {
                 logging::flush();
             }
         });
+}
+
+/// Quits the app properly on Ctrl+C or SIGTERM, so `Core::shutdown` stops the servers Aoide
+/// started: they run in process groups of their own and do not get the terminal's signals.
+fn exit_on_signals(app: tauri::AppHandle) {
+    #[cfg(unix)]
+    tauri::async_runtime::spawn(async move {
+        use tokio::signal::unix::{signal, SignalKind};
+        let (Ok(mut interrupt), Ok(mut terminate)) = (
+            signal(SignalKind::interrupt()),
+            signal(SignalKind::terminate()),
+        ) else {
+            tracing::warn!(
+                event = "app.signal",
+                outcome = "failed",
+                "Cannot listen for Ctrl+C"
+            );
+            return;
+        };
+        let name = tokio::select! {
+            _ = interrupt.recv() => "interrupt",
+            _ = terminate.recv() => "terminate",
+        };
+        tracing::info!(event = "app.signal", signal = name, "Quitting on a signal");
+        app.exit(0);
+    });
+    #[cfg(not(unix))]
+    drop(app);
 }
 
 /// Starts logging and the core, against the user's folders or, in a debug smoke run, a
