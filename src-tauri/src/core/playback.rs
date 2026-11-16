@@ -349,12 +349,21 @@ impl Playback {
     /// Moves the playhead back for a listener `away` (see [`resuming`]), and says so; `None`
     /// when it stays. `from` is what `away` was measured from, for the log.
     fn step_back(&self, away: Away, from: &'static str) -> Option<Moved> {
-        let index = self.position().index;
-        let target = match lock(&self.playing).as_ref()? {
-            Playing::Entries(session) => step_back_in(&session.target, index, away, from)?,
-            Playing::Timeline(_) => return None,
+        let position = self.position();
+        let (index, offset) = match lock(&self.playing).as_ref()? {
+            Playing::Entries(session) => (
+                step_back_in(&session.target, position.index, away, from)?,
+                None,
+            ),
+            Playing::Timeline(session) => {
+                let timeline = &session.timeline;
+                let at = timeline.time_at(position.index, position.offset_ms);
+                let (index, offset) =
+                    timeline.locate(timeline::step_back_on(timeline, at, away, from)?);
+                (index, Some(offset))
+            }
         };
-        Some(self.seek(target, None))
+        Some(self.seek(index, offset))
     }
 
     /// Pauses; the place is saved.

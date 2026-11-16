@@ -15,6 +15,7 @@ use aoide_library::BookId;
 
 use super::feeder::{Fed, Feeder};
 use super::playback::Place;
+use super::resuming::{self, Away};
 use super::{lock, Core};
 
 /// The longest stretch of the timeline one player entry holds.
@@ -223,6 +224,33 @@ impl TimelineSession {
     }
 }
 
+/// Where `timeline` plays from, stepping back from `at_ms` for a listener `away` (see
+/// [`resuming::step_back_ms`]), never before the part's start. A step back is logged with
+/// `from`, what `away` was measured from. `None` plays on.
+pub(super) fn step_back_on(
+    timeline: &Timeline,
+    at_ms: u64,
+    away: Away,
+    from: &'static str,
+) -> Option<u64> {
+    let ms = resuming::step_back_ms(away);
+    if ms == 0 {
+        return None;
+    }
+    let part_start = timeline.parts.get(timeline.part_at(at_ms))?.start_ms;
+    let back = at_ms.saturating_sub(ms).max(part_start.min(at_ms));
+    tracing::info!(
+        event = "playback.resumed",
+        book = crate::logging::book(&timeline.id),
+        away_s = away.0.as_secs(),
+        stepped_back = at_ms - back,
+        unit = "ms",
+        from,
+        "Stepped back on resume"
+    );
+    Some(back)
+}
+
 impl Core {
     /// Audiobook `id` laid out for the player.
     pub(super) fn timeline_of(&self, id: &str) -> Result<Timeline, String> {
@@ -264,10 +292,15 @@ impl Core {
                     .ok_or("that part is not in the audiobook")?
                     .start_ms
             }
+            // From the saved place, a little earlier the longer ago it was saved.
             None => self
-                .saved_time(id)
-                .filter(|at| at + AT_END_MS < timeline.total_ms)
-                .unwrap_or(0),
+                .saved_progress(id)
+                .and_then(|p| Some((p.position_ms?, p.updated_at)))
+                .filter(|(at, _)| at + AT_END_MS < timeline.total_ms)
+                .map_or(0, |(at, saved_at)| {
+                    let away = Away::since(saved_at, super::now_ms());
+                    step_back_on(&timeline, at, away, "saved").unwrap_or(at)
+                }),
         };
         self.follow_through(self.playback.start_timeline(Arc::new(timeline), at))
     }
@@ -296,11 +329,14 @@ impl Core {
 
     /// Audiobook `id`'s saved place on its timeline.
     fn saved_time(&self, id: &str) -> Option<u64> {
+        self.saved_progress(id).and_then(|p| p.position_ms)
+    }
+
+    fn saved_progress(&self, id: &str) -> Option<aoide_library::Progress> {
         lock(&self.library)
             .progress(&BookId(id.into()))
             .ok()
             .flatten()
-            .and_then(|p| p.position_ms)
     }
 
     /// Where the listener is in audiobook `id`: the playhead while it plays, else its saved
@@ -536,6 +572,22 @@ mod tests {
         );
     }
 
+    #[test]
+    fn an_audiobook_alone_steps_back_in_seconds_but_not_over_a_part_start() {
+        let t = Arc::new(timeline(60_000, &[("One", 0), ("Two", 30_000)]));
+        let playback = Playback::new(PlayerCore::new(RATE));
+        drop(playback.start_timeline(t, 45_000));
+        let resumed_after = |secs: u64| {
+            drop(playback.pause());
+            drop(playback.resume_at(Instant::now() + Duration::from_secs(secs)));
+            playback.time_of("a").unwrap()
+        };
+        assert_eq!(resumed_after(1), 45_000);
+        assert_eq!(resumed_after(60), 42_000);
+        assert_eq!(resumed_after(10 * 60), 32_000);
+        assert_eq!(resumed_after(2 * 60 * 60), 30_000, "the part's start");
+    }
+
     /// Three files: "01 Dusk" 40 s, "02 Midnight" 20 s, "03 Dawn" 5 s.
     fn three_parts(root: &Path) -> std::path::PathBuf {
         let folder = root.join("Audio/Long Night");
@@ -674,6 +726,32 @@ mod tests {
         core.stop();
         core.play(&id, None, None).await.unwrap();
         assert!(core.player_state().position_ms < Some(500));
+        core.stop();
+
+        // Played from a place saved a while ago: a little earlier, not before its part.
+        let saved_ago = |position_ms: u64, ago_ms: i64| {
+            lock(&core.library)
+                .save_progress(
+                    &BookId(id.clone()),
+                    &aoide_library::Progress {
+                        chapter: 1,
+                        char_offset: 0,
+                        segment_id: None,
+                        updated_at: super::super::now_ms() - ago_ms,
+                        position_ms: Some(position_ms),
+                    },
+                )
+                .unwrap();
+        };
+        saved_ago(55_000, 10 * 60 * 1_000);
+        core.play(&id, None, None).await.unwrap();
+        let at = core.player_state().position_ms.unwrap();
+        assert!((45_000..45_500).contains(&at), "{at}");
+        core.stop();
+        saved_ago(50_000, 2 * 60 * 60 * 1_000);
+        core.play(&id, None, None).await.unwrap();
+        let at = core.player_state().position_ms.unwrap();
+        assert!((40_000..40_500).contains(&at), "{at}");
         core.stop();
 
         // Not playing, a seek moves the saved place.
