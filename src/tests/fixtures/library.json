@@ -76,7 +76,7 @@
     "mode": "read",
     "shape": "read",
     "readState": "unread",
-    "wordCount": null,
+    "wordCount": 15,
     "durationMs": null,
     "prepare": null,
     "addedAt": 102,

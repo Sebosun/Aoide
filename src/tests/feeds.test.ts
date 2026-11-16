@@ -58,6 +58,7 @@ it("shows the unread count beside Feeds and lists subscriptions and entries by d
     "All new 5",
     "Saved for later",
     "Field Notes 1",
+    "Harbour Letters",
     "Small Cities 2",
     "Tidewatch 2",
   ]);
@@ -117,7 +118,6 @@ it("saves an entry to the library and takes it out again", async () => {
 });
 
 it("says since when a feed is not reachable", async () => {
-  start("?feeds=failing");
   const wrapper = await openFeeds();
   const harbour = wrapper.findAll(".feeds__source").find((s) => s.text().startsWith("Harbour Letters"))!;
   expect(harbour.get(".feeds__failing").text()).toMatch(/^Not reachable since \w+/);
@@ -129,7 +129,7 @@ it("loads older entries at the end of the list", async () => {
   expect(titles(wrapper)).toHaveLength(50);
   await wrapper.get(".feeds__more").trigger("click");
   await flushPromises();
-  expect(titles(wrapper)).toHaveLength(66);
+  expect(titles(wrapper)).toHaveLength(67);
   expect(wrapper.find(".feeds__more").exists()).toBe(false);
 });
 
@@ -140,8 +140,8 @@ it("loads each older page once, and never into another source's list", async () 
   // The end of the list seen and the button pressed together.
   await Promise.all([feeds.loadMore(), feeds.loadMore()]);
   await flushPromises();
-  expect(titles(wrapper)).toHaveLength(66);
-  expect(new Set(feeds.entries.map((e) => e.id)).size).toBe(66);
+  expect(titles(wrapper)).toHaveLength(67);
+  expect(new Set(feeds.entries.map((e) => e.id)).size).toBe(67);
 
   // A page still loading when another source is chosen is dropped.
   await feeds.choose({ kind: "all" });
@@ -212,7 +212,7 @@ it("subscribes when the link given to Add is a feed, and shows it in Feeds", asy
   await submitLink(wrapper, "https://lanterns.example/feed.xml");
   expect(addDialog()).toBeNull();
   expect(useNavigationStore().view).toBe("feeds");
-  expect(wrapper.get(".feeds__source[aria-current='true']").text()).toContain("lanterns.example");
+  expect(wrapper.get(".feeds__source[aria-current='true']").text()).toContain("Lantern Notes");
 });
 
 it("offers a site's feeds to choose from when subscribing to the site", async () => {
@@ -229,7 +229,7 @@ it("offers a site's feeds to choose from when subscribing to the site", async ()
   await choices[0].get("button").trigger("click");
   await flushPromises();
   expect(addDialog()).toBeNull();
-  expect(wrapper.get(".feeds__source[aria-current='true']").text()).toContain("lanterns.example");
+  expect(wrapper.get(".feeds__source[aria-current='true']").text()).toContain("Lantern Notes");
 
   await wrapper
     .findAll("button")

@@ -12,7 +12,7 @@ fn client() -> Result<OpenLibrary, String> {
 const CACHE_TTL_MS: i64 = 30 * 24 * 60 * 60 * 1000;
 
 /// Normalised cache key of a lookup query.
-fn cache_key(query: &Query) -> String {
+pub(super) fn cache_key(query: &Query) -> String {
     let norm = |s: &str| {
         s.split_whitespace()
             .collect::<Vec<_>>()

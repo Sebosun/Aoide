@@ -196,6 +196,12 @@ impl RecordingAction {
     }
 }
 
+/// Whether a recording at `stage` with `transcribed_ms` of it transcribed can be listened to:
+/// once synced (or when it is audio only), else while it syncs with part of it transcribed.
+pub fn can_listen(stage: Stage, transcribed_ms: u64) -> bool {
+    matches!(stage, Stage::Ready | Stage::Standalone) || (stage.listenable() && transcribed_ms > 0)
+}
+
 /// What can be done about a recording at `stage` (`listenable`: what is synced so far can be
 /// played), in the order the UI offers them. An action that sends a stage event is offered
 /// exactly when [`next`] moves the stage on that event.
@@ -420,6 +426,15 @@ mod tests {
                 Ready | Waiting | Transcribing | Paused | Matching | Standalone
             );
             assert_eq!(stage.listenable(), listenable, "{stage:?}");
+        }
+    }
+
+    #[test]
+    fn a_syncing_recording_is_listened_to_only_once_part_of_it_is_transcribed() {
+        for stage in ALL {
+            let always = matches!(stage, Ready | Standalone);
+            assert_eq!(super::can_listen(stage, 0), always, "{stage:?}");
+            assert_eq!(super::can_listen(stage, 1), stage.listenable(), "{stage:?}");
         }
     }
 }

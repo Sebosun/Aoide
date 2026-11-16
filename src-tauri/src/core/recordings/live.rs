@@ -23,8 +23,7 @@ pub(super) struct Live {
 impl Live {
     /// Synced, or syncing with part of it transcribed: what is synced can be listened to.
     pub(super) fn listenable(&self) -> bool {
-        matches!(self.stage, SyncStage::Ready | SyncStage::Standalone)
-            || (self.stage.listenable() && self.transcribed_ms > 0)
+        crate::core::syncing::can_listen(self.stage, self.transcribed_ms)
     }
 }
 

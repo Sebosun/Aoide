@@ -1,0 +1,1265 @@
+[
+  {
+    "name": "a book is finished, read again and read in places",
+    "start": "library",
+    "steps": [
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "continueIds.has=book-1": false,
+          "recentIds.has=book-1": false,
+          "upNextIds.has=book-1": true
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "markFinished",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].readState": "finished"
+        }
+      },
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "continueIds.has=book-1": false,
+          "recentIds.has=book-1": false,
+          "upNextIds.has=book-1": true
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "markUnread",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].progress": null,
+          "[id=book-1].readState": "unread"
+        }
+      },
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "continueIds.has=book-1": false,
+          "recentIds.has=book-1": false,
+          "upNextIds.has=book-1": true
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 0,
+          "segmentId": "0:0:0"
+        },
+        "call": "setReadingPlace",
+        "error": null,
+        "expect": {
+          "fraction": 0.0
+        }
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].readState": "inProgress"
+        }
+      },
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "continueIds.has=book-1": true,
+          "recentIds.has=book-1": false,
+          "upNextIds.has=book-1": false
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 1,
+          "segmentId": "1:1:1"
+        },
+        "call": "setReadingPlace",
+        "error": null,
+        "expect": {
+          "fraction": 0.4545454545454546
+        }
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].readState": "inProgress"
+        }
+      },
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "continueIds.has=book-1": true,
+          "recentIds.has=book-1": false,
+          "upNextIds.has=book-1": false
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 2,
+          "segmentId": "2:2:0"
+        },
+        "call": "setReadingPlace",
+        "error": null,
+        "expect": {
+          "fraction": 0.9090909090909092
+        }
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].readState": "finished"
+        }
+      },
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "continueIds.has=book-1": false,
+          "recentIds.has=book-1": true,
+          "upNextIds.has=book-1": false
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 1,
+          "segmentId": "0:0:0"
+        },
+        "call": "setReadingPlace",
+        "error": "that place is not in the book",
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].readState": "finished"
+        }
+      },
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "continueIds.has=book-1": false,
+          "recentIds.has=book-1": true,
+          "upNextIds.has=book-1": false
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 99
+        },
+        "call": "chapter",
+        "error": "no such chapter",
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 1
+        },
+        "call": "chapter",
+        "error": null,
+        "expect": {
+          "blocks.length": 3,
+          "title": "The long way home"
+        }
+      }
+    ]
+  },
+  {
+    "name": "a book is read or listened to",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-1",
+          "mode": "listen"
+        },
+        "call": "setMode",
+        "error": null,
+        "expect": {
+          "mode": "listen",
+          "shape": "readAlong"
+        }
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].mode": "listen",
+          "[id=book-1].shape": "readAlong"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "mode": "read"
+        },
+        "call": "setMode",
+        "error": null,
+        "expect": {
+          "mode": "read",
+          "shape": "read"
+        }
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].mode": "read",
+          "[id=book-1].shape": "read"
+        }
+      }
+    ]
+  },
+  {
+    "name": "collections are named once and hold books",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "name": "Harbour"
+        },
+        "call": "createCollection",
+        "error": null,
+        "expect": {
+          "": 1
+        }
+      },
+      {
+        "args": {
+          "name": " harbour "
+        },
+        "call": "createCollection",
+        "error": "there is already a collection called “harbour”",
+        "expect": {}
+      },
+      {
+        "args": {
+          "name": "   "
+        },
+        "call": "createCollection",
+        "error": "a collection needs a name",
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "collections",
+        "error": null,
+        "expect": {
+          "0.name": "Harbour",
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "ids": [
+            1
+          ]
+        },
+        "call": "setBookCollections",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].collections": [
+            1
+          ]
+        }
+      },
+      {
+        "args": {
+          "id": 1,
+          "name": "Quay"
+        },
+        "call": "renameCollection",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "collections",
+        "error": null,
+        "expect": {
+          "0.name": "Quay"
+        }
+      },
+      {
+        "args": {
+          "id": 1
+        },
+        "call": "deleteCollection",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "collections",
+        "error": null,
+        "expect": {
+          "length": 0
+        }
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].collections": []
+        }
+      }
+    ]
+  },
+  {
+    "name": "a book is searched",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-1",
+          "query": "bench"
+        },
+        "call": "searchBook",
+        "error": null,
+        "expect": {
+          "0.chapter": 0,
+          "0.segmentId": "0:1:0",
+          "length": 2
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "query": "BENCH"
+        },
+        "call": "searchBook",
+        "error": null,
+        "expect": {
+          "0.chapter": 0,
+          "0.segmentId": "0:1:0",
+          "length": 2
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "query": "zeppelin"
+        },
+        "call": "searchBook",
+        "error": null,
+        "expect": {
+          "0.chapter": null,
+          "0.segmentId": null,
+          "length": 0
+        }
+      }
+    ]
+  },
+  {
+    "name": "a book is removed",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-3"
+        },
+        "call": "removeBook",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-3]": null,
+          "length": 4
+        }
+      }
+    ]
+  },
+  {
+    "name": "an audiobook is added and played from its parts",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "paths": [
+            "~/Audio/Lantern_Keeper (Unabridged)"
+          ]
+        },
+        "call": "addAudiobook",
+        "error": null,
+        "expect": {
+          "bookId": "book-5",
+          "error": null
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-5",
+          "chapter": 1,
+          "segmentId": null
+        },
+        "call": "play",
+        "error": null,
+        "event": {
+          "expect": {
+            "bookId": "book-5",
+            "chapter": 1
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "pause",
+        "error": null,
+        "event": {
+          "expect": {
+            "bookId": "book-5",
+            "chapter": 1,
+            "status": "paused"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "stop",
+        "error": null,
+        "event": {
+          "expect": {
+            "status": "stopped"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-5",
+          "mode": "read"
+        },
+        "call": "setMode",
+        "error": "Not available for an audiobook: it has no text.",
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-5",
+          "chapter": 0
+        },
+        "call": "chapter",
+        "error": "Not available for an audiobook: it has no text.",
+        "expect": {}
+      }
+    ]
+  },
+  {
+    "name": "an audiobook on its own is merged into its book",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "paths": [
+            "~/Audio/Lantern_Keeper (Unabridged)"
+          ]
+        },
+        "call": "addAudiobook",
+        "error": null,
+        "expect": {
+          "bookId": "book-5"
+        }
+      },
+      {
+        "args": {
+          "audiobookId": "book-5",
+          "bookId": "book-0"
+        },
+        "call": "mergeAudiobook",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-0].recording": "checking",
+          "[id=book-5]": null
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-0"
+        },
+        "call": "recording",
+        "error": null,
+        "expect": {
+          "bookId": "book-0",
+          "listenable": false,
+          "stage": "checking"
+        }
+      }
+    ]
+  },
+  {
+    "name": "links given to Save",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "url": "harbour.example/notices/1"
+        },
+        "call": "saveArticle",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "url": "  https://harbour.example/a  "
+        },
+        "call": "saveArticle",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "url": "http://harbour.example"
+        },
+        "call": "saveArticle",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "url": "ftp://harbour.example/file"
+        },
+        "call": "saveArticle",
+        "error": "That is not a web address.",
+        "expect": {}
+      },
+      {
+        "args": {
+          "url": "mailto:keeper@harbour.example"
+        },
+        "call": "saveArticle",
+        "error": "That is not a web address.",
+        "expect": {}
+      },
+      {
+        "args": {
+          "url": "harbour notes"
+        },
+        "call": "saveArticle",
+        "error": "That is not a web address.",
+        "expect": {}
+      },
+      {
+        "args": {
+          "url": ""
+        },
+        "call": "saveArticle",
+        "error": "That is not a web address.",
+        "expect": {}
+      },
+      {
+        "args": {
+          "url": "https://"
+        },
+        "call": "saveArticle",
+        "error": "That is not a web address.",
+        "expect": {}
+      }
+    ]
+  },
+  {
+    "name": "entries are read, saved and a feed left",
+    "start": "",
+    "steps": [
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[id=1].unread": 2,
+          "[id=2].unread": 2,
+          "length": 4
+        }
+      },
+      {
+        "args": {
+          "feedId": null,
+          "filter": "unread"
+        },
+        "call": "feedEntries",
+        "error": null,
+        "expect": {
+          "length": 5
+        }
+      },
+      {
+        "args": {
+          "entryId": 1,
+          "read": true
+        },
+        "call": "markEntryRead",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[id=1].unread": 1
+        }
+      },
+      {
+        "args": {
+          "entryId": 1,
+          "read": false
+        },
+        "call": "markEntryRead",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "feedId": 2
+        },
+        "call": "markAllRead",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[id=1].unread": 2,
+          "[id=2].unread": 0
+        }
+      },
+      {
+        "args": {
+          "feedId": null,
+          "filter": "unread"
+        },
+        "call": "feedEntries",
+        "error": null,
+        "expect": {
+          "length": 3
+        }
+      },
+      {
+        "args": {
+          "entryId": 6
+        },
+        "call": "saveFeedEntry",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "feedId": null,
+          "filter": "saved"
+        },
+        "call": "feedEntries",
+        "error": null,
+        "expect": {
+          "0.id": 6,
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "feedId": null,
+          "filter": "all"
+        },
+        "call": "feedEntries",
+        "error": null,
+        "expect": {
+          "[id=6].inLibrary": true,
+          "[id=6].read": false,
+          "length": 7
+        }
+      },
+      {
+        "args": {
+          "url": "https://tidewatch.example/feed.xml"
+        },
+        "call": "addLink",
+        "error": null,
+        "expect": {
+          "kind": "subscribed",
+          "value.id": 1
+        }
+      },
+      {
+        "args": {
+          "feedId": 2
+        },
+        "call": "unsubscribe",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[id=2]": null,
+          "length": 3
+        }
+      },
+      {
+        "args": {
+          "feedId": null,
+          "filter": "all"
+        },
+        "call": "feedEntries",
+        "error": null,
+        "expect": {
+          "length": 5
+        }
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-6].kind": "article"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-6"
+        },
+        "call": "removeBook",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-6]": null
+        }
+      },
+      {
+        "args": {
+          "feedId": null,
+          "filter": "saved"
+        },
+        "call": "feedEntries",
+        "error": null,
+        "expect": {
+          "length": 0
+        }
+      },
+      {
+        "args": {
+          "feedId": null,
+          "filter": "all"
+        },
+        "call": "feedEntries",
+        "error": null,
+        "expect": {
+          "[id=6].inLibrary": false
+        }
+      }
+    ]
+  },
+  {
+    "name": "feeds are found on the preview's web and imported from a list",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "url": "https://lanterns.example/about"
+        },
+        "call": "subscribe",
+        "error": null,
+        "expect": {
+          "kind": "notAFeed",
+          "value.0.title": null,
+          "value.0.url": null,
+          "value.1.title": null,
+          "value.length": null
+        }
+      },
+      {
+        "args": {
+          "url": "https://lanterns.example/"
+        },
+        "call": "subscribe",
+        "error": null,
+        "expect": {
+          "kind": "choose",
+          "value.0.title": "Articles",
+          "value.0.url": "https://lanterns.example/feed.xml",
+          "value.1.title": "Comments",
+          "value.length": 2
+        }
+      },
+      {
+        "args": {
+          "url": "https://lanterns.example/feed.xml"
+        },
+        "call": "subscribe",
+        "error": null,
+        "expect": {
+          "kind": "subscribed",
+          "value.stage.kind": "idle",
+          "value.title": "Lantern Notes",
+          "value.unread": 0,
+          "value.url": "https://lanterns.example/feed.xml"
+        }
+      },
+      {
+        "args": {
+          "path": "~/Subscriptions.opml"
+        },
+        "call": "importOpml",
+        "error": null,
+        "expect": {
+          "added": 1,
+          "skipped": 2
+        }
+      },
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[url=https://lanterns.example/feed.xml].title": "Lantern Notes",
+          "[url=https://quay.example/feed.xml].title": "Quay Weekly",
+          "[url=https://quay.example/feed.xml].unread": 0,
+          "length": 6
+        }
+      }
+    ]
+  },
+  {
+    "name": "an article is saved and fetched",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "url": "https://quay.example/lights"
+        },
+        "call": "saveArticle",
+        "error": null,
+        "event": {
+          "expect": {
+            "byline": "Ada Brightwater",
+            "capturedWords": 93,
+            "inLibrary": true,
+            "siteName": "Quay Weekly",
+            "stage.kind": "ready",
+            "via": "http"
+          },
+          "name": "onArticleState"
+        },
+        "expect": {
+          "": "book-6"
+        }
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-6].kind": "article"
+        }
+      }
+    ]
+  },
+  {
+    "name": "a site that cut an article short is signed in to",
+    "start": "?article=needsyou-cutshort&browser=ready",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-6"
+        },
+        "call": "article",
+        "error": null,
+        "expect": {
+          "stage.kind": "needsYou",
+          "stage.reason": "cutShort"
+        }
+      },
+      {
+        "args": {},
+        "call": "sites",
+        "error": null,
+        "expect": {
+          "[host=quay.example].session.kind": "askedFor",
+          "[host=quay.example].session.reason": "cutShort",
+          "[host=quay.example].waitingArticle": "book-6"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-6"
+        },
+        "call": "startSignIn",
+        "error": null,
+        "event": {
+          "expect": {
+            "reason": "cutShort",
+            "site": "quay.example",
+            "stage.kind": "waiting"
+          },
+          "name": "onSignInState"
+        },
+        "expect": {
+          "reason": "cutShort",
+          "site": "quay.example",
+          "staySignedIn": true
+        }
+      },
+      {
+        "args": {},
+        "call": "finishSignIn",
+        "error": null,
+        "event": {
+          "expect": {
+            "result.kind": "ready",
+            "stage.kind": "done"
+          },
+          "name": "onSignInState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-6"
+        },
+        "call": "article",
+        "error": null,
+        "expect": {
+          "stage.kind": "ready",
+          "via": "browser"
+        }
+      },
+      {
+        "args": {},
+        "call": "sites",
+        "error": null,
+        "expect": {
+          "[host=quay.example].session.kind": "signedIn",
+          "[host=quay.example].session.reason": null,
+          "[host=quay.example].waitingArticle": null
+        }
+      }
+    ]
+  },
+  {
+    "name": "the browser is downloaded",
+    "start": "?browser=missing",
+    "steps": [
+      {
+        "args": {},
+        "call": "browserStatus",
+        "error": null,
+        "expect": {
+          "downloaded": false,
+          "offeredVersion": "157.0.8103.78",
+          "use": "fallback"
+        }
+      },
+      {
+        "args": {},
+        "call": "downloadBrowser",
+        "error": null,
+        "event": {
+          "expect": {
+            "stage": "done",
+            "version": "157.0.8103.78"
+          },
+          "name": "onBrowserDownload"
+        },
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "browserStatus",
+        "error": null,
+        "expect": {
+          "binary.kind": "found",
+          "download.stage": "done",
+          "downloaded": true,
+          "offeredVersion": "157.0.8103.78"
+        }
+      }
+    ]
+  },
+  {
+    "name": "books are found, looked up and imported",
+    "start": "",
+    "steps": [
+      {
+        "args": {},
+        "call": "discoveredBooks",
+        "error": null,
+        "expect": {
+          "length": 0
+        }
+      },
+      {
+        "args": {},
+        "call": "scanForBooks",
+        "error": null,
+        "expect": {
+          "[id=h-tide].audiobook.length": 1,
+          "[id=h-tide].paths.length": 2,
+          "[id=h-tide].status": "new",
+          "[id=h-tide].suggestion": null,
+          "[id=h-tide].title": "Notes on the Tide",
+          "[id=book-0].audiobook.0": "~/Documents/The Lantern Keeper.m4b",
+          "[id=book-0].status": "inLibrary",
+          "[id=h-glass].audiobook.length": 0,
+          "[id=h-glass].status": "new",
+          "[status=unreadable].error": "not a readable EPUB: invalid EPUB: invalid Zip archive: Could not find EOCD",
+          "length": 4
+        }
+      },
+      {
+        "args": {
+          "ids": [
+            "h-tide",
+            "h-glass"
+          ]
+        },
+        "call": "fetchDiscoveredDetails",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "discoveredBooks",
+        "error": null,
+        "expect": {
+          "[id=h-tide].suggestion.publisher": "Preview Press",
+          "[id=h-tide].suggestion.title": "Notes on the Tide",
+          "[id=h-glass].suggestion.publisher": "Preview Press"
+        }
+      },
+      {
+        "args": {
+          "choices": [
+            {
+              "applySuggestion": true,
+              "id": "h-tide",
+              "pairAudiobook": true
+            }
+          ]
+        },
+        "call": "importDiscovered",
+        "error": null,
+        "expect": {
+          "0.bookId": "h-tide",
+          "0.error": null,
+          "length": 1
+        }
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=h-tide].recording": "checking",
+          "[id=h-tide].title": "Notes on the Tide"
+        }
+      },
+      {
+        "args": {},
+        "call": "discoveredBooks",
+        "error": null,
+        "expect": {
+          "[id=h-tide].status": "inLibrary",
+          "[id=h-glass].status": "new",
+          "length": 4
+        }
+      }
+    ]
+  },
+  {
+    "name": "audiobooks are found for books and paired",
+    "start": "",
+    "steps": [
+      {
+        "args": {},
+        "call": "scanForAudiobooks",
+        "error": null,
+        "expect": {
+          "[bookId=book-3].candidates.0.bytes": 9190,
+          "[bookId=book-3].candidates.0.exact": false,
+          "[bookId=book-3].candidates.0.files.length": 2,
+          "[bookId=book-3].candidates.0.folder": false,
+          "[bookId=book-3].candidates.0.paths.0": "~/Audiobooks/Unfinished Atlas Radio Play 1.mp3",
+          "[bookId=book-3].candidates.length": 1,
+          "[bookId=book-3].stage.kind": "found",
+          "[bookId=book-1].candidates.0.bytes": 213000,
+          "[bookId=book-1].candidates.0.exact": true,
+          "[bookId=book-1].candidates.0.files.length": 15,
+          "[bookId=book-1].candidates.0.folder": true,
+          "[bookId=book-1].candidates.0.paths.0": "~/Audiobooks/Ellis Reed - A Map of Quiet Places",
+          "[bookId=book-1].candidates.1.paths.0": "~/Audiobooks/A Map of Quiet Places (Unabridged).m4b",
+          "[bookId=book-1].candidates.length": 2,
+          "[bookId=book-1].stage.kind": "found",
+          "length": 2
+        }
+      },
+      {
+        "args": {},
+        "call": "unmatchedAudiobooks",
+        "error": null,
+        "expect": {
+          "0.bytes": 9190,
+          "0.files.length": 2,
+          "0.folder": true,
+          "0.paths.0": "~/Audiobooks/Ines Morrow - Winter Radio",
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "choices": [
+            {
+              "bookId": "book-1",
+              "candidate": 1
+            }
+          ]
+        },
+        "call": "pairAudiobooks",
+        "error": null,
+        "expect": {
+          "0.bookId": "book-1",
+          "0.error": null,
+          "length": 1
+        }
+      },
+      {
+        "args": {},
+        "call": "audiobookMatches",
+        "error": null,
+        "expect": {
+          "[bookId=book-3].stage.kind": "found",
+          "[bookId=book-1]": {
+            "bookId": "book-1",
+            "candidates": [
+              {
+                "bytes": 213000,
+                "exact": true,
+                "files": [
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/01 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/02 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/03 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/04 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/05 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/06 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/07 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/08 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/09 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/10 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/11 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/12 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/13 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/14 - A Map of Quiet Places.m4b",
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places/15 - A Map of Quiet Places.m4b"
+                ],
+                "folder": true,
+                "paths": [
+                  "~/Audiobooks/Ellis Reed - A Map of Quiet Places"
+                ]
+              },
+              {
+                "bytes": 14200,
+                "exact": true,
+                "files": [
+                  "~/Audiobooks/A Map of Quiet Places (Unabridged).m4b"
+                ],
+                "folder": false,
+                "paths": [
+                  "~/Audiobooks/A Map of Quiet Places (Unabridged).m4b"
+                ]
+              }
+            ],
+            "stage": {
+              "candidate": 1,
+              "kind": "paired"
+            }
+          },
+          "length": 2
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "recording",
+        "error": null,
+        "expect": {
+          "files.length": 1,
+          "stage": "checking"
+        }
+      }
+    ]
+  }
+]

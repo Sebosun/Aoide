@@ -1,0 +1,190 @@
+{
+  "audiobooks": [
+    {
+      "bookId": "book-1",
+      "candidates": [
+        {
+          "bytes": 213000,
+          "exact": true,
+          "files": [
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/01 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/02 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/03 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/04 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/05 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/06 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/07 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/08 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/09 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/10 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/11 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/12 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/13 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/14 - A Map of Quiet Places.m4b",
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places/15 - A Map of Quiet Places.m4b"
+          ],
+          "folder": true,
+          "paths": [
+            "~/Audiobooks/Ellis Reed - A Map of Quiet Places"
+          ]
+        },
+        {
+          "bytes": 14200,
+          "exact": true,
+          "files": [
+            "~/Audiobooks/A Map of Quiet Places (Unabridged).m4b"
+          ],
+          "folder": false,
+          "paths": [
+            "~/Audiobooks/A Map of Quiet Places (Unabridged).m4b"
+          ]
+        }
+      ],
+      "stage": {
+        "kind": "found"
+      }
+    },
+    {
+      "bookId": "book-3",
+      "candidates": [
+        {
+          "bytes": 9190,
+          "exact": false,
+          "files": [
+            "~/Audiobooks/Unfinished Atlas Radio Play 1.mp3",
+            "~/Audiobooks/Unfinished Atlas Radio Play 2.mp3"
+          ],
+          "folder": false,
+          "paths": [
+            "~/Audiobooks/Unfinished Atlas Radio Play 1.mp3",
+            "~/Audiobooks/Unfinished Atlas Radio Play 2.mp3"
+          ]
+        }
+      ],
+      "stage": {
+        "kind": "found"
+      }
+    }
+  ],
+  "books": [
+    {
+      "audiobook": [],
+      "authors": [],
+      "coverPath": null,
+      "error": "not a readable EPUB: invalid EPUB: invalid Zip archive: Could not find EOCD",
+      "id": "path:~/Documents/broken.epub",
+      "isbn": null,
+      "language": null,
+      "paths": [
+        "~/Documents/broken.epub"
+      ],
+      "size": 11,
+      "status": "unreadable",
+      "suggestion": null,
+      "title": "broken"
+    },
+    {
+      "audiobook": [
+        "~/Downloads/Notes on the Tide (Unabridged).m4b"
+      ],
+      "authors": [
+        "Ines Morrow"
+      ],
+      "coverPath": null,
+      "error": null,
+      "id": "h-tide",
+      "isbn": null,
+      "language": "en",
+      "paths": [
+        "~/Documents/Books/tide.epub",
+        "~/Downloads/notes-on-the-tide.epub"
+      ],
+      "size": 1235,
+      "status": "new",
+      "suggestion": null,
+      "title": "Notes on the Tide"
+    },
+    {
+      "audiobook": [],
+      "authors": [
+        "Oren Vale"
+      ],
+      "coverPath": null,
+      "error": null,
+      "id": "h-glass",
+      "isbn": null,
+      "language": "en",
+      "paths": [
+        "~/Downloads/glass-meridian.epub"
+      ],
+      "size": 1227,
+      "status": "new",
+      "suggestion": null,
+      "title": "The Glass Meridian"
+    },
+    {
+      "audiobook": [
+        "~/Documents/The Lantern Keeper.m4b"
+      ],
+      "authors": [
+        "Mira Vale"
+      ],
+      "coverPath": null,
+      "error": null,
+      "id": "book-0",
+      "isbn": null,
+      "language": "en",
+      "paths": [
+        "~/Documents/lantern.epub"
+      ],
+      "size": 1812,
+      "status": "inLibrary",
+      "suggestion": null,
+      "title": "The Lantern Keeper"
+    }
+  ],
+  "details": {
+    "h-tide": {
+      "authors": [
+        "Ines Morrow"
+      ],
+      "coverUrl": null,
+      "isbn": null,
+      "key": "/works/h-tide",
+      "published": "2018",
+      "publisher": "Preview Press",
+      "subjects": [
+        "Fiction"
+      ],
+      "title": "Notes on the Tide"
+    },
+    "h-glass": {
+      "authors": [
+        "Oren Vale"
+      ],
+      "coverUrl": null,
+      "isbn": null,
+      "key": "/works/h-glass",
+      "published": "2021",
+      "publisher": "Preview Press",
+      "subjects": [
+        "Fiction"
+      ],
+      "title": "The Glass Meridian"
+    }
+  },
+  "unmatched": [
+    {
+      "bytes": 9190,
+      "exact": false,
+      "files": [
+        "~/Audiobooks/Ines Morrow - Winter Radio/01 Part.mp3",
+        "~/Audiobooks/Ines Morrow - Winter Radio/02 Part.mp3"
+      ],
+      "folder": true,
+      "paths": [
+        "~/Audiobooks/Ines Morrow - Winter Radio"
+      ]
+    }
+  ]
+}

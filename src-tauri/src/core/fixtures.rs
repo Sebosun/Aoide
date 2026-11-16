@@ -37,6 +37,9 @@ struct Book {
     chapters: &'static [&'static [&'static str]],
     /// Adds a copyright page (left out) and an empty section (skipped), for extraction notes.
     notes: bool,
+    /// The text of footnote `n1`, kept at the end of the first chapter (its marker is in the
+    /// chapter's text).
+    footnote: Option<&'static str>,
 }
 
 /// The browser preview's books, with original text.
@@ -47,7 +50,7 @@ const BOOKS: [Book; 4] = [
         chapters: &[
             &[
                 "The small light",
-                "Every evening, Ada carried a lantern to the end of the pier. The sea collected its reflection and broke it into a hundred little stars.",
+                "Every evening, Ada<a epub:type=\"noteref\" href=\"#n1\">1</a> carried a lantern to the end of the pier. The sea collected its reflection and broke it into a hundred little stars.",
                 "Tonight a paper boat waited beside the steps. Inside it lay a key, warm as if someone had held it all the way across the bay.",
             ],
             &[
@@ -57,6 +60,7 @@ const BOOKS: [Book; 4] = [
             ],
         ],
         notes: false,
+        footnote: Some("A short original note shown in the browser preview."),
     },
     Book {
         title: "A Map of Quiet Places",
@@ -79,6 +83,7 @@ const BOOKS: [Book; 4] = [
             ],
         ],
         notes: true,
+        footnote: None,
     },
     Book {
         title: "The Absent Orchard",
@@ -88,6 +93,7 @@ const BOOKS: [Book; 4] = [
             "The orchard had been sold twice, and neither owner had ever seen it.",
         ]],
         notes: false,
+        footnote: None,
     },
     Book {
         title: "An Unfinished Atlas",
@@ -97,8 +103,90 @@ const BOOKS: [Book; 4] = [
             "Half the atlas was empty, and the cartographer liked it best that way.",
         ]],
         notes: false,
+        footnote: None,
     },
 ];
+
+/// Books the preview's "Find books" finds: one new with two copies and its audiobook beside it,
+/// one new on its own.
+const FOUND: [Book; 2] = [
+    Book {
+        title: "Notes on the Tide",
+        author: "Ines Morrow",
+        chapters: &[&[
+            "High water",
+            "The tide came in twice a day, and twice a day she wrote it down.",
+        ]],
+        notes: false,
+        footnote: None,
+    },
+    Book {
+        title: "The Glass Meridian",
+        author: "Oren Vale",
+        chapters: &[&[
+            "Noon",
+            "At noon the meridian line burned white across the floor.",
+        ]],
+        notes: false,
+        footnote: None,
+    },
+];
+
+/// The preview's audiobooks folder, in real audio (the recording tests' files): parts named for
+/// the second book (a folder of 15, and one file), the fourth (two files, a name only close to
+/// the book's), and one that comes
+/// close to no book.
+const AUDIOBOOKS: [(&str, usize, &str); 4] = [
+    (
+        "Ellis Reed - A Map of Quiet Places/{n} - A Map of Quiet Places.m4b",
+        15,
+        "book.m4b",
+    ),
+    ("A Map of Quiet Places (Unabridged).m4b", 1, "book.m4b"),
+    ("Unfinished Atlas Radio Play {n}.mp3", 2, "set/b-first.mp3"),
+    (
+        "Ines Morrow - Winter Radio/0{n} Part.mp3",
+        2,
+        "set/b-first.mp3",
+    ),
+];
+
+/// Lays out the preview's folders to search: `Downloads` and `Documents` with EPUBs (one already
+/// in the library, with its audiobook beside it, and one unreadable), `Audiobooks` with audio. Returns the found books' ids.
+fn preview_folders(root: &Path) -> [String; 2] {
+    let write = |path: &Path, bytes: &[u8]| {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, bytes).unwrap();
+    };
+    let audio = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crates/recording/tests/fixtures");
+    let copy = |to: &Path, from: &str| {
+        std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+        std::fs::copy(audio.join(from), to).unwrap();
+    };
+    let tide = epub(&FOUND[0]);
+    write(&root.join("Downloads/notes-on-the-tide.epub"), &tide);
+    write(&root.join("Documents/Books/tide.epub"), &tide);
+    copy(
+        &root.join("Downloads/Notes on the Tide (Unabridged).m4b"),
+        "book.m4b",
+    );
+    let glass = epub(&FOUND[1]);
+    write(&root.join("Downloads/glass-meridian.epub"), &glass);
+    write(&root.join("Documents/lantern.epub"), &epub(&BOOKS[0]));
+    copy(&root.join("Documents/The Lantern Keeper.m4b"), "book.m4b");
+    write(&root.join("Documents/broken.epub"), b"not an EPUB");
+    for (pattern, parts, from) in AUDIOBOOKS {
+        for n in 1..=parts {
+            let name = if parts > 9 {
+                pattern.replace("{n}", &format!("{n:02}"))
+            } else {
+                pattern.replace("{n}", &n.to_string())
+            };
+            copy(&root.join("Audiobooks").join(name), from);
+        }
+    }
+    [tide, glass].map(|bytes| aoide_library::content_hash(&bytes).0)
+}
 
 /// The preview's unreadable book.
 const BROKEN: &str = "The Torn Ledger";
@@ -136,9 +224,14 @@ fn epub(book: &Book) -> Vec<u8> {
         ));
         spine.push_str(&format!(r#"<itemref idref="c{index}"/>"#));
         toc.push_str(&format!(r#"<li><a href="{name}">{}</a></li>"#, parts[0]));
-        let body: String = std::iter::once(format!("<h2>{}</h2>", parts[0]))
+        let mut body: String = std::iter::once(format!("<h2>{}</h2>", parts[0]))
             .chain(parts[1..].iter().map(|p| format!("<p>{p}</p>")))
             .collect();
+        if let (0, Some(note)) = (index, book.footnote) {
+            body.push_str(&format!(
+                r#"<aside epub:type="footnote" id="n1"><p>{note}</p></aside>"#
+            ));
+        }
         files.push((format!("OPS/{name}"), xhtml(body)));
     }
     if book.notes {
@@ -201,6 +294,26 @@ async fn preview_library(root: &Path) -> (Arc<Core>, Vec<(String, String)>) {
         core.list_books().is_ok_and(|b| b.len() == 5)
     })
     .await;
+    if wanted() {
+        // Every preview book's chapters as the core reads them, the third's before it goes.
+        let mut ids: Vec<String> = core
+            .list_books()
+            .unwrap()
+            .into_iter()
+            .map(|b| b.id)
+            .collect();
+        let index = |id: &String| renames.iter().position(|(hash, _)| hash == id);
+        ids.retain(|id| index(id).is_some_and(|i| i < BOOKS.len()));
+        ids.sort_by_key(index);
+        let chapters: Vec<Vec<crate::book::ChapterView>> = ids
+            .iter()
+            .map(|id| {
+                let count = core.book_overview(id).unwrap().chapters.len();
+                (0..count).map(|n| core.chapter(id, n).unwrap()).collect()
+            })
+            .collect();
+        write("chapters", &chapters, &renames);
+    }
     std::fs::remove_file(root.join(format!("Books/{}.epub", BOOKS[2].title))).unwrap();
     core.rescan().unwrap();
     renames.push((root.to_string_lossy().into_owned(), "~".into()));
@@ -363,17 +476,55 @@ async fn an_article_for_the_ui_mock() {
     );
 }
 
-/// Subscriptions and their entries, which the mock serves on its Feeds screen: three feeds
-/// that answer (one carrying whole articles, one summaries only) and one that stopped. Times
-/// are written relative to now (the mock adds its own now).
-#[tokio::test]
-async fn feeds_for_the_ui_mock() {
-    use super::article_tests::Pages;
-    use super::feeds::{EntryFilter, EntryQuery, FeedStage};
-    const HOUR: i64 = 60 * 60 * 1000;
-    if !wanted() {
-        return;
+/// The preview's web beyond its feeds, as `pages` serves it: a site with a new feed, which its
+/// front page names with a second one, a page naming none, and the feed of the preview
+/// article's site. Written as `web.json`, so the mock knows what is there.
+const WEB_FEEDS: [(&str, &str); 3] = [
+    ("https://lanterns.example/feed.xml", "Lantern Notes"),
+    (
+        "https://lanterns.example/comments/feed.xml",
+        "Lantern Notes comments",
+    ),
+    ("https://quay.example/feed.xml", "Quay Weekly"),
+];
+
+fn preview_web(pages: &super::article_tests::Pages) {
+    for (url, title) in WEB_FEEDS {
+        let site = url::Url::parse(url).unwrap().join("/").unwrap();
+        pages.feed(
+            url,
+            &format!(
+                "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>{title}</title>\
+                 <link>{site}</link></channel></rss>"
+            ),
+            "v1",
+        );
     }
+    pages.set(
+        "https://lanterns.example/",
+        Ok("<!doctype html><html><head><title>Lanterns</title>\
+            <link rel=\"alternate\" type=\"application/rss+xml\" title=\"Articles\" href=\"/feed.xml\">\
+            <link rel=\"alternate\" type=\"application/rss+xml\" title=\"Comments\" href=\"/comments/feed.xml\">\
+            </head><body><p>Lanterns, kept and lit.</p></body></html>"
+            .into()),
+    );
+    pages.set(
+        "https://lanterns.example/about",
+        Ok("<!doctype html><html><head><title>About</title></head><body><p>About the lanterns.</p></body></html>".into()),
+    );
+}
+
+/// The core the mock's feeds come from: four subscriptions, checked (the fourth failing), two
+/// entries read. Returns it with its folder and when "now" was.
+async fn feeds_core() -> (
+    Arc<Core>,
+    tempfile::TempDir,
+    i64,
+    Arc<super::article_tests::Pages>,
+) {
+    use super::article_tests::Pages;
+    use super::feeds::{EntryFilter, EntryQuery};
+    const HOUR: i64 = 60 * 60 * 1000;
     let now = super::now_ms() / 1000 * 1000;
     let date = |hours: i64| {
         chrono::DateTime::from_timestamp_millis(now - hours * HOUR)
@@ -466,7 +617,27 @@ async fn feeds_for_the_ui_mock() {
     core.mark_entry_read(lighthouses.id, true).unwrap();
     let old = all(&core).into_iter().find(|e| e.feed_id == 4).unwrap();
     core.mark_entry_read(old.id, true).unwrap();
+    (core, dir, now, pages)
+}
 
+/// Subscriptions and their entries, which the mock serves on its Feeds screen: three feeds
+/// that answer (one carrying whole articles, one summaries only) and one that stopped. Times
+/// are written relative to now (the mock adds its own now).
+#[tokio::test]
+async fn feeds_for_the_ui_mock() {
+    use super::feeds::{EntryFilter, EntryQuery, FeedStage};
+    const HOUR: i64 = 60 * 60 * 1000;
+    if !wanted() {
+        return;
+    }
+    let (core, _dir, now, _) = feeds_core().await;
+    let all = |core: &Core| {
+        core.feed_entries(&EntryQuery {
+            filter: EntryFilter::All,
+            ..EntryQuery::default()
+        })
+        .unwrap()
+    };
     let mut views = core.feeds().unwrap();
     for view in &mut views {
         view.last_ok_at = Some(if view.id == 4 {
@@ -487,4 +658,1038 @@ async fn feeds_for_the_ui_mock() {
         &serde_json::json!({ "feeds": views, "entries": entries }),
         &[],
     );
+}
+
+/// The stage machines the mock plays out: for each stage, where each event the UI can cause
+/// leads, and what each stage offers. Written from [`super::syncing`] and
+/// [`super::preparation`], so the mock never keeps its own copy of their rules.
+#[test]
+fn stage_machines_for_the_ui_mock() {
+    if !wanted() {
+        return;
+    }
+    use super::preparation::{self, Event as PrepareEvent, Stage as PrepareStage};
+    use super::syncing::{self, Event as SyncEvent, Stage as SyncStage};
+    fn name(value: impl Serialize) -> String {
+        serde_json::to_value(value)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_owned()
+    }
+    let sync_stages = [
+        SyncStage::Checking,
+        SyncStage::Waiting,
+        SyncStage::NeedsModel,
+        SyncStage::Transcribing,
+        SyncStage::Matching,
+        SyncStage::Ready,
+        SyncStage::SampleMismatch,
+        SyncStage::PoorMatch,
+        SyncStage::Paused,
+        SyncStage::Missing,
+        SyncStage::Failed,
+        SyncStage::Standalone,
+    ];
+    let sync_events = [
+        ("pause", SyncEvent::Pause),
+        ("resume", SyncEvent::Resume),
+        ("retry", SyncEvent::Retry),
+        ("accept", SyncEvent::Accept),
+        ("resync", SyncEvent::Resync),
+        ("promote", SyncEvent::Promote),
+    ];
+    let mut sync = serde_json::Map::new();
+    for stage in sync_stages {
+        let next: serde_json::Map<String, Value> = sync_events
+            .iter()
+            .map(|(event, e)| ((*event).to_owned(), name(syncing::next(stage, *e)).into()))
+            .collect();
+        sync.insert(
+            name(stage),
+            serde_json::json!({
+                "next": next,
+                "actions": syncing::actions(stage, false),
+                "listenableActions": syncing::actions(stage, true),
+                // Whether it can be listened to with none of it transcribed, and with some.
+                "listenable": [syncing::can_listen(stage, 0), syncing::can_listen(stage, 1)],
+            }),
+        );
+    }
+    let prepare_stages = [
+        PrepareStage::Waiting,
+        PrepareStage::Queued,
+        PrepareStage::Preparing,
+        PrepareStage::Paused,
+        PrepareStage::Done,
+    ];
+    let prepare_events = [
+        ("planned", PrepareEvent::Planned),
+        ("pause", PrepareEvent::Pause),
+        ("resume", PrepareEvent::Resume),
+        ("promote", PrepareEvent::Promote),
+        ("demote", PrepareEvent::Demote),
+    ];
+    let mut prepare = serde_json::Map::new();
+    for stage in prepare_stages {
+        let next: serde_json::Map<String, Value> = prepare_events
+            .iter()
+            .map(|(event, e)| {
+                (
+                    (*event).to_owned(),
+                    name(preparation::next(stage, *e)).into(),
+                )
+            })
+            .collect();
+        prepare.insert(
+            name(stage),
+            serde_json::json!({
+                "next": next,
+                "actions": preparation::actions(stage, false),
+                "someChaptersActions": preparation::actions(stage, true),
+            }),
+        );
+    }
+    write(
+        "stages",
+        &serde_json::json!({ "sync": sync, "prepare": prepare }),
+        &[],
+    );
+}
+
+/// A scenario run on the real core: each call the window could make (an `AoideApi` method and
+/// its arguments) and what the core answered, for the UI mock to replay
+/// (`src/tests/mock.test.ts`).
+struct Scenario {
+    name: &'static str,
+    /// Where the mock starts: the preview's address query (`""` for the preview as it opens),
+    /// matching the state the core was in.
+    start: &'static str,
+    steps: Vec<Value>,
+}
+
+impl Scenario {
+    fn new(name: &'static str, start: &'static str) -> Self {
+        Self {
+            name,
+            start,
+            steps: Vec::new(),
+        }
+    }
+
+    /// `call(args)` (its arguments named as the window sends them) answered `result`; the replay compares the values at `check`, paths into
+    /// the result (see [`pick`]), or the refusal's message.
+    fn step<T: Serialize>(
+        &mut self,
+        call: &str,
+        args: Value,
+        result: &Result<T, String>,
+        check: &[&str],
+    ) {
+        let (expect, error) = match result {
+            Ok(value) => {
+                let value = serde_json::to_value(value).unwrap();
+                let expect: serde_json::Map<String, Value> = check
+                    .iter()
+                    .map(|path| ((*path).to_owned(), pick(&value, path)))
+                    .collect();
+                (expect, None)
+            }
+            Err(error) => (serde_json::Map::new(), Some(error.clone())),
+        };
+        self.steps.push(serde_json::json!({
+            "call": call, "args": args, "expect": expect, "error": error,
+        }));
+    }
+
+    /// After the last step the window is sent event `name` (an `AoideApi` `on…` method): the
+    /// replay compares its last payload at `check`.
+    fn then<T: Serialize>(&mut self, name: &str, payload: &T, check: &[&str]) {
+        let value = serde_json::to_value(payload).unwrap();
+        let expect: serde_json::Map<String, Value> = check
+            .iter()
+            .map(|path| ((*path).to_owned(), pick(&value, path)))
+            .collect();
+        let step = self.steps.last_mut().unwrap();
+        step["event"] = serde_json::json!({ "name": name, "expect": expect });
+    }
+
+    fn done(self) -> Value {
+        serde_json::json!({ "name": self.name, "start": self.start, "steps": self.steps })
+    }
+}
+
+/// The value at `path` in `value`: dot-separated keys, array indexes, `length` (an array's),
+/// `[k=x]` (the element whose field `k` is `x`) and `has=x` (whether an array holds the text `x`);
+/// an empty path is the whole value. The mock's
+/// replay reads paths the same way.
+fn pick(value: &Value, path: &str) -> Value {
+    let mut at = value.clone();
+    // Dots inside `[…]` (a web address) do not split.
+    let mut parts = Vec::new();
+    let (mut depth, mut from) = (0, 0);
+    for (i, c) in path.char_indices() {
+        match c {
+            '[' => depth += 1,
+            ']' => depth -= 1,
+            '.' if depth == 0 => {
+                parts.push(&path[from..i]);
+                from = i + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(&path[from..]);
+    for part in parts.into_iter().filter(|p| !p.is_empty()) {
+        let field = part
+            .strip_prefix('[')
+            .and_then(|p| p.strip_suffix(']'))
+            .and_then(|p| p.split_once('='));
+        at = if let Some((key, id)) = field {
+            at.as_array()
+                .and_then(|items| {
+                    items.iter().find(|item| match &item[key] {
+                        Value::String(text) => text == id,
+                        other => other.as_i64().is_some_and(|n| id.parse() == Ok(n)),
+                    })
+                })
+                .cloned()
+                .unwrap_or(Value::Null)
+        } else if let Some(text) = part.strip_prefix("has=") {
+            at.as_array()
+                .is_some_and(|items| items.iter().any(|item| item.as_str() == Some(text)))
+                .into()
+        } else if part == "length" && at.is_array() {
+            at.as_array().unwrap().len().into()
+        } else if let (Ok(index), Some(items)) = (part.parse::<usize>(), at.as_array()) {
+            items.get(index).cloned().unwrap_or(Value::Null)
+        } else {
+            at.get(part).cloned().unwrap_or(Value::Null)
+        };
+    }
+    at
+}
+
+/// Scenarios run on the real core, which the mock replays and must answer alike: every rule
+/// the mock plays out (reading state, places, modes, collections, search, removal, links,
+/// feeds and their entries) is held to what the core did.
+#[tokio::test]
+async fn scenarios_for_the_ui_mock() {
+    use serde_json::json;
+    if !wanted() {
+        return;
+    }
+    let mut scenarios = Vec::new();
+
+    // ---- on the preview library, as the mock starts
+    let dir = tempfile::tempdir().unwrap();
+    let (core, renames) = preview_library(dir.path()).await;
+    let id_of = |preview: &str| {
+        renames
+            .iter()
+            .find(|(_, to)| to == preview)
+            .map(|(from, _)| from.clone())
+            .unwrap()
+    };
+    let (first, second, fourth) = (id_of("book-0"), id_of("book-1"), id_of("book-3"));
+    core.set_mode(&first, super::ReadingMode::Listen).unwrap();
+    let books = |core: &Core| core.list_books();
+
+    let mut s = Scenario::new(
+        "a book is finished, read again and read in places",
+        "library",
+    );
+    let book = |field: &str| format!("[id={second}].{field}");
+    let (state, progress) = (book("readState"), book("progress"));
+    // Where Home lists it: membership, which the preview's other books do not change.
+    let listed = [
+        format!("continueIds.has={second}"),
+        format!("upNextIds.has={second}"),
+        format!("recentIds.has={second}"),
+    ];
+    let listed: Vec<&str> = listed.iter().map(String::as_str).collect();
+    s.step("home", json!({}), &core.home(), &listed);
+    let finished = core.mark_finished(&second);
+    s.step("markFinished", json!({"bookId": second}), &finished, &[]);
+    s.step("listBooks", json!({}), &books(&core), &[&state]);
+    s.step("home", json!({}), &core.home(), &listed);
+    s.step(
+        "markUnread",
+        json!({"bookId": second}),
+        &core.mark_unread(&second),
+        &[],
+    );
+    s.step("listBooks", json!({}), &books(&core), &[&state, &progress]);
+    s.step("home", json!({}), &core.home(), &listed);
+    let chapters = core.book_overview(&second).unwrap().chapters.len();
+    let spoken: Vec<(usize, String)> = (0..chapters)
+        .flat_map(|n| {
+            let chapter = core.chapter(&second, n).unwrap();
+            chapter
+                .blocks
+                .into_iter()
+                .flat_map(|b| b.segments)
+                .filter(|s| s.speakable)
+                .map(move |s| (n, s.id))
+        })
+        .collect();
+    let places = [
+        spoken[0].clone(),
+        spoken[spoken.len() / 2].clone(),
+        spoken[spoken.len() - 1].clone(),
+        (spoken[0].0 + 1, spoken[0].1.clone()),
+    ];
+    for (chapter, segment) in places {
+        let placed = core.set_reading_place(&second, chapter, &segment);
+        s.step(
+            "setReadingPlace",
+            json!({"bookId": second, "chapter": chapter, "segmentId": segment}),
+            &placed,
+            &["fraction"],
+        );
+        s.step("listBooks", json!({}), &books(&core), &[&state]);
+        s.step("home", json!({}), &core.home(), &listed);
+    }
+    s.step(
+        "chapter",
+        json!({"bookId": second, "chapter": 99}),
+        &core.chapter(&second, 99),
+        &[],
+    );
+    s.step(
+        "chapter",
+        json!({"bookId": second, "chapter": 1}),
+        &core.chapter(&second, 1),
+        &["title", "blocks.length"],
+    );
+    scenarios.push(s.done());
+
+    let mut s = Scenario::new("a book is read or listened to", "");
+    for mode in [super::ReadingMode::Listen, super::ReadingMode::Read] {
+        let set = core.set_mode(&second, mode);
+        s.step(
+            "setMode",
+            json!({"bookId": second, "mode": mode}),
+            &set,
+            &["mode", "shape"],
+        );
+        s.step(
+            "listBooks",
+            json!({}),
+            &books(&core),
+            &[&book("mode"), &book("shape")],
+        );
+    }
+    scenarios.push(s.done());
+
+    let mut s = Scenario::new("collections are named once and hold books", "");
+    let made = core.create_collection("Harbour");
+    s.step("createCollection", json!({"name": "Harbour"}), &made, &[""]);
+    let made = made.unwrap();
+    for name in [" harbour ", "   "] {
+        s.step(
+            "createCollection",
+            json!({"name": name}),
+            &core.create_collection(name),
+            &[],
+        );
+    }
+    s.step(
+        "collections",
+        json!({}),
+        &core.collections(),
+        &["length", "0.name"],
+    );
+    s.step(
+        "setBookCollections",
+        json!({"bookId": second, "ids": [made]}),
+        &core.set_book_collections(&second, &[made]),
+        &[],
+    );
+    s.step(
+        "listBooks",
+        json!({}),
+        &books(&core),
+        &[&book("collections")],
+    );
+    s.step(
+        "renameCollection",
+        json!({"id": made, "name": "Quay"}),
+        &core.rename_collection(made, "Quay"),
+        &[],
+    );
+    s.step("collections", json!({}), &core.collections(), &["0.name"]);
+    s.step(
+        "deleteCollection",
+        json!({"id": made}),
+        &core.delete_collection(made),
+        &[],
+    );
+    s.step("collections", json!({}), &core.collections(), &["length"]);
+    s.step(
+        "listBooks",
+        json!({}),
+        &books(&core),
+        &[&book("collections")],
+    );
+    scenarios.push(s.done());
+
+    let mut s = Scenario::new("a book is searched", "");
+    for query in ["bench", "BENCH", "zeppelin"] {
+        let hits = core.search_book(&second, query);
+        s.step(
+            "searchBook",
+            json!({"bookId": second, "query": query}),
+            &hits,
+            &["length", "0.segmentId", "0.chapter"],
+        );
+    }
+    scenarios.push(s.done());
+
+    let mut s = Scenario::new("a book is removed", "");
+    s.step(
+        "removeBook",
+        json!({"bookId": fourth}),
+        &core.remove_book(&fourth),
+        &[],
+    );
+    s.step(
+        "listBooks",
+        json!({}),
+        &books(&core),
+        &["length", &format!("[id={fourth}]")],
+    );
+    scenarios.push(s.done());
+
+    let mut s = Scenario::new("an audiobook is added and played from its parts", "");
+    let folder = super::audiobook::tests::tagged_set(dir.path());
+    let folder = folder.to_string_lossy().into_owned();
+    let added = core.add_audiobook(vec![folder.clone()]);
+    s.step(
+        "addAudiobook",
+        json!({"paths": [folder]}),
+        &Ok(added.clone()),
+        &["bookId", "error"],
+    );
+    let audiobook = added.book_id.unwrap();
+    let mut renames = renames.clone();
+    renames.insert(0, (audiobook.clone(), "book-5".into()));
+    let played = core.play(&audiobook, Some(1), None).await;
+    s.step(
+        "play",
+        json!({"bookId": audiobook, "chapter": 1, "segmentId": null}),
+        &played,
+        &[],
+    );
+    s.then(
+        "onPlayerState",
+        &core.player_state(),
+        &["bookId", "chapter"],
+    );
+    core.pause();
+    s.step("pause", json!({}), &Ok(()), &[]);
+    s.then(
+        "onPlayerState",
+        &core.player_state(),
+        &["bookId", "status", "chapter"],
+    );
+    core.stop();
+    s.step("stop", json!({}), &Ok(()), &[]);
+    s.then("onPlayerState", &core.player_state(), &["status"]);
+    let text_only = core.set_mode(&audiobook, super::ReadingMode::Read);
+    s.step(
+        "setMode",
+        json!({"bookId": audiobook, "mode": "read"}),
+        &text_only,
+        &[],
+    );
+    s.step(
+        "chapter",
+        json!({"bookId": audiobook, "chapter": 0}),
+        &core.chapter(&audiobook, 0),
+        &[],
+    );
+    scenarios.push(s.done());
+    let mut s = Scenario::new("an audiobook on its own is merged into its book", "");
+    let added = core.add_audiobook(vec![folder.clone()]);
+    s.step(
+        "addAudiobook",
+        json!({"paths": [folder]}),
+        &Ok(added),
+        &["bookId"],
+    );
+    let merged = core.merge_audiobook(&audiobook, &first);
+    s.step(
+        "mergeAudiobook",
+        json!({"audiobookId": audiobook, "bookId": first}),
+        &merged,
+        &[],
+    );
+    // As the core tells it right after: the recording, checking first.
+    let gone = format!("[id={audiobook}]");
+    let paired = format!("[id={first}].recording");
+    s.step("listBooks", json!({}), &books(&core), &[&gone, &paired]);
+    let recording = Ok(core.recording(&first));
+    s.step(
+        "recording",
+        json!({"bookId": first}),
+        &recording,
+        &["stage", "bookId", "listenable"],
+    );
+    scenarios.push(s.done());
+    let renames_with_audiobook = renames;
+
+    let mut s = Scenario::new("links given to Save", "");
+    for link in [
+        "harbour.example/notices/1",
+        "  https://harbour.example/a  ",
+        "http://harbour.example",
+        "ftp://harbour.example/file",
+        "mailto:keeper@harbour.example",
+        "harbour notes",
+        "",
+        "https://",
+    ] {
+        let parsed = super::articles::parse_link(link).map(drop);
+        s.step("saveArticle", json!({"url": link}), &parsed, &[]);
+    }
+    scenarios.push(s.done());
+    let library_renames = renames_with_audiobook;
+
+    // ---- on the feeds, as the mock starts
+    let (core, _feeds_dir, _, _) = feeds_core().await;
+    let mut s = Scenario::new("entries are read, saved and a feed left", "");
+    let entries = |core: &Core, filter: super::feeds::EntryFilter| {
+        core.feed_entries(&super::feeds::EntryQuery {
+            filter,
+            ..super::feeds::EntryQuery::default()
+        })
+    };
+    use super::feeds::EntryFilter::{All, Saved, Unread};
+    s.step(
+        "feeds",
+        json!({}),
+        &core.feeds(),
+        &["length", "[id=1].unread", "[id=2].unread"],
+    );
+    s.step(
+        "feedEntries",
+        json!({"feedId": null, "filter": "unread"}),
+        &entries(&core, Unread),
+        &["length"],
+    );
+    s.step(
+        "markEntryRead",
+        json!({"entryId": 1, "read": true}),
+        &core.mark_entry_read(1, true),
+        &[],
+    );
+    s.step("feeds", json!({}), &core.feeds(), &["[id=1].unread"]);
+    s.step(
+        "markEntryRead",
+        json!({"entryId": 1, "read": false}),
+        &core.mark_entry_read(1, false),
+        &[],
+    );
+    s.step(
+        "markAllRead",
+        json!({"feedId": 2}),
+        &core.mark_all_read(Some(2)),
+        &[],
+    );
+    s.step(
+        "feeds",
+        json!({}),
+        &core.feeds(),
+        &["[id=1].unread", "[id=2].unread"],
+    );
+    s.step(
+        "feedEntries",
+        json!({"feedId": null, "filter": "unread"}),
+        &entries(&core, Unread),
+        &["length"],
+    );
+    let saved = core.save_feed_entry(6);
+    s.step(
+        "saveFeedEntry",
+        json!({"entryId": 6}),
+        &saved.as_ref().map(drop).map_err(Clone::clone),
+        &[],
+    );
+    // The item the entry opens is the preview's article in the mock.
+    let item = saved.unwrap();
+    let mut renames = library_renames.clone();
+    renames.insert(0, (item.clone(), "book-6".into()));
+    s.step(
+        "feedEntries",
+        json!({"feedId": null, "filter": "saved"}),
+        &entries(&core, Saved),
+        &["length", "0.id"],
+    );
+    s.step(
+        "feedEntries",
+        json!({"feedId": null, "filter": "all"}),
+        &entries(&core, All),
+        &["length", "[id=6].inLibrary", "[id=6].read"],
+    );
+    let again = core.add_link("https://tidewatch.example/feed.xml").await;
+    s.step(
+        "addLink",
+        json!({"url": "https://tidewatch.example/feed.xml"}),
+        &again,
+        &["kind", "value.id"],
+    );
+    s.step(
+        "unsubscribe",
+        json!({"feedId": 2}),
+        &core.unsubscribe(2),
+        &[],
+    );
+    s.step("feeds", json!({}), &core.feeds(), &["length", "[id=2]"]);
+    s.step(
+        "feedEntries",
+        json!({"feedId": null, "filter": "all"}),
+        &entries(&core, All),
+        &["length"],
+    );
+    // A saved item an entry still opens goes back to the feed shelf when removed.
+    let books = core.list_books();
+    s.step(
+        "listBooks",
+        json!({}),
+        &books,
+        &[&format!("[id={item}].kind")],
+    );
+    s.step(
+        "removeBook",
+        json!({"bookId": item}),
+        &core.remove_book(&item),
+        &[],
+    );
+    let books = core.list_books();
+    s.step("listBooks", json!({}), &books, &[&format!("[id={item}]")]);
+    let saved = entries(&core, Saved);
+    s.step(
+        "feedEntries",
+        json!({"feedId": null, "filter": "saved"}),
+        &saved,
+        &["length"],
+    );
+    let all = entries(&core, All);
+    s.step(
+        "feedEntries",
+        json!({"feedId": null, "filter": "all"}),
+        &all,
+        &["[id=6].inLibrary"],
+    );
+    scenarios.push(s.done());
+
+    // ---- the preview's web, from the feeds as the mock starts
+    use super::article_tests::{LIGHTS, LIGHTS_URL};
+    let (core, feeds_dir, _, pages) = feeds_core().await;
+    preview_web(&pages);
+    let mut s = Scenario::new(
+        "feeds are found on the preview's web and imported from a list",
+        "",
+    );
+    for link in [
+        "https://lanterns.example/about",
+        "https://lanterns.example/",
+    ] {
+        let found = core.subscribe(link).await;
+        let check = [
+            "kind",
+            "value.length",
+            "value.0.title",
+            "value.0.url",
+            "value.1.title",
+        ];
+        s.step("subscribe", json!({"url": link}), &found, &check);
+    }
+    let link = WEB_FEEDS[0].0;
+    let found = core.subscribe(link).await;
+    let check = [
+        "kind",
+        "value.title",
+        "value.url",
+        "value.unread",
+        "value.stage.kind",
+    ];
+    s.step("subscribe", json!({"url": link}), &found, &check);
+    let opml_feeds = [
+        ("Tidewatch", "https://tidewatch.example/feed.xml"),
+        (WEB_FEEDS[0].1, WEB_FEEDS[0].0),
+        (WEB_FEEDS[2].1, WEB_FEEDS[2].0),
+    ];
+    let outlines: String = opml_feeds
+        .iter()
+        .map(|(title, url)| format!(r#"<outline type="rss" text="{title}" xmlUrl="{url}"/>"#))
+        .collect();
+    let opml = feeds_dir.path().join("Subscriptions.opml");
+    std::fs::write(
+        &opml,
+        format!(r#"<?xml version="1.0"?><opml version="2.0"><body>{outlines}</body></opml>"#),
+    )
+    .unwrap();
+    let opml = opml.to_string_lossy().into_owned();
+    let imported = core.import_opml(&opml);
+    s.step(
+        "importOpml",
+        json!({"path": opml}),
+        &imported,
+        &["added", "skipped"],
+    );
+    let quay = format!("[url={}]", WEB_FEEDS[2].0);
+    let check = [
+        "length".to_owned(),
+        format!("{quay}.title"),
+        format!("{quay}.unread"),
+        format!("[url={}].title", WEB_FEEDS[0].0),
+    ];
+    let check: Vec<&str> = check.iter().map(String::as_str).collect();
+    s.step("feeds", json!({}), &core.feeds(), &check);
+    scenarios.push(s.done());
+    renames.push((feeds_dir.path().to_string_lossy().into_owned(), "~".into()));
+    let web = serde_json::json!({
+        "feeds": WEB_FEEDS.iter().map(|(url, title)| json!({"url": url, "title": title})).collect::<Vec<_>>(),
+        "opml": opml_feeds.iter().map(|(title, url)| json!({"url": url, "title": title})).collect::<Vec<_>>(),
+    });
+    write("web", &web, &[]);
+
+    // ---- an article saved and fetched
+    use super::browsing::BrowserUse;
+    let fetching = super::browser_tests::setup(BrowserUse::Off, "");
+    fetching.pages.set(LIGHTS_URL, Ok(LIGHTS.into()));
+    let mut s = Scenario::new("an article is saved and fetched", "");
+    let saved = fetching.core.save_article(LIGHTS_URL);
+    s.step("saveArticle", json!({"url": LIGHTS_URL}), &saved, &[""]);
+    let article = saved.unwrap();
+    renames.insert(0, (article.clone(), "book-6".into()));
+    until("the article is fetched", || {
+        fetching
+            .core
+            .article(&article)
+            .is_ok_and(|a| a.stage == super::fetching::Stage::Ready)
+    })
+    .await;
+    let check = [
+        "stage.kind",
+        "via",
+        "siteName",
+        "byline",
+        "capturedWords",
+        "inLibrary",
+    ];
+    s.then(
+        "onArticleState",
+        &fetching.core.article(&article).unwrap(),
+        &check,
+    );
+    let kind = format!("[id={article}].kind");
+    s.step(
+        "listBooks",
+        json!({}),
+        &fetching.core.list_books(),
+        &[&kind],
+    );
+    scenarios.push(s.done());
+
+    // ---- a site that cut an article short, signed in to
+    use super::signin::SignInStage;
+    let (web, id) = super::browser_tests::needing_sign_in().await;
+    let mut s = Scenario::new(
+        "a site that cut an article short is signed in to",
+        "?article=needsyou-cutshort&browser=ready",
+    );
+    let site = "[host=quay.example]";
+    let site_check = [
+        format!("{site}.session.kind"),
+        format!("{site}.session.reason"),
+        format!("{site}.waitingArticle"),
+    ];
+    let site_check: Vec<&str> = site_check.iter().map(String::as_str).collect();
+    let check = ["stage.kind", "stage.reason"];
+    s.step(
+        "article",
+        json!({"bookId": id}),
+        &web.core.article(&id),
+        &check,
+    );
+    s.step("sites", json!({}), &web.core.sites(), &site_check);
+    *web.browser.window.page.lock().unwrap() = super::browser_tests::SIGN_IN_PAGE.into();
+    let started = web.core.start_sign_in(&id);
+    let check = ["site", "reason", "staySignedIn"];
+    s.step("startSignIn", json!({"bookId": id}), &started, &check);
+    until("the window is open", || {
+        web.core.sign_in().unwrap().stage == SignInStage::Waiting
+    })
+    .await;
+    let check = ["stage.kind", "site", "reason"];
+    s.then("onSignInState", &web.core.sign_in().unwrap(), &check);
+    web.browser.set(LIGHTS_URL, Ok(LIGHTS));
+    s.step("finishSignIn", json!({}), &web.core.finish_sign_in(), &[]);
+    let done = super::browser_tests::sign_in_ends(&web.core).await;
+    s.then("onSignInState", &done, &["stage.kind", "result.kind"]);
+    let check = ["stage.kind", "via"];
+    s.step(
+        "article",
+        json!({"bookId": id}),
+        &web.core.article(&id),
+        &check,
+    );
+    s.step("sites", json!({}), &web.core.sites(), &site_check);
+    scenarios.push(s.done());
+
+    // ---- the browser downloaded
+    use super::browser_download::tests::{chrome_zip, host, sha256};
+    let pinned = super::browser_download::Source::pinned().unwrap();
+    let zip = chrome_zip();
+    let source = super::browser_download::Source {
+        version: pinned.version.clone(),
+        url: host(zip.clone(), Arc::default()).await,
+        bytes: zip.len() as u64,
+        sha256: sha256(&zip),
+        program: "chrome-test/chrome".into(),
+    };
+    let downloads = tempfile::tempdir().unwrap();
+    super::tests::library_folder(downloads.path(), "");
+    let (browser_core, _) = super::tests::start_downloading(
+        downloads.path(),
+        &FakeEngine::new(),
+        Arc::new(|_| Err("no speech recognition here".into())),
+        super::article_tests::Pages::with(&[]),
+        Arc::new(super::browsing::testing::ScriptedBrowser::default()),
+        Some(source),
+    );
+    browser_core
+        .update_app_settings(super::AppSettingsPatch {
+            browser: Some(super::browsing::BrowserSettings {
+                use_: BrowserUse::Fallback,
+                path: None,
+                idle_seconds: 60,
+            }),
+            ..Default::default()
+        })
+        .unwrap();
+    let mut s = Scenario::new("the browser is downloaded", "?browser=missing");
+    let status = Ok(browser_core.browser_status());
+    s.step(
+        "browserStatus",
+        json!({}),
+        &status,
+        &["use", "offeredVersion", "downloaded"],
+    );
+    let downloaded = browser_core.download_browser().await;
+    s.step("downloadBrowser", json!({}), &downloaded, &[]);
+    let last = browser_core.browser_status().download.unwrap();
+    s.then("onBrowserDownload", &last, &["stage", "version"]);
+    let status = Ok(browser_core.browser_status());
+    let check = [
+        "downloaded",
+        "binary.kind",
+        "download.stage",
+        "offeredVersion",
+    ];
+    s.step("browserStatus", json!({}), &status, &check);
+    scenarios.push(s.done());
+    write(
+        "browser",
+        &json!({ "version": pinned.version, "bytes": pinned.bytes }),
+        &[],
+    );
+
+    // ---- books found in the preview's folders, looked up and imported; audiobooks paired
+    let found_dir = tempfile::tempdir().unwrap();
+    let (core, found_renames) = preview_library(found_dir.path()).await;
+    let [tide, glass] = preview_folders(found_dir.path());
+    let folder = |name: &str| found_dir.path().join(name).to_string_lossy().into_owned();
+    core.update_app_settings(super::AppSettingsPatch {
+        metadata_lookup: Some(true),
+        scan: Some(super::discovery::ScanSettings {
+            roots: vec![folder("Downloads"), folder("Documents")],
+            ..Default::default()
+        }),
+        audiobooks: Some(super::audiobooks::AudiobookSearchSettings {
+            roots: vec![folder("Audiobooks")],
+            ..Default::default()
+        }),
+        ..Default::default()
+    })
+    .unwrap();
+    let book_id = |index: usize| found_renames[index].0.clone();
+    let mut s = Scenario::new("books are found, looked up and imported", "");
+    s.step(
+        "discoveredBooks",
+        json!({}),
+        &core.discovered_books(),
+        &["length"],
+    );
+    let scanned = core.scan_for_books().await;
+    let (t, g) = (format!("[id={tide}]"), format!("[id={glass}]"));
+    let check = [
+        "length".to_owned(),
+        format!("{t}.status"),
+        format!("{t}.title"),
+        format!("{t}.paths.length"),
+        format!("{t}.audiobook.length"),
+        format!("{t}.suggestion"),
+        format!("{g}.status"),
+        format!("{g}.audiobook.length"),
+        format!("[id={}].status", book_id(0)),
+        format!("[id={}].audiobook.0", book_id(0)),
+        "[status=unreadable].error".to_owned(),
+    ];
+    let check: Vec<&str> = check.iter().map(String::as_str).collect();
+    s.step("scanForBooks", json!({}), &scanned, &check);
+    // Open Library, as its answers are kept: the stand-in for the network.
+    let new = scanned.as_ref().unwrap().iter();
+    let new = new.filter(|c| c.status == super::discovery::CandidateStatus::New);
+    for (candidate, published) in new.zip(["2018", "2021"]) {
+        let found = vec![aoide_metadata::Match {
+            key: format!("/works/{}", candidate.id),
+            title: candidate.title.clone(),
+            authors: candidate.authors.clone(),
+            published: Some(published.into()),
+            publisher: Some("Preview Press".into()),
+            isbn: None,
+            subjects: vec!["Fiction".into()],
+            cover_url: None,
+        }];
+        let query = aoide_metadata::Query {
+            isbn: candidate.isbn.clone(),
+            title: candidate.title.clone(),
+            authors: candidate.authors.clone(),
+        };
+        super::lock(&core.library)
+            .store_lookup(
+                &super::metadata::cache_key(&query),
+                &serde_json::to_string(&found).unwrap(),
+                super::now_ms(),
+            )
+            .unwrap();
+    }
+    let ids = vec![tide.clone(), glass.clone()];
+    let fetched = core.fetch_discovered_details(ids.clone()).await;
+    s.step("fetchDiscoveredDetails", json!({"ids": ids}), &fetched, &[]);
+    let check = [
+        format!("{t}.suggestion.publisher"),
+        format!("{t}.suggestion.title"),
+        format!("{g}.suggestion.publisher"),
+    ];
+    let check: Vec<&str> = check.iter().map(String::as_str).collect();
+    let looked_up = core.discovered_books();
+    s.step("discoveredBooks", json!({}), &looked_up, &check);
+    let details: std::collections::BTreeMap<_, _> = looked_up
+        .unwrap()
+        .into_iter()
+        .filter_map(|c| Some((c.id, c.suggestion?)))
+        .collect();
+    let choices = json!([{"id": tide, "applySuggestion": true, "pairAudiobook": true}]);
+    let imported = core
+        .import_discovered(serde_json::from_value(choices.clone()).unwrap())
+        .await;
+    let check = ["length", "0.bookId", "0.error"];
+    s.step(
+        "importDiscovered",
+        json!({"choices": choices}),
+        &imported,
+        &check,
+    );
+    let check = [format!("{t}.title"), format!("{t}.recording")];
+    let check: Vec<&str> = check.iter().map(String::as_str).collect();
+    s.step("listBooks", json!({}), &core.list_books(), &check);
+    let check = [
+        "length".to_owned(),
+        format!("{t}.status"),
+        format!("{g}.status"),
+    ];
+    let check: Vec<&str> = check.iter().map(String::as_str).collect();
+    s.step(
+        "discoveredBooks",
+        json!({}),
+        &core.discovered_books(),
+        &check,
+    );
+    scenarios.push(s.done());
+
+    let mut s = Scenario::new("audiobooks are found for books and paired", "");
+    let (map, atlas) = (
+        format!("[bookId={}]", book_id(1)),
+        format!("[bookId={}]", book_id(3)),
+    );
+    let matches = core.scan_for_audiobooks().await;
+    let mut check = vec!["length".to_owned()];
+    for at in [&map, &atlas] {
+        for field in ["candidates.length", "stage.kind"] {
+            check.push(format!("{at}.{field}"));
+        }
+        for field in ["exact", "folder", "bytes", "files.length", "paths.0"] {
+            check.push(format!("{at}.candidates.0.{field}"));
+        }
+    }
+    check.push(format!("{map}.candidates.1.paths.0"));
+    let check: Vec<&str> = check.iter().map(String::as_str).collect();
+    s.step("scanForAudiobooks", json!({}), &matches, &check);
+    let unmatched = core.unmatched_audiobooks();
+    let check = [
+        "length",
+        "0.paths.0",
+        "0.folder",
+        "0.files.length",
+        "0.bytes",
+    ];
+    s.step(
+        "unmatchedAudiobooks",
+        json!({}),
+        &Ok(unmatched.clone()),
+        &check,
+    );
+    let choices = json!([{"bookId": book_id(1), "candidate": 1}]);
+    let paired = Ok(core.pair_audiobooks(serde_json::from_value(choices.clone()).unwrap()));
+    s.step(
+        "pairAudiobooks",
+        json!({"choices": choices}),
+        &paired,
+        &["length", "0.bookId", "0.error"],
+    );
+    let check = [
+        "length".to_owned(),
+        map.clone(),
+        format!("{atlas}.stage.kind"),
+    ];
+    let check: Vec<&str> = check.iter().map(String::as_str).collect();
+    s.step(
+        "audiobookMatches",
+        json!({}),
+        &Ok(core.audiobook_matches()),
+        &check,
+    );
+    let recording = Ok(core.recording(&book_id(1)));
+    s.step(
+        "recording",
+        json!({"bookId": book_id(1)}),
+        &recording,
+        &["stage", "files.length"],
+    );
+    scenarios.push(s.done());
+
+    // The preview's "Find books" and "Find audiobooks", as the core first answers them.
+    let mut found = found_renames.clone();
+    found.insert(0, (tide.clone(), "h-tide".into()));
+    found.insert(0, (glass.clone(), "h-glass".into()));
+    write(
+        "found",
+        &json!({
+            "books": scanned.unwrap(),
+            "details": details,
+            "audiobooks": matches.unwrap(),
+            "unmatched": unmatched,
+        }),
+        &found,
+    );
+    renames.insert(0, (tide, "h-tide".into()));
+    renames.insert(0, (glass, "h-glass".into()));
+    renames.push((found_dir.path().to_string_lossy().into_owned(), "~".into()));
+
+    write("scenarios", &scenarios, &renames);
 }

@@ -122,10 +122,10 @@ it("pairs the audiobook found beside a book already in the library through the p
   expect(wrapper.get(".find__audiobook").text()).toContain("The Lantern Keeper");
   await wrapper.get('[aria-label="Pair the audiobook beside The Lantern Keeper"]').trigger("click");
   expect(useRecordingsStore().pairing).toEqual({
-    paths: ["~/Audiobooks/Mira Vale - The Lantern Keeper"],
+    paths: ["~/Documents/The Lantern Keeper.m4b"],
     bookId: "book-0",
   });
-  await useRecordingsStore().attach("book-0", ["~/Audiobooks/Mira Vale - The Lantern Keeper"]);
+  await useRecordingsStore().attach("book-0", ["~/Documents/The Lantern Keeper.m4b"]);
   await flushPromises();
   expect(wrapper.find('[aria-label="Pair the audiobook beside The Lantern Keeper"]').exists()).toBe(false);
   expect(wrapper.text()).toContain("Paired");

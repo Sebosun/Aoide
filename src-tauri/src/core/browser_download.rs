@@ -468,7 +468,7 @@ fn unpack(zip: &Path, folder: &Path, program: &Path, version: &str) -> Result<()
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use std::sync::atomic::AtomicUsize;
     use std::sync::Arc;
@@ -476,7 +476,7 @@ mod tests {
 
     /// How the stand-in download host answers.
     #[derive(Default)]
-    struct Serving {
+    pub(in crate::core) struct Serving {
         /// Send only this many bytes of the body the first time, then close.
         cut_first_at: Option<usize>,
         ignore_range: bool,
@@ -488,7 +488,7 @@ mod tests {
     }
 
     /// Serves `body` on loopback as `serving` says; returns its address.
-    async fn host(body: Vec<u8>, serving: Arc<Serving>) -> Url {
+    pub(in crate::core) async fn host(body: Vec<u8>, serving: Arc<Serving>) -> Url {
         let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
             .await
             .unwrap();
@@ -546,7 +546,7 @@ mod tests {
 
     /// A small zip shaped like Chrome for Testing's: a program, and a file that does not
     /// compress (so the download takes many pieces).
-    fn chrome_zip() -> Vec<u8> {
+    pub(in crate::core) fn chrome_zip() -> Vec<u8> {
         use zip::write::SimpleFileOptions;
         let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
         let stored =
@@ -569,7 +569,7 @@ mod tests {
         zip.finish().unwrap().into_inner()
     }
 
-    fn sha256(bytes: &[u8]) -> String {
+    pub(in crate::core) fn sha256(bytes: &[u8]) -> String {
         Sha256::digest(bytes)
             .iter()
             .map(|b| format!("{b:02x}"))

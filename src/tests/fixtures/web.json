@@ -1,0 +1,30 @@
+{
+  "feeds": [
+    {
+      "title": "Lantern Notes",
+      "url": "https://lanterns.example/feed.xml"
+    },
+    {
+      "title": "Lantern Notes comments",
+      "url": "https://lanterns.example/comments/feed.xml"
+    },
+    {
+      "title": "Quay Weekly",
+      "url": "https://quay.example/feed.xml"
+    }
+  ],
+  "opml": [
+    {
+      "title": "Tidewatch",
+      "url": "https://tidewatch.example/feed.xml"
+    },
+    {
+      "title": "Lantern Notes",
+      "url": "https://lanterns.example/feed.xml"
+    },
+    {
+      "title": "Quay Weekly",
+      "url": "https://quay.example/feed.xml"
+    }
+  ]
+}

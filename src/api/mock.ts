@@ -1,3 +1,8 @@
+/** The browser preview's stand-in core. It serves what the real core made for the preview
+ *  (`src/tests/fixtures/`, written by src-tauri/src/core/fixtures.rs) and keeps the user's edits
+ *  in memory. Where it plays out a rule of the core's, `src/tests/mock.test.ts` replays the
+ *  scenarios the core ran (`scenarios.json`) and the core's stage tables (`stages.json`) on it,
+ *  so it answers as the core did. */
 import type {
   ArticleView,
   AddedLink,
@@ -49,11 +54,14 @@ import fixtureViews from "@/tests/fixtures/book-views.json";
 import fixturePlayer from "@/tests/fixtures/player.json";
 import fixtureGenerationPlaying from "@/tests/fixtures/generation-playing.json";
 import fixtureRecording from "@/tests/fixtures/recording.json";
-import fixtureHome from "@/tests/fixtures/home.json";
 import fixtureAudiobook from "@/tests/fixtures/audiobook.json";
 import fixtureArticle from "@/tests/fixtures/article.json";
 import fixtureFeeds from "@/tests/fixtures/feeds.json";
 import fixtureStages from "@/tests/fixtures/stages.json";
+import fixtureChapters from "@/tests/fixtures/chapters.json";
+import fixtureWeb from "@/tests/fixtures/web.json";
+import fixtureBrowser from "@/tests/fixtures/browser.json";
+import fixtureFound from "@/tests/fixtures/found.json";
 import { ApiError } from "@/api/errors";
 
 /** A refusal, as the core answers one: an error of a kind (its `String` errors are `internal`). */
@@ -76,7 +84,7 @@ const coreView = (id: string): BookView | undefined =>
 /** A saved link as the core reads it (core/articles.rs `parse_link`). */
 const parseLink = (link: string) => {
   const text = link.trim();
-  const invalid = () => new Error("That is not a web address.");
+  const invalid = () => refused("That is not a web address.");
   if (!text || /\s/.test(text)) throw invalid();
   let url: URL;
   try {
@@ -116,69 +124,41 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   };
   const books = coreBooks();
   /** Home as the core made it for these books; `setHome` replaces it (an empty library). */
-  let home: HomeView = structuredClone(fixtureHome);
+  /** Home for another library, set by a test; else Home is worked out from the books. */
+  let homeOverride: HomeView | null = null;
+  /** Home's lists from the library's items, as the core makes them (core/facets.rs `home`):
+   *  started and unfinished by last opened, never started and every other item by newest added. */
+  const homeOf = (items: BookSummary[]): HomeView => {
+    const usable = items.filter((b) => b.status.kind !== "error"),
+      started = (b: BookSummary) => b.progress !== null,
+      ids = (list: BookSummary[], n: number) => list.slice(0, n).map((b) => b.id);
+    const continueIds = ids(
+      usable
+        .filter((b) => started(b) && b.progress!.fraction < 1 && b.readState !== "finished")
+        .sort((a, b) => (b.lastOpenedAt ?? b.addedAt) - (a.lastOpenedAt ?? a.addedAt)),
+      3,
+    );
+    const newest = [...usable].sort((a, b) => b.addedAt - a.addedAt);
+    const upNextIds = ids(
+      newest.filter((b) => !started(b)),
+      5,
+    );
+    const recentIds = ids(
+      newest.filter((b) => !continueIds.includes(b.id) && !upNextIds.includes(b.id)),
+      8,
+    );
+    return { continueIds, upNextIds, recentIds };
+  };
   const shelves: { id: number; name: string; createdAt: number }[] = [];
   const shelfName = (name: string, except?: number) => {
     const trimmed = name.trim();
-    if (!trimmed) throw new Error("a collection needs a name");
+    if (!trimmed) throw refused("a collection needs a name");
     if (shelves.some((s) => s.id !== except && s.name.toLowerCase() === trimmed.toLowerCase()))
-      throw new Error(`there is already a collection called “${trimmed}”`);
+      throw refused(`there is already a collection called “${trimmed}”`);
     return trimmed;
   };
-  const texts = [
-    [
-      [
-        "The small light",
-        "Every evening, Ada carried a lantern to the end of the pier. The sea collected its reflection and broke it into a hundred little stars.",
-        "Tonight a paper boat waited beside the steps. Inside it lay a key, warm as if someone had held it all the way across the bay.",
-      ],
-      [
-        "Across the water",
-        "At dawn she borrowed the blue rowing boat. Each pull of the oars opened a quiet doorway in the water.",
-        "On the far shore, a gardener waved. He had been waiting for someone to bring back the light.",
-      ],
-    ],
-    [
-      [
-        "An ordinary discovery",
-        "No one had marked the bench on any map. It stood between a bakery and a clock shop, where the morning smelled of bread and rain.",
-        "Ren sat down and listened. Beneath the traffic, a sparrow was rehearsing a song with no ending.",
-      ],
-      [
-        "The long way home",
-        "Ren drew a circle where the bench should be. Then came the bridge, the cool stone steps, and the lane where the wind always rested.",
-        "The map did not make the city smaller. It made room for all the things Ren had hurried past.",
-      ],
-      [
-        "A place to begin",
-        "The next morning, a stranger asked for directions. Ren folded the map and offered to walk beside her.",
-        "They took the long way. There was plenty of time.",
-      ],
-    ],
-  ];
-  const chapters: ChapterView[][] = texts.map((book) =>
-    book.map((parts, c) => ({
-      index: c,
-      title: parts[0],
-      blocks: parts.map((text, b) => ({
-        kind: b === 0 ? "heading" : "paragraph",
-        level: b === 0 ? 2 : null,
-        segments: [
-          {
-            id: `${c}:${b}:0`,
-            words: text.split(/\s+/),
-            speakable: true,
-            note: false,
-            notes:
-              c === 0 && b === 1
-                ? [{ afterWord: 2, label: "1", text: "A short original note shown in the browser preview." }]
-                : [],
-          },
-        ],
-      })),
-      notNarrated: null,
-    })),
-  );
+  /** Each preview book's chapters, as the core reads them (`chapters.json`). */
+  const chapters = structuredClone(fixtureChapters) as unknown as ChapterView[][];
   const descriptors: EngineDescriptor[] = [
     {
       kind: "chatterbox",
@@ -274,8 +254,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   let browserDownload: BrowserDownloadView | null = null;
   let cancelBrowser = false;
   const browserDownloadHandlers = new Set<(d: BrowserDownloadView) => void>();
-  const BROWSER_VERSION = "157.0.8103.78";
-  const BROWSER_BYTES = 203_266_906;
+  /** The pinned Chrome for Testing, as the core offers it (`browser.json`). */
+  const BROWSER_VERSION = fixtureBrowser.version;
+  const BROWSER_BYTES = fixtureBrowser.bytes;
   const browserStatus = (): BrowserStatusView => {
     const on = appSettings.browser.use !== "off";
     const binary: BrowserStatusView["binary"] = appSettings.browser.path
@@ -327,7 +308,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       .toLowerCase()
       .replace(/^www\./, "");
   const browserOff = () => {
-    if (appSettings.browser.use === "off") throw new Error("The browser is off. Turn it on in Settings › Sites.");
+    if (appSettings.browser.use === "off") throw refused("The browser is off. Turn it on in Settings › Sites.");
   };
   const tellBrowserDownload = (change: Partial<BrowserDownloadView>) => {
     browserDownload = { ...browserDownload!, ...change };
@@ -335,64 +316,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   };
   /** Minutes read silently, per book. */
   const readMs = new Map<string, number>([["book-1", 1_800_000]]);
-  const found: Candidate[] = [
-    {
-      id: "h-tide",
-      status: "new",
-      title: "Notes on the Tide",
-      authors: ["Ines Morrow"],
-      language: "en",
-      isbn: "9780000000101",
-      coverUrl: null,
-      paths: ["~/Downloads/notes-on-the-tide.epub", "~/Documents/Books/tide.epub"],
-      size: 2_400_000,
-      error: null,
-      suggestion: null,
-      audiobook: ["~/Downloads/Notes on the Tide (Unabridged).m4b"],
-    },
-    {
-      id: "h-glass",
-      status: "new",
-      title: "The Glass Meridian",
-      authors: ["Oren Vale"],
-      language: "en",
-      isbn: null,
-      coverUrl: null,
-      paths: ["~/Downloads/glass-meridian.epub"],
-      size: 1_100_000,
-      error: null,
-      suggestion: null,
-      audiobook: [],
-    },
-    {
-      id: "book-0",
-      status: "inLibrary",
-      title: "The Lantern Keeper",
-      authors: ["Mira Vale"],
-      language: "en",
-      isbn: null,
-      coverUrl: null,
-      paths: ["~/Documents/lantern.epub"],
-      size: 900_000,
-      error: null,
-      suggestion: null,
-      audiobook: ["~/Audiobooks/Mira Vale - The Lantern Keeper"],
-    },
-    {
-      id: "path:~/Documents/broken.epub",
-      status: "unreadable",
-      title: "broken",
-      authors: [],
-      language: null,
-      isbn: null,
-      coverUrl: null,
-      paths: ["~/Documents/broken.epub"],
-      size: 10,
-      error: "not a readable EPUB",
-      suggestion: null,
-      audiobook: [],
-    },
-  ];
+  /** What "Find books" finds in the preview's folders, as the core found it (`found.json`). */
+  const found = structuredClone(fixtureFound.books) as unknown as Candidate[];
   /** What a scan found; like the app, a book that has a recording is not offered another. */
   const listed = () => structuredClone(found).map((c) => (recordings.has(c.id) ? { ...c, audiobook: [] } : c));
   const query = new URLSearchParams(search);
@@ -536,37 +461,10 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   /** What a search finds that comes close to no book: the preview's audiobook on its own. */
   const WINTER_RADIO = "~/Audiobooks/Ines Morrow - Winter Radio";
   let unmatched: AudiobookSuggestion[] = [];
-  const kept: Record<string, AudiobookMatch["candidates"]> = {
-    "book-1": [
-      {
-        paths: ["~/Audiobooks/Ellis Reed - A Map of Quiet Places"],
-        exact: true,
-        folder: true,
-        bytes: 1_288_490_189,
-        files: Array.from(
-          { length: 15 },
-          (_, i) =>
-            `~/Audiobooks/Ellis Reed - A Map of Quiet Places/${String(i + 1).padStart(2, "0")} - A Map of Quiet Places.m4b`,
-        ),
-      },
-      {
-        paths: ["~/Audiobooks/A Map of Quiet Places (Unabridged).m4b"],
-        exact: true,
-        folder: false,
-        bytes: 625_999_872,
-        files: ["~/Audiobooks/A Map of Quiet Places (Unabridged).m4b"],
-      },
-    ],
-    "book-3": [
-      {
-        paths: ["~/Audiobooks/Unfinished Atlas 1.mp3", "~/Audiobooks/Unfinished Atlas 2.mp3"],
-        exact: false,
-        folder: false,
-        bytes: 429_916_160,
-        files: ["~/Audiobooks/Unfinished Atlas 1.mp3", "~/Audiobooks/Unfinished Atlas 2.mp3"],
-      },
-    ],
-  };
+  /** What "Find audiobooks" finds for each book, as the core found it (`found.json`). */
+  const kept: Record<string, AudiobookMatch["candidates"]> = Object.fromEntries(
+    fixtureFound.audiobooks.map((m) => [m.bookId, m.candidates]),
+  );
   const emitMatches = () => matchHandlers.forEach((h) => h(structuredClone(audiobookMatches)));
   const details = new Map<string, BookDetails>();
   const exportHandlers = new Set<(p: ExportProgress) => void>();
@@ -644,9 +542,6 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     const id = summary.id;
     if (stage.kind === "ready" || stage.kind === "needsYou") fetched.add(id);
     books.push({ ...summary, coverUrl: coverPath, addedAt: Date.now() });
-    // New and unread, as the core's Home has it: first in Up next and Recently added.
-    home.upNextIds = [id, ...home.upNextIds.filter((other) => other !== id)];
-    home.recentIds = [id, ...home.recentIds.filter((other) => other !== id)];
     articles.set(id, { ...(structuredClone(fixtureArticle.article) as unknown as ArticleView), url, stage });
     setArticle(id, {
       stage,
@@ -678,7 +573,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const signInOpen = () => signIn !== null && ["opening", "waiting", "fetching"].includes(signIn.stage.kind);
   const openSignIn = (id: string) => {
     const article = articles.get(id);
-    if (!article) throw new Error("Not an article.");
+    if (!article) throw refused("Not an article.");
     signIn = {
       articleId: id,
       site: new URL(article.canonicalUrl).hostname.replace(/^www\./, ""),
@@ -721,26 +616,20 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     signIn = { ...signIn!, stage: { kind: signinParam } };
   }
   /** Feeds, like the app (core/feeds.rs): the subscriptions and entries the core made for the
-   *  preview (`feeds.json`, times relative to now). `?feeds=empty` has none; `?feeds=failing`
-   *  adds one that stopped answering. Every entry opens as the preview's article (book-6),
-   *  which stays off the library's lists (on the feed shelf) until it is saved. */
+   *  preview (`feeds.json`, times relative to now), one of them failing. `?feeds=empty` has
+   *  none. Every entry opens as the preview's article (book-6), which stays off the library's
+   *  lists (on the feed shelf) until it is saved. */
   const feedHandlers = new Set<() => void>();
   const feedsChanged = () => feedHandlers.forEach((h) => h());
-  const feedsParam = query.get("feeds");
   const loaded = Date.now();
-  const failingFeeds = new Set(
-    (fixtureFeeds.feeds as FeedView[]).filter((f) => f.stage.kind === "failing").map((f) => f.id),
-  );
   let feeds: FeedView[] =
-    feedsParam === "empty"
+    query.get("feeds") === "empty"
       ? []
-      : (structuredClone(fixtureFeeds.feeds) as FeedView[])
-          .filter((f) => feedsParam === "failing" || !failingFeeds.has(f.id))
-          .map((f) => ({
-            ...f,
-            lastOkAt: f.lastOkAt === null ? null : loaded + f.lastOkAt,
-            stage: f.stage.kind === "failing" ? { kind: "failing", sinceMs: loaded + f.stage.sinceMs } : f.stage,
-          }));
+      : (structuredClone(fixtureFeeds.feeds) as FeedView[]).map((f) => ({
+          ...f,
+          lastOkAt: f.lastOkAt === null ? null : loaded + f.lastOkAt,
+          stage: f.stage.kind === "failing" ? { kind: "failing", sinceMs: loaded + f.stage.sinceMs } : f.stage,
+        }));
   let entries: EntryView[] = (structuredClone(fixtureFeeds.entries) as EntryView[])
     .filter((e) => feeds.some((f) => f.id === e.feedId))
     .map((e) => ({ ...e, at: loaded + e.at }));
@@ -759,7 +648,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const entryViews = () => entries.map((e) => ({ ...e, inLibrary: inLibrary(e.bookId), needsYou: needsOf(e.bookId) }));
   const getEntry = (id: number) => {
     const entry = entries.find((e) => e.id === id);
-    if (!entry) throw new Error("No such entry.");
+    if (!entry) throw refused("No such entry.");
     return entry;
   };
   /** The entry's item, made on the feed shelf the first time. */
@@ -772,8 +661,6 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (!entry.hasFullText) fetchArticle(id, { kind: "ready" });
       feedShelf.add(id);
       setArticle(id, { inLibrary: false });
-      home.upNextIds = home.upNextIds.filter((other) => other !== id);
-      home.recentIds = home.recentIds.filter((other) => other !== id);
     }
     entry.bookId = id;
     return id;
@@ -821,14 +708,14 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const unused = { files: 3, bytes: 12 * 1024 ** 2 };
   const getBook = (id: string) => {
     const b = books.find((b) => b.id === id);
-    if (!b || b.status.kind !== "present") throw new Error("Book is unavailable.");
+    if (!b || b.status.kind !== "present") throw refused("Book is unavailable.");
     return b;
   };
   const getChapter = (id: string, chapter: number) => {
     getBook(id);
     const book = chapters[Number(id.split("-")[1])],
       result = book?.[chapter];
-    if (!result) throw new Error("Chapter not found.");
+    if (!result) throw refused("no such chapter");
     const view = structuredClone(result);
     // A recording narrating the book lacks its last chapter, to show how that looks.
     if (recordings.get(id)?.narrates && recordings.get(id)?.stage === "ready") {
@@ -964,7 +851,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       return structuredClone(books.filter((b) => !feedShelf.has(b.id)));
     },
     async home() {
-      return structuredClone(home);
+      return homeOverride ? structuredClone(homeOverride) : homeOf(await api.listBooks());
     },
     async importFiles({ paths }) {
       return paths.map((path) => ({
@@ -1007,7 +894,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async renameCollection({ id, name }) {
       const shelf = shelves.find((s) => s.id === id);
-      if (!shelf) throw new Error("no such collection");
+      if (!shelf) throw refused("no such collection");
       shelf.name = shelfName(name, id);
       changed();
     },
@@ -1054,8 +941,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async bookOverview({ bookId: id }): Promise<BookView> {
       const b = getBook(id),
         view = coreView(id);
-      if (isArticle(id) && !fetched.has(id)) throw new Error(articles.get(id)!.error ?? "Not fetched yet.");
-      if (!view) throw new Error("Book is unavailable.");
+      if (isArticle(id) && !fetched.has(id)) throw refused(articles.get(id)!.error ?? "Not fetched yet.");
+      if (!view) throw refused("Book is unavailable.");
       const voice = settings.get(id)?.voiceId,
         offered = (await api.engineVoices()).map((v) => v.id);
       const voiceWarning =
@@ -1073,7 +960,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async setMode({ bookId: id, mode }) {
       const b = getBook(id);
-      if (mode === "read" && isAudiobook(id)) throw new Error(NO_TEXT);
+      if (mode === "read" && isAudiobook(id)) throw refused(NO_TEXT);
       if (mode === "read" && state.bookId === id && state.status === "playing") await api.pause();
       b.mode = mode;
       b.shape = mode === "read" ? "read" : "readAlong";
@@ -1084,8 +971,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async chapter({ bookId: id, chapter }) {
       if (isAudiobook(id)) throw refused(NO_TEXT);
       if (isArticle(id)) {
-        if (!fetched.has(id)) throw new Error(articles.get(id)!.error ?? "Not fetched yet.");
-        if (chapter !== 0) throw new Error("Chapter not found.");
+        if (!fetched.has(id)) throw refused(articles.get(id)!.error ?? "Not fetched yet.");
+        if (chapter !== 0) throw refused("no such chapter");
         return structuredClone(fixtureArticle.chapter) as unknown as ChapterView;
       }
       return getChapter(id, chapter);
@@ -1108,7 +995,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         c.blocks.flatMap((block) => block.segments.filter((s) => s.speakable).map((s) => `${n}/${s.id}`)),
       );
       const index = all.indexOf(`${chapter}/${segmentId}`);
-      if (index < 0) throw new Error("That place is not in the book.");
+      if (index < 0) throw refused("that place is not in the book");
       b.progress = { chapter, segmentId, fraction: all.length ? index / all.length : 0, positionMs: null };
       if (index === all.length - 1) b.readState = "finished";
       else if (b.readState === "unread") b.readState = "inProgress";
@@ -1221,7 +1108,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async saveEngineProfile({ profile: next }) {
       if (!descriptors.some((d) => d.kind === next.kind)) throw refused(`No adapter for engine kind \`${next.kind}\``);
       if (next.network === "loopback" && !/^https?:\/\/(127\.|localhost|\[::1\])/.test(next.baseUrl))
-        throw new Error("Only loopback addresses are allowed unless home-network access is on.");
+        throw refused("Only loopback addresses are allowed unless home-network access is on.");
       profile = JSON.parse(JSON.stringify(next));
       engine.profileName = next.name;
     },
@@ -1251,7 +1138,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async prepareChapter({ bookId: id, chapter }) {
       const b = getBook(id);
-      if (!chapters[Number(id.split("-")[1])]?.[chapter]) throw new Error("no such chapter");
+      if (!chapters[Number(id.split("-")[1])]?.[chapter]) throw refused("no such chapter");
       const entry = prepareEntry(id);
       if (entry) {
         if (entry.chapters && !entry.chapters.includes(chapter))
@@ -1424,7 +1311,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async updateBookmarkNote({ id, note }) {
       const mark = bookmarks.find((b) => b.id === id);
-      if (!mark) throw new Error("Bookmark not found.");
+      if (!mark) throw refused("Bookmark not found.");
       mark.note = note;
     },
     async deleteBookmark({ id }) {
@@ -1472,7 +1359,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async lookupMetadata({ bookId: id, refresh: _refresh }): Promise<MetadataMatch[]> {
       const book = getBook(id);
-      if (!appSettings.metadataLookup) throw new Error("Online metadata lookup is turned off in Settings.");
+      if (!appSettings.metadataLookup) throw refused("Online metadata lookup is turned off in Settings.");
       return [
         {
           key: "/works/OL0001W",
@@ -1541,17 +1428,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async fetchDiscoveredDetails({ ids }) {
       for (const id of ids) {
         const c = found.find((f) => f.id === id);
-        if (c && c.status === "new")
-          c.suggestion = {
-            key: `/works/${id}`,
-            title: c.title,
-            authors: c.authors,
-            published: "2018",
-            publisher: "Preview Press",
-            isbn: c.isbn,
-            subjects: ["Fiction"],
-            coverUrl: null,
-          };
+        // Open Library's answer, as the core kept it (`found.json`).
+        const details = (fixtureFound.details as Record<string, Candidate["suggestion"]>)[id];
+        if (c && c.status === "new" && details) c.suggestion = structuredClone(details);
         detailHandlers.forEach((h) => h(id));
       }
     },
@@ -1597,15 +1476,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       for (const m of audiobookMatches)
         if (m.stage.kind === "verifying" && !recordings.has(m.bookId))
           await api.attachRecording({ bookId: m.bookId, paths: m.candidates[0].paths });
-      unmatched = [
-        {
-          paths: [WINTER_RADIO],
-          exact: false,
-          folder: true,
-          files: [`${WINTER_RADIO}/01 Part One.mp3`, `${WINTER_RADIO}/02 Part Two.mp3`],
-          bytes: 61_400_000,
-        },
-      ];
+      unmatched = structuredClone(fixtureFound.unmatched);
       audiobookScanHandlers.forEach((h) =>
         h({ stage: "done", dirs: 0, files: 0, found: 0, read: 0, toRead: 0, error: null }),
       );
@@ -1701,15 +1572,15 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async refetchArticle({ bookId: id, source }) {
       const view = articles.get(id);
-      if (!view) throw new Error("Not an article.");
+      if (!view) throw refused("Not an article.");
       if (source === "browser" && appSettings.browser.use === "off")
-        throw new Error("The browser is off. Turn it on in Settings › Sites.");
+        throw refused("The browser is off. Turn it on in Settings › Sites.");
       if (view.stage.kind === "queued" || view.stage.kind === "fetching") return;
       fetchArticle(id, { kind: "ready" }, source);
     },
     async article({ bookId: id }) {
       const view = articles.get(id);
-      if (!view) throw new Error("Not an article.");
+      if (!view) throw refused("Not an article.");
       return structuredClone(view);
     },
     async feeds() {
@@ -1734,7 +1605,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       }
       const feed: FeedView = {
         id: Math.max(0, ...feeds.map((f) => f.id)) + 1,
-        title: new URL(link).hostname,
+        // Its own title, for a feed on the preview's web (`web.json`).
+        title: fixtureWeb.feeds.find((f) => f.url === link)?.title ?? new URL(link).hostname,
         url: link,
         siteUrl: new URL("/", link).href,
         unread: 0,
@@ -1819,14 +1691,10 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async chooseOpmlTarget() {
       return "~/subscriptions.opml";
     },
-    /** As the core does for the preview's list: one feed already subscribed (skipped), two
-     *  new ones named by the list until their first check. */
+    /** The preview's subscription list (`web.json`), whatever file is chosen: feeds already
+     *  subscribed are skipped. */
     async importOpml() {
-      const listed = [
-        { title: "Tidewatch", url: "https://tidewatch.example/feed.xml" },
-        { title: "Lantern Notes", url: "https://lanterns.example/feed.xml" },
-        { title: "Quay Weekly", url: "https://quay.example/feed.xml" },
-      ];
+      const listed = fixtureWeb.opml;
       let added = 0;
       for (const item of listed) {
         if (feeds.some((f) => f.url === item.url)) continue;
@@ -1858,8 +1726,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (!isAudiobook(audiobookId)) throw refused("That is not an audiobook on its own.");
       const book = getBook(bookId),
         audio = getBook(audiobookId);
-      if (book.kind !== "book") throw new Error("That is not a book with text.");
-      if (recordings.has(bookId)) throw new Error("That book already has a recording.");
+      if (book.kind !== "book") throw refused("That is not a book with text.");
+      if (recordings.has(bookId)) throw refused("That book already has a recording.");
       if (state.bookId === audiobookId) await api.stop();
       const recording = recordings.get(audiobookId)!;
       recordings.delete(audiobookId);
@@ -1897,7 +1765,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async syncReport({ bookId }): Promise<SyncReportView> {
       const r = recordings.get(bookId);
-      if (!r?.summary) throw new Error("the recording is not matched yet");
+      if (!r?.summary) throw refused("the recording is not matched yet");
       const list = chapters[Number(bookId.split("-")[1])] ?? [];
       return {
         summary: { ...r.summary },
@@ -2005,7 +1873,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async playRecordingAt({ bookId, atMs }) {
       if (!recordings.get(bookId)?.narrates)
-        throw new Error("choose the recording as the book's narration to listen to it");
+        throw refused("choose the recording as the book's narration to listen to it");
       const list = chapters[Number(bookId.split("-")[1])] ?? [];
       await api.play({ bookId, chapter: Math.min(list.length - 1, Math.floor(atMs / hour)), segmentId: null });
     },
@@ -2034,7 +1902,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async setSiteRule({ host, fetch = null, siteData }) {
       const key = siteHost(host);
-      if (!key) throw new Error("No site was named.");
+      if (!key) throw refused("No site was named.");
       sites.set(key, {
         ...(sites.get(key) ?? { host: key, session: { kind: "none" }, waitingArticle: null }),
         fetch,
@@ -2053,7 +1921,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async startSignIn({ bookId: id }) {
       browserOff();
-      if (signInOpen()) throw new Error("A sign-in is already open. Finish or cancel it first.");
+      if (signInOpen()) throw refused("A sign-in is already open. Finish or cancel it first.");
       openSignIn(id);
       setTimeout(() => tellSignIn({ stage: { kind: "waiting" } }), 200);
       return structuredClone(signIn!);
@@ -2062,15 +1930,15 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       return signIn && structuredClone(signIn);
     },
     async finishSignIn() {
-      if (signIn?.stage.kind !== "waiting") throw new Error("No sign-in is open.");
+      if (signIn?.stage.kind !== "waiting") throw refused("No sign-in is open.");
       fetchSignedIn();
     },
     async cancelSignIn() {
-      if (!signInOpen()) throw new Error("No sign-in is open.");
+      if (!signInOpen()) throw refused("No sign-in is open.");
       if (signIn!.stage.kind !== "fetching") tellSignIn({ stage: { kind: "cancelled" } });
     },
     async showSignInWindow() {
-      if (!signInOpen()) throw new Error("No sign-in is open.");
+      if (!signInOpen()) throw refused("No sign-in is open.");
     },
     async staySignedIn({ stay }) {
       if (!signInOpen()) throw refused("No sign-in is open.");
@@ -2089,7 +1957,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     /** As the core does: refused while off; progress, a check, unpacking, done; resumable. */
     async downloadBrowser() {
-      if (appSettings.browser.use === "off") throw new Error("The browser is off. Turn it on in Settings › Sites.");
+      if (appSettings.browser.use === "off") throw refused("The browser is off. Turn it on in Settings › Sites.");
       if (browserDownload && ["downloading", "checking", "unpacking"].includes(browserDownload.stage)) return;
       const from = browserDownload?.stage === "cancelled" ? browserDownload.doneBytes : 0;
       cancelBrowser = false;
@@ -2116,7 +1984,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async removeBrowser() {
       if (browserDownload && ["downloading", "checking", "unpacking"].includes(browserDownload.stage))
-        throw new Error("The browser is still downloading. Cancel it first.");
+        throw refused("The browser is still downloading. Cancel it first.");
       browserDownloaded = false;
       browserDownload = null;
     },
@@ -2151,7 +2019,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   };
   /** Home as the core would make it for another library (an empty one, say). */
   const setHomeForTest = (view: HomeView) => {
-    home = structuredClone(view);
+    homeOverride = structuredClone(view);
     changed();
   };
   /** What a book would play with, as the core would report it. */

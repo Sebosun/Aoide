@@ -14,15 +14,15 @@ use super::fetching::{Reason, Stage};
 use super::tests::{library_folder, start_browsing, until};
 use super::{AppSettingsPatch, Core};
 
-struct Setup {
-    dir: tempfile::TempDir,
-    core: Arc<Core>,
-    pages: Arc<Pages>,
-    browser: Arc<ScriptedBrowser>,
+pub(super) struct Setup {
+    pub(super) dir: tempfile::TempDir,
+    pub(super) core: Arc<Core>,
+    pub(super) pages: Arc<Pages>,
+    pub(super) browser: Arc<ScriptedBrowser>,
 }
 
 /// A core with the browser used as `use_`, and `rules` in site-rules.toml.
-fn setup(use_: BrowserUse, rules: &str) -> Setup {
+pub(super) fn setup(use_: BrowserUse, rules: &str) -> Setup {
     let dir = tempfile::tempdir().unwrap();
     library_folder(dir.path(), "");
     let config = dir.path().join("config");
@@ -305,11 +305,11 @@ async fn with_the_browser_off_sites_are_not_cleared_and_clearing_everything_remo
     assert!(!profile.exists());
 }
 
-const SIGN_IN_PAGE: &str =
+pub(super) const SIGN_IN_PAGE: &str =
     "<html><head><title>Sign in</title></head><body><p>Sign in to keep reading.</p></body></html>";
 
 /// An article left cut short, with the browser on as a fallback that could not get it.
-async fn needing_sign_in() -> (Setup, String) {
+pub(super) async fn needing_sign_in() -> (Setup, String) {
     let s = setup(BrowserUse::Fallback, "");
     s.pages.set(LIGHTS_URL, Ok(cut_short()));
     s.browser.set(LIGHTS_URL, Err("timed out"));
@@ -321,7 +321,7 @@ async fn needing_sign_in() -> (Setup, String) {
     (s, id)
 }
 
-async fn sign_in_ends(core: &Core) -> super::signin::SignInView {
+pub(super) async fn sign_in_ends(core: &Core) -> super::signin::SignInView {
     use super::signin::SignInStage as S;
     until("the sign-in ends", || {
         core.sign_in()

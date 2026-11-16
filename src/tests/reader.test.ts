@@ -251,7 +251,7 @@ it("jumps to a sentence from the scrubber", async () => {
   const play = vi.spyOn(mock, "play");
   const slider = wrapper.get('[aria-label="Player"] [role="slider"]');
   await slider.trigger("keydown", { key: "ArrowRight" });
-  expect(play).toHaveBeenLastCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:2:0" });
+  expect(play).toHaveBeenLastCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:1:1" });
   await slider.trigger("keydown", { key: "Home" });
   expect(play).toHaveBeenLastCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:0:0" });
   wrapper.unmount();

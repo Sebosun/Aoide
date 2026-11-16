@@ -88,7 +88,7 @@ it("moves a sentence back or forward with the arrow keys, also when the text is 
   play.mockClear();
   expect(press("ArrowRight").defaultPrevented).toBe(true);
   await flushPromises();
-  expect(play).toHaveBeenLastCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:2:0" });
+  expect(play).toHaveBeenLastCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:1:1" });
   await mock.pause();
   press("ArrowLeft");
   await flushPromises();

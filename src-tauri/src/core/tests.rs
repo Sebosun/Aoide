@@ -175,6 +175,18 @@ fn start_full(
     fetcher: Arc<dyn super::articles::Fetcher>,
     browser: Arc<dyn super::browsing::BrowserDriver>,
 ) -> (Arc<Core>, Arc<Recorder>) {
+    start_downloading(root, engine, transcribers, fetcher, browser, None)
+}
+
+/// A core that downloads the browser from `browser_download`.
+pub(super) fn start_downloading(
+    root: &Path,
+    engine: &Arc<FakeEngine>,
+    transcribers: super::recording::TranscriberFactory,
+    fetcher: Arc<dyn super::articles::Fetcher>,
+    browser: Arc<dyn super::browsing::BrowserDriver>,
+    browser_download: Option<super::browser_download::Source>,
+) -> (Arc<Core>, Arc<Recorder>) {
     let events = Arc::new(Recorder::default());
     let mut engines = aoide_tts::Registry::new();
     engine.register(&mut engines);
@@ -197,7 +209,7 @@ fn start_full(
         transcribers,
         fetcher,
         browser,
-        browser_download: None,
+        browser_download,
     };
     (Core::start(environment, paths(root)).unwrap(), events)
 }

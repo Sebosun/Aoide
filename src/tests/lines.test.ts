@@ -51,7 +51,8 @@ it("enlarges the spoken sentence, filling it word by word between its neighbours
   const others = wrapper.findAll(".reader-lines__line:not(.reader-lines__line--now)").map((l) => l.text());
   expect(others).toEqual([
     "The small light",
-    "Tonight a paper boat waited beside the steps. Inside it lay a key, warm as if someone had held it all the way across the bay.",
+    "The sea collected its reflection and broke it into a hundred little stars.",
+    "Tonight a paper boat waited beside the steps.",
   ]);
   wrapper.unmount();
 });

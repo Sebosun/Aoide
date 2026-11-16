@@ -1,0 +1,622 @@
+[
+  [
+    {
+      "index": 0,
+      "title": "The small light",
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "id": "0:0:0",
+              "words": [
+                "The",
+                "small",
+                "light"
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "0:1:0",
+              "words": [
+                "Every",
+                "evening,",
+                "Ada",
+                "carried",
+                "a",
+                "lantern",
+                "to",
+                "the",
+                "end",
+                "of",
+                "the",
+                "pier."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": [
+                {
+                  "afterWord": 2,
+                  "label": "1",
+                  "text": "A short original note shown in the browser preview."
+                }
+              ]
+            },
+            {
+              "id": "0:1:1",
+              "words": [
+                "The",
+                "sea",
+                "collected",
+                "its",
+                "reflection",
+                "and",
+                "broke",
+                "it",
+                "into",
+                "a",
+                "hundred",
+                "little",
+                "stars."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "0:2:0",
+              "words": [
+                "Tonight",
+                "a",
+                "paper",
+                "boat",
+                "waited",
+                "beside",
+                "the",
+                "steps."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            },
+            {
+              "id": "0:2:1",
+              "words": [
+                "Inside",
+                "it",
+                "lay",
+                "a",
+                "key,",
+                "warm",
+                "as",
+                "if",
+                "someone",
+                "had",
+                "held",
+                "it",
+                "all",
+                "the",
+                "way",
+                "across",
+                "the",
+                "bay."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        }
+      ],
+      "notNarrated": null
+    },
+    {
+      "index": 1,
+      "title": "Across the water",
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "id": "1:0:0",
+              "words": [
+                "Across",
+                "the",
+                "water"
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "1:1:0",
+              "words": [
+                "At",
+                "dawn",
+                "she",
+                "borrowed",
+                "the",
+                "blue",
+                "rowing",
+                "boat."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            },
+            {
+              "id": "1:1:1",
+              "words": [
+                "Each",
+                "pull",
+                "of",
+                "the",
+                "oars",
+                "opened",
+                "a",
+                "quiet",
+                "doorway",
+                "in",
+                "the",
+                "water."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "1:2:0",
+              "words": [
+                "On",
+                "the",
+                "far",
+                "shore,",
+                "a",
+                "gardener",
+                "waved.",
+                "He",
+                "had",
+                "been",
+                "waiting",
+                "for",
+                "someone",
+                "to",
+                "bring",
+                "back",
+                "the",
+                "light."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        }
+      ],
+      "notNarrated": null
+    }
+  ],
+  [
+    {
+      "index": 0,
+      "title": "An ordinary discovery",
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "id": "0:0:0",
+              "words": [
+                "An",
+                "ordinary",
+                "discovery"
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "0:1:0",
+              "words": [
+                "No",
+                "one",
+                "had",
+                "marked",
+                "the",
+                "bench",
+                "on",
+                "any",
+                "map.",
+                "It",
+                "stood",
+                "between",
+                "a",
+                "bakery",
+                "and",
+                "a",
+                "clock",
+                "shop,",
+                "where",
+                "the",
+                "morning",
+                "smelled",
+                "of",
+                "bread",
+                "and",
+                "rain."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "0:2:0",
+              "words": [
+                "Ren",
+                "sat",
+                "down",
+                "and",
+                "listened.",
+                "Beneath",
+                "the",
+                "traffic,",
+                "a",
+                "sparrow",
+                "was",
+                "rehearsing",
+                "a",
+                "song",
+                "with",
+                "no",
+                "ending."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        }
+      ],
+      "notNarrated": null
+    },
+    {
+      "index": 1,
+      "title": "The long way home",
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "id": "1:0:0",
+              "words": [
+                "The",
+                "long",
+                "way",
+                "home"
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "1:1:0",
+              "words": [
+                "Ren",
+                "drew",
+                "a",
+                "circle",
+                "where",
+                "the",
+                "bench",
+                "should",
+                "be."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            },
+            {
+              "id": "1:1:1",
+              "words": [
+                "Then",
+                "came",
+                "the",
+                "bridge,",
+                "the",
+                "cool",
+                "stone",
+                "steps,",
+                "and",
+                "the",
+                "lane",
+                "where",
+                "the",
+                "wind",
+                "always",
+                "rested."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "1:2:0",
+              "words": [
+                "The",
+                "map",
+                "did",
+                "not",
+                "make",
+                "the",
+                "city",
+                "smaller.",
+                "It",
+                "made",
+                "room",
+                "for",
+                "all",
+                "the",
+                "things",
+                "Ren",
+                "had",
+                "hurried",
+                "past."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        }
+      ],
+      "notNarrated": null
+    },
+    {
+      "index": 2,
+      "title": "A place to begin",
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "id": "2:0:0",
+              "words": [
+                "A",
+                "place",
+                "to",
+                "begin"
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "2:1:0",
+              "words": [
+                "The",
+                "next",
+                "morning,",
+                "a",
+                "stranger",
+                "asked",
+                "for",
+                "directions."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            },
+            {
+              "id": "2:1:1",
+              "words": [
+                "Ren",
+                "folded",
+                "the",
+                "map",
+                "and",
+                "offered",
+                "to",
+                "walk",
+                "beside",
+                "her."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "2:2:0",
+              "words": [
+                "They",
+                "took",
+                "the",
+                "long",
+                "way.",
+                "There",
+                "was",
+                "plenty",
+                "of",
+                "time."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        }
+      ],
+      "notNarrated": null
+    }
+  ],
+  [
+    {
+      "index": 0,
+      "title": "The gate",
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "id": "0:0:0",
+              "words": [
+                "The",
+                "gate"
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "0:1:0",
+              "words": [
+                "The",
+                "orchard",
+                "had",
+                "been",
+                "sold",
+                "twice,",
+                "and",
+                "neither",
+                "owner",
+                "had",
+                "ever",
+                "seen",
+                "it."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        }
+      ],
+      "notNarrated": null
+    }
+  ],
+  [
+    {
+      "index": 0,
+      "title": "Blank pages",
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "id": "0:0:0",
+              "words": [
+                "Blank",
+                "pages"
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "0:1:0",
+              "words": [
+                "Half",
+                "the",
+                "atlas",
+                "was",
+                "empty,",
+                "and",
+                "the",
+                "cartographer",
+                "liked",
+                "it",
+                "best",
+                "that",
+                "way."
+              ],
+              "speakable": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        }
+      ],
+      "notNarrated": null
+    }
+  ]
+]

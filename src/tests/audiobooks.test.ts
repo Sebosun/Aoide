@@ -58,15 +58,15 @@ it("lists the audiobooks found for each book, closest first, and pairs the ones 
   const map = wrapper.findAll(".find-audiobooks__card")[0];
   expect(map.get(".find-audiobooks__eyebrow").text()).toBe("Same name");
   expect(map.findAll(".find-audiobooks__candidate").map((c) => c.text())).toEqual([
-    "Ellis Reed - A Map of Quiet PlacesFolder · 15 files · 1.2 GB",
-    "A Map of Quiet Places (Unabridged).m4b1 file · 597.0 MB",
+    "Ellis Reed - A Map of Quiet PlacesFolder · 15 files · 208 KB",
+    "A Map of Quiet Places (Unabridged).m4b1 file · 14 KB",
   ]);
   expect(map.get(".find-audiobooks__candidate").attributes("title")).toContain(
     "~/Audiobooks/Ellis Reed - A Map of Quiet Places/15 - A Map of Quiet Places.m4b",
   );
   const atlas = wrapper.findAll(".find-audiobooks__card")[1];
   expect(atlas.get(".find-audiobooks__eyebrow").text()).toBe("Similar name");
-  expect(atlas.get(".find-audiobooks__candidate").text()).toBe("Unfinished Atlas 1.mp32 files · 410.0 MB");
+  expect(atlas.get(".find-audiobooks__candidate").text()).toBe("Unfinished Atlas Radio Play 1.mp32 files · 9 KB");
 
   await map.get('[aria-label="Pair A Map of Quiet Places (Unabridged).m4b with A Map of Quiet Places"]').setValue(true);
   await map.get('[aria-label="Select A Map of Quiet Places"]').setValue(true);
