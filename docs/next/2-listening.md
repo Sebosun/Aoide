@@ -607,6 +607,7 @@ it, not per clip. New row in `docs/logging.md`.
 ## 2.7 More keyboard shortcuts
 
 **Size:** S
+**Built:** 2026-11-16 (763f6d2..8b28553)
 
 ### Outcome
 
@@ -655,6 +656,10 @@ Rules:
 - One table in `shortcuts.ts` (keys, action id, label, and whether it works while typing)
   drives both the list and the handler, so they cannot drift apart. Rebinding is not planned.
 - H and F join the table when 3.2 and 3.7 are built.
+- Built: T asks the player store for the sleep timer's menu (`askSleep`), and every `SleepPill`
+  opens on it. Outside the reader the pill lies unseen across the mini player, so the menu
+  opens over that card. The speed and volume keys say the new value in a toast, as zoom does;
+  speed steps land on whole tenths (1.25 goes to 1.3 or 1.2) within 0.5× and 3×.
 
 ### Slices
 
