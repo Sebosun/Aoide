@@ -241,7 +241,6 @@ function dragged(event: DragEvent) {
       <CoverArt
         v-else
         class="book-card__cover"
-        :class="{ 'book-card__cover--square': audiobook }"
         :title="book.title"
         :url="book.coverUrl"
         :label="false"
@@ -252,16 +251,16 @@ function dragged(event: DragEvent) {
       /></span>
     </button>
     <h3 v-if="textTile" class="book-card__title visually-hidden">{{ book.title }}</h3>
-    <span v-else class="book-card__caption" :class="{ 'book-card__caption--square': audiobook }"
+    <span v-else class="book-card__caption"
       ><span v-if="article" class="book-card__kicker">{{ article.siteName ?? "" }}</span>
       <h3 class="book-card__title" :title="book.title">{{ book.title }}</h3>
       <span v-if="byline" class="book-card__byline">{{ byline }}</span></span
     >
     <span class="book-card__track"><i :style="{ width: `${percent}%` }" /></span>
     <span v-if="book.status.kind === 'missing'" class="book-card__badge book-card__badge--warn">File missing</span>
-    <template v-else-if="book.status.kind === 'error'"
+    <span v-else-if="book.status.kind === 'error'" class="book-card__problem"
       ><span class="book-card__badge book-card__badge--error">Can't open this book</span
-      ><span class="book-card__reason" :title="book.status.message">{{ book.status.message }}</span></template
+      ><span class="book-card__reason" :title="book.status.message">{{ book.status.message }}</span></span
     >
     <span
       v-else
@@ -304,23 +303,34 @@ function dragged(event: DragEvent) {
 </template>
 
 <style scoped>
-/* A card is clicked and dragged, never selected as text. */
+/* A card is clicked and dragged, never selected as text. Its three rows (picture, progress,
+   status) are rows of the library grid, so a row of cards shares them: the picture row is as
+   tall as the row's tallest picture, and the lines below it line up across the row. */
 .book-card {
   position: relative;
   -webkit-user-select: none;
   user-select: none;
   display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
   /* Its one column keeps to the library's track, whatever the tile's text. */
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
-  align-content: start;
   min-width: 0;
+  margin-bottom: var(--space-12);
   font-size: 12.5px;
 }
-/* A button sizes to its content even as a block: it fills the grid track instead. */
+.book-card__problem {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+/* A button sizes to its content even as a block: it fills the grid track instead. A square cover
+   in a row with portrait ones sits at the foot of the row's picture row. */
 .book-card__open {
   grid-row: 1;
   grid-column: 1;
+  align-self: end;
   position: relative;
   display: block;
   width: 100%;
@@ -338,12 +348,6 @@ function dragged(event: DragEvent) {
   background: color-mix(in srgb, var(--ink) 72%, transparent);
   color: var(--page);
   box-shadow: 0 2px 8px -2px var(--shadow);
-}
-/* A square cover sits at the foot of a portrait frame, so the titles below line up. */
-.book-card__open:has(.book-card__cover--square) {
-  aspect-ratio: 2 / 3;
-  display: flex;
-  align-items: flex-end;
 }
 .book-card__open:disabled {
   opacity: 1;

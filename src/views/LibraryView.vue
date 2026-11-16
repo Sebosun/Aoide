@@ -158,7 +158,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
       No books match “{{ library.query }}”.
     </p>
     <p v-else-if="library.books.length && !library.visible.length" class="library__note">No books here yet.</p>
-    <ul class="library__grid">
+    <ul class="library__grid library__grid--cards">
       <BookCard
         v-for="book in library.visible"
         :key="book.id"
@@ -370,6 +370,11 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   margin: 0;
   padding: 0;
   list-style: none;
+}
+/* Each card takes three rows here (see BookCard): no gap between rows, the card keeps its own
+   inside and a margin below itself. A gap here would also open between a card's own rows. */
+.library__grid--cards {
+  row-gap: 0;
 }
 @media (max-width: 1180px) {
   .library__grid {
