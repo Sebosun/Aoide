@@ -101,13 +101,13 @@ pub async fn import_discovered(
     Ok(core.import_discovered(choices).await?)
 }
 
-/// The system's file chooser for EPUB files to add; null when cancelled.
+/// The system's file chooser for books (EPUBs and PDFs) to add; null when cancelled.
 #[tauri::command]
 pub async fn choose_books(app: tauri::AppHandle) -> Option<Vec<String>> {
     pick(&app, |dialog, done| {
         dialog
-            .set_title("Choose EPUB files to add")
-            .add_filter("EPUB books", &["epub"])
+            .set_title("Choose books to add")
+            .add_filter("Books (EPUB, PDF)", &aoide_library::BOOK_EXTENSIONS)
             .pick_files(move |files| done(files.map(|f| f.iter().map(|p| p.to_string()).collect())))
     })
     .await

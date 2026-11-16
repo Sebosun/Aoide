@@ -152,7 +152,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
     <UiCard as="div" pad="lg" v-else-if="!library.books.length" class="library__empty">
       <BookOpen :size="36" :stroke-width="1.4" />
       <b>Your library is empty</b>
-      <span>Drop EPUB files on this window, or use Add in the sidebar.</span>
+      <span>Drop EPUB or PDF files on this window, or use Add in the sidebar.</span>
     </UiCard>
     <p v-else-if="library.query.trim() && !library.visible.length" class="library__note">
       No books match “{{ library.query }}”.

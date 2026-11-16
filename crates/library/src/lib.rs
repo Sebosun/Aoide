@@ -474,10 +474,16 @@ pub fn content_hash(bytes: &[u8]) -> BookId {
     BookId(format!("{:x}", Sha256::digest(bytes)))
 }
 
-/// Recursively finds `*.epub` files (case-insensitive extension) under `dir`, hashing each.
-/// Hidden files/directories (name starting with '.') are skipped. Results are sorted by path.
-/// Unreadable individual files are skipped; a missing `dir` yields an empty list.
-/// The EPUBs under `dir` (hidden files and folders left out), by path, each with the id its
+/// The file extensions of books (compared ignoring case).
+pub const BOOK_EXTENSIONS: [&str; 2] = ["epub", "pdf"];
+
+/// Whether `path` names a book file (an EPUB or a PDF), by its extension.
+pub fn is_book_file(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|ext| BOOK_EXTENSIONS.iter().any(|b| ext.eq_ignore_ascii_case(b)))
+}
+
+/// The books (EPUBs and PDFs) under `dir` (hidden files and folders left out), by path, each with the id its
 /// content hashes to. A file `known` from an earlier scan, with the same size and modification
 /// time, keeps the id it had there without being read again.
 pub fn scan_folder(dir: &Path, known: &[ScannedFile]) -> Result<Vec<ScannedFile>> {
@@ -490,12 +496,7 @@ pub fn scan_folder(dir: &Path, known: &[ScannedFile]) -> Result<Vec<ScannedFile>
             entry.depth() == 0 || !entry.file_name().as_encoded_bytes().starts_with(b".")
         });
     for entry in entries.filter_map(std::result::Result::ok) {
-        if !entry.file_type().is_file()
-            || !entry
-                .path()
-                .extension()
-                .is_some_and(|ext| ext.eq_ignore_ascii_case("epub"))
-        {
+        if !entry.file_type().is_file() || !is_book_file(entry.path()) {
             continue;
         }
         let Ok(metadata) = entry.metadata() else {

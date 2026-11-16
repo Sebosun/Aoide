@@ -250,16 +250,13 @@ impl Shelf {
         let fallback_title = path.file_stem().map(|s| s.to_string_lossy().into_owned());
         let parsed = std::fs::read(path)
             .map_err(|e| e.to_string())
-            .and_then(|bytes| {
-                aoide_epub::parse_epub(&bytes, &aoide_epub::ParseOptions::default())
-                    .map_err(|e| e.to_string())
-            })
+            .and_then(|bytes| crate::book::parse_document(&bytes))
             .and_then(|book: aoide_epub::ParsedBook| {
                 // Parsing can succeed with nothing to read (every section empty or left out).
                 if book.chapters.iter().any(|c| !c.text.trim().is_empty()) {
                     Ok(book)
                 } else {
-                    Err("no readable text was found in this EPUB".into())
+                    Err("no readable text was found in this book".into())
                 }
             });
         match parsed {
@@ -327,11 +324,8 @@ impl Shelf {
             .map(|path| {
                 let source = PathBuf::from(&path);
                 let outcome = (|| -> Result<String, String> {
-                    if !source
-                        .extension()
-                        .is_some_and(|e| e.eq_ignore_ascii_case("epub"))
-                    {
-                        return Err("not an .epub file".into());
+                    if !aoide_library::is_book_file(&source) {
+                        return Err("not an .epub or .pdf file".into());
                     }
                     let bytes = std::fs::read(&source).map_err(|e| e.to_string())?;
                     let id = content_hash(&bytes);
@@ -345,7 +339,9 @@ impl Shelf {
                                 break;
                             }
                             let stem = source.file_stem().unwrap_or_default().to_string_lossy();
-                            target = self.library_dir.join(format!("{stem} ({n}).epub"));
+                            let extension =
+                                source.extension().unwrap_or_default().to_string_lossy();
+                            target = self.library_dir.join(format!("{stem} ({n}).{extension}"));
                             n += 1;
                         }
                         if !target.exists() {
@@ -581,7 +577,7 @@ impl Shelf {
         Ok(book)
     }
 
-    /// Book `id`'s EPUB file, if it is there.
+    /// Book `id`'s file (EPUB or PDF), if it is there.
     pub fn file(&self, id: &str) -> Result<PathBuf, String> {
         let record = lock(&self.library)
             .book(&BookId(id.into()))
@@ -895,13 +891,18 @@ impl super::Core {
     }
 }
 
-/// An EPUB's subjects, from its package alone; none when it cannot be read.
+/// A book's subjects, from an EPUB's package or a PDF's keywords alone; none when it cannot be
+/// read.
 fn subjects_of(path: &Path) -> Vec<String> {
-    std::fs::read(path)
-        .ok()
-        .and_then(|bytes| {
-            aoide_epub::read_metadata(&bytes, &aoide_epub::ParseOptions::default()).ok()
-        })
+    let Ok(bytes) = std::fs::read(path) else {
+        return Vec::new();
+    };
+    if aoide_pdf::is_pdf(&bytes) {
+        return aoide_pdf::read_pdf_metadata(&bytes)
+            .map(|meta| meta.subjects)
+            .unwrap_or_default();
+    }
+    aoide_epub::read_metadata(&bytes, &aoide_epub::ParseOptions::default())
         .map(|meta| meta.subjects)
         .unwrap_or_default()
 }
@@ -977,6 +978,54 @@ mod tests {
         assert!(dir.path().join("books/Elsewhere.epub").is_file());
         assert_eq!(listed(&shelf), [(id.clone(), BookStatus::Present)]);
         assert_eq!(shelf.load(&id, &Host).unwrap().id, id);
+    }
+
+    /// A PDF of the given pages of lines, titled "The Quay Lights", with the keyword "Sea".
+    fn quay_pdf(pages: &[&[&str]]) -> Vec<u8> {
+        use aoide_pdf::testing::{lines_from, pdf};
+        let pages: Vec<_> = pages.iter().map(|lines| lines_from(700.0, lines)).collect();
+        pdf(
+            &pages,
+            &[],
+            &[
+                ("Title", "The Quay Lights"),
+                ("Author", "Mira Vale"),
+                ("Keywords", "Sea"),
+            ],
+        )
+    }
+
+    #[test]
+    fn a_pdf_is_imported_and_scanned_like_an_epub_and_read_as_reflowed_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let shelf = shelf(dir.path());
+        let outside = dir.path().join("Quay.PDF");
+        std::fs::write(&outside, quay_pdf(&[&["The ferry left at dawn."]])).unwrap();
+        std::fs::write(
+            dir.path().join("books/Scanned.pdf"),
+            aoide_pdf::testing::pdf(&[Vec::new()], &[], &[]),
+        )
+        .unwrap();
+
+        let results = shelf.import_files(vec![outside.to_string_lossy().into_owned()]);
+        let id = results[0].book_id.clone().expect("imported");
+        assert!(dir.path().join("books/Quay.PDF").is_file());
+        shelf.rescan().unwrap();
+
+        let books = shelf.list(&Host).unwrap();
+        let quay = books.iter().find(|b| b.id == id).unwrap();
+        assert_eq!(quay.title, "The Quay Lights");
+        assert_eq!(quay.authors, ["Mira Vale"]);
+        assert_eq!(quay.tags, ["Sea"]);
+        let book = shelf.load(&id, &Host).unwrap();
+        assert!(book.chapters[0].text.contains("The ferry left at dawn."));
+        // A scan has no text: listed, with the reason.
+        let scanned = books.iter().find(|b| b.title == "Scanned").unwrap();
+        assert!(
+            matches!(&scanned.status, BookStatus::Error(e) if e.contains("no text")),
+            "{:?}",
+            scanned.status
+        );
     }
 
     #[test]

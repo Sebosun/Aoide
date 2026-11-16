@@ -48,6 +48,7 @@ aoide-discovery = { path = "../crates/discovery" }
 aoide-config = { path = "../crates/config" }
 aoide-recording = { path = "../crates/recording" }
 aoide-classifier = { path = "../crates/classifier" }
+aoide-pdf = { path = "../crates/pdf" }
 aoide-sync = { path = "../crates/sync" }
 aoide-transcribe = { path = "../crates/transcribe" }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
@@ -66,6 +67,7 @@ tracing-log = "0.2"
 
 [dev-dependencies]
 aoide-tts = { path = "../crates/tts", features = ["testing", "ts"] }
+aoide-pdf = { path = "../crates/pdf", features = ["testing"] }
 aoide-library = { path = "../crates/library", features = ["ts"] }
 aoide-epub = { path = "../crates/epub-parser", features = ["ts"] }
 aoide-config = { path = "../crates/config", features = ["ts"] }

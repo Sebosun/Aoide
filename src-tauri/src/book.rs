@@ -93,11 +93,20 @@ pub struct ExcludedView {
     pub reason: String,
 }
 
+/// An EPUB or a PDF (told apart by its content), parsed.
+pub fn parse_document(bytes: &[u8]) -> Result<ParsedBook, String> {
+    if aoide_pdf::is_pdf(bytes) {
+        aoide_pdf::parse_pdf(bytes).map_err(|e| e.to_string())
+    } else {
+        aoide_epub::parse_epub(bytes, &aoide_epub::ParseOptions::default())
+            .map_err(|e| e.to_string())
+    }
+}
+
 impl BookModel {
+    /// An EPUB's or a PDF's text (told apart by its content).
     pub fn parse(id: &str, bytes: &[u8], read_notes: bool) -> Result<Self, String> {
-        let parsed = aoide_epub::parse_epub(bytes, &aoide_epub::ParseOptions::default())
-            .map_err(|e| e.to_string())?;
-        Ok(Self::from_parsed(id, parsed, read_notes))
+        Ok(Self::from_parsed(id, parse_document(bytes)?, read_notes))
     }
 
     /// `read_notes` inserts a spoken segment for each referenced note after its paragraph.

@@ -110,7 +110,7 @@ async function remove() {
       ? "Its audio files stay where they are. Aoide forgets the audiobook and its bookmarks."
       : article.value
         ? "Aoide forgets the article and deletes its saved page, generated audio and bookmarks."
-        : "The EPUB file stays where it is. Aoide forgets the book and deletes its generated audio and bookmarks.",
+        : "The book's file stays where it is. Aoide forgets the book and deletes its generated audio and bookmarks.",
     confirmLabel: "Remove",
     danger: true,
   });
@@ -260,7 +260,7 @@ function dragged(event: DragEvent) {
     <span class="book-card__track"><i :style="{ width: `${percent}%` }" /></span>
     <span v-if="book.status.kind === 'missing'" class="book-card__badge book-card__badge--warn">File missing</span>
     <template v-else-if="book.status.kind === 'error'"
-      ><span class="book-card__badge book-card__badge--error">Can't open this EPUB</span
+      ><span class="book-card__badge book-card__badge--error">Can't open this book</span
       ><span class="book-card__reason" :title="book.status.message">{{ book.status.message }}</span></template
     >
     <span

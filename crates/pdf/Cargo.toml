@@ -1,0 +1,19 @@
+[package]
+name = "aoide-pdf"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+publish.workspace = true
+description = "Reflowed text from PDF files, as Aoide's parsed-book model"
+
+[features]
+# Tiny PDFs written by hand, for tests (`aoide_pdf::testing`).
+testing = []
+
+[dependencies]
+aoide-document = { path = "../document" }
+pdf_oxide = { version = "0.3.78", default-features = false }
+thiserror = "2"
+
+[dev-dependencies]
+aoide-pdf = { path = ".", features = ["testing"] }

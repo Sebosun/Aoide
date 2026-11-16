@@ -144,7 +144,7 @@ it("removes a book after confirming in a dialog from its card menu", async () =>
   };
   let dialog = await ask();
   expect(dialog.text()).toContain("Remove An Unfinished Atlas from the library?");
-  expect(dialog.text()).toContain("The EPUB file stays where it is");
+  expect(dialog.text()).toContain("The book's file stays where it is");
   await dialog.get('[data-confirm="no"]').trigger("click");
   await flushPromises();
   expect(remove).not.toHaveBeenCalled();

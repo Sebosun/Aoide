@@ -310,3 +310,15 @@ it("opens Add with a link pasted outside a text field", async () => {
   expect((linkField(wrapper).element as HTMLInputElement).value).toBe("https://quay.example/lights");
   wrapper.unmount();
 });
+
+it("imports dropped PDFs as it does EPUBs", async () => {
+  const imported = vi.spyOn(mock, "importFiles");
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await wrapper.get(".app").trigger("drop", {
+    dataTransfer: { types: ["Files"], files: [{ name: "Quay Lights.PDF" }, { name: "notes.txt" }] },
+  });
+  await flushPromises();
+  expect(imported).toHaveBeenCalledWith({ paths: ["Quay Lights.PDF"] });
+  wrapper.unmount();
+});
