@@ -324,7 +324,12 @@ export type LaunchCommand = { program: string, args: Array<string>, workingDir: 
 /**
  * Seconds without an answer and without output after which a start is given up.
  */
-startTimeoutSeconds: number, };
+startTimeoutSeconds: number, 
+/**
+ * Minutes without use after which the server is stopped (it starts again when wanted);
+ * 0 keeps it running.
+ */
+idleMinutes: number, };
 
 export type EngineProfile = { id: string, name: string, kind: string, baseUrl: string, 
 /**

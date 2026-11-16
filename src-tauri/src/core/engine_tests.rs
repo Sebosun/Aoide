@@ -480,3 +480,42 @@ async fn try_again_launches_a_failed_server_once_more() {
     core.retry_speech_server();
     until_rounds("the second launch", || launched() == 2).await;
 }
+
+#[tokio::test]
+async fn a_stopped_server_is_not_woken_by_a_prepared_book_or_a_voice_menu() {
+    use super::engine_process::process_tests::alive_in;
+    let dir = tempfile::tempdir().unwrap();
+    let pid = dir.path().join("pid");
+    let engine = Scripted::new("local", EngineStatus::Offline, &["A.wav"], false);
+    let launch = format!(
+        "voiceId = \"A.wav\"\n[engine.launch]\nprogram = \"sh\"\nargs = [\"-c\", \"echo $$ > '{}'; exec sleep 300\"]",
+        pid.display()
+    );
+    let (core, _events, id) = start(dir.path(), &[&engine], &launch).await;
+    core.prepare_book(&id).await.unwrap();
+    until_rounds("the launch", || alive_in(&pid) == Some(true)).await;
+    engine.set_status(EngineStatus::Ready(None));
+    until_rounds("the book to be prepared", || {
+        core.prepare_view(&id).map(|v| v.state) == Some(PrepareStage::Done)
+    })
+    .await;
+
+    core.stop_speech_server(); // As an idle stop does.
+    engine.set_status(EngineStatus::Offline);
+    engine.voices_fail.store(true, Ordering::SeqCst);
+    until_rounds("the stop", || alive_in(&pid) == Some(false)).await;
+    std::fs::remove_file(&pid).unwrap();
+
+    let voices = core.engine_voices().await.unwrap();
+    assert_eq!(voices.len(), 1, "the voices last seen");
+    core.play(&id, Some(0), None).await.unwrap();
+    tokio::time::sleep(Duration::from_secs(4)).await; // At least one more look at the engine.
+
+    assert!(
+        !pid.exists(),
+        "playing made audio and a voice menu start nothing"
+    );
+    assert_eq!(core.engine_status().state, super::EngineState::Offline);
+    core.stop();
+    core.shutdown();
+}

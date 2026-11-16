@@ -153,10 +153,22 @@ impl Engine {
         lock(&self.active).voice.clone()
     }
 
-    /// The voices the engine in use offers, asked now.
+    /// The voices the engine in use offers, asked now; when it does not answer (its server
+    /// may be stopped, and a voice menu does not start it), the voices it offered last.
     pub async fn voices(&self) -> Result<Vec<aoide_tts::Voice>, String> {
         let engine = Arc::clone(&lock(&self.active).engine);
-        engine.voices().await.map_err(|e| e.to_string())
+        match engine.voices().await {
+            Ok(voices) => Ok(voices),
+            Err(error) => {
+                let active = lock(&self.active);
+                match &active.voices {
+                    VoiceList::Known(voices) if Arc::ptr_eq(&active.engine, &engine) => {
+                        Ok(voices.clone())
+                    }
+                    _ => Err(error.to_string()),
+                }
+            }
+        }
     }
 
     /// How a book with `settings` in `language` is spoken, and the loaded model.

@@ -419,6 +419,14 @@ pub struct LaunchCommand {
     /// Seconds without an answer and without output after which a start is given up.
     #[serde(default = "default_start_timeout")]
     pub start_timeout_seconds: u32,
+    /// Minutes without use after which the server is stopped (it starts again when wanted);
+    /// 0 keeps it running.
+    #[serde(default = "default_idle_minutes")]
+    pub idle_minutes: u32,
+}
+
+fn default_idle_minutes() -> u32 {
+    30
 }
 
 fn default_start_timeout() -> u32 {
@@ -432,6 +440,7 @@ impl Default for LaunchCommand {
             args: vec![],
             working_dir: None,
             start_timeout_seconds: default_start_timeout(),
+            idle_minutes: default_idle_minutes(),
         }
     }
 }

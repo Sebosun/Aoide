@@ -1067,11 +1067,13 @@ impl ServerProcess {
         })
     }
 
-    /// The timings for `spec`: the start timeout is the launch command's.
+    /// The timings for `spec`: the start timeout and the idle time are the launch command's.
     fn timing(&self, spec: Option<&Spec>) -> Timing {
         let mut timing = self.base.clone();
         if let Some(spec) = spec {
             timing.start_timeout_ms = i64::from(spec.launch.start_timeout_seconds) * 1000;
+            timing.idle_ms = (spec.launch.idle_minutes > 0)
+                .then(|| i64::from(spec.launch.idle_minutes) * 60_000);
         }
         timing
     }
@@ -2639,6 +2641,76 @@ pub(super) mod process_tests {
         server.answered(Answer::Offline);
         server.want();
         until("the new launch", || alive_in(&other) == Some(true)).await;
+        server.stop(&*host);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn an_unused_server_is_stopped_after_its_idle_time_and_started_again_when_wanted() {
+        let dir = tempfile::tempdir().unwrap();
+        let pid = dir.path().join("pid");
+        let mut launch = script(&format!("echo $$ > '{}'; exec sleep 300", pid.display()));
+        launch.idle_minutes = 5;
+        let (server, host, task) = running(dir.path(), launch);
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || alive_in(&pid) == Some(true)).await;
+        server.answered(Answer::Ready);
+        until("ready", || state(&server) == Some(ServerState::Running)).await;
+
+        // Work queued or prepared keeps it running however long it takes.
+        host.wanted.store(true, std::sync::atomic::Ordering::SeqCst);
+        host.advance(6 * 60_000);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(state(&server), Some(ServerState::Running));
+
+        host.wanted
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+        host.advance(4 * 60_000);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(
+            state(&server),
+            Some(ServerState::Running),
+            "used until just now"
+        );
+        host.advance(60_000);
+        until("the idle stop", || {
+            state(&server) == Some(ServerState::Stopped)
+        })
+        .await;
+        assert_eq!(alive_in(&pid), Some(false));
+        let view = server.view().unwrap();
+        assert_eq!(view.stopped, Some(StoppedKind::Idle));
+        assert_eq!(view.idle_minutes, Some(5));
+
+        std::fs::remove_file(&pid).unwrap();
+        server.answered(Answer::Offline);
+        server.want();
+        until("the wake", || alive_in(&pid) == Some(true)).await;
+        assert_eq!(state(&server), Some(ServerState::Starting));
+        server.stop(&*host);
+        task.abort();
+    }
+
+    #[tokio::test]
+    async fn an_idle_time_of_zero_keeps_the_server_running() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut launch = script("exec sleep 300");
+        launch.idle_minutes = 0;
+        let (server, host, task) = running(dir.path(), launch);
+        server.answered(Answer::Offline);
+        server.want();
+        until("the launch", || {
+            state(&server) == Some(ServerState::Starting)
+        })
+        .await;
+        server.answered(Answer::Ready);
+        until("ready", || state(&server) == Some(ServerState::Running)).await;
+
+        host.advance(24 * 60 * 60_000);
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(state(&server), Some(ServerState::Running));
+        assert_eq!(server.view().unwrap().idle_minutes, None);
         server.stop(&*host);
         task.abort();
     }

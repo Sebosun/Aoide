@@ -43,6 +43,7 @@ function submit() {
                 .filter(Boolean),
               workingDir: dir.value.trim() || null,
               startTimeoutSeconds: settings.value?.aligner?.launch?.startTimeoutSeconds ?? 180,
+              idleMinutes: settings.value?.aligner?.launch?.idleMinutes ?? 30,
             }
           : null,
       }

@@ -654,6 +654,8 @@ blocks for at most the quit grace. `log_tail() -> Vec<String>` serves Settings.
 **Settings.** On `LaunchCommand` (crates/tts, `#[serde(default)]`, so saved profiles still load):
 
 - `idle_minutes: Option<u32>`, offered from 5 to 240, default 30 (see Open questions).
+  (As built: `idle_minutes: u32`, default 30, where 0 keeps the server running. A TOML file
+  cannot hold `None`, so an `Option` turned off would load as the default again.)
 - `start_timeout_seconds: u32`, default 180 seconds of quiet. It lives in the file, not the
   form.
 
