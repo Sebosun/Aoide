@@ -373,6 +373,31 @@ async fn exporting_an_unprepared_book_ends_with_one_notice_not_two() {
 }
 
 #[tokio::test]
+async fn with_notifications_turned_off_a_book_prepared_says_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, _events, notifier) = start_noticing(dir.path(), &engine);
+    core.update_app_settings(AppSettingsPatch {
+        notices: Some(false),
+        ..Default::default()
+    })
+    .unwrap();
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+
+    core.prepare_book(&id).await.unwrap();
+    until("preparation to finish", || {
+        stage(&core, &id) == Some(PrepareStage::Done)
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(notifier.sent(), []);
+}
+
+#[tokio::test]
 async fn a_book_prepared_while_aoide_is_in_front_says_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let id = library_folder(dir.path(), "");

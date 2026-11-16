@@ -149,6 +149,22 @@ function findBooks() {
         another book.</SettingsNote
       >
     </SettingsSection>
+    <SettingsSection title="Notifications">
+      <label v-if="settings" class="library-settings__check"
+        ><input
+          :checked="settings.notices"
+          type="checkbox"
+          aria-label="Notify when a long job ends while Aoide is not in front"
+          @change="save({ notices: ($event.target as HTMLInputElement).checked })"
+        />
+        Notify when a long job ends while Aoide is not in front</label
+      >
+      <SettingsNote
+        >A book prepared, a recording synced, an export written or books imported, after more than a minute; and at once
+        when preparing stalls, a sync needs a look or fails, or an export fails. Click one to open its
+        book.</SettingsNote
+      >
+    </SettingsSection>
     <p v-if="error" class="library-settings__error" role="alert">{{ error }}</p>
   </div>
 </template>

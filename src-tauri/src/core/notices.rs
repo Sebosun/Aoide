@@ -205,7 +205,8 @@ impl super::Core {
             })
             .and_then(|book| book.title)
             .unwrap_or_else(|| "Untitled".into());
-        self.notices.happened(&happened, &title, took, true);
+        let enabled = self.app_settings().notices;
+        self.notices.happened(&happened, &title, took, enabled);
     }
 }
 

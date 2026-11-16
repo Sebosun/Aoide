@@ -124,6 +124,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     browser: { use: "off", path: null, idleSeconds: 60 },
     pauses: { paragraphMs: 250, breakMs: 1200, headingMs: 700 },
     stepBackOnResume: true,
+    notices: true,
   });
   wrapper.unmount();
 });
@@ -348,6 +349,18 @@ it("turns off continuing preparation at startup from Library, keeping other sett
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith({ patch: { resumePrepare: false } });
   expect(await mock.appSettings()).toEqual(expect.objectContaining({ resumePrepare: false, metadataLookup: true }));
+  wrapper.unmount();
+});
+
+it("turns off desktop notifications from Library", async () => {
+  const save = vi.spyOn(mock, "updateAppSettings");
+  const wrapper = await settings("Library");
+  const box = wrapper.get<HTMLInputElement>('[aria-label="Notify when a long job ends while Aoide is not in front"]');
+  expect(box.element.checked).toBe(true);
+  await box.setValue(false);
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ patch: { notices: false } });
+  expect(await mock.appSettings()).toEqual(expect.objectContaining({ notices: false }));
   wrapper.unmount();
 });
 

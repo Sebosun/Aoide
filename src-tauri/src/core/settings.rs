@@ -41,6 +41,8 @@ pub struct AppSettings {
     /// After a break, play on a little earlier: from the sentence's start, or a sentence or two
     /// back, the longer the break.
     pub step_back_on_resume: bool,
+    /// Tell the desktop when a long job ends, or one needs the user, while Aoide is not in front.
+    pub notices: bool,
 }
 
 /// The silences narration leaves, in milliseconds (each within [`PAUSE_MS`]). The largest that
@@ -127,6 +129,8 @@ pub struct AppSettingsPatch {
     pub pauses: Option<PauseSettings>,
     #[cfg_attr(test, ts(optional))]
     pub step_back_on_resume: Option<bool>,
+    #[cfg_attr(test, ts(optional))]
+    pub notices: Option<bool>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -162,6 +166,7 @@ impl AppSettingsPatch {
         set(&mut settings.browser, self.browser);
         set(&mut settings.pauses, self.pauses);
         set(&mut settings.step_back_on_resume, self.step_back_on_resume);
+        set(&mut settings.notices, self.notices);
         settings
     }
 }
@@ -186,6 +191,7 @@ impl From<AppSettings> for AppSettingsPatch {
             browser,
             pauses,
             step_back_on_resume,
+            notices,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -204,6 +210,7 @@ impl From<AppSettings> for AppSettingsPatch {
             browser: Some(browser),
             pauses: Some(pauses),
             step_back_on_resume: Some(step_back_on_resume),
+            notices: Some(notices),
         }
     }
 }
@@ -251,6 +258,7 @@ impl Default for AppSettings {
             browser: Default::default(),
             pauses: Default::default(),
             step_back_on_resume: true,
+            notices: true,
         }
     }
 }
@@ -312,5 +320,6 @@ mod tests {
         let off: super::AppSettings = serde_json::from_str(r#"{"resumePrepare":false}"#).unwrap();
         assert!(!off.resume_prepare);
         assert!(old.step_back_on_resume && off.step_back_on_resume);
+        assert!(old.notices, "notifications are on unless turned off");
     }
 }

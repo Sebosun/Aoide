@@ -191,15 +191,18 @@ audiobook is synced, an export is written, or a job needs you.
 
 ```
 pub enum Happened {
-    Prepared(BookId), PreparationStalled(BookId),
-    Synced(BookId), SyncNeedsYou(BookId), SyncFailed(BookId),
-    Exported(BookId), ExportFailed(BookId),
+    Prepared(String), PreparationStalled(String),
+    Synced(String), SyncNeedsYou(String), SyncFailed(String),
+    Exported(String), ExportFailed(String),
     ImportFinished { added: u32 },
 }
-pub fn notice(happened: &Happened, took: Duration, focused: bool, settings: &NoticeSettings)
-    -> Option<Notice>
-pub struct Notice { pub title: String, pub body: String, pub opens: Option<BookId> }
+pub struct Moment { pub took: Duration, pub focused: bool, pub enabled: bool }
+pub fn notice(happened: &Happened, title: &str, moment: Moment) -> Option<Notice>
+pub struct Notice { pub title: String, pub body: String, pub opens: Option<String> }
 ```
+
+(Built: ids are the core's `String` book ids; the title is passed in, looked up by `Core` from
+the library, so the rule stays pure; the one setting is `enabled`.)
 
 - Nothing when the window is focused (the toast is enough). A hidden window (6.3) is not
   focused.
@@ -247,7 +250,8 @@ by a `Clock` the `Environment` gives (the system's in the app; tests move it on)
 
 **Settings.** `AppSettings.notices: bool`, on by default, one switch (with its
 `AppSettingsPatch` field and `From` arm in `core/settings.rs`). Per-kind switches only if
-someone asks. Shown in Settings › Library beside **Carry on preparing**.
+someone asks. Shown in Settings › Library, in a **Notifications** section of its own right below
+**Preparing audio** (it covers syncs, exports and imports too).
 
 ### Slices
 
