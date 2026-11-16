@@ -13,13 +13,21 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--screen);
-  background-attachment: fixed;
   color: var(--ink);
   font: 500 14px/1.4 var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+}
+/* The screen's tint stays put while the page scrolls: a layer of its own behind everything, which
+   the compositor keeps, rather than a fixed background WebKit repaints on every scrolled frame. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--screen);
+  pointer-events: none;
 }
 h1,
 h2,

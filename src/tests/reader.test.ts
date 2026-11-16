@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, expect, it, onTestFinished, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
+import { isProxy } from "vue";
 import { createMockApi } from "@/api/mock";
 import { initialPlayer } from "@/api/initial";
 import ReaderView from "@/views/ReaderView.vue";
@@ -142,12 +143,63 @@ it("shows the playhead chapter and jumps to a chapter from the margin", async ()
   wrapper.unmount();
 });
 
+// A chapter is thousands of words: only the sentence being spoken is drawn word by word (for
+// its underline); the others are plain text.
+it("draws word by word only the sentence being spoken", async () => {
+  const wrapper = await openReader();
+  expect(wrapper.findAll(".chapter-segment__word")).toHaveLength(0);
+  const text = wrapper.get('[data-segment-id="0:1:0"]').text();
+  mock.emitPlayer(playing({ segmentId: "0:1:0", wordIndex: 1 }));
+  await flushPromises();
+  const words = wrapper.findAll(".chapter-segment__word");
+  expect(words.length).toBeGreaterThan(1);
+  expect(words.every((w) => w.element.closest('[data-segment-id="0:1:0"]'))).toBe(true);
+  expect(wrapper.get('[data-segment-id="0:1:0"]').text()).toBe(text);
+  wrapper.unmount();
+});
+
+// Drawing the chapter walks every sentence: the page around it changing (an error, the progress
+// below) must not draw it again.
+it("does not draw the chapter again when only the page around it changes", async () => {
+  const wrapper = await openReader();
+  const text = wrapper.findComponent(ChapterText);
+  const draw = vi.spyOn(text.vm.$ as unknown as { render: () => unknown }, "render");
+  useReaderStore().error = "Something went wrong";
+  await flushPromises();
+  expect(wrapper.text()).toContain("Something went wrong");
+  expect(draw).not.toHaveBeenCalled();
+  wrapper.unmount();
+});
+
+// A chapter is only ever replaced whole, never changed in place: it is kept as plain data, which
+// spares wrapping thousands of sentences for reactivity when a book opens.
+it("keeps a loaded chapter as plain data", async () => {
+  const wrapper = await openReader();
+  const chapter = useReaderStore().chapter!;
+  expect(chapter.blocks.length).toBeGreaterThan(0);
+  expect(isProxy(chapter)).toBe(false);
+  expect(isProxy(chapter.blocks[0].segments)).toBe(false);
+  wrapper.unmount();
+});
+
+it("asks the core for an opened article once", async () => {
+  mock.dispose();
+  mock = createMockApi("?article=ready");
+  backend.api = mock;
+  const article = vi.spyOn(mock, "article");
+  const wrapper = await openReader({ book: "book-6" });
+  expect(useReaderStore().book?.kind).toBe("article");
+  expect(article).toHaveBeenCalledTimes(1);
+  wrapper.unmount();
+});
+
 it("shows a footnote from its coral marker without starting playback", async () => {
   const play = vi.spyOn(mock, "play");
   const wrapper = await openReader();
   const marker = wrapper.get(".chapter-segment__note");
   expect(marker.text()).toBe("1");
-  expect(marker.element.previousElementSibling?.textContent).toBe("Ada");
+  // It follows the word it marks.
+  expect(marker.element.parentElement?.textContent).toContain("Ada1");
   await marker.trigger("click");
   expect(wrapper.get('[role="note"]').text()).toContain("original note");
   expect(play).not.toHaveBeenCalled();
@@ -419,6 +471,30 @@ it("tells the core where the reader is, at most once a second, and listens from 
   } finally {
     vi.useRealTimers();
   }
+});
+
+// Text laid out in the fallback font grows when the reading font comes, and WebKit does not keep
+// the scroll anchored: the saved place is shown once the font is in.
+it("shows the saved place once the reading font is in, not before", async () => {
+  let loaded!: () => void;
+  const font = new Promise<void>((done) => (loaded = done));
+  Object.defineProperty(document, "fonts", { value: { load: () => font }, configurable: true });
+  const scrolled: string[] = [];
+  const original = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = function (this: HTMLElement) {
+    scrolled.push(this.dataset.segmentId ?? "");
+  };
+  onTestFinished(() => {
+    Element.prototype.scrollIntoView = original;
+    delete (document as { fonts?: unknown }).fonts;
+  });
+  await mock.setReadingPlace({ bookId: "book-1", chapter: 1, segmentId: "1:1:0" });
+  const wrapper = await openReader({ book: "book-1" });
+  expect(scrolled).toEqual([]);
+  loaded();
+  await flushPromises();
+  expect(scrolled).toEqual(["1:1:0"]);
+  wrapper.unmount();
 });
 
 it("opens a book read silently at its saved place, and picking a chapter only shows it", async () => {

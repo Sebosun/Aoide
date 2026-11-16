@@ -167,8 +167,11 @@ const next = computed(() => {
           :playable="along"
           @play="play"
         >
-          <template v-if="article" #before>
+          <!-- Slots are always given (what they show decides): a slot given only sometimes makes
+               the chapter draw again whenever this page does. -->
+          <template #before>
             <ArticleHeader
+              v-if="article"
               :article="article"
               :title="reader.book.title"
               :authors="reader.book.authors"
@@ -178,8 +181,9 @@ const next = computed(() => {
               @save="keep"
             />
           </template>
-          <template v-if="article && needs" #after>
+          <template #after>
             <NeedsYouNotice
+              v-if="article && needs"
               :article="article"
               :reason="needs"
               :browser-on="browserOn"
@@ -195,6 +199,7 @@ const next = computed(() => {
         </button>
       </div>
     </div>
+    <div class="sheet__fade" aria-hidden="true" />
     <button
       v-if="!following && playingHere"
       type="button"
@@ -236,12 +241,24 @@ const next = computed(() => {
   overflow: hidden;
 }
 .sheet__scroll {
+  grid-row: 1;
+  grid-column: 1;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  -webkit-mask-image: linear-gradient(var(--ink) 90%, transparent);
-  mask-image: linear-gradient(var(--ink) 90%, transparent);
+}
+/* The text fades into the page at the bottom. A still layer over the scroller, rather than a
+   mask on it, so scrolling does not repaint the text. */
+.sheet__fade {
+  /* Positioned, so it also covers the scroller's positioned parts (footnote markers, the margin). */
+  position: relative;
+  grid-row: 1;
+  grid-column: 1;
+  align-self: end;
+  height: 10%;
+  background: linear-gradient(transparent, var(--page));
+  pointer-events: none;
 }
 .sheet__grid {
   display: grid;

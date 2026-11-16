@@ -95,7 +95,7 @@ export type ProblemView = {
  */
 message: string, error: CoreError, };
 
-export type UiLevel = "info" | "warn" | "error";
+export type UiLevel = "debug" | "info" | "warn" | "error";
 
 export type UiLog = { level: UiLevel, 
 /**
@@ -109,7 +109,19 @@ command?: string, tookMs?: number,
 /**
  * The view on screen.
  */
-view?: string, };
+view?: string, 
+/**
+ * Frames drawn while scrolling or opening (`ui.frames`).
+ */
+frames?: number, 
+/**
+ * Frames that took longer than one display refresh to come.
+ */
+dropped?: number, 
+/**
+ * The longest wait for a frame.
+ */
+worstMs?: number, };
 
 export type PrepareState = "waiting" | "queued" | "preparing" | "paused" | "done";
 

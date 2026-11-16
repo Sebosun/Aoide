@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { NoteMarker, SegmentView } from "@/api/types";
 import { noteId, noteKey } from "@/components/reader/notes";
 
 /** One sentence of a chapter's text: its words (the one being spoken underlined) and the
  *  markers of its footnotes. A sentence is drawn again only when its own props change, so a
- *  new word redraws the sentence being spoken, not the chapter. */
-defineProps<{
+ *  new word redraws the sentence being spoken, not the chapter. Only the sentence being spoken
+ *  is drawn word by word; the others are runs of plain text, so a long chapter stays a small page
+ *  to lay out and paint. */
+const props = defineProps<{
   segment: SegmentView;
   /** Being spoken: washed. */
   current: boolean;
@@ -21,6 +24,20 @@ defineProps<{
   openNote: string | null;
 }>();
 const emit = defineEmits<{ play: []; marker: [note: NoteMarker] }>();
+/** The sentence's words in runs, each ending where footnote markers follow a word (the last
+ *  ends with the sentence), with those markers. */
+const runs = computed(() => {
+  const { words, notes } = props.segment;
+  const runs: { first: number; words: string[]; notes: NoteMarker[] }[] = [];
+  let first = 0;
+  words.forEach((_, index) => {
+    const after = notes.filter((note) => note.afterWord === index);
+    if (!after.length && index < words.length - 1) return;
+    runs.push({ first, words: words.slice(first, index + 1), notes: after });
+    first = index + 1;
+  });
+  return runs;
+});
 </script>
 
 <template>
@@ -38,13 +55,19 @@ const emit = defineEmits<{ play: []; marker: [note: NoteMarker] }>();
     @click="clickable && emit('play')"
     @keydown.enter.prevent="clickable && emit('play')"
     @keydown.space.prevent="clickable && emit('play')"
-    ><template v-for="(text, index) in segment.words" :key="index"
-      ><span class="chapter-segment__word" :class="{ 'chapter-segment__word--current': word === index }">{{
-        text
-      }}</span
+    ><template v-for="(run, r) in runs" :key="run.first"
+      >{{ r > 0 ? " " : ""
+      }}<template v-if="current"
+        ><template v-for="(text, i) in run.words" :key="i"
+          ><span class="chapter-segment__word" :class="{ 'chapter-segment__word--current': word === run.first + i }">{{
+            text
+          }}</span
+          >{{ i < run.words.length - 1 ? " " : "" }}</template
+        ></template
+      ><template v-else>{{ run.words.join(" ") }}</template
       ><button
-        v-for="note in segment.notes.filter((n) => n.afterWord === index)"
-        :key="note.label + index"
+        v-for="(note, n) in run.notes"
+        :key="n"
         type="button"
         class="chapter-segment__note"
         :aria-label="`Note ${note.label}`"
@@ -60,8 +83,8 @@ const emit = defineEmits<{ play: []; marker: [note: NoteMarker] }>();
           class="chapter-segment__popover"
           role="note"
           >{{ note.text ?? "The text of this note was not found in the book." }}</span
-        ></button
-      >{{ index < segment.words.length - 1 ? " " : "" }}</template
+        >
+      </button></template
     >{{ " " }}</span
   >
 </template>

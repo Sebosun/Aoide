@@ -57,3 +57,32 @@ it("spaces and rounds components with the size tokens, not pixel values", () => 
     }
   }
 });
+
+const sheets = import.meta.glob("@/styles/*.css", { query: "?raw", import: "default", eager: true }) as Record<
+  string,
+  string
+>;
+
+// WebKit repaints a masked scroller, and a page with a fixed background, on every frame of a
+// scroll; a still overlay or a fixed layer of its own gives the same look for free.
+it("keeps scrolling cheap to draw: no mask on a scroller, no fixed background", () => {
+  const styles = {
+    ...sheets,
+    ...Object.fromEntries(
+      Object.entries(components).map(([file, source]) => [
+        file,
+        [...source.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("\n"),
+      ]),
+    ),
+  };
+  expect(Object.keys(sheets).length).toBeGreaterThan(2);
+  // A sheet the test cannot read would pass every rule.
+  for (const [file, css] of Object.entries(sheets)) expect(css.length, file).toBeGreaterThan(0);
+  for (const [file, css] of Object.entries(styles)) {
+    expect(css, file).not.toMatch(/background-attachment:\s*fixed/);
+    for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const scrolls = /overflow(-[xy])?:\s*(auto|scroll)/.test(body);
+      expect(scrolls && /mask-image:/.test(body), `${file} ${selector.trim()}`).toBe(false);
+    }
+  }
+});

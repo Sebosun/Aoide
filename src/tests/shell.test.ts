@@ -6,6 +6,8 @@ import App from "@/App.vue";
 import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { useRecordingsStore } from "@/stores/recordings";
+import { useNavigationStore } from "@/stores/navigation";
+import { nextTick } from "vue";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("@/api", () => ({
@@ -25,6 +27,44 @@ afterEach(() => {
 
 const nav = (wrapper: ReturnType<typeof mount>, label: string) =>
   wrapper.get(`nav[aria-label="Main"] [aria-label="${label}"]`);
+
+// The screen fading out keeps its layout: the sidebar goes, and the reader's layout comes, only
+// once it has gone and the reader comes in.
+it("switches to the reader's layout only after the old screen has faded out", async () => {
+  const wrapper = mount(App, { global: { stubs: { transition: false } } });
+  await flushPromises();
+  await mock.play({ bookId: "book-0", chapter: 1, segmentId: "1:1:0" });
+  await flushPromises();
+  expect(wrapper.find('[aria-label="Now playing"]').exists()).toBe(true);
+  useNavigationStore().view = "reader";
+  await nextTick();
+  // The sidebar fades out whole, its now-playing card too.
+  expect(wrapper.find('nav[aria-label="Main"]').exists()).toBe(true);
+  expect(wrapper.find('[aria-label="Now playing"]').exists()).toBe(true);
+  expect(wrapper.classes()).not.toContain("app--reader");
+  // The fade-out ends after two frames (no CSS durations in the test DOM).
+  await new Promise((done) => setTimeout(done, 100));
+  await flushPromises();
+  expect(wrapper.find('nav[aria-label="Main"]').exists()).toBe(false);
+  // The reader has the full transport, so the card is not shown there.
+  expect(wrapper.find('[aria-label="Now playing"]').exists()).toBe(false);
+  expect(wrapper.classes()).toContain("app--reader");
+  wrapper.unmount();
+});
+
+it("logs how smoothly each change of screen was drawn", async () => {
+  const logged = vi.spyOn(mock, "logUi");
+  const wrapper = mount(App, { global: { stubs: { transition: false } } });
+  await flushPromises();
+  useNavigationStore().view = "library";
+  // Out, then in: two frames each (no CSS durations in the test DOM).
+  await new Promise((done) => setTimeout(done, 150));
+  await flushPromises();
+  expect(logged).toHaveBeenCalledWith({
+    entry: expect.objectContaining({ level: "debug", event: "ui.frames", command: "view", view: "library" }),
+  });
+  wrapper.unmount();
+});
 
 it("opens on Home and shows each sidebar entry's screen, marking the current one", async () => {
   const wrapper = mount(App);

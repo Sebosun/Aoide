@@ -1,17 +1,14 @@
-import { onMounted, onUnmounted, ref } from "vue";
+import { onUnmounted, ref } from "vue";
 
-/** Whether a media query matches, kept up to date. False where matchMedia is unavailable. */
+/** Whether a media query matches, from the first render on, kept up to date. False where
+ *  matchMedia is unavailable. */
 export function useMediaQuery(query: string) {
-  const matches = ref(false);
-  let list: MediaQueryList | undefined;
+  const list = typeof window.matchMedia === "function" ? window.matchMedia(query) : undefined;
+  const matches = ref(Boolean(list?.matches));
   const update = () => {
     matches.value = Boolean(list?.matches);
   };
-  onMounted(() => {
-    list = typeof window.matchMedia === "function" ? window.matchMedia(query) : undefined;
-    update();
-    list?.addEventListener?.("change", update);
-  });
+  list?.addEventListener?.("change", update);
   onUnmounted(() => list?.removeEventListener?.("change", update));
   return matches;
 }

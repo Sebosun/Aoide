@@ -1,10 +1,11 @@
 import { defineStore } from "pinia";
-import { computed, ref, watch } from "vue";
+import { computed, markRaw, ref, watch } from "vue";
 import { api } from "@/api";
 import type { BookView, ChapterView, ReadingMode } from "@/api/types";
 import { useLibraryStore } from "@/stores/library";
 import { useNavigationStore } from "@/stores/navigation";
 import { usePlayerStore } from "@/stores/player";
+import { beginShowing, cancelShowing } from "@/frames";
 
 export const useReaderStore = defineStore("reader", () => {
   const book = ref<BookView | null>(null),
@@ -44,10 +45,12 @@ export const useReaderStore = defineStore("reader", () => {
     const view = await api.setMode({ bookId: id, mode });
     if (book.value?.id === id) book.value = view;
   }
-  /** A chapter's text, fetched once; does not change which chapter is shown. */
+  /** A chapter's text, fetched once; does not change which chapter is shown. It is kept as
+   *  plain data (`markRaw`): a chapter is only replaced whole, and wrapping its thousands of
+   *  sentences for reactivity would cost every open. */
   async function chapterText(id: string, index: number) {
     const key = `${id}:${index}`;
-    return (cache.value[key] ??= await api.chapter({ bookId: id, chapter: index }));
+    return (cache.value[key] ??= markRaw(await api.chapter({ bookId: id, chapter: index })));
   }
   async function loadChapter(index: number) {
     const id = book.value?.id;
@@ -64,6 +67,7 @@ export const useReaderStore = defineStore("reader", () => {
     const request = ++openRequest;
     loading.value = true;
     error.value = "";
+    beginShowing("open");
     try {
       const result = await api.openBook({ bookId: id });
       if (request !== openRequest) return;
@@ -76,6 +80,8 @@ export const useReaderStore = defineStore("reader", () => {
       useNavigationStore().view = "reader";
     } catch (e) {
       error.value = String(e);
+      // A newer open may be under way: its timing is not this one's to drop.
+      if (request === openRequest) cancelShowing();
     } finally {
       if (request === openRequest) loading.value = false;
     }

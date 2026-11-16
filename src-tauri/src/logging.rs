@@ -125,12 +125,13 @@ pub fn took(start: Instant) -> u64 {
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub enum UiLevel {
+    Debug,
     Info,
     Warn,
     Error,
 }
 
-/// A line the window asks to log: a failed command or an error in a view.
+/// A line the window asks to log: a failed command, an error in a view, or how smoothly it drew.
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(test, derive(ts_rs::TS))]
@@ -147,6 +148,15 @@ pub struct UiLog {
     /// The view on screen.
     #[cfg_attr(test, ts(optional))]
     pub view: Option<String>,
+    /// Frames drawn while scrolling or opening (`ui.frames`).
+    #[cfg_attr(test, ts(optional))]
+    pub frames: Option<u32>,
+    /// Frames that took longer than one display refresh to come.
+    #[cfg_attr(test, ts(optional))]
+    pub dropped: Option<u32>,
+    /// The longest wait for a frame.
+    #[cfg_attr(test, ts(optional))]
+    pub worst_ms: Option<u64>,
 }
 
 /// Longest message kept from the window.
@@ -161,22 +171,25 @@ pub fn ui(entry: UiLog) {
         command,
         took_ms,
         view,
+        frames,
+        dropped,
+        worst_ms,
     } = entry;
     let msg = match msg.char_indices().nth(MAX_UI_MSG) {
         Some((at, _)) => format!("{}…", &msg[..at]),
         None => msg,
     };
     let (event, command, view) = (event.as_str(), command.as_deref(), view.as_deref());
+    macro_rules! line {
+        ($level:ident) => {
+            tracing::$level!(target: "aoide::ui", event, command, took_ms, view, frames, dropped, worst_ms, "{msg}")
+        };
+    }
     match level {
-        UiLevel::Info => {
-            tracing::info!(target: "aoide::ui", event, command, took_ms, view, "{msg}")
-        }
-        UiLevel::Warn => {
-            tracing::warn!(target: "aoide::ui", event, command, took_ms, view, "{msg}")
-        }
-        UiLevel::Error => {
-            tracing::error!(target: "aoide::ui", event, command, took_ms, view, "{msg}")
-        }
+        UiLevel::Debug => line!(debug),
+        UiLevel::Info => line!(info),
+        UiLevel::Warn => line!(warn),
+        UiLevel::Error => line!(error),
     }
 }
 
@@ -427,6 +440,9 @@ mod tests {
                 command: Some("list_books".into()),
                 took_ms: None,
                 view: None,
+                frames: None,
+                dropped: None,
+                worst_ms: None,
             })
         });
         let line: serde_json::Value = serde_json::from_str(&lines[0]).unwrap();
@@ -434,7 +450,33 @@ mod tests {
         assert_eq!(line["event"], "ipc.error");
         assert_eq!(line["command"], "list_books");
         assert!(line.get("took_ms").is_none() && line.get("view").is_none());
+        assert!(line.get("frames").is_none() && line.get("dropped").is_none());
         assert_eq!(line["msg"].as_str().unwrap().chars().count(), 301);
+    }
+
+    #[test]
+    fn frames_from_the_window_are_logged_at_debug_with_their_counts() {
+        let entry: UiLog = serde_json::from_value(serde_json::json!({
+            "level": "debug",
+            "event": "ui.frames",
+            "msg": "Scrolled",
+            "command": "scroll",
+            "tookMs": 1800,
+            "view": "reader",
+            "frames": 112,
+            "dropped": 3,
+            "worstMs": 48,
+        }))
+        .unwrap();
+        let lines = logged(|| ui(entry));
+        let line: serde_json::Value = serde_json::from_str(&lines[0]).unwrap();
+        assert_eq!(line["level"], "DEBUG");
+        assert_eq!(line["event"], "ui.frames");
+        assert_eq!(line["command"], "scroll");
+        assert_eq!(line["frames"], 112);
+        assert_eq!(line["dropped"], 3);
+        assert_eq!(line["worst_ms"], 48);
+        assert_eq!(line["took_ms"], 1800);
     }
 
     #[test]

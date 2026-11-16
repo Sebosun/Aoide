@@ -51,6 +51,7 @@ L=~/.local/share/com.aoide.audiobooks/logs; F=$(ls -t $L/aoide.*.jsonl | head -1
 | Since the last start | `tail -n +$(rg -n '"event":"app.start"' $F \| tail -1 \| cut -d: -f1) $F \| jq -c '{ts,level,event,book,msg}' \| tail -n 60` |
 | One book | `rg '"book":"4b1e9c07' $F \| jq -r '[.ts[11:23],.event,.from,.to,.msg]\|@tsv' \| tail -n 60` |
 | One area, from a time | `rg '"event":"sync\.' $F \| jq -c 'select(.ts>="2026-11-15T10:00") \| {ts,event,book,from,to,msg}' \| tail -n 50` |
+| Smoothness | `rg '"event":"ui.frames"' $F \| jq -r '[.ts[11:19],.command,.view,.frames,.dropped,.worst_ms,.took_ms]\|@tsv' \| tail -n 30` |
 | Sync speed | `rg '"event":"sync.block"' $F \| jq -r '[.ts[11:19],.book,.rtf,.took_ms]\|@tsv' \| tail -n 20` |
 | Dependency noise | `rg -v '"event":' $F \| jq -r '.target' \| sort \| uniq -c \| sort -rn \| head -20` |
 
@@ -82,6 +83,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `ipc.error` | warn | `command`, `took_ms` (`msg` is the error) | `src/api/tauri.ts` `call`; errors of kind `cancelled` (a scan the user stopped) left out |
 | `ipc.slow` | info | `command`, `took_ms` | `src/api/tauri.ts`, answers over 2 s (long jobs left out) |
 | `ui.error` | error | `view` | `src/main.ts`, an error no view caught |
+| `ui.frames` | debug | `command` (`scroll`, `open`, `view`), `view`, `frames`, `dropped` (over 24 ms), `worst_ms`, `took_ms` | `src/composables/useFrameLog.ts`: each scroll (`took_ms` and `frames` include the 300 ms it takes to count as ended), and each change of view until it has come in; an `open` counts from the click |
 | **Library** | | | |
 | `library.scan` | info, warn, error | `books`, `new`, `read`, `took_ms`, `outcome`, `error` | `core.rs` `rescan` |
 | `library.import` | info, warn | `ok`, `failed`; per failure `file`, `error` | `core.rs` `import_files` |

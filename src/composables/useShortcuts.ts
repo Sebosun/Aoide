@@ -119,13 +119,34 @@ export function useShortcuts() {
     zoom(stepZoom(preferences.appearance.zoom, travelled < 0 ? 1 : -1));
     travelled = 0;
   }
+  // Ctrl + wheel must cancel the wheel, so its listener cannot be passive; and while any
+  // listener that may cancel is on, every scroll waits for the page's script before it moves.
+  // So it is on only while Ctrl (or ⌘) is held: from its key going down, or from the pointer's
+  // modifier state when it went down outside the window.
+  let zoomWheel = false;
+  const isCtrl = (event: KeyboardEvent) => event.key === "Control" || event.key === "Meta";
+  function wheelZoom(on: boolean) {
+    if (on === zoomWheel) return;
+    zoomWheel = on;
+    if (on) window.addEventListener("wheel", onWheel, { passive: false });
+    else window.removeEventListener("wheel", onWheel);
+  }
+  const held = (event: KeyboardEvent | MouseEvent) => event.ctrlKey || event.metaKey;
+  const onCtrlDown = (event: KeyboardEvent) => isCtrl(event) && wheelZoom(true);
+  // The other Ctrl (or ⌘) may still be down.
+  const onCtrlUp = (event: KeyboardEvent) => isCtrl(event) && wheelZoom(held(event));
+  const onPointer = (event: MouseEvent) => wheelZoom(held(event));
+  const onBlur = () => wheelZoom(false);
   onMounted(() => {
     window.addEventListener("pointerdown", onPointerdown, true);
     window.addEventListener("keydown", onAnyKey, true);
     window.addEventListener("focusin", onFocusin, true);
     window.addEventListener("keydown", onKeydown);
     window.addEventListener("keyup", onKeyup);
-    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onCtrlDown, true);
+    window.addEventListener("keyup", onCtrlUp, true);
+    window.addEventListener("pointermove", onPointer, { capture: true, passive: true });
+    window.addEventListener("blur", onBlur);
   });
   onUnmounted(() => {
     window.removeEventListener("pointerdown", onPointerdown, true);
@@ -133,6 +154,10 @@ export function useShortcuts() {
     window.removeEventListener("focusin", onFocusin, true);
     window.removeEventListener("keydown", onKeydown);
     window.removeEventListener("keyup", onKeyup);
-    window.removeEventListener("wheel", onWheel);
+    window.removeEventListener("keydown", onCtrlDown, true);
+    window.removeEventListener("keyup", onCtrlUp, true);
+    window.removeEventListener("pointermove", onPointer, { capture: true });
+    window.removeEventListener("blur", onBlur);
+    wheelZoom(false);
   });
 }

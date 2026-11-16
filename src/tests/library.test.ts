@@ -178,8 +178,6 @@ it("shows the playing book in the now-playing card, and opens the reader from it
   await flushPromises();
   expect(useNavigationStore().view).toBe("reader");
   expect(useReaderStore().book?.id).toBe("book-0");
-  // The reader has the full transport, so the card steps aside.
-  expect(wrapper.find('[aria-label="Now playing"]').exists()).toBe(false);
   wrapper.unmount();
 });
 

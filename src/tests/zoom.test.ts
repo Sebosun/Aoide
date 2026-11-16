@@ -82,6 +82,9 @@ it("zooms with Ctrl and plus, minus or zero, saves the size and says it", async 
   wrapper.unmount();
 });
 
+const control = (type: "keydown" | "keyup") =>
+  document.body.dispatchEvent(new KeyboardEvent(type, { key: "Control", ctrlKey: type === "keydown", bubbles: true }));
+
 it("zooms with Ctrl and the wheel, one step per notch", async () => {
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
@@ -90,6 +93,7 @@ it("zooms with Ctrl and the wheel, one step per notch", async () => {
     document.body.dispatchEvent(event);
     return event;
   };
+  control("keydown");
   expect(wheel(-120).defaultPrevented).toBe(true);
   await flushPromises();
   expect(shown()).toBe("1.1");
@@ -99,6 +103,50 @@ it("zooms with Ctrl and the wheel, one step per notch", async () => {
   expect(shown()).toBe("0.9");
   expect(wheel(120, false).defaultPrevented).toBe(false);
   expect(shown()).toBe("0.9");
+  control("keyup");
+  wrapper.unmount();
+});
+
+// Ctrl may go down before the window has the focus (no keydown reaches it): the pointer's own
+// modifier state says Ctrl is held.
+it("zooms with Ctrl and the wheel when Ctrl went down outside the window", async () => {
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  const pointer = (ctrlKey: boolean) =>
+    document.body.dispatchEvent(new MouseEvent("pointermove", { ctrlKey, bubbles: true }));
+  const wheel = () => {
+    const event = new WheelEvent("wheel", { deltaY: -120, ctrlKey: true, bubbles: true, cancelable: true });
+    document.body.dispatchEvent(event);
+    return event;
+  };
+  pointer(true);
+  expect(wheel().defaultPrevented).toBe(true);
+  await flushPromises();
+  expect(shown()).toBe("1.1");
+  // Released outside the window too: the next move says so, and scrolling is free again.
+  pointer(false);
+  expect(wheel().defaultPrevented).toBe(false);
+  wrapper.unmount();
+});
+
+// A wheel listener that may cancel makes every scroll wait for the page's script; plain
+// scrolling must not.
+it("has no wheel listener that can hold up scrolling unless Ctrl is held", async () => {
+  const added = vi.spyOn(window, "addEventListener"),
+    removed = vi.spyOn(window, "removeEventListener");
+  const blocking = () =>
+    added.mock.calls.filter(([type, , options]) => type === "wheel" && !(options as AddEventListenerOptions)?.passive)
+      .length - removed.mock.calls.filter(([type]) => type === "wheel").length;
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  expect(blocking()).toBe(0);
+  control("keydown");
+  expect(blocking()).toBe(1);
+  control("keyup");
+  expect(blocking()).toBe(0);
+  control("keydown");
+  window.dispatchEvent(new Event("blur"));
+  expect(blocking()).toBe(0);
   wrapper.unmount();
 });
 

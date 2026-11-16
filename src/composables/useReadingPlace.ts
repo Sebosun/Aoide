@@ -1,5 +1,6 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
 import { api } from "@/api";
+import { readingFont } from "@/fonts";
 import { useLibraryStore } from "@/stores/library";
 import { useReaderStore } from "@/stores/reader";
 
@@ -83,9 +84,7 @@ export function useReadingPlace(container: Ref<HTMLElement | undefined>, active:
         restoring = false;
       }, 400);
     };
-    const fonts = typeof document.fonts?.ready?.then === "function" ? document.fonts.ready : null;
-    if (fonts) void fonts.then(show, show);
-    else show();
+    void readingFont().then(show);
   }
   watch(() => [reader.book?.id, reader.chapter, container.value], restore, { flush: "post" });
   onMounted(restore);

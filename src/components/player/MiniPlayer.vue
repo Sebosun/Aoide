@@ -7,8 +7,9 @@ import { useNavigationStore } from "@/stores/navigation";
 import { useReaderStore } from "@/stores/reader";
 
 /** What is playing, as a card at the foot of the sidebar: cover, title, a state line and
- *  play/pause. It shows while something is loaded in the player and the reader is not open;
- *  clicking it opens the reader on that book. */
+ *  play/pause. It shows while something is loaded in the player (the sidebar, and so the card,
+ *  is not shown in the reader, which has the full transport); clicking it opens the reader on
+ *  that book. */
 const controls = usePlayerControls();
 const { player, active, book, chapterTitle, timeLeft, toggle, sleepLabel, error } = controls;
 const reader = useReaderStore(),
@@ -32,7 +33,7 @@ async function openReader() {
 </script>
 
 <template>
-  <section v-if="book && loaded && navigation.view !== 'reader'" class="mini-player" aria-label="Now playing">
+  <section v-if="book && loaded" class="mini-player" aria-label="Now playing">
     <button
       type="button"
       class="mini-player__open"

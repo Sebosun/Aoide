@@ -31,6 +31,7 @@ import { useReaderStore } from "@/stores/reader";
 import { isAudioPath } from "@/recording";
 import { asLink } from "@/articles";
 import { useShortcuts } from "@/composables/useShortcuts";
+import { useFrameLog } from "@/composables/useFrameLog";
 
 const library = useLibraryStore(),
   player = usePlayerStore(),
@@ -72,6 +73,7 @@ window.addEventListener("paste", pasted);
 const dragging = ref(false),
   dropError = ref("");
 useShortcuts();
+const frames = useFrameLog(() => navigation.view);
 // Screens cross-fade. The library keeps its scroll position for the way back; other screens
 // open at the top.
 let libraryScroll = 0;
@@ -85,6 +87,13 @@ watch(
 function placeScroll() {
   window.scrollTo(0, navigation.view === "library" ? libraryScroll : 0);
 }
+/** The screen in the window, which the layout (sidebar, the reader's full height) follows. It
+ *  changes when the next screen mounts, once the last has faded out: changing the layout while
+ *  the old screen fades would make it jump. */
+const shown = ref(navigation.view);
+const settle = () => {
+  shown.value = navigation.view;
+};
 const native = isTauri();
 let unlisten: (() => void) | undefined,
   unlistenProblems: (() => void) | undefined,
@@ -166,7 +175,7 @@ function browserDrop(event: DragEvent) {
 <template>
   <div
     class="app"
-    :class="{ 'app--reader': navigation.view === 'reader' }"
+    :class="{ 'app--reader': shown === 'reader' }"
     @dragstart.prevent
     @dragenter="dragEnter"
     @dragover="dragOver"
@@ -174,22 +183,23 @@ function browserDrop(event: DragEvent) {
     @dragend="endDrag"
     @drop.prevent="browserDrop"
   >
-    <AppSidebar v-if="navigation.view !== 'reader'" />
+    <AppSidebar v-if="shown !== 'reader'" />
     <main class="app__main">
       <p v-if="dropError" class="app__error" role="alert">{{ dropError }}</p>
-      <Transition name="app__view" mode="out-in" @enter="placeScroll">
-        <HomeView v-if="navigation.view === 'home'" />
-        <LibraryView v-else-if="navigation.view === 'library'" />
-        <FeedsView v-else-if="navigation.view === 'feeds'" />
-        <ActivityView v-else-if="navigation.view === 'activity'" />
-        <FindBooksView v-else-if="navigation.view === 'find'" />
-        <FindAudiobooksView v-else-if="navigation.view === 'audiobooks'" />
+      <Transition name="app__view" mode="out-in" @enter="placeScroll" @after-enter="frames.shown">
+        <HomeView v-if="navigation.view === 'home'" @vue:before-mount="settle" />
+        <LibraryView v-else-if="navigation.view === 'library'" @vue:before-mount="settle" />
+        <FeedsView v-else-if="navigation.view === 'feeds'" @vue:before-mount="settle" />
+        <ActivityView v-else-if="navigation.view === 'activity'" @vue:before-mount="settle" />
+        <FindBooksView v-else-if="navigation.view === 'find'" @vue:before-mount="settle" />
+        <FindAudiobooksView v-else-if="navigation.view === 'audiobooks'" @vue:before-mount="settle" />
         <ItemView
           v-else-if="navigation.view === 'item' && navigation.bookId"
           :key="navigation.bookId"
           :book-id="navigation.bookId"
+          @vue:before-mount="settle"
         />
-        <ReaderView v-else />
+        <ReaderView v-else @vue:before-mount="settle" />
       </Transition>
     </main>
     <DropOverlay v-if="dragging" />

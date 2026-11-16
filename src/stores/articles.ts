@@ -22,9 +22,18 @@ export const useArticlesStore = defineStore("articles", () => {
       unlisten = await api.onArticleState(put);
     })());
   }
-  async function load(id: string) {
-    await start();
-    put(await api.article({ bookId: id }));
+  /** Loads of an article under way: the reader's parts that each want it share one. */
+  const loading = new Map<string, Promise<void>>();
+  function load(id: string) {
+    let pending = loading.get(id);
+    if (!pending) {
+      pending = (async () => {
+        await start();
+        put(await api.article({ bookId: id }));
+      })().finally(() => loading.delete(id));
+      loading.set(id, pending);
+    }
+    return pending;
   }
   /** Saves `link` as an article; the library opens to show it being fetched. Throws the core's
    *  refusal of a link it does not take. */
