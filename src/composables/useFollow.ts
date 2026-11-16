@@ -1,6 +1,6 @@
 import { onUnmounted, ref, type Ref } from "vue";
 
-const CURRENT = ".chapter-text__segment--current";
+const CURRENT = ".chapter-segment--current";
 
 /** Keeps the spoken sentence in the upper half of a scrolling container. Scrolling by the
  *  reader (wheel, touch, keys, scrollbar; Space plays and pauses instead of scrolling) stops following until `backToPlayhead`. */

@@ -73,11 +73,11 @@ it("washes the spoken sentence and underlines the word, only for the open book",
   const wrapper = await openReader();
   mock.emitPlayer(playing({ wordIndex: 2 }));
   await flushPromises();
-  expect(wrapper.get(".chapter-text__segment--current").attributes("data-segment-id")).toBe("0:1:0");
-  expect(wrapper.get(".chapter-text__word--current").text()).toBe("Ada");
+  expect(wrapper.get(".chapter-segment--current").attributes("data-segment-id")).toBe("0:1:0");
+  expect(wrapper.get(".chapter-segment__word--current").text()).toBe("Ada");
   mock.emitPlayer(playing({ bookId: "book-1", wordIndex: 2 }));
   await flushPromises();
-  expect(wrapper.find(".chapter-text__segment--current").exists()).toBe(false);
+  expect(wrapper.find(".chapter-segment--current").exists()).toBe(false);
   wrapper.unmount();
 });
 
@@ -133,7 +133,7 @@ it("shows the playhead chapter and jumps to a chapter from the margin", async ()
   mock.emitPlayer(playing({ chapter: 1, segmentId: "1:1:0", wordIndex: 1 }));
   await flushPromises();
   expect(wrapper.get('[aria-label="Chapter text"] h2').text()).toBe("Across the water");
-  expect(wrapper.get(".chapter-text__word--current").text()).toBe("dawn");
+  expect(wrapper.get(".chapter-segment__word--current").text()).toBe("dawn");
 
   await wrapper.get('[aria-label="About this book"] [aria-haspopup="menu"]').trigger("click");
   await pickMenuItem("Chapter 1: The small light");
@@ -145,7 +145,7 @@ it("shows the playhead chapter and jumps to a chapter from the margin", async ()
 it("shows a footnote from its coral marker without starting playback", async () => {
   const play = vi.spyOn(mock, "play");
   const wrapper = await openReader();
-  const marker = wrapper.get(".chapter-text__note");
+  const marker = wrapper.get(".chapter-segment__note");
   expect(marker.text()).toBe("1");
   expect(marker.element.previousElementSibling?.textContent).toBe("Ada");
   await marker.trigger("click");
@@ -375,7 +375,7 @@ it("offers ways to give the book a voice when nothing could narrate it", async (
 function layOut(wrapper: ReturnType<typeof mount>, first: number, step = 100) {
   const box = wrapper.get(".sheet__scroll").element as HTMLElement;
   box.getBoundingClientRect = () => ({ top: 0, bottom: 800, height: 800 }) as DOMRect;
-  const spoken = [...box.querySelectorAll<HTMLElement>(".chapter-text__segment:not(.chapter-text__segment--quiet)")];
+  const spoken = [...box.querySelectorAll<HTMLElement>(".chapter-segment:not(.chapter-segment--quiet)")];
   spoken.forEach((segment, index) => {
     segment.getBoundingClientRect = () => ({ top: first + index * step }) as DOMRect;
   });

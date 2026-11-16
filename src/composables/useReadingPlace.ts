@@ -3,7 +3,7 @@ import { api } from "@/api";
 import { useLibraryStore } from "@/stores/library";
 import { useReaderStore } from "@/stores/reader";
 
-const SPOKEN = ".chapter-text__segment:not(.chapter-text__segment--quiet)";
+const SPOKEN = ".chapter-segment:not(.chapter-segment--quiet)";
 
 /** While `active` (the book is read silently), keeps the core told where the reader is: the
  *  first sentence whose top edge is on screen, or the chapter's last sentence once it is
