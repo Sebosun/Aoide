@@ -1,6 +1,9 @@
 mod book;
 mod commands;
 mod core;
+// Wired into the window's start in a later step.
+#[allow(dead_code)]
+mod launch;
 mod logging;
 mod media;
 mod notify;
