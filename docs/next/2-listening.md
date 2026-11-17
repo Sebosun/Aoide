@@ -402,6 +402,8 @@ reaches the state with `sleep=again|again-chapter`.)
 
 **Size:** M
 
+**Built:** 2026-11-17 (7bd9439..7966f43)
+
 **Needs:** 2.2 for the time left; 4.3 for the archive step.
 
 ### Outcome
