@@ -55,6 +55,9 @@ pub(super) enum PlanEvent {
     BookForgotten(String),
     /// A book's voice settings changed: its plan is made again.
     BookSettingsChanged(String),
+    /// Chapters left out of the book's narration are narrated again: a prepared book is
+    /// prepared no longer (their audio may not be made).
+    ChaptersTakenBack(String),
     /// A pronunciation list changed: book `book`'s (`None`: the one for all books). The books
     /// in `changed` say something differently now.
     PronunciationsChanged {
@@ -321,6 +324,16 @@ impl Generation {
             }
             PlanEvent::BookSettingsChanged(book) => {
                 lock(&self.preparation).drop_plans(Some(&book));
+                Some(true)
+            }
+            PlanEvent::ChaptersTakenBack(book) => {
+                let mut preparation = lock(&self.preparation);
+                preparation.audio_lost(
+                    &lock(&self.library),
+                    &HashSet::from([book.clone()]),
+                    &HashSet::new(),
+                );
+                preparation.drop_plans(Some(&book));
                 Some(true)
             }
             PlanEvent::PronunciationsChanged { book, changed } => {
@@ -624,11 +637,17 @@ impl GenerationHost for super::Core {
         }
         Some(self.load_book(id).and_then(|book| {
             let mut plan = self.speech_plan(&book)?;
-            if let Some(chapters) = chapters {
-                plan.only(|index| {
+            match chapters {
+                Some(chapters) => plan.only(|index| {
                     book.locate(index)
                         .is_some_and(|(chapter, _)| chapters.contains(&chapter))
-                });
+                }),
+                // The whole book is the chapters narrated.
+                None => super::leaving_out::narrated_only(
+                    &mut plan,
+                    &book,
+                    &self.book_settings(id).left_out,
+                ),
             }
             Ok(plan)
         }))

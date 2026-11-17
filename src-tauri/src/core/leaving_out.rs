@@ -64,6 +64,18 @@ pub(super) fn skip(
     target
 }
 
+/// Whole-book preparation and export make only the chapters not in `left_out`.
+pub(super) fn narrated_only(
+    plan: &mut super::preparation::Plan,
+    book: &BookModel,
+    left_out: &[usize],
+) {
+    plan.only(|index| {
+        book.locate(index)
+            .map_or(true, |(c, _)| !left_out.contains(&c))
+    });
+}
+
 /// `target` passes over the chapters in `left_out`.
 pub(super) fn leave_out(target: &mut super::Target, left_out: &[usize]) {
     let ranges = entries(&target.book, left_out);
@@ -120,11 +132,13 @@ impl super::Core {
         let book = self.load_book(id)?;
         let left_out = within(&book, &chapters);
         let count = left_out.len();
-        let settings = super::BookSettings {
-            left_out,
-            ..self.book_settings(id)
-        };
+        let before = self.book_settings(id);
+        let taken_back = before.left_out.iter().any(|c| !left_out.contains(c));
+        let settings = super::BookSettings { left_out, ..before };
         self.store_book_settings(id, settings).await?;
+        if taken_back {
+            self.plan(super::PlanEvent::ChaptersTakenBack(id.into()));
+        }
         tracing::info!(
             event = "narration.left_out",
             book = crate::logging::book(id),
@@ -141,7 +155,7 @@ mod tests {
 
     use super::super::engine_tests::{start_holding, Scripted};
     use super::super::tests::{epub_of_chapters, until};
-    use super::super::{Core, ReadState};
+    use super::super::{Core, PrepareStage, ReadState};
 
     /// A book with front and back matter around two chapters.
     pub(in crate::core) fn book_with_matter() -> Vec<u8> {
@@ -273,6 +287,52 @@ mod tests {
         })
         .await;
         core.stop();
+    }
+
+    fn stage(core: &Core, id: &str) -> Option<PrepareStage> {
+        core.prepare_view(id).map(|v| v.state)
+    }
+
+    #[tokio::test]
+    async fn preparing_the_book_leaves_its_chapters_left_out_out_and_is_done_without_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let (core, id, engine) = started(dir.path()).await;
+        core.set_left_out(&id, vec![0, 3]).await.unwrap();
+        engine.hold_synthesis();
+
+        core.prepare_book(&id).await.unwrap();
+        let narrated = spoken(&core, &id, 1).len() + spoken(&core, &id, 2).len();
+        until("the plan", || {
+            core.prepare_view(&id).is_some_and(|v| v.total > 0)
+        })
+        .await;
+        assert_eq!(core.prepare_view(&id).unwrap().total, narrated);
+        engine.let_go();
+        until("the book to be prepared", || {
+            stage(&core, &id) == Some(PrepareStage::Done)
+        })
+        .await;
+        assert!(asked_for(&core, &id, &engine, 1) && asked_for(&core, &id, &engine, 2));
+        assert!(!asked_for(&core, &id, &engine, 0) && !asked_for(&core, &id, &engine, 3));
+
+        // Asked for, a chapter left out is still prepared.
+        core.prepare_chapter(&id, 3).await.unwrap();
+        until("the notes to be made", || asked_for(&core, &id, &engine, 3)).await;
+        assert!(!asked_for(&core, &id, &engine, 0));
+        until("the notes to be prepared", || {
+            stage(&core, &id) == Some(PrepareStage::Done)
+        })
+        .await;
+
+        // Taken back in, the contents are not made yet: the book is not prepared.
+        core.set_left_out(&id, vec![3]).await.unwrap();
+        assert_eq!(stage(&core, &id), None);
+        core.prepare_book(&id).await.unwrap();
+        until("the book to be prepared again", || {
+            stage(&core, &id) == Some(PrepareStage::Done)
+        })
+        .await;
+        assert!(asked_for(&core, &id, &engine, 0));
     }
 
     #[tokio::test]
