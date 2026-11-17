@@ -387,3 +387,106 @@ fn changing_speed_mid_entry_goes_on_without_a_gap() {
     let at = player.position().offset_ms;
     assert!((1390..=1520).contains(&at), "at {at} ms");
 }
+
+#[test]
+fn a_pause_set_before_an_entry_stops_where_the_one_before_it_ends() {
+    let mut player = PlayerCore::new(RATE);
+    player.load(vec![entry("a", 3), entry("b", 0), entry("c", 0)], 0);
+    player.provide(0, &constant(0.25, 5));
+    player.provide(1, &constant(0.5, 4));
+    player.provide(2, &constant(0.75, 4));
+    player.pause_before(Some(1));
+    player.play();
+    let out = render(&mut player, 12);
+    assert_eq!(
+        out,
+        [vec![0.25; 5], vec![0.0; 7]].concat(),
+        "its audio and pause, then silence"
+    );
+    assert_eq!(
+        player.position(),
+        Position {
+            index: 1,
+            offset_ms: 0,
+            status: Status::Paused
+        }
+    );
+    // Played again, it goes on; the pause was used up.
+    player.play();
+    assert_eq!(
+        render(&mut player, 8),
+        [vec![0.5; 4], vec![0.75; 4]].concat()
+    );
+
+    // Taken away, nothing stops.
+    player.seek(0);
+    player.pause_before(Some(1));
+    player.pause_before(None);
+    assert_eq!(render(&mut player, 9)[8], 0.5);
+}
+
+#[test]
+fn a_pause_set_before_an_entry_lets_stretched_speech_end_and_plays_none_of_the_next() {
+    let rate = 24_000;
+    let mut player = PlayerCore::new(rate);
+    player.load(vec![entry("a", 100), entry("b", 0)], 0);
+    player.provide(0, &tone(rate, 0, 1000));
+    player.provide(1, &constant(0.9, 1000));
+    player.set_speed(1.5);
+    player.pause_before(Some(1));
+    player.play();
+    let mut all = Vec::new();
+    while player.position().status == Status::Playing && all.len() < rate as usize * 2 {
+        let mut out = vec![0.0; 480];
+        player.render(&mut out);
+        all.extend(out);
+    }
+    let pos = player.position();
+    assert_eq!(
+        (pos.index, pos.offset_ms, pos.status),
+        (1, 0, Status::Paused)
+    );
+    assert!(
+        all.iter().all(|s| s.abs() < 0.5),
+        "nothing of the next entry"
+    );
+    let last = all.len() - all.iter().rev().position(|s| s.abs() > 0.05).unwrap();
+    assert!(
+        last * 1000 / rate as usize >= 620,
+        "the tone's end is heard: it stops at {} ms",
+        last * 1000 / rate as usize
+    );
+}
+
+#[test]
+fn a_fade_ramps_the_gain_and_back_without_touching_the_volume() {
+    let mut player = PlayerCore::new(RATE);
+    player.load(vec![entry("a", 0)], 0);
+    player.provide(0, &constant(1.0, 2000));
+    player.set_volume(0.5);
+    player.play();
+
+    player.set_fade(0.2);
+    let down = render(&mut player, 200);
+    assert!(
+        down[0] < 0.5 && down[0] > 0.45,
+        "a ramp, not a jump: {}",
+        down[0]
+    );
+    assert!(down.windows(2).all(|w| w[1] <= w[0]));
+    assert!((down[199] - 0.1).abs() < 1e-6, "{}", down[199]);
+    assert_eq!((player.volume(), player.fade()), (0.5, 0.2));
+
+    player.set_fade(1.0);
+    let up = render(&mut player, 200);
+    assert!(up.windows(2).all(|w| w[1] >= w[0]));
+    assert!((up[199] - 0.5).abs() < 1e-6, "{}", up[199]);
+
+    // Paused, a fade takes effect at once.
+    player.pause();
+    player.set_fade(0.2);
+    player.play();
+    assert!((render(&mut player, 1)[0] - 0.1).abs() < 1e-6);
+    player.set_fade(f32::NAN);
+    assert_eq!(player.fade(), 1.0);
+}

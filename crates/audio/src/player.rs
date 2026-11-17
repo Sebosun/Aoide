@@ -4,6 +4,8 @@ use crate::{resample, Pcm};
 
 /// Input samples taken at least at a time while the stretcher asks for more.
 const STRETCH_STEP: usize = 256;
+/// How long a change of fade takes from silence to full gain, in seconds.
+const FADE_RAMP_S: f32 = 0.05;
 
 /// One playlist item.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,6 +55,12 @@ pub struct PlayerCore {
     speed: f32,
     /// Output gain, 0.0..=1.0.
     volume: f32,
+    /// A second gain (such as a sleep timer's fade), multiplied in with `volume`: where it is
+    /// and where it ramps to.
+    fade_heard: f32,
+    fade: f32,
+    /// Playback pauses by itself as the playhead would enter this entry.
+    pause_at: Option<usize>,
     /// Speech speed-changer (Sonic, as Android uses), from the first render away from 1x until
     /// the next seek; at 1x it passes the audio on as it is, so nothing it holds is lost.
     stretch: Option<SonicStream>,
@@ -70,6 +78,9 @@ impl PlayerCore {
             playing: false,
             speed: 1.0,
             volume: 1.0,
+            fade_heard: 1.0,
+            fade: 1.0,
+            pause_at: None,
             stretch: None,
             held: 0.0,
         }
@@ -93,6 +104,7 @@ impl PlayerCore {
         self.playing = false;
         self.index = start.min(self.slots.len());
         self.offset = 0;
+        self.pause_at = None;
         self.reset_stretch();
     }
 
@@ -198,6 +210,33 @@ impl PlayerCore {
         self.volume
     }
 
+    /// A gain multiplied in with the volume, clamped to 0.0..=1.0 (1.0 for a value that is
+    /// not a number), which the volume does not show. While playing it ramps there over a few
+    /// milliseconds; paused, it is there at once.
+    pub fn set_fade(&mut self, target: f32) {
+        self.fade = if target.is_finite() {
+            target.clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        if !self.playing {
+            self.fade_heard = self.fade;
+        }
+    }
+
+    /// The gain the fade is at or ramps to.
+    pub fn fade(&self) -> f32 {
+        self.fade
+    }
+
+    /// Pauses by itself as the playhead would enter entry `index`: the entry before plays to
+    /// the end of its pause, with all the speed-changer holds of it, and none of `index` is
+    /// heard. Once paused there it is used up; `None` takes it away. Seeks keep it; a new
+    /// playlist does not.
+    pub fn pause_before(&mut self, index: Option<usize>) {
+        self.pause_at = index;
+    }
+
     pub fn position(&self) -> Position {
         let offset_ms = self.slots.get(self.index).map_or(0, |slot| {
             let audio = slot.audio.as_ref().map_or(0, Vec::len);
@@ -230,9 +269,32 @@ impl PlayerCore {
     /// Fills `out` with the next mono samples (silence when not playing or while buffering).
     pub fn render(&mut self, out: &mut [f32]) {
         self.render_unscaled(out);
-        if self.volume < 1.0 {
-            out.iter_mut().for_each(|sample| *sample *= self.volume);
+        if self.at_pause() && self.stretched_left() == 0 {
+            self.playing = false;
+            self.pause_at = None;
+            self.fade_heard = self.fade;
         }
+        if self.fade_heard == self.fade {
+            let gain = self.volume * self.fade_heard;
+            if gain < 1.0 {
+                out.iter_mut().for_each(|sample| *sample *= gain);
+            }
+            return;
+        }
+        let step = 1.0 / (FADE_RAMP_S * self.output_rate as f32);
+        for sample in out.iter_mut() {
+            self.fade_heard = if self.fade_heard < self.fade {
+                (self.fade_heard + step).min(self.fade)
+            } else {
+                (self.fade_heard - step).max(self.fade)
+            };
+            *sample *= self.volume * self.fade_heard;
+        }
+    }
+
+    /// The playhead is where playback is to pause by itself.
+    fn at_pause(&self) -> bool {
+        self.playing && self.pause_at == Some(self.index)
     }
 
     fn render_unscaled(&mut self, out: &mut [f32]) {
@@ -256,9 +318,10 @@ impl PlayerCore {
             let needed = out.len() - stream.available_frames();
             let input = self.pull(STRETCH_STEP.max((needed as f32 * self.speed) as usize));
             if input.is_empty() {
-                // The playlist's end: what the stretcher still holds is played out. (While
-                // audio is awaited it waits with it instead, as flushing mid-word distorts.)
-                if self.index >= self.slots.len() {
+                // The playlist's end, or a pause set before the next entry: what the stretcher
+                // still holds is played out. (While audio is awaited it waits with it instead,
+                // as flushing mid-word distorts.)
+                if self.index >= self.slots.len() || self.at_pause() {
                     stream.flush();
                 }
                 break;
@@ -297,7 +360,11 @@ impl PlayerCore {
     /// is missing or the playlist ends.
     fn pull(&mut self, count: usize) -> Vec<f32> {
         let mut out = Vec::with_capacity(count);
-        while out.len() < count && self.index < self.slots.len() && !self.stalled() {
+        while out.len() < count
+            && self.index < self.slots.len()
+            && self.pause_at != Some(self.index)
+            && !self.stalled()
+        {
             let slot = &self.slots[self.index];
             let audio = slot.audio.as_deref().unwrap_or(&[]);
             if slot.entry.speakable && !slot.complete {
