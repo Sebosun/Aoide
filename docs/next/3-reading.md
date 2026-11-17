@@ -782,6 +782,8 @@ tables with horizontal scroll. In Lines view an insert shows as a single line ("
 
 **Size:** S
 
+**Built:** 2026-11-17 (db55af9..1ac207b)
+
 ### Outcome
 
 F11 makes the reader fill the screen. When reading silently, the controls fade after a few
