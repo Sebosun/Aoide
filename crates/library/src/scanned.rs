@@ -20,6 +20,13 @@ impl Library {
     }
 
     /// Remembers what a scan of the library folder found, in place of the last scan's.
+    /// Forgets every file's hash, so the next scan reads each once (after a restore, when the
+    /// files' times and places are another computer's).
+    pub fn clear_scanned_files(&self) -> Result<()> {
+        self.conn.execute("DELETE FROM library_files", [])?;
+        Ok(())
+    }
+
     pub fn store_scanned_files(&self, files: &[ScannedFile]) -> Result<()> {
         let tx = self.conn.unchecked_transaction()?;
         tx.execute("DELETE FROM library_files", [])?;

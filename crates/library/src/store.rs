@@ -349,6 +349,11 @@ fn add_column_if_missing(
     Ok(())
 }
 
+/// The schema version the migrations end at.
+pub(super) fn latest_version() -> i64 {
+    MIGRATIONS.len() as i64
+}
+
 impl Library {
     pub(super) fn initialize(mut conn: Connection) -> Result<Self> {
         conn.pragma_update(None, "foreign_keys", true)?;

@@ -187,6 +187,39 @@ impl Library {
         Self::initialize(rusqlite::Connection::open_in_memory()?)
     }
 
+    /// The schema version this build reads and writes.
+    pub fn schema_version() -> i64 {
+        store::latest_version()
+    }
+
+    /// The schema version of the database at `path`, read without opening it for writing (so
+    /// a newer one is not touched, and an older one not migrated).
+    pub fn schema_version_of(path: &Path) -> Result<i64> {
+        let conn = rusqlite::Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        Ok(conn.pragma_query_value(None, "user_version", |row| row.get(0))?)
+    }
+
+    /// A consistent copy of the database at `path` as a new file `to` (refused if it exists),
+    /// made from a read-only connection of its own: in WAL mode it reads one snapshot while
+    /// the app's connection keeps writing.
+    pub fn copy_consistent(path: &Path, to: &Path) -> Result<()> {
+        if to.exists() {
+            return Err(LibraryError::Corrupt(format!(
+                "{} already exists",
+                to.display()
+            )));
+        }
+        let conn = rusqlite::Connection::open_with_flags(
+            path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        conn.execute("VACUUM INTO ?1", [store::path_text(to)?])?;
+        Ok(())
+    }
+
     /// Inserts a new book, or updates path/metadata/status of an existing one with the
     /// same id. `added_at` is kept from the first insert; `now` is used only on insert.
     pub fn upsert_book(&self, book: &NewBook, now: i64) -> Result<()> {
@@ -317,6 +350,31 @@ impl Library {
                 ),
                 [from.as_ref(), to.as_ref()],
             )?;
+        }
+        // A recording's files are a JSON list of paths.
+        let recordings: Vec<(String, String)> = {
+            let mut stmt = tx.prepare("SELECT book_id, files FROM recordings")?;
+            let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?;
+            rows.collect::<std::result::Result<_, _>>()?
+        };
+        for (book, files) in recordings {
+            let mut paths: Vec<String> = store::parse_json(&files)?;
+            let mut moved = false;
+            for path in &mut paths {
+                let rest = path
+                    .strip_prefix(from.as_ref())
+                    .filter(|rest| rest.is_empty() || rest.starts_with('/'));
+                if let Some(rest) = rest {
+                    *path = format!("{to}{rest}");
+                    moved = true;
+                }
+            }
+            if moved {
+                changed += tx.execute(
+                    "UPDATE recordings SET files = ?2 WHERE book_id = ?1",
+                    [book, store::json(&paths)?],
+                )?;
+            }
         }
         tx.commit()?;
         Ok(changed)
