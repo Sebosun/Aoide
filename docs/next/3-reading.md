@@ -646,6 +646,8 @@ the query).
 
 **Size:** L
 
+**Built:** 2026-11-17 (0748eb8..f0e3544)
+
 ### Outcome
 
 A book's pictures show in the reader. The voice can say a picture's description. Tables are
@@ -796,6 +798,38 @@ tables with horizontal scroll. In Lines view an insert shows as a single line ("
 
 - A, blocks that take no text (settled by the code check, 2026-11-16; reasons above).
 - Formulas (MathML): nothing beyond today's reading (plan's default).
+
+### As built
+
+- Model: `Chapter.inserts` (`Insert { before_block, kind: Picture | Table }`) and
+  `Chapter.tables` (`TableShape { rows, caption_block, header_rows, cells }`);
+  `Block.layout` for code. An EPUB picture inside a line of text stands after the line.
+  The cover, `role="presentation"`/`aria-hidden` pictures and pictures from elsewhere
+  (`http:`, `data:`) are left out. SVG `<image>` is read by its namespaced `href`.
+- **One departure from A:** the segmenter takes cuts (`segment_chapter_with_cuts`) so a table
+  row's sentences end at its cells and each cell can be drawn with its own. Only the ids of
+  table-row sentences change. Places, bookmarks and the playhead resolve by character
+  offset, and the display text and a recording's `text_hash` are unchanged.
+- `core/pictures.rs` copies an EPUB's pictures when their chapter is first opened. Over
+  2048 px they are scaled down; under 32 px they are left out as ornaments. They count in
+  Storage and as unused once their book is gone. `ChapterView.inserts` and `.tables` number
+  blocks as the view shows them.
+- Article tables become inserts only when they are a grid (two rows and two columns at least,
+  no table inside). Article pictures become inserts only between blocks; one inside a line
+  (a formula) stays left out, so no reviewed page's text changed. Each reviewed page's details
+  list the tables and pictures kept.
+- Speech: `AppSettings.describe` (`Describe { pictures, tables, code }`). Rows and code not
+  read keep their ids, say nothing and leave no pause. What is said instead is an entry
+  `{chapter}:{block}:i{n}` (`SegmentView.aside`, never drawn on the page). An EPUB table's
+  caption is a paragraph and is read as one; an article table's caption is part of its
+  announcement.
+- Code on the page: each gap is drawn after the single space counted as text, as
+  `data-not-text`. Selections, highlights and the playhead count words as before.
+- Article pictures: `keep_article_pictures` (off by default) fetches them after a save
+  through the cover's `Fetcher::image` (2 MB cap, at most 40). Pictures not kept are added
+  to the article's "left out" count.
+- Not built: the single line for an insert in Lines view (it shows only the five sentences
+  around the playhead).
 
 ---
 
