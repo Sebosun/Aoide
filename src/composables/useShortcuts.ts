@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted } from "vue";
 import { useNavigationStore } from "@/stores/navigation";
 import { useReaderStore } from "@/stores/reader";
+import { useLibraryStore } from "@/stores/library";
 import { usePreferencesStore } from "@/stores/preferences";
 import { useUiStore } from "@/stores/ui";
 import { stepZoom, zoomLabel } from "@/zoom";
@@ -41,7 +42,7 @@ const volumeLabel = (volume: number) => (volume > 0 ? `Volume ${Math.round(volum
  *    (↑ and ↓ alone keep scrolling); M mutes. Each says the new value in a toast.
  *  - B bookmarks the playing (or open) book's place; H highlights the sentence just spoken (in
  *    the first second of a sentence, the one before it); T opens the player's sleep timer menu.
- *  - C picks the collections of the item whose page or text is open.
+ *  - C picks the collections of the item whose page or text is open, once it is in the library.
  *  - Escape leaves the reader for the screen it was opened from, when nothing is open over it.
  *  - The menu key (or Shift F10) is the reader's text menu's (ReaderSelection), which also has
  *    Shift ← / → and ↑ / ↓ while text is selected or a sentence was reached with the keyboard.
@@ -53,7 +54,8 @@ export function useShortcuts() {
   const preferences = usePreferencesStore(),
     ui = useUiStore(),
     navigation = useNavigationStore(),
-    reader = useReaderStore();
+    reader = useReaderStore(),
+    library = useLibraryStore();
   const controls = usePlayerControls();
 
   // Whether the keyboard moved the focus to where it is. A button that was clicked keeps the
@@ -126,9 +128,10 @@ export function useShortcuts() {
       controls.player.askSleep();
     },
     collection() {
-      // The item whose page or text is open.
+      // The item whose page or text is open, once it is in the library (not an entry only read
+      // from a feed).
       const id = navigation.view === "item" ? navigation.bookId : navigation.view === "reader" ? reader.book?.id : null;
-      if (!id) return false;
+      if (!id || !library.books.some((b) => b.id === id)) return false;
       navigation.pickCollections(id);
     },
     find() {

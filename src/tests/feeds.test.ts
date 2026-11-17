@@ -221,6 +221,22 @@ it("reads an entry opened from a feed with Save to library, then says it is in t
   expect((await mock.listBooks()).some((b) => b.kind === "article")).toBe(true);
 });
 
+it("puts an entry on a collection with C only once it is saved to the library", async () => {
+  const wrapper = await openFeeds();
+  await entry(wrapper, "The ferry that runs on the tide table").get(".feed-entry__open").trigger("click");
+  await flushPromises();
+  const picker = () => document.body.querySelector('[role="dialog"][aria-label^="Collections for"]');
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }));
+  await flushPromises();
+  expect(picker()).toBeNull();
+  await reader(wrapper).get("button.article-header__save").trigger("click");
+  await flushPromises();
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }));
+  await flushPromises();
+  const saved = (await mock.listBooks()).find((b) => b.kind === "article")!;
+  expect(picker()?.getAttribute("aria-label")).toBe(`Collections for ${saved.title}`);
+});
+
 const addDialog = () => document.body.querySelector<HTMLElement>('[role="dialog"][aria-label="Add to your library"]');
 async function submitLink(wrapper: ReturnType<typeof mount>, link: string) {
   const field = wrapper.get<HTMLInputElement>('[role="dialog"] input[type="url"]');
