@@ -52,6 +52,9 @@ pub use signin::SignInView;
 pub use sites::SiteView;
 mod generation;
 mod item;
+// Wired into the window's start in a later step.
+#[allow(dead_code)]
+mod launching;
 mod shelf;
 use generation::PlanEvent;
 mod storage;

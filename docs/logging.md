@@ -73,7 +73,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `app.start` | info | `version`, `profile`, `gpu`, `os`, `smoke` | `lib.rs` `start` |
 | `app.exit` | info | | `lib.rs` exit |
 | `app.signal` | info, warn | `signal` (`interrupt`, `terminate`), `outcome` | `lib.rs` `exit_on_signals`: Ctrl+C or SIGTERM quits through `app.exit`, so the servers Aoide started are stopped |
-| `launch.request` | info | `kind` (`flag`, `link`, `save`, `file`, `missing`, `unsupported`), `outcome` (`ignored`), `file` (a file's name only; never an address) | `launch.rs` `requests`, an argument of a start (or of a second start, handed to the running copy) that asks for nothing |
+| `launch.request` | info | `kind` (`flag`, `link`, `save`, `file`, `missing`, `unsupported`), `outcome` (`ignored`; for a book file `present`: opened from the library, nothing copied, or `imported`), `file` (a file's name only; never an address), `book` | `launch.rs` `requests`, an argument of a start (or of a second start, handed to the running copy) that asks for nothing; `core/launching.rs` `Launching::act`, a request acted on |
 | `app.panic` | error | `location`, `error` | `logging.rs` panic hook |
 | `app.migrate` | info | | `lib.rs` `migrate_from_folio` |
 | `app.log` | warn | `error` | `logging.rs`, the file cannot be written |
