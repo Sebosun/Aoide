@@ -336,6 +336,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn an_export_has_no_audio_for_the_chapters_left_out() {
+        use super::super::export::ExportHost;
+        let dir = tempfile::tempdir().unwrap();
+        let (core, id, _engine) = started(dir.path()).await;
+        core.set_left_out(&id, vec![0, 3]).await.unwrap();
+
+        let (book, plan) = ExportHost::speech_plan(&*core, &id).unwrap();
+        let exported: Vec<usize> = (0..book.total_entries())
+            .filter(|i| plan.items[*i].speakable)
+            .filter_map(|i| book.locate(i).map(|(c, _)| c))
+            .collect();
+        assert!(exported.contains(&1) && exported.contains(&2));
+        assert!(exported.iter().all(|c| *c == 1 || *c == 2), "{exported:?}");
+    }
+
+    #[tokio::test]
     async fn skipping_chapters_steps_over_those_left_out() {
         let dir = tempfile::tempdir().unwrap();
         let (core, id, _engine) = started(dir.path()).await;

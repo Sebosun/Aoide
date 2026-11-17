@@ -267,12 +267,21 @@ impl Exports {
     }
 }
 
+/// Whether any entry of `chapter` has audio. One without (a chapter left out of the
+/// narration) is not in the export at all, not even its pauses.
+fn has_audio(chapter: &crate::book::ChapterModel, segments: &[Option<CachedSegment>]) -> bool {
+    (0..chapter.segments.len()).any(|local| segments[chapter.first_entry + local].is_some())
+}
+
 /// Chapter marks from each entry's exact length and pause, so they match the audio. Chapters
 /// with no audio get none.
 fn chapter_marks(book: &BookModel, segments: &[Option<CachedSegment>]) -> Vec<ChapterMark> {
     let mut chapters = Vec::new();
     let mut cursor_ms = 0u64;
     for (index, chapter) in book.chapters.iter().enumerate() {
+        if !has_audio(chapter, segments) {
+            continue;
+        }
         let start = cursor_ms;
         for (local, segment) in chapter.segments.iter().enumerate() {
             let audio = segments[chapter.first_entry + local]
@@ -484,13 +493,16 @@ impl Encoder {
     }
 
     /// A chapter's audio at the export rate: each entry's speech, padded or cut to its
-    /// recorded length, then its pause.
+    /// recorded length, then its pause; nothing for a chapter with no audio.
     fn chapter_pcm(
         &self,
         chapter: &crate::book::ChapterModel,
         segments: &[Option<CachedSegment>],
     ) -> Result<Vec<i16>, String> {
         let mut pcm: Vec<i16> = Vec::new();
+        if !has_audio(chapter, segments) {
+            return Ok(pcm);
+        }
         for (local, segment) in chapter.segments.iter().enumerate() {
             if let Some(cached) = &segments[chapter.first_entry + local] {
                 let bytes = std::fs::read(self.audio_dir.join(&cached.file))
@@ -546,9 +558,12 @@ impl ExportHost for Core {
         Core::prepare_view(self, id)
     }
 
+    /// The chapters left out are not exported.
     fn speech_plan(&self, id: &str) -> Result<(Arc<BookModel>, Plan), String> {
         let book = self.load_book(id)?;
-        let plan = Core::speech_plan(self, &book)?;
+        let mut plan = Core::speech_plan(self, &book)?;
+        let left_out = self.book_settings(id).left_out;
+        super::leaving_out::narrated_only(&mut plan, &book, &left_out);
         Ok((book, plan))
     }
 
@@ -704,6 +719,62 @@ mod tests {
                 "the chapter ends in silence"
             );
         }
+    }
+
+    #[test]
+    fn a_chapter_left_out_has_no_mark_and_no_silence_in_an_export() {
+        let dir = tempfile::tempdir().unwrap();
+        let book =
+            BookModel::parse("b", &super::super::tests::epub(), &Default::default()).unwrap();
+        let paths = paths(dir.path());
+        std::fs::create_dir_all(&paths.audio_dir).unwrap();
+        let second = aoide_audio::Pcm {
+            sample_rate: EXPORT_RATE,
+            samples: vec![0.25; EXPORT_RATE as usize],
+        };
+        std::fs::write(
+            paths.audio_dir.join("s.wav"),
+            aoide_audio::codec::encode(&second).unwrap(),
+        )
+        .unwrap();
+        // The first chapter is left out: its entries have no audio.
+        let first = book.chapters[1].first_entry;
+        let segments: Vec<Option<CachedSegment>> = (0..book.total_entries())
+            .map(|i| {
+                (i >= first).then(|| CachedSegment {
+                    key: format!("k{i}"),
+                    book_id: BookId("b".into()),
+                    file: "s.wav".into(),
+                    duration_ms: 1000,
+                    bytes: 0,
+                    word_timings: None,
+                    created_at: 0,
+                })
+            })
+            .collect();
+        let two: u64 = book.chapters[1]
+            .segments
+            .iter()
+            .map(|s| 1000 + u64::from(s.pause_after_ms))
+            .sum();
+        assert_eq!(
+            chapter_marks(&book, &segments),
+            [ChapterMark {
+                title: "The Lamp".into(),
+                start_ms: 0,
+                end_ms: two
+            }]
+        );
+        let exports = Exports::new(
+            library_with(&["b"]),
+            &paths,
+            Arc::new(Recorder::default()),
+            Default::default(),
+        );
+        let left_out = exports.encoder.chapter_pcm(&book.chapters[0], &segments);
+        assert!(left_out.unwrap().is_empty(), "not even its pauses");
+        let pcm = exports.encoder.chapter_pcm(&book.chapters[1], &segments);
+        assert_eq!(pcm.unwrap().len(), samples_for(two));
     }
 
     /// A host whose preparation never ends and that has no recording synced.
