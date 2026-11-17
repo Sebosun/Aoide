@@ -1,8 +1,6 @@
 mod book;
 mod commands;
 mod core;
-// Wired into the window's start in a later step.
-#[allow(dead_code)]
 mod launch;
 mod logging;
 mod media;
@@ -14,18 +12,33 @@ mod smoke;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tauri::Manager;
+use tauri::{AppHandle, Manager};
 
 use crate::core::{Core, Paths};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+    // One running copy, so the library has one writer: a second start (a book opened from the
+    // file manager, `aoide book.epub`) hands its arguments to the first and exits. A smoke run
+    // uses a library of its own and is never handed to a running Aoide.
+    if smoke_home().is_none() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(second_start));
+    }
+    builder
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let core = start(app)?;
             app.manage(core);
             exit_on_signals(app.handle().clone());
+            let argv: Vec<String> = std::env::args_os()
+                .map(|arg| arg.to_string_lossy().into_owned())
+                .collect();
+            let cwd = std::env::current_dir().unwrap_or_default();
+            hand_over(
+                app.handle(),
+                launch::requests(launch::arguments(&argv), &cwd),
+            );
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -194,6 +207,50 @@ pub fn run() {
                 logging::flush();
             }
         });
+}
+
+/// Another start of Aoide handed its arguments over: the window comes to the front and does
+/// what they ask.
+fn second_start(app: &AppHandle, argv: Vec<String>, cwd: String) {
+    tracing::info!(
+        event = "launch.second_instance",
+        arguments = launch::arguments(&argv).len(),
+        "Another start of Aoide handed its arguments over"
+    );
+    show_window(app);
+    hand_over(
+        app,
+        launch::requests(launch::arguments(&argv), Path::new(&cwd)),
+    );
+}
+
+/// Has the core act on `requests`, off the main thread: a new book is added first.
+fn hand_over(app: &AppHandle, requests: Vec<launch::Request>) {
+    if requests
+        .iter()
+        .all(|request| *request == launch::Request::Show)
+    {
+        return;
+    }
+    let Some(core) = app.try_state::<Arc<Core>>() else {
+        tracing::warn!(
+            event = "launch.second_instance",
+            outcome = "early",
+            "Asked to open something before Aoide had started"
+        );
+        return;
+    };
+    let core = Arc::clone(&core);
+    tauri::async_runtime::spawn_blocking(move || core.launch(requests));
+}
+
+/// Shows, unminimises and focuses the window.
+pub(crate) fn show_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
 }
 
 /// Quits the app properly on Ctrl+C or SIGTERM, so `Core::shutdown` stops the servers Aoide

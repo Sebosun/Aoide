@@ -61,11 +61,7 @@ impl Notifier for Desktop {
 
 /// A notification was clicked: the window comes to the front, on the item's page.
 fn clicked(app: &AppHandle, opens: Option<String>) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
+    crate::show_window(app);
     if let Some(id) = opens {
         let event = CoreEvent::OpenItem(id);
         if let Ok(payload) = event.payload() {

@@ -191,6 +191,7 @@ The pill in the top right corner tells you whether Aoide can reach the server. W
 Any of these works:
 
 - Drag `.epub` files onto the window.
+- Run `aoide book.epub` (several files work too; the first one opens). Only one Aoide runs at a time: if it is already open, its window comes to the front and opens the book. A book already in your library opens without being copied a second time.
 - Click **Add** in the sidebar (or press <kbd>Ctrl</kbd> <kbd>N</kbd>), then **Choose books…**.
 - Click **Add → Scan for books…** to find EPUBs on your computer you haven't added yet.
 - Copy files into `~/Documents/Aoide/Books` yourself. Aoide notices.

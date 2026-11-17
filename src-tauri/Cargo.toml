@@ -58,6 +58,8 @@ rayon = "1"
 reflink-copy = "0.1"
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
+# One running copy: a second start hands its arguments over (D-Bus on Linux).
+tauri-plugin-single-instance = "2"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
 tracing = "0.1.44"

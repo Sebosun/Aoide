@@ -186,8 +186,6 @@ impl LaunchHost for super::Core {
 
 impl super::Core {
     /// Acts on what a start of Aoide asks for (blocks while a new book is added).
-    // Called from `lib.rs` once a start hands its arguments over (the next step).
-    #[allow(dead_code)]
     pub fn launch(&self, requests: Vec<Request>) {
         self.launching.act(requests, self);
     }
