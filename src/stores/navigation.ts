@@ -49,6 +49,10 @@ export const useNavigationStore = defineStore("navigation", () => {
     addOpen.value = true;
   };
   const closeAdd = () => (addOpen.value = false);
+  /** The item whose collections are being picked (its menu, its page, or the C key). */
+  const collectionsFor = ref<string | null>(null);
+  const pickCollections = (id: string) => (collectionsFor.value = id);
+  const closeCollections = () => (collectionsFor.value = null);
   /** The list of keyboard shortcuts, over the current screen (the ? key). */
   const shortcutsOpen = ref(false);
   const openShortcuts = () => (shortcutsOpen.value = true);
@@ -107,6 +111,9 @@ export const useNavigationStore = defineStore("navigation", () => {
     addMode,
     openAdd,
     closeAdd,
+    collectionsFor,
+    pickCollections,
+    closeCollections,
     shortcutsOpen,
     openShortcuts,
     closeShortcuts,

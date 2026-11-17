@@ -9,7 +9,6 @@ import {
   BookOpen,
   CircleCheck,
   ExternalLink,
-  FolderPlus,
   Headphones,
   Library,
   Mic,
@@ -24,15 +23,12 @@ import TagsDialog from "@/components/library/TagsDialog.vue";
 import { api } from "@/api";
 import type { BookDetails, BookSettings, BookView, DayListening } from "@/api/types";
 import CoverArt from "@/components/CoverArt.vue";
-import UiMenu from "@/components/ui/UiMenu.vue";
-import type { MenuEntry } from "@/components/ui/types";
 import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import MetadataLookup from "@/components/book/MetadataLookup.vue";
 import BookListening from "@/components/book/BookListening.vue";
 import BookNarration from "@/components/book/BookNarration.vue";
 import BookContents from "@/components/book/BookContents.vue";
 import ExtractionNotes from "@/components/book/ExtractionNotes.vue";
-import { useCollections } from "@/composables/useCollections";
 import { useRecordingsStore } from "@/stores/recordings";
 import { useArticlesStore } from "@/stores/articles";
 import { fetching, NEEDS, siteOf } from "@/articles";
@@ -52,8 +48,7 @@ const library = useLibraryStore(),
   player = usePlayerStore(),
   reader = useReaderStore(),
   recordings = useRecordingsStore(),
-  articles = useArticlesStore(),
-  shelves = useCollections();
+  articles = useArticlesStore();
 const overview = ref<BookView | null>(null),
   details = ref<BookDetails | null>(null),
   settings = ref<BookSettings | null>(null),
@@ -248,21 +243,6 @@ async function pair() {
     error.value = String(e);
   }
 }
-const collectionItems = computed<MenuEntry[]>(() => {
-  const book = summary.value;
-  if (!book) return [];
-  return [
-    ...library.collections.map((c) => ({
-      id: `collection:${c.id}`,
-      label: c.name,
-      ariaLabel: c.name,
-      checked: book.collections.includes(c.id),
-      action: () => shelves.toggle(book, c.id),
-    })),
-    ...(library.collections.length ? [{ kind: "separator" as const }] : []),
-    { id: "new-collection", label: "New collection…", icon: FolderPlus, action: () => shelves.create(book) },
-  ];
-});
 </script>
 
 <template>
@@ -304,11 +284,17 @@ const collectionItems = computed<MenuEntry[]>(() => {
           >
             <Headphones :size="18" aria-hidden="true" /> Listen
           </UiButton>
-          <UiMenu v-if="summary" v-slot="{ toggle, trigger }" label="Collections" :items="collectionItems" :width="260">
-            <UiButton variant="raised" size="lg" aria-label="Add to collection" v-bind="trigger" @click="toggle">
-              <Library :size="17" aria-hidden="true" /> Add to collection
-            </UiButton>
-          </UiMenu>
+          <UiButton
+            v-if="summary"
+            variant="raised"
+            size="lg"
+            aria-label="Add to collection"
+            aria-haspopup="dialog"
+            title="Add to collection (C)"
+            @click="navigation.pickCollections(bookId)"
+          >
+            <Library :size="17" aria-hidden="true" /> Add to collection
+          </UiButton>
           <template v-if="isArticle">
             <UiButton variant="raised" size="lg" aria-label="Open original" @click="openOriginal">
               <ExternalLink :size="17" aria-hidden="true" /> Open original

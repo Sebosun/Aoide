@@ -22,7 +22,7 @@ import {
 import { NEEDS, fetching } from "@/articles";
 import { RECORDING_SHORT_LABELS } from "@/recording";
 import { useRecordingsStore } from "@/stores/recordings";
-import { useCollections } from "@/composables/useCollections";
+import { useNavigationStore } from "@/stores/navigation";
 import { useLibraryStore } from "@/stores/library";
 import { api } from "@/api";
 import type { BookSummary } from "@/api/types";
@@ -70,7 +70,7 @@ const status = computed(() => {
 const line = computed(() => (props.book.archived ? `Archived · ${status.value}` : status.value));
 const ui = useUiStore(),
   library = useLibraryStore(),
-  shelves = useCollections();
+  navigation = useNavigationStore();
 /** Runs a card action; failures become an error toast. */
 async function act(action: () => Promise<unknown>) {
   try {
@@ -187,21 +187,12 @@ const items = computed<MenuEntry[]>(() => {
     if (book.audioBytes)
       list.push({ id: "audio", label: "Delete generated audio", icon: Eraser, action: () => act(deleteAudio) });
     list.push({ id: "tags", label: "Tags…", icon: Tag, action: () => (editingTags.value = true) });
-    list.push({ kind: "separator" }, { kind: "heading", label: "Collections" });
-    for (const c of library.collections)
-      list.push({
-        id: `collection:${c.id}`,
-        label: c.name,
-        ariaLabel: c.name,
-        checked: book.collections.includes(c.id),
-        action: () => act(() => shelves.toggle(book, c.id)),
-      });
     list.push(
       {
-        id: "new-collection",
-        label: "New collection…",
+        id: "collections",
+        label: "Add to collection…",
         icon: FolderPlus,
-        action: () => act(() => shelves.create(book)),
+        action: () => navigation.pickCollections(book.id),
       },
       { kind: "separator" },
     );

@@ -1,4 +1,4 @@
-import type { BookSummary, Collection } from "@/api/types";
+import type { Collection } from "@/api/types";
 import { useLibraryStore } from "@/stores/library";
 import { useUiStore } from "@/stores/ui";
 
@@ -14,8 +14,8 @@ export function useCollections() {
       return null;
     }
   }
-  /** Asks for a name and creates the collection; with a book, puts the book on it too. */
-  async function create(book?: BookSummary) {
+  /** Asks for a name and creates the collection. */
+  async function create() {
     const name = await ui.prompt({
       title: "New collection",
       label: "Name",
@@ -23,11 +23,7 @@ export function useCollections() {
       confirmLabel: "Create",
     });
     if (!name) return null;
-    return attempt(async () => {
-      const id = await library.createCollection(name);
-      if (book) await library.setBookCollections(book.id, [...book.collections, id]);
-      return id;
-    });
+    return attempt(() => library.createCollection(name));
   }
   /** Puts item `id` on `collection` (a card dropped on it), saying so. */
   async function add(id: string, collection: Collection) {
@@ -61,15 +57,10 @@ export function useCollections() {
     });
     if (ok) await attempt(() => library.deleteCollection(collection.id));
   }
-  async function toggle(book: BookSummary, id: number) {
-    const ids = book.collections.includes(id) ? book.collections.filter((c) => c !== id) : [...book.collections, id];
-    await attempt(() => library.setBookCollections(book.id, ids));
-  }
   return {
     add,
     create,
     rename,
     remove,
-    toggle,
   };
 }

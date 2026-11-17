@@ -282,6 +282,23 @@ async function answerPrompt(host: ReturnType<typeof mount>, text: string) {
   await dialog.get("form").trigger("submit");
   await flushPromises();
 }
+/** The collection picker, its field and the names of its rows. */
+const picker = () => document.body.querySelector<HTMLElement>('[role="dialog"][aria-label^="Collections for"]');
+const field = () => picker()?.querySelector<HTMLInputElement>('[aria-label="Find or create a collection"]') ?? null;
+const optionNames = () =>
+  [...(picker()?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])].map(
+    (o) => o.getAttribute("aria-label") ?? o.textContent?.trim(),
+  );
+async function type(text: string) {
+  const input = field()!;
+  input.value = text;
+  input.dispatchEvent(new Event("input"));
+  await flushPromises();
+}
+async function keyIn(target: HTMLElement, key: string) {
+  target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+  await flushPromises();
+}
 /** The app on Library, with the sidebar's collections. */
 async function app() {
   useNavigationStore().view = "library";
@@ -307,12 +324,17 @@ it("creates a collection in the sidebar, puts a book on it from the card menu, a
   expect(shelf(wrapper, "Night reading").text()).toContain("0");
 
   await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
-  const item = document.body.querySelector<HTMLElement>('[role="menuitemcheckbox"][aria-label="Night reading"]')!;
-  expect(item.getAttribute("aria-checked")).toBe("false");
-  item.click();
+  await flushPromises();
+  await pickMenuItem("Add to collection…");
+  const option = () => picker()!.querySelector<HTMLElement>('[role="option"][aria-label="Night reading"]')!;
+  expect(option().getAttribute("aria-selected")).toBe("false");
+  option().click();
   await flushPromises();
   expect(shelve).toHaveBeenCalledWith({ bookId: "book-0", ids: [expect.any(Number)] });
+  expect(option().getAttribute("aria-selected")).toBe("true");
   expect(shelf(wrapper, "Night reading").text()).toContain("1");
+  await keyIn(picker()!, "Escape");
+  expect(picker()).toBeNull();
 
   await shelf(wrapper, "Night reading").trigger("click");
   await flushPromises();
@@ -321,15 +343,44 @@ it("creates a collection in the sidebar, puts a book on it from the card menu, a
   wrapper.unmount();
 });
 
-it("adds a book to a new collection straight from its card menu", async () => {
+it("adds a book to a new collection straight from its card menu: its name typed, then Enter", async () => {
   const wrapper = await app();
   await wrapper.get('[aria-label="More for A Map of Quiet Places"]').trigger("click");
-  [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')]
-    .find((m) => m.textContent?.trim() === "New collection…")!
-    .click();
   await flushPromises();
-  await answerPrompt(wrapper, "Maps");
+  await pickMenuItem("Add to collection…");
+  await type("Maps");
+  expect(optionNames()).toEqual(["Create “Maps”"]);
+  await keyIn(field()!, "Enter");
+  expect(picker()).toBeNull();
   expect(shelf(wrapper, "Maps").text()).toContain("1");
+  expect(useUiStore().toasts.at(-1)?.text).toBe("Added to Maps");
+  wrapper.unmount();
+});
+
+it("narrows the collections to the letters typed, and Enter puts the item on the first one left", async () => {
+  const night = await mock.createCollection({ name: "Night reading" });
+  const short = await mock.createCollection({ name: "Short stories" });
+  await mock.setBookCollections({ bookId: "book-3", ids: [night] });
+  const shelve = vi.spyOn(mock, "setBookCollections");
+  const wrapper = await app();
+  await wrapper.get('[aria-label="More for An Unfinished Atlas"]').trigger("click");
+  await flushPromises();
+  await pickMenuItem("Add to collection…");
+  expect(optionNames()).toEqual(["Night reading", "Short stories"]);
+  await type("sto");
+  expect(optionNames()).toEqual(["Short stories", "Create “sto”"]);
+  await keyIn(field()!, "Enter");
+  expect(shelve).toHaveBeenLastCalledWith({ bookId: "book-3", ids: [night, short] });
+  expect(picker()).toBeNull();
+
+  // Chosen again, a collection it is on takes it off.
+  await wrapper.get('[aria-label="More for An Unfinished Atlas"]').trigger("click");
+  await flushPromises();
+  await pickMenuItem("Add to collection…");
+  await type("night");
+  await keyIn(field()!, "Enter");
+  expect(shelve).toHaveBeenLastCalledWith({ bookId: "book-3", ids: [short] });
+  expect(useUiStore().toasts.at(-1)?.text).toBe("Taken out of Night reading");
   wrapper.unmount();
 });
 

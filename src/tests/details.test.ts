@@ -120,15 +120,33 @@ it("shows the recording and the narration switch when the book has a recording",
   wrapper.unmount();
 });
 
-it("puts the book on a collection from its page", async () => {
+it("puts the book on a collection from its page, with its button or the C key", async () => {
   const id = await mock.createCollection({ name: "Night reading" });
   const shelve = vi.spyOn(mock, "setBookCollections");
   useNavigationStore().openItem("book-1");
   const wrapper = await app();
+  const picker = () =>
+    document.body.querySelector<HTMLElement>('[role="dialog"][aria-label="Collections for A Map of Quiet Places"]');
   await page(wrapper).get('[aria-label="Add to collection"]').trigger("click");
-  document.body.querySelector<HTMLElement>('[role="menuitemcheckbox"][aria-label="Night reading"]')!.click();
+  await flushPromises();
+  picker()!.querySelector<HTMLElement>('[role="option"][aria-label="Night reading"]')!.click();
   await flushPromises();
   expect(shelve).toHaveBeenCalledWith({ bookId: "book-1", ids: [id] });
+  picker()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await flushPromises();
+  expect(picker()).toBeNull();
+
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }));
+  await flushPromises();
+  const field = picker()!.querySelector<HTMLInputElement>('[aria-label="Find or create a collection"]')!;
+  expect(document.activeElement).toBe(field);
+  field.value = "nig";
+  field.dispatchEvent(new Event("input"));
+  await flushPromises();
+  field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  await flushPromises();
+  expect(shelve).toHaveBeenLastCalledWith({ bookId: "book-1", ids: [] });
+  expect(picker()).toBeNull();
   wrapper.unmount();
 });
 
