@@ -22,6 +22,22 @@ pub struct Spoken {
     pub word_of: Vec<usize>,
 }
 
+impl Spoken {
+    /// Spans of the spoken words (as an aligner or an engine gives them) folded back onto the
+    /// `written` words of the input: one span from the first start to the last end of the
+    /// spoken words standing for each, `None` for a written word no spoken word was placed for.
+    pub fn fold(&self, spans: &[Option<(u32, u32)>], written: usize) -> Vec<Option<(u32, u32)>> {
+        let mut folded: Vec<Option<(u32, u32)>> = vec![None; written];
+        for (span, of) in spans.iter().zip(&self.word_of) {
+            let (Some((start, end)), Some(slot)) = (span, folded.get_mut(*of)) else {
+                continue;
+            };
+            *slot = Some(slot.map_or((*start, *end), |(s, e)| (s.min(*start), e.max(*end))));
+        }
+        folded
+    }
+}
+
 /// Says `speech` with `rules` applied: whole words only (a word boundary is where an
 /// alphanumeric character meets one that is not), the longest `written` first, then in list
 /// order (the caller puts a book's rules before the rules for all books). A plural or

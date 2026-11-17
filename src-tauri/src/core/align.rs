@@ -89,6 +89,8 @@ pub(super) trait AlignHost: Sync {
     /// The aligner's settings; `None` when there is no aligner.
     fn settings(&self) -> Option<AlignerSettings>;
     fn book(&self, id: &str) -> Result<Arc<BookModel>, String>;
+    /// How book `id`'s words are said (its pronunciations), so the aligner hears them as said.
+    fn rules(&self, id: &str) -> Arc<[aoide_text::Rule]>;
     /// The recording playing for book `id`, if it is.
     fn recording_of(&self, id: &str) -> Option<Arc<RecordingPlan>>;
     /// Exact word times for entry `index` of `book`.
@@ -305,9 +307,13 @@ impl Aligner {
         let bytes =
             std::fs::read(self.audio_dir.join(&cached.file)).map_err(|e| other(e.to_string()))?;
         let pcm = codec::decode(&bytes).map_err(|e| other(e.to_string()))?;
-        let spans = aligner
-            .align(&words(segment), &pcm.samples, pcm.sample_rate)
-            .await?;
+        // The aligner is given the words as said, and their spans are folded back onto the
+        // written words: one timing per word of the page.
+        let written = words(segment);
+        let spoken = aoide_text::pronounce(&written.join(" "), &host.rules(book_id));
+        let said: Vec<String> = spoken.text.split_whitespace().map(str::to_owned).collect();
+        let spans = aligner.align(&said, &pcm.samples, pcm.sample_rate).await?;
+        let spans = spoken.fold(&spans, written.len());
         let fallback = aoide_text::align_to_pauses(segment, &pcm.samples, pcm.sample_rate);
         let timings = aoide_text::merge_alignment(&spans, &fallback);
         cached.word_timings = Some(
@@ -424,6 +430,13 @@ impl AlignHost for Core {
         self.load_book(id)
     }
 
+    fn rules(&self, id: &str) -> Arc<[aoide_text::Rule]> {
+        self.pronunciations.rules(id).unwrap_or_else(|error| {
+            tracing::warn!(event = "align.rules", book = crate::logging::book(id), %error, "Cannot read the pronunciations");
+            Arc::new([])
+        })
+    }
+
     fn recording_of(&self, id: &str) -> Option<Arc<RecordingPlan>> {
         self.playback.recording_of(id)
     }
@@ -483,6 +496,9 @@ mod tests {
         }
         fn book(&self, _: &str) -> Result<Arc<BookModel>, String> {
             Err("no books here".into())
+        }
+        fn rules(&self, _: &str) -> Arc<[aoide_text::Rule]> {
+            Arc::new([])
         }
         fn recording_of(&self, _: &str) -> Option<Arc<RecordingPlan>> {
             None
@@ -560,6 +576,167 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(30)).await;
         assert_eq!(aligner.waiting(), 0);
         running.abort();
+    }
+
+    /// An aligner that places each word it is given 100 ms after the one before; it keeps the
+    /// words of each request.
+    async fn scripted_aligner() -> (String, Arc<Mutex<Vec<Vec<String>>>>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = format!("http://{}", listener.local_addr().unwrap());
+        let asked = Arc::new(Mutex::new(Vec::new()));
+        let kept = Arc::clone(&asked);
+        tokio::spawn(async move {
+            loop {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = Vec::new();
+                let mut buffer = [0u8; 65536];
+                let body = loop {
+                    let n = socket.read(&mut buffer).await.unwrap_or(0);
+                    request.extend_from_slice(&buffer[..n]);
+                    let text = String::from_utf8_lossy(&request).to_string();
+                    if let Some(end) = text.find("\r\n\r\n") {
+                        let length: usize = text
+                            .lines()
+                            .find_map(|l| {
+                                l.to_lowercase()
+                                    .strip_prefix("content-length:")
+                                    .map(|v| v.trim().parse().unwrap())
+                            })
+                            .unwrap_or(0);
+                        if request.len() >= end + 4 + length || n == 0 {
+                            break request[end + 4..].to_vec();
+                        }
+                    }
+                };
+                let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+                let words: Vec<String> =
+                    serde_json::from_value(json["words"].clone()).unwrap_or_default();
+                let spans: Vec<[u32; 2]> = (0..words.len() as u32)
+                    .map(|i| [i * 100, i * 100 + 100])
+                    .collect();
+                lock(&kept).push(words);
+                let reply = serde_json::json!({ "words": spans }).to_string();
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{reply}",
+                    reply.len()
+                );
+                let _ = socket.write_all(response.as_bytes()).await;
+            }
+        });
+        (address, asked)
+    }
+
+    /// A host with one book, said with `rules`; it keeps what was aligned.
+    struct Speaking {
+        settings: Option<AlignerSettings>,
+        book: Arc<BookModel>,
+        rules: Arc<[aoide_text::Rule]>,
+        aligned: Mutex<Vec<(usize, Vec<aoide_text::WordEstimate>)>>,
+    }
+
+    impl AlignHost for Speaking {
+        fn settings(&self) -> Option<AlignerSettings> {
+            self.settings.clone()
+        }
+        fn book(&self, _: &str) -> Result<Arc<BookModel>, String> {
+            Ok(Arc::clone(&self.book))
+        }
+        fn rules(&self, _: &str) -> Arc<[aoide_text::Rule]> {
+            Arc::clone(&self.rules)
+        }
+        fn recording_of(&self, _: &str) -> Option<Arc<RecordingPlan>> {
+            None
+        }
+        fn aligned(&self, _: &str, index: usize, timings: Vec<aoide_text::WordEstimate>) {
+            lock(&self.aligned).push((index, timings));
+        }
+    }
+
+    #[tokio::test]
+    async fn speech_said_another_way_is_aligned_by_its_spoken_words_and_kept_per_written_word() {
+        let dir = tempfile::tempdir().unwrap();
+        let library = super::super::tests::library_with(&["b"]);
+        let book = Arc::new(
+            BookModel::parse("b", &super::super::tests::epub(), &Default::default()).unwrap(),
+        );
+        let index = (0..book.total_entries())
+            .find(|i| book.segment(*i).unwrap().display.starts_with("Gulls"))
+            .unwrap();
+        let audio = dir.path().join("audio");
+        std::fs::create_dir_all(&audio).unwrap();
+        let bytes = codec::encode(&aoide_audio::Pcm {
+            sample_rate: 24_000,
+            samples: vec![0.2; 24_000],
+        })
+        .unwrap();
+        std::fs::write(audio.join("k.ogg"), &bytes).unwrap();
+        lock(&library)
+            .record_segment(&CachedSegment {
+                key: "k".into(),
+                book_id: BookId("b".into()),
+                file: "k.ogg".into(),
+                duration_ms: 1_000,
+                bytes: bytes.len() as u64,
+                word_timings: None,
+                created_at: 0,
+            })
+            .unwrap();
+        let (base_url, asked) = scripted_aligner().await;
+        let aligner = Aligner::new(
+            Arc::clone(&library),
+            audio,
+            dir.path(),
+            &dir.path().join("logs"),
+        );
+        let host = Speaking {
+            settings: Some(AlignerSettings {
+                base_url,
+                network: Default::default(),
+                launch: None,
+            }),
+            book: Arc::clone(&book),
+            rules: Arc::new([aoide_text::Rule {
+                written: "gulls".into(),
+                spoken: "the sea gulls".into(),
+                match_case: false,
+            }]),
+            aligned: Mutex::new(Vec::new()),
+        };
+
+        aligner.want(
+            vec![Alignable::Speech {
+                book: "b".into(),
+                index,
+                key: "k".into(),
+            }],
+            &host,
+        );
+        aligner.step(&host, &mut None).await;
+
+        let asked = lock(&asked).clone();
+        assert_eq!(asked.len(), 1);
+        assert_eq!(asked[0][..4], ["the", "sea", "gulls", "argued"]);
+        let written = book.segment(index).unwrap().words.len();
+        assert_eq!(asked[0].len(), written + 2);
+        // One timing per written word: "Gulls" spans the three spoken words.
+        let stored = lock(&library)
+            .segment("k")
+            .unwrap()
+            .unwrap()
+            .word_timings
+            .unwrap();
+        assert_eq!(stored.len(), written);
+        let span = |t: &aoide_library::WordTiming| (t.start_ms, t.end_ms);
+        assert_eq!(span(&stored[0]), (0, 300));
+        assert_eq!(span(&stored[1]), (300, 400));
+        assert_eq!(
+            span(&stored[written - 1]),
+            (written as u32 * 100 + 100, written as u32 * 100 + 200)
+        );
+        let aligned = lock(&host.aligned);
+        assert_eq!(aligned.len(), 1);
+        assert_eq!((aligned[0].0, aligned[0].1.len()), (index, written));
     }
 
     fn launching(script: &str) -> Option<AlignerSettings> {

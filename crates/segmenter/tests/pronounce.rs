@@ -105,3 +105,21 @@ fn a_spoken_form_is_not_said_differently_again() {
     let rules = [rule("Xu", "shoe"), rule("shoe", "boot")];
     assert_eq!(said("Xu's shoe", &rules), "shoe's boot");
 }
+
+#[test]
+fn spans_of_the_spoken_words_fold_back_onto_the_written_ones() {
+    let spoken = pronounce("So Hermione said hi.", &[rule("Hermione", "her my oh nee")]);
+    let spans = [
+        Some((0, 100)),
+        Some((100, 200)),
+        None,
+        Some((250, 300)),
+        Some((300, 400)),
+        Some((400, 500)),
+        None,
+    ];
+    assert_eq!(
+        spoken.fold(&spans, 4),
+        [Some((0, 100)), Some((100, 400)), Some((400, 500)), None]
+    );
+}

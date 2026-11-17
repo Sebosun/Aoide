@@ -179,6 +179,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `align.offline` | info | `key` | `core/align.rs` |
 | `align.error` | warn | `key`, `error` | `core/align.rs` |
 | `align.settings` | warn | `error` | `core/align.rs` |
+| `align.rules` | warn | `book`, `error` | `core/align.rs`, the pronunciations could not be read; the words are aligned as written |
 | **Playback and files** | | | |
 | `player.status` | info | `book`, `from`, `to`, `chapter`, `source`, `error` | `core.rs` `tick_loop` |
 | `output.start` | info, error | `outcome`, `latency_ms`, `error` | `core.rs`, the audio output |
