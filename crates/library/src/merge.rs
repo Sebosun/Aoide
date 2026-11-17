@@ -5,10 +5,10 @@ use crate::{BookId, Library, Result};
 
 impl Library {
     /// Moves audiobook `audiobook`'s recording (with any transcript and sync map), bookmarks
-    /// (kept as times), collections, tags and listening and reading time to book `book`, keeps the
-    /// earlier of their `added_at`, keeps the audiobook's place on its timeline as the book's
-    /// [`crate::BookKey::PendingPlace`] (when it had one), and removes the audiobook. All or
-    /// nothing. The caller checks that one is an audiobook, the other a book with no recording.
+    /// (kept as times), place in the queue, collections, tags and listening and reading time to
+    /// book `book`, keeps the earlier of their `added_at`, keeps the audiobook's place on its
+    /// timeline as the book's [`crate::BookKey::PendingPlace`] (when it had one), and removes
+    /// the audiobook. All or nothing. The caller checks that one is an audiobook, the other a book with no recording.
     pub fn merge_audiobook(&self, audiobook: &BookId, book: &BookId) -> Result<()> {
         let tx = self.conn.unchecked_transaction()?;
         let (from, to) = (&audiobook.0, &book.0);
@@ -29,6 +29,11 @@ impl Library {
         tx.execute("DELETE FROM recordings WHERE book_id = ?1", [from])?;
         tx.execute(
             "UPDATE bookmarks SET book_id = ?2 WHERE book_id = ?1",
+            [from, to],
+        )?;
+        // A book queued already keeps its place; the audiobook's row goes with it.
+        tx.execute(
+            "UPDATE OR IGNORE queue SET book_id = ?2 WHERE book_id = ?1",
             [from, to],
         )?;
         tx.execute(

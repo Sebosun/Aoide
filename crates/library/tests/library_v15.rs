@@ -45,7 +45,7 @@ fn a_version_14_library_that_already_has_a_lead_opens() {
     let version: i64 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .unwrap();
-    assert_eq!(version, 21);
+    assert_eq!(version, 22);
     assert!(columns(&conn, "articles").contains(&"lead".to_owned()));
 }
 

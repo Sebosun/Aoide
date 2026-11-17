@@ -18,6 +18,7 @@ mod highlights;
 mod listening;
 mod merge;
 mod pronunciations;
+mod queue;
 mod recordings;
 mod scanned;
 mod segments;

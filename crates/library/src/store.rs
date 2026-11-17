@@ -313,6 +313,12 @@ const MIGRATIONS: &[Step] = &[
             "INTEGER REFERENCES collections(id) ON DELETE SET NULL",
         )
     }),
+    // Version 22.
+    // The queue: items lined up to listen to next, in order.
+    Step::Sql("CREATE TABLE IF NOT EXISTS queue (
+                    book_id TEXT PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+                    position INTEGER NOT NULL
+                );"),
 ];
 
 fn add_column_if_missing(
