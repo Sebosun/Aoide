@@ -10,6 +10,10 @@ use serde::Serialize;
 use super::{lock, now_ms};
 use crate::book::BookModel;
 
+/// Pressed within this long of a sentence starting, the highlight key means the sentence before
+/// it, the one just heard.
+pub(super) const JUST_HEARD_MS: u32 = 1_000;
+
 /// The longest passage a highlight holds, in characters.
 pub(super) const MAX_CHARS: usize = 2_000;
 
@@ -122,6 +126,35 @@ impl Highlights {
         }
         views.sort_by_key(|h| (h.chapter, h.start, h.id));
         Ok(views)
+    }
+
+    /// Highlights the sentence at playlist entry `index` of `book`, `offset_ms` into its audio;
+    /// in its first [`JUST_HEARD_MS`], the sentence before it in the same chapter (the key is
+    /// pressed after hearing it). Silent entries and spoken footnotes are passed over.
+    pub fn add_spoken(
+        &self,
+        book: &BookModel,
+        index: usize,
+        offset_ms: u32,
+    ) -> Result<Highlight, String> {
+        let (chapter, local) = book.locate(index).ok_or("nothing is playing")?;
+        let segments = &book.chapters[chapter].segments;
+        let in_text = |s: &aoide_text::Segment| !s.speech.is_empty() && !s.range.is_empty();
+        let at = in_text(&segments[local]).then_some(local);
+        let before = segments[..local].iter().rposition(in_text);
+        let chosen = if offset_ms < JUST_HEARD_MS {
+            before.or(at)
+        } else {
+            at.or(before)
+        };
+        let segment = &segments[chosen.ok_or("there is no sentence here to highlight")?];
+        self.add(
+            book,
+            chapter,
+            segment.range.start,
+            segment.range.end,
+            From::Spoken,
+        )
     }
 
     /// Highlights characters `start..end` of chapter `chapter` of `book`, joined with the
@@ -323,8 +356,14 @@ mod tests {
         let now = BookModel::parse(
             "b",
             &super::super::tests::epub_with(
-                chapter("The Quay", "Gulls argued over the nets. The tide came in slowly."),
-                chapter("The Lamp", "At last someone lit the lamp at dusk. It burned all night."),
+                chapter(
+                    "The Quay",
+                    "Gulls argued over the nets. The tide came in slowly.",
+                ),
+                chapter(
+                    "The Lamp",
+                    "At last someone lit the lamp at dusk. It burned all night.",
+                ),
             ),
             &Default::default(),
         )
@@ -336,7 +375,11 @@ mod tests {
             .collect();
         assert_eq!(
             seen,
-            [("Gulls argued", false), ("lit the lamp", false), ("until morning", true)]
+            [
+                ("Gulls argued", false),
+                ("lit the lamp", false),
+                ("until morning", true)
+            ]
         );
         assert_eq!(listed[1].chapter_title, "The Lamp");
         let moved = range_of(&now, 1, "lit the lamp");
@@ -346,6 +389,41 @@ mod tests {
         let lamp = stored.iter().find(|h| h.text == "lit the lamp").unwrap();
         assert_eq!((lamp.start as usize, lamp.end as usize), moved);
         // Unchanged where nothing moved.
-        assert_eq!((listed[0].start, listed[0].end), range_of(&was, 0, "Gulls argued"));
+        assert_eq!(
+            (listed[0].start, listed[0].end),
+            range_of(&was, 0, "Gulls argued")
+        );
+    }
+
+    #[test]
+    fn the_spoken_key_highlights_the_sentence_at_the_playhead_or_the_one_just_heard() {
+        let highlights = Highlights::new(library_with(&["b"]));
+        let document = |body: &str| {
+            format!(r#"<html xmlns="http://www.w3.org/1999/xhtml"><body>{body}</body></html>"#)
+        };
+        let book = BookModel::parse(
+            "b",
+            &super::super::tests::epub_with(
+                document("<h1>The Quay</h1><p>Gulls argued over the nets.</p><p>The tide came in slowly.</p>"),
+                document("<h1>The Lamp</h1><p>Someone lit the lamp at dusk.</p>"),
+            ),
+            &Default::default(),
+        )
+        .unwrap();
+        let entry = |id: &str| book.index_of(id).unwrap();
+        let spoken = |index: usize, offset_ms: u32| {
+            let added = highlights.add_spoken(&book, index, offset_ms).unwrap();
+            lock(&highlights.library)
+                .delete_highlight(added.id)
+                .unwrap();
+            added.text
+        };
+        // Well into a sentence: that sentence.
+        assert_eq!(spoken(entry("0:2:0"), 2_500), "The tide came in slowly.");
+        // In its first second: the one before, which was just heard.
+        assert_eq!(spoken(entry("0:2:0"), 400), "Gulls argued over the nets.");
+        // Not back into the chapter before: a chapter's first sentence is itself.
+        assert_eq!(spoken(entry("1:0:0"), 400), "The Lamp");
+        assert!(highlights.add_spoken(&book, 99, 0).is_err());
     }
 }
