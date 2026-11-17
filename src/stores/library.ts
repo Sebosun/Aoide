@@ -27,7 +27,8 @@ const filters: Record<BuiltInFilter, (book: BookSummary) => boolean> = {
   preparing: (book) => Boolean(book.prepare && book.prepare.state !== "done"),
   archive: () => true,
 };
-/** Archived items are under Archive only: every other filter and collection leaves them out. */
+/** Archived items are under Archive only: every other filter and collection leaves them out, but
+ *  a search finds them. */
 const onShelf = (book: BookSummary, filter: LibraryFilter) => (filter === "archive" ? book.archived : !book.archived);
 
 /** `next`, keeping each summary of `before` that did not change: a card whose book is the same
@@ -149,10 +150,11 @@ export const useLibraryStore = defineStore("library", () => {
   });
   /** The kind switch is offered once what is shown holds two kinds. */
   const kinds = computed(() => (Object.keys(kindCounts.value) as ItemKind[]).filter((k) => kindCounts.value[k] > 0));
-  const matchesFilter = (book: BookSummary) => {
+  /** Whether an item is in the filter; a search (`searching`) finds archived items too. */
+  const matchesFilter = (book: BookSummary, searching: boolean) => {
     const value = filter.value;
     return (
-      onShelf(book, value) &&
+      (searching || onShelf(book, value)) &&
       (value.startsWith("collection:")
         ? book.collections.includes(Number(value.slice(11)))
         : filters[value as BuiltInFilter](book))
@@ -162,7 +164,7 @@ export const useLibraryStore = defineStore("library", () => {
     const q = query.value.trim().toLowerCase();
     const shown = usable.value.filter(
       (b) =>
-        matchesFilter(b) &&
+        matchesFilter(b, Boolean(q)) &&
         tagged(b) &&
         (kind.value === "all" || kinds.value.length < 2 || isKind(b, kind.value as ItemKind)),
     );

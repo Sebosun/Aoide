@@ -114,6 +114,19 @@ it("searches the library by title or author", async () => {
   wrapper.unmount();
 });
 
+it("finds archived items by a search too, marked archived on their card", async () => {
+  await mock.archive({ bookId: "book-0", on: true });
+  const wrapper = await library();
+  const card = () => wrapper.findAll(".book-card").find((c) => c.text().includes("The Lantern Keeper"));
+  expect(card()).toBeUndefined();
+  await wrapper.get('[aria-label="Search library"]').setValue("lantern");
+  expect(titles(wrapper)).toEqual(["The Lantern Keeper"]);
+  expect(card()!.get(".book-card__status").text()).toMatch(/^Archived · /);
+  await wrapper.get('[aria-label="Search library"]').setValue("");
+  expect(card()).toBeUndefined();
+  wrapper.unmount();
+});
+
 it("sorts the library and remembers the order", async () => {
   const save = vi.spyOn(mock, "updateAppSettings");
   const wrapper = await library();

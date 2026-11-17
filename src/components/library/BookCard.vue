@@ -66,6 +66,8 @@ const status = computed(() => {
   const has = article.value ? (audio === "none" ? "Article" : "Article + voice") : HAS[audio];
   return [has, along, left].filter(Boolean).join(" · ");
 });
+/** The status, and whether it is archived (under Archive, or found by a search among the rest). */
+const line = computed(() => (props.book.archived ? `Archived · ${status.value}` : status.value));
 const ui = useUiStore(),
   library = useLibraryStore(),
   shelves = useCollections();
@@ -284,9 +286,12 @@ function dragged(event: DragEvent) {
         class="book-card__mark"
         :size="12"
         aria-hidden="true"
-      /><Headphones v-else-if="book.audio !== 'none'" class="book-card__mark" :size="12" aria-hidden="true" />{{
-        status
-      }}</span
+      /><Archive v-else-if="book.archived" class="book-card__mark" :size="12" aria-hidden="true" /><Headphones
+        v-else-if="book.audio !== 'none'"
+        class="book-card__mark"
+        :size="12"
+        aria-hidden="true"
+      />{{ line }}</span
     >
     <UiMenu
       v-slot="{ toggle, trigger }"
