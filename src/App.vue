@@ -18,6 +18,8 @@ import { useSignInStore } from "@/stores/signin";
 import SettingsDialog from "@/components/settings/SettingsDialog.vue";
 import CloseQuestion from "@/components/shell/CloseQuestion.vue";
 import AddDialog from "@/components/library/AddDialog.vue";
+import LinkImportDialog from "@/components/library/LinkImportDialog.vue";
+import { useLinkImportStore } from "@/stores/linkImport";
 import CollectionPicker from "@/components/library/CollectionPicker.vue";
 import ShortcutsDialog from "@/components/shell/ShortcutsDialog.vue";
 import PairRecordingDialog from "@/components/recording/PairRecordingDialog.vue";
@@ -43,7 +45,8 @@ const library = useLibraryStore(),
   preferences = usePreferencesStore();
 const recordings = useRecordingsStore(),
   reader = useReaderStore(),
-  signIn = useSignInStore();
+  signIn = useSignInStore(),
+  linkImport = useLinkImportStore();
 /** Dropped EPUBs, PDFs and saved emails (as articles) join the library; dropped audio (files or a folder) is paired with the book whose
  *  page or reader is open, else added on its own unless its name comes close to a book's. */
 function dropped(paths: string[]) {
@@ -107,6 +110,7 @@ onMounted(async () => {
   void player.start();
   void preferences.start();
   void recordings.start();
+  void linkImport.start();
   void signIn.init();
   void listenToCore(api).then((off) => {
     if (disposed) off();
@@ -215,6 +219,7 @@ function browserDrop(event: DragEvent) {
     </main>
     <DropOverlay v-if="dragging" />
     <AddDialog v-if="navigation.addOpen" />
+    <LinkImportDialog v-if="linkImport.view.stage === 'choosing'" />
     <CollectionPicker
       v-if="navigation.collectionsFor"
       :key="navigation.collectionsFor"

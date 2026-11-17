@@ -89,6 +89,9 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `backup.written` | info, warn | `bytes`, `books_included`, `automatic`, `took_ms`, `outcome`, `error` | `core/backup.rs` `Backups::back_up`: a backup was written (by hand, on the schedule, or before a restore), or failed; a failing automatic-backup folder is also reported to the user once |
 | `backup.restored` | info, error | `outcome` (`staged`: checked and set up, restarting; `ok`; `failed`; `rollback_failed`, with `item`), `from_version` (the Aoide that wrote it), `took_ms`, `error` | `commands/app.rs` `restore_backup`, `lib.rs` `restore_staged` at start, `core/backup.rs` `roll_back` |
 | `backup.pruned` | info | `removed` | `core/backup.rs` `prune`: the oldest automatic backups beyond the number kept were removed |
+| `link_import.read` | info | `source` (`pocket`, `instapaper`, `omnivore`, `wallabag`, `readwise`, `bookmarks`, `list`), `found` (each page once), `dropped` (listed twice, or not web pages) | `core/link_import.rs` `read_links`: an export of links was read; nothing is made yet |
+| `link_import.stage` | info | `from`, `to` (`Idle`, `Reading`, `Choosing`, `Fetching`, `Paused`, `Done`) | `core/link_import.rs` `State::go`: an import of links moved on; its links' fetches log as `article.*` |
+| `link_import.done` | info | `fetched`, `partial`, `failed`, `took_ms` | `core/link_import.rs` `link_import_settled`: no link of the import waits to be fetched any more |
 | `window.set_fullscreen` | warn | `on`, `outcome` (`failed`), `error` | `commands/app.rs` `set_fullscreen`, the window could not be asked to change |
 | `app.poisoned` | error | `error` (reported) | `core.rs` `lock`, the first lock a panic poisoned |
 | `config.saved` | info | `section`, `changed` (setting names) | `core/config.rs` `Settings::update_app`, a change from the Settings window |

@@ -7,7 +7,7 @@ use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use aoide_article::{Completeness, ExtractOptions, Extracted};
 use aoide_document::ParsedBook;
@@ -116,6 +116,8 @@ pub enum ArticleSource {
     Browser,
     /// A saved email (`.eml`), read as the page; fetching it again fetches its web copy.
     Email,
+    /// The page's text as another app's export kept it; fetching it again fetches the page.
+    Import,
 }
 
 impl ArticleSource {
@@ -126,6 +128,7 @@ impl ArticleSource {
             ArticleSource::Feed => "feed",
             ArticleSource::Browser => "browser",
             ArticleSource::Email => "email",
+            ArticleSource::Import => "import",
         }
     }
 
@@ -144,6 +147,7 @@ impl ArticleSource {
             "feed" => Some(ArticleSource::Feed),
             "browser" => Some(ArticleSource::Browser),
             "email" => Some(ArticleSource::Email),
+            "import" => Some(ArticleSource::Import),
             _ => None,
         }
     }
@@ -205,6 +209,8 @@ pub(super) trait ArticlesHost: Send + Sync {
         &'a self,
         request: &'a aoide_browser::RenderRequest,
     ) -> Pending<'a, Result<Snapshot, String>>;
+    /// A fetch from the background lane ended (an import's progress may have moved on).
+    fn background_fetched(&self) {}
 }
 
 pub(super) struct Articles {
@@ -214,10 +220,56 @@ pub(super) struct Articles {
     /// there as `<id>.<ext>`.
     covers: PathBuf,
     fetcher: Arc<dyn Fetcher>,
-    queue: Mutex<VecDeque<(String, ArticleSource)>>,
+    lanes: Mutex<Lanes>,
     wake: tokio::sync::Notify,
     /// Feeds each extracted page links to.
     feeds: Mutex<HashMap<String, Vec<DiscoveredFeed>>>,
+}
+
+/// The rest between two background fetches, so an import does not hurry any site.
+#[cfg(not(test))]
+const BACKGROUND_PAUSE: Duration = Duration::from_secs(2);
+#[cfg(test)]
+const BACKGROUND_PAUSE: Duration = Duration::ZERO;
+
+/// The articles waiting to be fetched, in two lanes. The user's (saves, refetches, entries
+/// opened from feeds) is always taken first; the background lane (an import's links) only
+/// when it is empty, with a rest between fetches, and not from the host asked last while
+/// another host waits. One fetch at a time either way.
+#[derive(Default)]
+struct Lanes {
+    user: VecDeque<(String, ArticleSource)>,
+    /// With each article's host.
+    background: VecDeque<(String, ArticleSource, String)>,
+    /// The import is paused: the background lane is not taken from.
+    paused: bool,
+    last_host: Option<String>,
+    rest_until: Option<tokio::time::Instant>,
+}
+
+impl Lanes {
+    fn has(&self, id: &str) -> bool {
+        self.user.iter().any(|(queued, _)| queued == id)
+            || self.background.iter().any(|(queued, _, _)| queued == id)
+    }
+
+    /// The next background fetch: the first whose host was not asked last, else the first.
+    fn take_background(&mut self) -> Option<(String, ArticleSource)> {
+        let index = self
+            .background
+            .iter()
+            .position(|(_, _, host)| Some(host) != self.last_host.as_ref())
+            .unwrap_or(0);
+        let (id, source, host) = self.background.remove(index)?;
+        self.last_host = Some(host);
+        Some((id, source))
+    }
+}
+
+/// What the worker does next.
+enum Next {
+    Fetch(String, ArticleSource, bool),
+    Wait(Option<tokio::time::Instant>),
 }
 
 /// A saved link as a web address: trimmed, and `https://` when it names no scheme.
@@ -252,16 +304,25 @@ impl Articles {
             dir,
             covers,
             fetcher,
-            queue: Mutex::new(VecDeque::new()),
+            lanes: Mutex::default(),
             wake: tokio::sync::Notify::new(),
             feeds: Mutex::new(HashMap::new()),
         }
     }
 
-    /// Queues the fetches an earlier run left queued or under way.
+    /// Queues the fetches an earlier run left queued or under way: an unfinished import's on
+    /// the background lane in its order (paused if it was), the rest on the user's.
     pub fn load(&self) {
-        let rows = lock(&self.library).articles().unwrap_or_default();
-        let mut queue = lock(&self.queue);
+        let (rows, import) = {
+            let library = lock(&self.library);
+            let import = library.current_link_import().ok().flatten().map(|row| {
+                let items = library.link_import_items(row.id).unwrap_or_default();
+                (row.paused, items)
+            });
+            (library.articles().unwrap_or_default(), import)
+        };
+        let (paused, items) = import.unwrap_or_default();
+        let mut queued = HashMap::new();
         for row in rows {
             let stage = Stage::from_stored(&row.stage, row.reason.as_deref());
             if stage == Stage::Queued {
@@ -273,10 +334,24 @@ impl Articles {
                         row.error.as_deref(),
                     );
                 }
-                queue.push_back((row.book_id.0, ArticleSource::Http));
+                queued.insert(row.book_id.0.clone(), row.canonical_url.clone());
             }
         }
-        if !queue.is_empty() {
+        let mut lanes = lock(&self.lanes);
+        lanes.paused = paused;
+        for item in items {
+            if let Some(url) = queued.remove(&item.0) {
+                lanes
+                    .background
+                    .push_back((item.0, ArticleSource::Http, host_of(&url)));
+            }
+        }
+        let mut rest: Vec<String> = queued.into_keys().collect();
+        rest.sort();
+        for id in rest {
+            lanes.user.push_back((id, ArticleSource::Http));
+        }
+        if !lanes.user.is_empty() || !lanes.background.is_empty() {
             self.wake.notify_one();
         }
     }
@@ -308,14 +383,22 @@ impl Articles {
             return Ok((id.clone(), self.queue_fetch(&id, ArticleSource::Http)?));
         }
         self.create(&url, link, shelf, now)?;
-        lock(&self.queue).push_back((id.clone(), ArticleSource::Http));
+        lock(&self.lanes)
+            .user
+            .push_back((id.clone(), ArticleSource::Http));
         self.wake.notify_one();
         Ok((id.clone(), self.view(&id).ok()))
     }
 
     /// Stores a new article item for `url` (given as `link`) on `shelf`, queued but not yet
     /// fetched.
-    fn create(&self, url: &Url, link: &str, shelf: ItemShelf, now: i64) -> Result<String, String> {
+    pub(super) fn create(
+        &self,
+        url: &Url,
+        link: &str,
+        shelf: ItemShelf,
+        now: i64,
+    ) -> Result<String, String> {
         let id = aoide_article::canonical_id(url);
         let book = BookId(id.clone());
         let host = url.host_str().unwrap_or_default().to_owned();
@@ -456,6 +539,62 @@ impl Articles {
         id: &str,
         source: ArticleSource,
     ) -> Result<Option<ArticleView>, String> {
+        self.queue_in(id, source, false)
+    }
+
+    /// Fetches article `id` from `source` on the background lane (an import's links).
+    pub fn queue_background(
+        &self,
+        id: &str,
+        source: ArticleSource,
+    ) -> Result<Option<ArticleView>, String> {
+        self.queue_in(id, source, true)
+    }
+
+    /// Makes article `id` (stored, not fetched yet) wait on the background lane.
+    pub fn enqueue_background(&self, id: &str) -> Result<(), String> {
+        let row = lock(&self.library)
+            .article(&BookId(id.into()))
+            .map_err(|e| e.to_string())?
+            .ok_or("Not an article.")?;
+        let mut lanes = lock(&self.lanes);
+        if !lanes.has(id) {
+            let host = host_of(&row.canonical_url);
+            lanes
+                .background
+                .push_back((id.into(), ArticleSource::Http, host));
+        }
+        drop(lanes);
+        self.wake.notify_one();
+        Ok(())
+    }
+
+    /// Pauses or resumes the background lane.
+    pub fn pause_background(&self, paused: bool) {
+        lock(&self.lanes).paused = paused;
+        self.wake.notify_one();
+    }
+
+    /// Takes these articles off the background lane; returns those that were on it.
+    pub fn unqueue_background(&self, ids: &[String]) -> Vec<String> {
+        let mut lanes = lock(&self.lanes);
+        let mut taken = Vec::new();
+        lanes.background.retain(|(id, _, _)| {
+            let take = ids.contains(id);
+            if take {
+                taken.push(id.clone());
+            }
+            !take
+        });
+        taken
+    }
+
+    fn queue_in(
+        &self,
+        id: &str,
+        source: ArticleSource,
+        background: bool,
+    ) -> Result<Option<ArticleView>, String> {
         let book = BookId(id.into());
         let row = lock(&self.library)
             .article(&book)
@@ -467,18 +606,27 @@ impl Articles {
             return Ok(None);
         }
         self.store_stage(&book, &row.stage, to, None);
-        let mut queue = lock(&self.queue);
-        if !queue.iter().any(|(queued, _)| queued == id) {
-            queue.push_back((id.into(), source));
+        let mut lanes = lock(&self.lanes);
+        if !lanes.has(id) {
+            if background {
+                let host = host_of(&row.canonical_url);
+                lanes.background.push_back((id.into(), source, host));
+            } else {
+                lanes.user.push_back((id.into(), source));
+            }
         }
-        drop(queue);
+        drop(lanes);
         self.wake.notify_one();
         Ok(self.view(id).ok())
     }
 
     /// Takes article `id` out of the queue and deletes its folder (the item is removed).
     pub fn forget(&self, id: &str) {
-        lock(&self.queue).retain(|(queued, _)| queued != id);
+        {
+            let mut lanes = lock(&self.lanes);
+            lanes.user.retain(|(queued, _)| queued != id);
+            lanes.background.retain(|(queued, _, _)| queued != id);
+        }
         lock(&self.feeds).remove(id);
         let folder = self.dir.join(id);
         if folder.exists() {
@@ -575,15 +723,42 @@ impl Articles {
         lock(&self.feeds).insert(id.into(), feeds);
     }
 
-    /// Fetches queued articles, one at a time, for as long as the app runs.
+    /// Fetches queued articles, one at a time, for as long as the app runs: the user's lane
+    /// first, then the background lane (see [`Lanes`]).
     pub async fn run(&self, host: &dyn ArticlesHost) {
         loop {
-            let job = lock(&self.queue).pop_front();
-            match job {
-                Some((id, source)) => {
-                    self.fetch(&id, Getting::Routes(source), host).await;
+            let next = {
+                let mut lanes = lock(&self.lanes);
+                let now = tokio::time::Instant::now();
+                if let Some((id, source)) = lanes.user.pop_front() {
+                    Next::Fetch(id, source, false)
+                } else if lanes.paused || lanes.background.is_empty() {
+                    Next::Wait(None)
+                } else if let Some(until) = lanes.rest_until.filter(|until| *until > now) {
+                    Next::Wait(Some(until))
+                } else {
+                    match lanes.take_background() {
+                        Some((id, source)) => Next::Fetch(id, source, true),
+                        None => Next::Wait(None),
+                    }
                 }
-                None => self.wake.notified().await,
+            };
+            match next {
+                Next::Fetch(id, source, background) => {
+                    self.fetch(&id, Getting::Routes(source), host).await;
+                    if background {
+                        lock(&self.lanes).rest_until =
+                            Some(tokio::time::Instant::now() + BACKGROUND_PAUSE);
+                        host.background_fetched();
+                    }
+                }
+                Next::Wait(None) => self.wake.notified().await,
+                Next::Wait(Some(until)) => {
+                    tokio::select! {
+                        _ = tokio::time::sleep_until(until) => {}
+                        _ = self.wake.notified() => {}
+                    }
+                }
             }
         }
     }
@@ -684,9 +859,10 @@ impl Articles {
             ArticleSource::Archive => vec![Route::Archive],
             ArticleSource::Browser => vec![Route::Browser],
             // An email's web copy is fetched as any page is.
-            ArticleSource::Http | ArticleSource::Feed | ArticleSource::Email => {
-                plan_fetch(use_, rule.as_ref(), old.map(|o| o.completeness))
-            }
+            ArticleSource::Http
+            | ArticleSource::Feed
+            | ArticleSource::Email
+            | ArticleSource::Import => plan_fetch(use_, rule.as_ref(), old.map(|o| o.completeness)),
         };
         let mut best: Option<(Snapshot, Extracted)> = None;
         let mut failures = Vec::new();
@@ -885,6 +1061,14 @@ enum Getting {
 }
 
 /// The site an address is listed under (`www.` dropped).
+/// An address's host, as the background lane compares them.
+fn host_of(url: &str) -> String {
+    Url::parse(url)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
 pub(super) fn site_of(url: &str) -> Option<String> {
     let url = Url::parse(url).ok()?;
     url.host_str().map(aoide_config::site_host)
@@ -970,6 +1154,10 @@ fn read(html: &str, url: &Url, via: Option<&str>) -> Extracted {
 }
 
 impl ArticlesHost for super::Core {
+    fn background_fetched(&self) {
+        self.link_import_settled();
+    }
+
     /// The one way the window is told an article changed: the library, and the article's view
     /// with what the feeds know of it.
     fn article_changed(&self, view: ArticleView, snapshot: bool) {

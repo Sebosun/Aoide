@@ -146,6 +146,9 @@ fn contract() -> String {
         super::backup::BackupInfoView,
         super::backup::BackupWritten,
         super::backup::BackupProgressView,
+        super::link_import::LinkImportView,
+        super::link_import::LinkChoice,
+        super::link_import::Stage,
         super::feeds::DiscoveredFeed,
         super::articles::ArticleView,
         super::articles::ArticleSummary,
@@ -294,6 +297,10 @@ fn contract() -> String {
         (CoreEvent::QUEUE_CHANGED, "null".to_owned()),
         (CoreEvent::FULLSCREEN, name::<bool>(&config)),
         (CoreEvent::CLOSE_ASKED, "null".to_owned()),
+        (
+            CoreEvent::LINK_IMPORT,
+            name::<super::link_import::LinkImportView>(&config),
+        ),
         (
             CoreEvent::BACKUP_PROGRESS,
             name::<super::backup::BackupProgressView>(&config),

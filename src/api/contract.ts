@@ -913,7 +913,7 @@ export type FetchReason = "signIn" | "paywall" | "check" | "cutShort" | "empty";
 
 export type FetchStage = { "kind": "queued" } | { "kind": "fetching" } | { "kind": "ready" } | { "kind": "needsYou", "reason": FetchReason } | { "kind": "failed" };
 
-export type ArticleSource = "http" | "archive" | "feed" | "browser" | "email";
+export type ArticleSource = "http" | "archive" | "feed" | "browser" | "email" | "import";
 
 export type DetailsPatch = { title?: string | null, authors?: Array<string> | null, cover?: string | null, published?: string | null, 
 /**
@@ -984,6 +984,40 @@ automatic: boolean,
  * Set once written.
  */
 finished: boolean, };
+
+export type LinkImportView = { stage: LinkImportStage, 
+/**
+ * The app the file came from, as it calls itself ("Pocket").
+ */
+source: string | null, 
+/**
+ * Links read (each page once).
+ */
+found: number, 
+/**
+ * Of those, not archived in the other app.
+ */
+unread: number, 
+/**
+ * Of those, already in the library.
+ */
+already: number, 
+/**
+ * The same page listed again.
+ */
+duplicates: number, 
+/**
+ * Entries that are not web pages.
+ */
+notWeb: number, 
+/**
+ * Items being imported, and how they ended so far.
+ */
+of: number, ready: number, partial: number, failed: number, };
+
+export type LinkChoice = { "which": "all" } | { "which": "unread" } | { "which": "recent", count: number, };
+
+export type LinkImportStage = "idle" | "reading" | "choosing" | "fetching" | "paused" | "done";
 
 export type DiscoveredFeed = { url: string, title: string | null, subscribed: boolean, };
 
@@ -1434,6 +1468,7 @@ export type CoreEvents = {
   "queue://changed": null,
   "window://fullscreen": boolean,
   "window://close-asked": null,
+  "links://import": LinkImportView,
   "backup://progress": BackupProgressView,
   "signin://state": SignInView,
   "browser://download": BrowserDownloadView,
@@ -1489,6 +1524,21 @@ export type Commands = {
   "refetch_article": { args: { bookId: string; source: ArticleSource }; result: void };
   /** An article's source and where its fetch stands. */
   "article": { args: { bookId: string }; result: ArticleView };
+  /** The system's file dialog for another app's export of links; null when cancelled. */
+  "choose_links_file": { args: Record<string, never>; result: string | null };
+  /** Reads the export at `path`: which links it has. Nothing is made yet. */
+  "read_links": { args: { path: string }; result: LinkImportView };
+  /** Imports the links chosen from those read. */
+  "start_link_import": { args: { choice: LinkChoice }; result: LinkImportView };
+  /** The import of links as it is now. */
+  "link_import": { args: Record<string, never>; result: LinkImportView };
+  "pause_link_import": { args: { paused: boolean }; result: LinkImportView };
+  /** Stops the import: links not fetched yet leave the library. */
+  "cancel_link_import": { args: Record<string, never>; result: LinkImportView };
+  /** Tries an archived copy of each link that failed. */
+  "retry_link_import_archived": { args: Record<string, never>; result: LinkImportView };
+  /** The summary was read: the import is over. */
+  "dismiss_link_import": { args: Record<string, never>; result: void };
   /** What browser would run for articles, and its download. */
   "browser_status": { args: Record<string, never>; result: BrowserStatusView };
   /**
@@ -1910,6 +1960,21 @@ export interface CommandApi {
   refetchArticle(args: { bookId: string; source: ArticleSource }): Promise<void>;
   /** An article's source and where its fetch stands. */
   article(args: { bookId: string }): Promise<ArticleView>;
+  /** The system's file dialog for another app's export of links; null when cancelled. */
+  chooseLinksFile(): Promise<string | null>;
+  /** Reads the export at `path`: which links it has. Nothing is made yet. */
+  readLinks(args: { path: string }): Promise<LinkImportView>;
+  /** Imports the links chosen from those read. */
+  startLinkImport(args: { choice: LinkChoice }): Promise<LinkImportView>;
+  /** The import of links as it is now. */
+  linkImport(): Promise<LinkImportView>;
+  pauseLinkImport(args: { paused: boolean }): Promise<LinkImportView>;
+  /** Stops the import: links not fetched yet leave the library. */
+  cancelLinkImport(): Promise<LinkImportView>;
+  /** Tries an archived copy of each link that failed. */
+  retryLinkImportArchived(): Promise<LinkImportView>;
+  /** The summary was read: the import is over. */
+  dismissLinkImport(): Promise<void>;
   /** What browser would run for articles, and its download. */
   browserStatus(): Promise<BrowserStatusView>;
   /**
@@ -2301,6 +2366,14 @@ export const COMMANDS = {
   saveArticle: "save_article",
   refetchArticle: "refetch_article",
   article: "article",
+  chooseLinksFile: "choose_links_file",
+  readLinks: "read_links",
+  startLinkImport: "start_link_import",
+  linkImport: "link_import",
+  pauseLinkImport: "pause_link_import",
+  cancelLinkImport: "cancel_link_import",
+  retryLinkImportArchived: "retry_link_import_archived",
+  dismissLinkImport: "dismiss_link_import",
   browserStatus: "browser_status",
   downloadBrowser: "download_browser",
   cancelBrowserDownload: "cancel_browser_download",

@@ -34,6 +34,7 @@ aoide-document = { path = "../crates/document" }
 aoide-fetch = { path = "../crates/fetch" }
 aoide-browser = { path = "../crates/browser" }
 aoide-feeds = { path = "../crates/feeds" }
+aoide-imports = { path = "../crates/imports" }
 url = "2"
 aoide-text = { path = "../crates/segmenter" }
 aoide-tts = { path = "../crates/tts" }

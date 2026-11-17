@@ -59,6 +59,7 @@ mod inbox;
 pub use inbox::InboxView;
 mod item;
 mod launching;
+mod link_import;
 mod shelf;
 use generation::PlanEvent;
 mod storage;
@@ -138,6 +139,7 @@ pub use backup::{
     EXTENSION as BACKUP_EXTENSION,
 };
 pub use error::CoreError;
+pub use link_import::{LinkChoice, LinkImportView};
 use preparation::Plan;
 pub use preparation::{PrepareView, Stage as PrepareStage};
 pub use presence::{Action as WindowAction, CloseBehaviour};
@@ -239,6 +241,8 @@ pub struct Core {
     presence: presence::Presences,
     /// Writing backups, and the automatic ones.
     backups: backup::Backups,
+    /// Importing links from another app.
+    link_imports: link_import::LinkImports,
     /// The sleep timer, the media keys and the player state last sent.
     controls: controls::Controls,
     /// Exact word timings being asked for.
@@ -271,6 +275,7 @@ impl Core {
         core.recordings
             .load_recordings(core.app_settings().recognition.resume_on_start);
         core.articles.load();
+        core.load_link_import();
         core.spawn_tasks(worker_events, background);
         Ok(core)
     }
@@ -434,6 +439,7 @@ impl Core {
             fullscreen: Default::default(),
             presence: Default::default(),
             backups: Default::default(),
+            link_imports: Default::default(),
             controls: Default::default(),
             aligner,
             settings: config::Settings::new(config),

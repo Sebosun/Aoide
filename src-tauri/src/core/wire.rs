@@ -330,6 +330,8 @@ pub enum CoreEvent {
     CloseAsked,
     /// A backup is being written, or was.
     BackupProgress(super::backup::BackupProgressView),
+    /// An import of links moved on (at most once a second while fetching).
+    LinkImport(super::link_import::LinkImportView),
 }
 
 impl CoreEvent {
@@ -360,6 +362,7 @@ impl CoreEvent {
     pub const FULLSCREEN: &'static str = "window://fullscreen";
     pub const CLOSE_ASKED: &'static str = "window://close-asked";
     pub const BACKUP_PROGRESS: &'static str = "backup://progress";
+    pub const LINK_IMPORT: &'static str = "links://import";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -390,6 +393,7 @@ impl CoreEvent {
             Self::Fullscreen(_) => Self::FULLSCREEN,
             Self::CloseAsked => Self::CLOSE_ASKED,
             Self::BackupProgress(_) => Self::BACKUP_PROGRESS,
+            Self::LinkImport(_) => Self::LINK_IMPORT,
         }
     }
 
@@ -422,6 +426,7 @@ impl CoreEvent {
             Self::Finished(p) => serde_json::to_value(p),
             Self::Fullscreen(p) => serde_json::to_value(p),
             Self::BackupProgress(p) => serde_json::to_value(p),
+            Self::LinkImport(p) => serde_json::to_value(p),
         }
     }
 }

@@ -57,7 +57,7 @@ import type {
   HomeView,
 } from "@/api/types";
 import type * as Wire from "@/api/contract";
-import type { BackupProgressView, DetailField, QueueView, WhyNot } from "@/api/contract";
+import type { BackupProgressView, DetailField, LinkImportView, QueueView, WhyNot } from "@/api/contract";
 import fixtureLibrary from "@/tests/fixtures/library.json";
 import fixtureViews from "@/tests/fixtures/book-views.json";
 import fixturePlayer from "@/tests/fixtures/player.json";
@@ -1146,6 +1146,28 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   /** The window's question on closing while working; the preview has no window to close. */
   const closeAskedHandlers = new Set<() => void>();
   const backupHandlers = new Set<(progress: BackupProgressView) => void>();
+  /** An import of links, as the core reports it (core/link_import.rs); the preview reads no
+   *  file and fetches nothing, so it stays where the user put it. */
+  const linkImportHandlers = new Set<(view: LinkImportView) => void>();
+  const noImport: LinkImportView = {
+    stage: "idle",
+    source: null,
+    found: 0,
+    unread: 0,
+    already: 0,
+    duplicates: 0,
+    notWeb: 0,
+    of: 0,
+    ready: 0,
+    partial: 0,
+    failed: 0,
+  };
+  let linkImport: LinkImportView = { ...noImport };
+  const setLinkImport = (view: LinkImportView) => {
+    linkImport = view;
+    linkImportHandlers.forEach((h) => h({ ...view }));
+    return { ...view };
+  };
   const finishedHandlers = new Set<(item: FinishedItem) => void>();
   /** Finishes item `b`, as the core does (core/reading.rs `after_finishing`): an article in the
    *  library just finished is archived when the setting says so, else offered for the archive. */
@@ -1285,6 +1307,50 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     onFullscreen: (h) => subscribe(fullscreenHandlers, h),
     onCloseAsked: (h) => subscribe(closeAskedHandlers, h),
     onBackupProgress: (h) => subscribe(backupHandlers, h),
+    onLinkImport: (h) => subscribe(linkImportHandlers, h),
+    async chooseLinksFile() {
+      return "~/Downloads/pocket.csv";
+    },
+    async readLinks() {
+      return setLinkImport({
+        ...noImport,
+        stage: "choosing",
+        source: "Pocket",
+        found: 12,
+        unread: 9,
+        already: 3,
+        duplicates: 1,
+      });
+    },
+    async startLinkImport({ choice }) {
+      if (linkImport.stage !== "choosing") throw refused("Choose a file to import first.");
+      const of =
+        choice.which === "all"
+          ? linkImport.found
+          : choice.which === "unread"
+            ? linkImport.unread
+            : Math.min(choice.count, linkImport.found);
+      return setLinkImport({ ...linkImport, stage: "fetching", of });
+    },
+    async linkImport() {
+      return { ...linkImport };
+    },
+    async pauseLinkImport({ paused }) {
+      const from = paused ? "fetching" : "paused";
+      if (linkImport.stage !== from) return { ...linkImport };
+      return setLinkImport({ ...linkImport, stage: paused ? "paused" : "fetching" });
+    },
+    async cancelLinkImport() {
+      if (linkImport.stage === "choosing") return setLinkImport({ ...noImport });
+      return setLinkImport({ ...linkImport, stage: "done" });
+    },
+    async retryLinkImportArchived() {
+      if (linkImport.stage !== "done" || !linkImport.failed) throw refused("Nothing to try again.");
+      return setLinkImport({ ...linkImport, stage: "fetching" });
+    },
+    async dismissLinkImport() {
+      setLinkImport({ ...noImport });
+    },
     async chooseBackupTarget() {
       return "~/Aoide backup.aoide-backup";
     },
@@ -2896,6 +2962,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     emitPlayer: sendPlayer,
     /** The core asks whether to keep working (the window was closed while working). */
     emitCloseAsked: () => closeAskedHandlers.forEach((h) => h()),
+    /** The core reports an import of links (for tests). */
+    emitLinkImport: (view: LinkImportView) => setLinkImport(view),
     emitGeneration,
     emitConfig,
     emitProblem: (p: ProblemView) => problemHandlers.forEach((h) => h({ ...p })),

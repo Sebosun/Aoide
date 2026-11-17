@@ -4,6 +4,7 @@ import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import {
   Archive,
+  History,
   ArchiveRestore,
   AudioLines,
   BookOpen,
@@ -150,9 +151,11 @@ const articleFacts = computed(() => {
 async function openOriginal() {
   await articles.openOriginal(props.bookId).catch((e) => (error.value = String(e)));
 }
-async function refetch() {
-  await articles.refetch(props.bookId, "http").catch((e) => (error.value = String(e)));
+async function refetch(source: "http" | "archive" = "http") {
+  await articles.refetch(props.bookId, source).catch((e) => (error.value = String(e)));
 }
+/** Nothing was got: an old link is often dead, and an archive may have kept it. */
+const failed = computed(() => article.value?.stage.kind === "failed");
 /** Its recording's files, as the sync state lists them. */
 const recordingFiles = computed(() => recordings.byBook[props.bookId]?.files ?? []);
 const audiobookLength = computed(
@@ -318,8 +321,18 @@ async function pair() {
             <UiButton variant="raised" size="lg" aria-label="Open original" @click="openOriginal">
               <ExternalLink :size="17" aria-hidden="true" /> Open original
             </UiButton>
-            <UiButton variant="raised" size="lg" aria-label="Fetch again" :disabled="busy" @click="refetch">
+            <UiButton variant="raised" size="lg" aria-label="Fetch again" :disabled="busy" @click="refetch()">
               <RefreshCw :size="17" aria-hidden="true" /> Fetch again
+            </UiButton>
+            <UiButton
+              v-if="failed"
+              variant="raised"
+              size="lg"
+              aria-label="Try an archived copy"
+              :disabled="busy"
+              @click="refetch('archive')"
+            >
+              <History :size="17" aria-hidden="true" /> Try an archived copy
             </UiButton>
           </template>
           <UiButton v-if="summary && !unfetched" variant="raised" size="lg" @click="toggleQueued">

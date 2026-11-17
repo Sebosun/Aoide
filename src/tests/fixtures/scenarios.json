@@ -1767,6 +1767,68 @@
     ]
   },
   {
+    "name": "an import of links waits for a file, and is cancelled before it starts",
+    "start": "",
+    "steps": [
+      {
+        "args": {},
+        "call": "linkImport",
+        "error": null,
+        "expect": {
+          "source": null,
+          "stage": "idle"
+        }
+      },
+      {
+        "args": {
+          "choice": {
+            "which": "all"
+          }
+        },
+        "call": "startLinkImport",
+        "error": "Choose a file to import first.",
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "retryLinkImportArchived",
+        "error": "Nothing to try again.",
+        "expect": {}
+      },
+      {
+        "args": {
+          "paused": true
+        },
+        "call": "pauseLinkImport",
+        "error": null,
+        "expect": {
+          "source": null,
+          "stage": "idle"
+        }
+      },
+      {
+        "args": {
+          "path": "~/pocket.csv"
+        },
+        "call": "readLinks",
+        "error": null,
+        "expect": {
+          "source": "Pocket",
+          "stage": "choosing"
+        }
+      },
+      {
+        "args": {},
+        "call": "cancelLinkImport",
+        "error": null,
+        "expect": {
+          "source": null,
+          "stage": "idle"
+        }
+      }
+    ]
+  },
+  {
     "name": "details are corrected by hand and set back",
     "start": "",
     "steps": [

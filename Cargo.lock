@@ -137,6 +137,7 @@ dependencies = [
  "aoide-feeds",
  "aoide-fetch",
  "aoide-generation",
+ "aoide-imports",
  "aoide-library",
  "aoide-metadata",
  "aoide-openai-speech",

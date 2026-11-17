@@ -1,7 +1,18 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { onMounted, ref } from "vue";
-import { ClipboardPaste, FilePlus, FolderOpen, FolderSearch, Headphones, RefreshCw, Rss, X } from "@lucide/vue";
+import {
+  ClipboardPaste,
+  Download,
+  FilePlus,
+  FolderOpen,
+  FolderSearch,
+  Headphones,
+  RefreshCw,
+  Rss,
+  X,
+} from "@lucide/vue";
+import { useLinkImportStore } from "@/stores/linkImport";
 import type { DiscoveredFeed } from "@/api/types";
 import UiDialog from "@/components/ui/UiDialog.vue";
 import { api } from "@/api";
@@ -102,6 +113,11 @@ async function chooseAudio(folder: boolean) {
   close();
   const open = navigation.view === "item" ? navigation.bookId : null;
   await recordings.receive(paths, library.books.find((b) => b.id === open && b.kind === "book")?.id ?? null);
+}
+/** Links from Pocket and the like: the export is read, and its own dialog offers the choice. */
+const linkImport = useLinkImportStore();
+async function importLinks() {
+  if (await linkImport.choose()) close();
 }
 function go(view: "find" | "audiobooks") {
   close();
@@ -224,6 +240,24 @@ function rescan() {
               <FolderOpen :size="16" aria-hidden="true" /> Choose an audiobook folder…
             </UiButton>
           </div>
+        </div>
+      </section>
+      <section class="add-dialog__section" aria-labelledby="add-apps">
+        <h2 id="add-apps" class="add-dialog__label">From another app</h2>
+        <p class="add-dialog__hint">
+          An export from Pocket, Instapaper, Omnivore, Wallabag or Readwise Reader, your browser's bookmarks, or a list
+          of links.
+        </p>
+        <p v-if="linkImport.error" class="add-dialog__error" role="alert">{{ linkImport.error }}</p>
+        <div class="add-dialog__buttons add-dialog__buttons--start">
+          <UiButton
+            size="lg"
+            class="add-dialog__button"
+            aria-label="Import links from another app"
+            @click="importLinks"
+          >
+            <Download :size="16" aria-hidden="true" /> Import from another app…
+          </UiButton>
         </div>
       </section>
       <section class="add-dialog__section" aria-labelledby="add-find">

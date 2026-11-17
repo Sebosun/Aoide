@@ -1931,6 +1931,53 @@ async fn scenarios_for_the_ui_mock() {
     scenarios.push(s.done());
     let library_renames = renames_with_audiobook;
 
+    let mut s = Scenario::new(
+        "an import of links waits for a file, and is cancelled before it starts",
+        "",
+    );
+    let stage = ["stage", "source"];
+    s.step("linkImport", json!({}), &Ok(core.link_import()), &stage);
+    let all = json!({"which": "all"});
+    s.step(
+        "startLinkImport",
+        json!({"choice": all}),
+        &core.start_link_import(serde_json::from_value(all.clone()).unwrap()),
+        &stage,
+    );
+    s.step(
+        "retryLinkImportArchived",
+        json!({}),
+        &core.retry_link_import_archived(),
+        &stage,
+    );
+    s.step(
+        "pauseLinkImport",
+        json!({"paused": true}),
+        &core.pause_link_import(true),
+        &stage,
+    );
+    let export = dir.path().join("pocket.csv");
+    std::fs::write(
+        &export,
+        "title,url,time_added,tags,status
+A,https://quay.example/a,1600000000,,unread
+",
+    )
+    .unwrap();
+    s.step(
+        "readLinks",
+        json!({"path": export.to_string_lossy()}),
+        &core.read_links(&export),
+        &stage,
+    );
+    s.step(
+        "cancelLinkImport",
+        json!({}),
+        &core.cancel_link_import(),
+        &stage,
+    );
+    scenarios.push(s.done());
+
     let mut s = Scenario::new("details are corrected by hand and set back", "");
     let book = |field: &str| format!("[id={second}].{field}");
     let (title, authors, edited, series) = (
