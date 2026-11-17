@@ -107,3 +107,20 @@ async fn a_queued_article_whose_fetch_got_nothing_is_marked_and_passed_over() {
     assert_eq!(core.queue.ids().unwrap(), [article]);
     core.stop();
 }
+
+#[tokio::test]
+async fn next_at_the_last_chapter_plays_the_queued_item_at_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let (core, first, second) = two_items(dir.path()).await;
+    core.play(&first, Some(1), None).await.unwrap();
+    // With nothing queued, the last chapter starts again.
+    core.skip_chapter(1).await.unwrap();
+    assert_eq!(playing(&core).as_deref(), Some(first.as_str()));
+    assert_eq!(core.player_state().chapter, 1);
+
+    core.queue_add(&second, QueuePlace::Next).unwrap();
+    core.skip_chapter(1).await.unwrap();
+    assert_eq!(playing(&core).as_deref(), Some(second.as_str()));
+    assert!(core.queue.ids().unwrap().is_empty());
+    core.stop();
+}

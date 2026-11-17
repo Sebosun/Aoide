@@ -41,7 +41,6 @@ pub(super) enum Event {
     /// The queue's items changed.
     Changed,
     /// The listener asked for the next chapter at the last chapter of item `id`.
-    #[allow(dead_code)] // Until Next asks for it.
     NextAsked { id: String },
 }
 
@@ -299,6 +298,16 @@ impl super::Core {
     #[allow(dead_code)] // Asked for from the window.
     pub fn queue(&self) -> Result<QueueView, String> {
         self.queue.view(self)
+    }
+
+    /// Next was asked for at the end of item `from`: the first queued item that can be
+    /// listened to plays now. False when none did.
+    pub(super) async fn next_in_queue(&self, from: &str) -> bool {
+        let asked = Event::NextAsked { id: from.into() };
+        match self.queue.on(asked) {
+            Some(Action::HandOver { from }) => self.queue.hand_over(self, &from).await.is_some(),
+            None => false,
+        }
     }
 
     /// Tells the queue of a tick of the player (`ended`: the item that just played to its

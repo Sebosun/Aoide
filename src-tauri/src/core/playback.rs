@@ -1227,9 +1227,15 @@ impl super::Core {
     }
 
     /// Plays from the start of the chapter `delta` chapters away from the current one,
-    /// counting only those narrated.
+    /// counting only those narrated. Forward from the last chapter, the first item in the
+    /// queue plays at once; with none, the last chapter starts again.
     pub async fn skip_chapter(&self, delta: i64) -> Result<(), String> {
         if let Some(timeline) = self.playback.timeline() {
+            let at = self.playback.time_of(&timeline.id).unwrap_or(0);
+            let last = timeline.part_at(at) + 1 >= timeline.parts.len();
+            if delta > 0 && last && self.next_in_queue(&timeline.id).await {
+                return Ok(());
+            }
             self.skip_part(&timeline, delta)?;
             self.played();
             return Ok(());
@@ -1246,6 +1252,9 @@ impl super::Core {
                 .unwrap_or(false)
         };
         let target = super::leaving_out::skip(chapter, delta, book.chapters.len(), narrated);
+        if delta > 0 && target == chapter && self.next_in_queue(&book.id).await {
+            return Ok(());
+        }
         self.play(&book.id, Some(target), None).await
     }
 
