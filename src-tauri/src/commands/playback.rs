@@ -1,4 +1,5 @@
 use super::prelude::*;
+use crate::core::{QueuePlace, QueueView};
 
 /// Starts playback at a segment (or the saved position when segmentId is null).
 #[tauri::command]
@@ -68,4 +69,42 @@ pub fn seek(core: CoreState<'_>, book_id: String, position_ms: u64) -> Result<()
 #[tauri::command]
 pub fn skip(core: CoreState<'_>, book_id: String, delta_ms: i64) -> Result<(), CoreError> {
     Ok(core.skip(&book_id, delta_ms)?)
+}
+
+/// The queue: what plays next, each item with why it cannot be listened to now, if it cannot.
+#[tauri::command]
+pub fn queue(core: CoreState<'_>) -> Result<QueueView, CoreError> {
+    Ok(core.queue()?)
+}
+
+/// Puts an item in the queue, next or last (moving it there when it is queued already).
+#[tauri::command]
+pub fn queue_add(core: CoreState<'_>, book_id: String, place: QueuePlace) -> Result<(), CoreError> {
+    Ok(core.queue_add(&book_id, place)?)
+}
+
+/// Puts a feed entry's item in the queue without marking the entry read; returns the item.
+#[tauri::command]
+pub fn queue_add_entry(
+    core: CoreState<'_>,
+    entry_id: i64,
+    place: QueuePlace,
+) -> Result<String, CoreError> {
+    Ok(core.queue_add_entry(entry_id, place)?)
+}
+
+#[tauri::command]
+pub fn queue_remove(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
+    Ok(core.queue_remove(&book_id)?)
+}
+
+/// Moves a queued item to place `to` (0 is first).
+#[tauri::command]
+pub fn queue_move(core: CoreState<'_>, book_id: String, to: usize) -> Result<(), CoreError> {
+    Ok(core.queue_move(&book_id, to)?)
+}
+
+#[tauri::command]
+pub fn queue_clear(core: CoreState<'_>) -> Result<(), CoreError> {
+    Ok(core.queue_clear()?)
 }

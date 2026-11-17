@@ -7,6 +7,7 @@ import PlayerScrubber from "@/components/player/PlayerScrubber.vue";
 import SpeedPill from "@/components/player/SpeedPill.vue";
 import SleepPill from "@/components/player/SleepPill.vue";
 import VolumeControl from "@/components/player/VolumeControl.vue";
+import QueuePill from "@/components/player/QueuePill.vue";
 import { usePlayerControls } from "@/composables/usePlayerControls";
 
 /** One-row transport docked under the page (Sheet reader). Bookmarks and the book tools are at
@@ -26,6 +27,7 @@ const {
   seek,
   step,
   status,
+  upNext,
   detail,
   error,
 } = controls;
@@ -90,13 +92,15 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
         <span v-if="recording" class="dock__source" title="The narrator's recording is playing"
           ><Headphones :size="12" aria-hidden="true" /> Recording</span
         ><span v-if="error" class="dock__error" role="alert">{{ error }}</span
-        ><span v-if="status">{{ status }}</span>
+        ><span v-if="status">{{ status }}</span
+        ><span v-if="upNext" class="dock__then">{{ upNext }}</span>
       </p>
     </div>
     <div class="dock__end">
       <SpeedPill />
       <SleepPill />
       <VolumeControl />
+      <QueuePill />
       <span class="dock__divider" aria-hidden="true" />
       <UiButton
         variant="glass"
@@ -173,6 +177,9 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
 }
 .dock__status:empty {
   display: none;
+}
+.dock__then {
+  margin-left: auto;
 }
 .dock__error {
   color: var(--accent);

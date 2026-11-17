@@ -321,6 +321,7 @@
     "mode": "read",
     "prepare": null,
     "progress": null,
+    "queued": false,
     "readState": "unread",
     "recording": null,
     "shape": "read",

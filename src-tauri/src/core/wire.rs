@@ -55,6 +55,8 @@ pub struct BookSummary {
     /// It is in the archive: out of Home and the library's default views, found by search and
     /// under Archive.
     pub archived: bool,
+    /// It is in the queue, to listen to next.
+    pub queued: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -162,6 +164,9 @@ pub struct PlayerStateView {
     pub position_ms: Option<u64>,
     pub duration_ms: Option<u64>,
     pub part_position_ms: Option<u64>,
+    /// While what plays is nearly over (under 2 minutes left), the title of the queued item
+    /// that plays next.
+    pub up_next_title: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -301,6 +306,8 @@ pub enum CoreEvent {
     InboxState(super::inbox::InboxView),
     /// An article was finished: the window offers to archive it.
     Finished(super::reading::FinishedItem),
+    /// Items were added to the queue, moved in it or taken off it.
+    QueueChanged,
 }
 
 impl CoreEvent {
@@ -327,6 +334,7 @@ impl CoreEvent {
     pub const INBOX_ADDED: &'static str = "inbox://added";
     pub const INBOX_STATE: &'static str = "inbox://state";
     pub const FINISHED: &'static str = "item://finished";
+    pub const QUEUE_CHANGED: &'static str = "queue://changed";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -353,6 +361,7 @@ impl CoreEvent {
             Self::InboxAdded(_) => Self::INBOX_ADDED,
             Self::InboxState(_) => Self::INBOX_STATE,
             Self::Finished(_) => Self::FINISHED,
+            Self::QueueChanged => Self::QUEUE_CHANGED,
         }
     }
 
@@ -373,7 +382,7 @@ impl CoreEvent {
             Self::AudiobookMatches(p) => serde_json::to_value(p),
             Self::Problem(p) => serde_json::to_value(p),
             Self::ArticleState(p) => serde_json::to_value(p),
-            Self::FeedsChanged => Ok(serde_json::Value::Null),
+            Self::FeedsChanged | Self::QueueChanged => Ok(serde_json::Value::Null),
             Self::BrowserDownload(p) => serde_json::to_value(p),
             Self::SignInState(p) => serde_json::to_value(p),
             Self::OpenItem(p) => serde_json::to_value(p),

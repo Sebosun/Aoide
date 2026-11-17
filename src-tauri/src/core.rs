@@ -100,6 +100,7 @@ pub use tagging::{TaggingRun, TaggingSettings};
 mod pronunciation;
 mod queue;
 pub use pronunciation::AffectedView;
+pub use queue::{QueuePlace, QueueView};
 mod takes;
 mod timeline;
 mod voicing;
@@ -384,7 +385,7 @@ impl Core {
         let launching =
             launching::Launching::new(Arc::clone(&library), Arc::clone(&events), reporter.clone());
         let inbox = inbox::Inbox::new(Arc::clone(&events));
-        let queue = queue::Queue::new(Arc::clone(&library));
+        let queue = queue::Queue::new(Arc::clone(&library), Arc::clone(&events));
         let core = Arc::new(Self {
             articles,
             feeds,

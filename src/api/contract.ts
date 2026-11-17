@@ -78,7 +78,11 @@ article: ArticleSummary | null,
  * It is in the archive: out of Home and the library's default views, found by search and
  * under Archive.
  */
-archived: boolean, };
+archived: boolean, 
+/**
+ * It is in the queue, to listen to next.
+ */
+queued: boolean, };
 
 export type HomeView = { 
 /**
@@ -329,7 +333,12 @@ waitingForSync: boolean,
  * For an audiobook on its own: the playhead on the whole recording, its length, and how
  * far into the part (`chapter`) the playhead is.
  */
-positionMs: number | null, durationMs: number | null, partPositionMs: number | null, };
+positionMs: number | null, durationMs: number | null, partPositionMs: number | null, 
+/**
+ * While what plays is nearly over (under 2 minutes left), the title of the queued item
+ * that plays next.
+ */
+upNextTitle: string | null, };
 
 export type EngineState = "offline" | "loading" | "ready" | "busy" | "error";
 
@@ -1276,6 +1285,18 @@ state: InboxState, };
 
 export type FinishedItem = { id: string, title: string, };
 
+export type QueuePlace = "next" | "last";
+
+export type WhyNot = "fetching" | "notFetched" | "missing" | "noVoice";
+
+export type QueueItemView = { bookId: string, title: string, 
+/**
+ * Why it cannot be listened to now; `None` when it can.
+ */
+whyNot: WhyNot | null, };
+
+export type QueueView = { items: Array<QueueItemView>, };
+
 /** Every event Core emits, by name, with its payload. */
 export type CoreEvents = {
   "library://changed": null,
@@ -1299,6 +1320,7 @@ export type CoreEvents = {
   "core://problem": ProblemView,
   "article://state": ArticleView,
   "feeds://changed": null,
+  "queue://changed": null,
   "signin://state": SignInView,
   "browser://download": BrowserDownloadView,
 };
@@ -1524,6 +1546,16 @@ export type Commands = {
   "seek": { args: { bookId: string; positionMs: number }; result: void };
   /** Moves deltaMs back or forward on an audiobook's timeline (the ±30 s buttons). */
   "skip": { args: { bookId: string; deltaMs: number }; result: void };
+  /** The queue: what plays next, each item with why it cannot be listened to now, if it cannot. */
+  "queue": { args: Record<string, never>; result: QueueView };
+  /** Puts an item in the queue, next or last (moving it there when it is queued already). */
+  "queue_add": { args: { bookId: string; place: QueuePlace }; result: void };
+  /** Puts a feed entry's item in the queue without marking the entry read; returns the item. */
+  "queue_add_entry": { args: { entryId: number; place: QueuePlace }; result: string };
+  "queue_remove": { args: { bookId: string }; result: void };
+  /** Moves a queued item to place `to` (0 is first). */
+  "queue_move": { args: { bookId: string; to: number }; result: void };
+  "queue_clear": { args: Record<string, never>; result: void };
   "mark_finished": { args: { bookId: string }; result: void };
   /** Forgets that the book was finished and where the user was in it. */
   "mark_unread": { args: { bookId: string }; result: void };
@@ -1893,6 +1925,16 @@ export interface CommandApi {
   seek(args: { bookId: string; positionMs: number }): Promise<void>;
   /** Moves deltaMs back or forward on an audiobook's timeline (the ±30 s buttons). */
   skip(args: { bookId: string; deltaMs: number }): Promise<void>;
+  /** The queue: what plays next, each item with why it cannot be listened to now, if it cannot. */
+  queue(): Promise<QueueView>;
+  /** Puts an item in the queue, next or last (moving it there when it is queued already). */
+  queueAdd(args: { bookId: string; place: QueuePlace }): Promise<void>;
+  /** Puts a feed entry's item in the queue without marking the entry read; returns the item. */
+  queueAddEntry(args: { entryId: number; place: QueuePlace }): Promise<string>;
+  queueRemove(args: { bookId: string }): Promise<void>;
+  /** Moves a queued item to place `to` (0 is first). */
+  queueMove(args: { bookId: string; to: number }): Promise<void>;
+  queueClear(): Promise<void>;
   markFinished(args: { bookId: string }): Promise<void>;
   /** Forgets that the book was finished and where the user was in it. */
   markUnread(args: { bookId: string }): Promise<void>;
@@ -2142,6 +2184,12 @@ export const COMMANDS = {
   skipChapter: "skip_chapter",
   seek: "seek",
   skip: "skip",
+  queue: "queue",
+  queueAdd: "queue_add",
+  queueAddEntry: "queue_add_entry",
+  queueRemove: "queue_remove",
+  queueMove: "queue_move",
+  queueClear: "queue_clear",
   markFinished: "mark_finished",
   markUnread: "mark_unread",
   setReadingPlace: "set_reading_place",

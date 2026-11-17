@@ -169,6 +169,8 @@ export function usePlayerControls() {
           ? "Not in the text"
           : engineStatus.value,
   );
+  /** While what plays is nearly over, what the queue plays next. */
+  const upNext = computed(() => (player.state.upNextTitle ? `Then: ${player.state.upNextTitle}` : ""));
   /** The buffer and preparation numbers, for the scrubber's tooltip. */
   const detail = computed(() => {
     const parts: string[] = [];
@@ -243,6 +245,7 @@ export function usePlayerControls() {
     bookmark,
     highlightSpoken,
     status,
+    upNext,
     engineStatus,
     detail,
     error,

@@ -6,6 +6,7 @@ import PlayerScrubber from "@/components/player/PlayerScrubber.vue";
 import SpeedPill from "@/components/player/SpeedPill.vue";
 import SleepPill from "@/components/player/SleepPill.vue";
 import VolumeControl from "@/components/player/VolumeControl.vue";
+import QueuePill from "@/components/player/QueuePill.vue";
 import { usePlayerControls } from "@/composables/usePlayerControls";
 
 /** The full transport of Lines mode: the scrubber (buffer numbers in its tooltip, buffering and
@@ -24,6 +25,7 @@ const {
   seek,
   step,
   status,
+  upNext,
   detail,
   error,
 } = controls;
@@ -45,7 +47,8 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
       @switch-end="toggleTimeLeft"
     />
     <p class="transport__status" aria-live="polite">
-      <span v-if="error" class="transport__error" role="alert">{{ error }}</span><span v-if="status">{{ status }}</span>
+      <span v-if="error" class="transport__error" role="alert">{{ error }}</span><span v-if="status">{{ status }}</span
+      ><span v-if="upNext" class="transport__then">{{ upNext }}</span>
     </p>
     <div class="transport__row">
       <div class="transport__side">
@@ -85,6 +88,7 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
         </button>
       </div>
       <div class="transport__side transport__side--end">
+        <QueuePill />
         <UiButton
           variant="glass"
           size="sm"
@@ -142,6 +146,9 @@ const canPlay = computed(() => Boolean(controls.bookId.value));
 }
 .transport__status:empty {
   display: none;
+}
+.transport__then:not(:first-child) {
+  margin-left: var(--space-4);
 }
 .transport__error {
   margin-right: var(--space-4);

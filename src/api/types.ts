@@ -165,4 +165,6 @@ export interface AoideApi extends Omit<CommandApi, "listBooks" | "scanForBooks" 
   onInboxState(handler: (inbox: InboxView) => void): Promise<() => void>;
   /** An article was just finished: the window offers to archive it. */
   onFinished(handler: (item: FinishedItem) => void): Promise<() => void>;
+  /** Items were added to the queue, moved in it or taken off it (one that starts leaves it). */
+  onQueueChanged(handler: () => void): Promise<() => void>;
 }

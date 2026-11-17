@@ -12,7 +12,7 @@ use serde::Serialize;
 use super::browsing::Pending;
 use super::fetching::Stage as FetchStage;
 use super::generation::PlanEvent;
-use super::{lock, PlayerStateView};
+use super::{lock, CoreEvent, Events, PlayerStateView};
 
 /// How long after an item ends the next one starts.
 pub const GAP: Duration = Duration::from_secs(2);
@@ -82,8 +82,9 @@ pub(super) fn next(stage: &Stage, event: &Event, queued: bool) -> (Stage, Option
 }
 
 /// Where an item is put in the queue.
-#[allow(dead_code)] // `Next` is asked for from the window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub enum QueuePlace {
     /// First: it plays when the item playing ends.
     Next,
@@ -112,6 +113,7 @@ pub enum WhyNot {
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct QueueItemView {
     pub book_id: String,
+    pub title: String,
     /// Why it cannot be listened to now; `None` when it can.
     pub why_not: Option<WhyNot>,
 }
@@ -135,21 +137,26 @@ pub(super) trait QueueHost: Sync {
     fn queued_item_finished(&self, id: &str);
 }
 
+/// An item's id and title.
+type Titled = (String, String);
+
 /// The queue: its order in the library, and the hand-over.
 pub(super) struct Queue {
     library: Arc<Mutex<Library>>,
     stage: Mutex<Stage>,
-    /// The item nearly over, and the item up next after it, as last told (see
+    /// The item nearly over, and the item up next after it with its title, as last told (see
     /// [`Queue::look_ahead`]).
-    ahead: Mutex<Option<(String, Option<String>)>>,
+    ahead: Mutex<Option<(String, Option<Titled>)>>,
+    events: Arc<dyn Events>,
     /// The item that left the queue as it started, while it is the one playing.
     started: Mutex<Option<String>>,
 }
 
 impl Queue {
-    pub fn new(library: Arc<Mutex<Library>>) -> Self {
+    pub fn new(library: Arc<Mutex<Library>>, events: Arc<dyn Events>) -> Self {
         Self {
             library,
+            events,
             stage: Mutex::new(Stage::Idle),
             ahead: Mutex::new(None),
             started: Mutex::new(None),
@@ -183,7 +190,6 @@ impl Queue {
         Ok(removed)
     }
 
-    #[allow(dead_code)] // Asked for from the window.
     pub fn clear(&self) -> Result<(), String> {
         lock(&self.library)
             .queue_clear()
@@ -200,6 +206,19 @@ impl Queue {
             playing.clear();
         }
         self.on(Event::Changed);
+        for event in [CoreEvent::QueueChanged, CoreEvent::LibraryChanged] {
+            if let Ok(payload) = event.payload() {
+                self.events.emit(event.name(), payload);
+            }
+        }
+    }
+
+    /// Moves queued item `id` to place `to` (0 is first).
+    pub fn move_to(&self, id: &str, to: usize) -> Result<(), String> {
+        if !self.ids()?.iter().any(|queued| queued == id) {
+            return Err("That item is not in the queue.".into());
+        }
+        self.put(id, to)
     }
 
     /// While item `playing` has less than [`AHEAD_MS`] left (`left_ms`), the first queued
@@ -225,18 +244,38 @@ impl Queue {
                     .unwrap_or_default()
                     .into_iter()
                     .find(|next| next != id && host.can_listen(next).is_ok());
-                *ahead = Some((id.to_owned(), next.clone()));
+                let titled = next.clone().map(|next| {
+                    let title = self.title(&next);
+                    (next, title)
+                });
+                *ahead = Some((id.to_owned(), titled));
                 Some(next)
             }
         }
     }
 
     /// The item up next, while the one playing is nearly over.
-    #[allow(dead_code)] // Shown by the player.
+    #[cfg(test)]
     pub fn up_next(&self) -> Option<String> {
         lock(&self.ahead)
             .as_ref()
-            .and_then(|(_, next)| next.clone())
+            .and_then(|(_, next)| Some(next.as_ref()?.0.clone()))
+    }
+
+    /// The title of the item up next, while the one playing is nearly over.
+    pub fn up_next_title(&self) -> Option<String> {
+        lock(&self.ahead)
+            .as_ref()
+            .and_then(|(_, next)| Some(next.as_ref()?.1.clone()))
+    }
+
+    fn title(&self, id: &str) -> String {
+        lock(&self.library)
+            .book(&BookId(id.into()))
+            .ok()
+            .flatten()
+            .and_then(|record| record.title)
+            .unwrap_or_else(|| "Untitled".into())
     }
 
     /// Item `id` started playing: it leaves the queue. True when it was queued.
@@ -282,6 +321,7 @@ impl Queue {
             .into_iter()
             .map(|id| QueueItemView {
                 why_not: host.can_listen(&id).err(),
+                title: self.title(&id),
                 book_id: id,
             })
             .collect();
@@ -375,7 +415,6 @@ impl QueueHost for super::Core {
 
 impl super::Core {
     /// Puts item `id` in the queue, next or last (moving it when it is queued already).
-    #[allow(dead_code)] // Asked for from the window.
     pub fn queue_add(&self, id: &str, place: QueuePlace) -> Result<(), String> {
         let at = match place {
             QueuePlace::Next => 0,
@@ -387,7 +426,6 @@ impl super::Core {
     /// Puts feed entry `entry` in the queue, next or last, and returns its item (made on the
     /// feed shelf when there is none). The entry is not marked read: that waits until the item
     /// has played to its end.
-    #[allow(dead_code)] // Asked for from the window.
     pub fn queue_add_entry(&self, entry: i64, place: QueuePlace) -> Result<String, String> {
         let item = self.entry_item(entry)?;
         self.emit(super::CoreEvent::FeedsChanged);
@@ -396,9 +434,23 @@ impl super::Core {
     }
 
     /// The queue, each item with why it cannot be listened to now, if it cannot.
-    #[allow(dead_code)] // Asked for from the window.
     pub fn queue(&self) -> Result<QueueView, String> {
         self.queue.view(self)
+    }
+
+    /// Takes item `id` off the queue.
+    pub fn queue_remove(&self, id: &str) -> Result<(), String> {
+        self.queue.remove(id).map(drop)
+    }
+
+    /// Moves queued item `id` to place `to` (0 is first).
+    pub fn queue_move(&self, id: &str, to: usize) -> Result<(), String> {
+        self.queue.move_to(id, to)
+    }
+
+    /// Empties the queue.
+    pub fn queue_clear(&self) -> Result<(), String> {
+        self.queue.clear()
     }
 
     /// Item `id` and the entry it plays from, when it is read by the speech engine: what is
@@ -590,7 +642,10 @@ mod component_tests {
     }
 
     fn queue(ids: &[&str]) -> Queue {
-        let queue = Queue::new(library_with(&["a", "b", "c"]));
+        let queue = Queue::new(
+            library_with(&["a", "b", "c"]),
+            Arc::new(super::super::tests::Recorder::default()),
+        );
         for id in ids {
             queue.put(id, usize::MAX).unwrap();
         }

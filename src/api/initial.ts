@@ -22,6 +22,7 @@ export const initialPlayer = (): PlayerState => ({
   positionMs: null,
   durationMs: null,
   partPositionMs: null,
+  upNextTitle: null,
 });
 /** What generation shows before the core has said anything: idle, no book. */
 export const initialGeneration = (): GenerationState => ({

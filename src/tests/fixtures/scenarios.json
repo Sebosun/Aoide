@@ -1249,6 +1249,209 @@
     ]
   },
   {
+    "name": "an item ends, and the queued one plays",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-1",
+          "place": "last"
+        },
+        "call": "queueAdd",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-3",
+          "place": "next"
+        },
+        "call": "queueAdd",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "queue",
+        "error": null,
+        "expect": {
+          "items.0.bookId": "book-3",
+          "items.1.title": "A Map of Quiet Places",
+          "items.1.whyNot": null,
+          "items.length": 2
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "to": 0
+        },
+        "call": "queueMove",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-0",
+          "to": 0
+        },
+        "call": "queueMove",
+        "error": "That item is not in the queue.",
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-3"
+        },
+        "call": "queueRemove",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "queue",
+        "error": null,
+        "expect": {
+          "items.0.bookId": "book-1",
+          "items.length": 1
+        }
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-0].queued": false,
+          "[id=book-1].queued": true
+        }
+      },
+      {
+        "args": {
+          "speed": 2.0
+        },
+        "call": "setSpeed",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-0",
+          "chapter": 1,
+          "segmentId": "1:2:0"
+        },
+        "call": "play",
+        "error": null,
+        "event": {
+          "expect": {
+            "bookId": "book-0",
+            "upNextTitle": "A Map of Quiet Places"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "queue",
+        "error": null,
+        "event": {
+          "expect": {
+            "bookId": "book-1",
+            "upNextTitle": null
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "queue",
+        "error": null,
+        "expect": {
+          "items.length": 0
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-0",
+          "place": "last"
+        },
+        "call": "queueAdd",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 3,
+          "segmentId": null
+        },
+        "call": "play",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "delta": 1
+        },
+        "call": "skipChapter",
+        "error": null,
+        "event": {
+          "expect": {
+            "bookId": "book-0"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-0].queued": false
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "place": "last"
+        },
+        "call": "queueAdd",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "queueClear",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "queue",
+        "error": null,
+        "expect": {
+          "items.length": 0
+        }
+      },
+      {
+        "args": {},
+        "call": "stop",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "speed": 1.0
+        },
+        "call": "setSpeed",
+        "error": null,
+        "expect": {}
+      }
+    ]
+  },
+  {
     "name": "a book is removed",
     "start": "",
     "steps": [

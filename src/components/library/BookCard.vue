@@ -14,6 +14,9 @@ import {
   FolderPlus,
   Headphones,
   Info,
+  ListEnd,
+  ListStart,
+  ListX,
   RotateCcw,
   Tag,
   Trash2,
@@ -24,6 +27,7 @@ import { RECORDING_SHORT_LABELS } from "@/recording";
 import { useRecordingsStore } from "@/stores/recordings";
 import { useNavigationStore } from "@/stores/navigation";
 import { useLibraryStore } from "@/stores/library";
+import { useQueueStore } from "@/stores/queue";
 import { api } from "@/api";
 import type { BookSummary } from "@/api/types";
 import CoverArt from "@/components/CoverArt.vue";
@@ -120,6 +124,16 @@ async function remove() {
   });
   if (ok) emit("remove");
 }
+/** Lining the item up to listen to next, or taking it off the queue. */
+const queue = useQueueStore();
+function queueActions(book: BookSummary): MenuEntry[] {
+  if (book.queued)
+    return [{ id: "unqueue", label: "Remove from queue", icon: ListX, action: () => act(() => queue.remove(book.id)) }];
+  return [
+    { id: "next", label: "Listen next", icon: ListStart, action: () => act(() => queue.add(book.id, "next")) },
+    { id: "queue", label: "Add to queue", icon: ListEnd, action: () => act(() => queue.add(book.id, "last")) },
+  ];
+}
 /** What only a book with text offers: preparing its speech, pairing audio, exports. */
 function textActions(book: BookSummary): MenuEntry[] {
   const list: MenuEntry[] = preparation.value.actions.map((action) => ({
@@ -153,6 +167,7 @@ const items = computed<MenuEntry[]>(() => {
     list: MenuEntry[] = [];
   if (!unavailable.value) {
     list.push({ id: "details", label: "Details", icon: Info, action: () => emit("details") });
+    list.push(...queueActions(book));
     if (book.readState !== "finished")
       list.push({
         id: "finished",

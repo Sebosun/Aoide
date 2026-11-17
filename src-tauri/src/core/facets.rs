@@ -189,6 +189,7 @@ mod tests {
             recording: None,
             article: None,
             archived: false,
+            queued: false,
         }
     }
 

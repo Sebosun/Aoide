@@ -149,3 +149,70 @@ async fn the_queued_item_is_spoken_ahead_while_the_one_playing_is_nearly_over() 
     assert_eq!(playing(&core).as_deref(), Some(first.as_str()));
     core.stop();
 }
+
+#[tokio::test]
+async fn the_queue_is_told_with_titles_moved_and_emptied_and_cards_say_what_is_queued() {
+    let dir = tempfile::tempdir().unwrap();
+    let first = library_folder(dir.path(), "");
+    let bytes = epub_of_chapters(&[("The Ferry", "The ferry left at noon.")]);
+    std::fs::write(dir.path().join("Books/the-ferry.epub"), &bytes).unwrap();
+    let second = aoide_library::content_hash(&bytes).0;
+    let (core, events) = start_with(
+        dir.path(),
+        &FakeEngine::new(),
+        Arc::new(|_| Err("no speech recognition in this test".into())),
+    );
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 2)
+    })
+    .await;
+    let queued = |core: &Core| -> Vec<(String, bool)> {
+        let mut books: Vec<_> = core
+            .list_books()
+            .unwrap()
+            .into_iter()
+            .map(|b| (b.id, b.queued))
+            .collect();
+        books.sort();
+        books
+    };
+    let order = |core: &Core| -> Vec<String> {
+        core.queue()
+            .unwrap()
+            .items
+            .into_iter()
+            .map(|i| i.book_id)
+            .collect()
+    };
+
+    core.queue_add(&first, QueuePlace::Last).unwrap();
+    core.queue_add(&second, QueuePlace::Next).unwrap();
+    assert_eq!(order(&core), [second.clone(), first.clone()]);
+    assert_eq!(core.queue().unwrap().items[0].title, "Quay Lights");
+    assert!(queued(&core).iter().all(|(_, q)| *q));
+    assert!(events.count(super::CoreEvent::QUEUE_CHANGED) >= 2);
+
+    core.queue_move(&first, 0).unwrap();
+    assert_eq!(order(&core), [first.clone(), second.clone()]);
+    assert!(core.queue_move("not-queued", 0).is_err());
+    core.queue_remove(&first).unwrap();
+    assert_eq!(order(&core), std::slice::from_ref(&second));
+    core.queue_clear().unwrap();
+    assert!(order(&core).is_empty());
+    assert!(queued(&core).iter().all(|(_, q)| !*q));
+}
+
+#[tokio::test]
+async fn while_the_item_playing_is_nearly_over_the_player_names_the_one_up_next() {
+    let dir = tempfile::tempdir().unwrap();
+    let (core, first, second) = two_items(dir.path()).await;
+    core.queue_add(&second, QueuePlace::Last).unwrap();
+    assert_eq!(core.player_state().up_next_title, None);
+    core.play(&first, Some(0), None).await.unwrap();
+    core.pause();
+    until("the item up next", || {
+        core.player_state().up_next_title.as_deref() == Some("Quay Lights")
+    })
+    .await;
+    core.stop();
+}

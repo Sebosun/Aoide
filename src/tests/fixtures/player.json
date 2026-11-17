@@ -145,6 +145,7 @@
     "speed": 1.0,
     "speedScope": "usual",
     "status": "stopped",
+    "upNextTitle": null,
     "volume": 1.0,
     "waitingForSync": false,
     "wordIndex": null

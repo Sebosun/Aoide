@@ -11,6 +11,8 @@ import {
   ExternalLink,
   Headphones,
   Library,
+  ListEnd,
+  ListX,
   Mic,
   Plus,
   RefreshCw,
@@ -38,6 +40,7 @@ import { useLibraryStore } from "@/stores/library";
 import { useNavigationStore } from "@/stores/navigation";
 import { usePlayerStore } from "@/stores/player";
 import { useReaderStore } from "@/stores/reader";
+import { useQueueStore } from "@/stores/queue";
 import { ACTION_ICONS, ACTION_LABELS, describePreparation, preparationStatus, runPrepareAction } from "@/preparation";
 
 /** An item's page: what it is, its text, what it plays with, its contents and its details
@@ -163,6 +166,16 @@ const state = computed(() =>
   finished.value ? "finished" : progress.value ? `${percent.value}%` : audiobook.value ? "unplayed" : "unread",
 );
 const archived = computed(() => summary.value?.archived ?? false);
+/** In the queue, to play when what plays now ends. */
+const queued = computed(() => summary.value?.queued ?? false);
+const queue = useQueueStore();
+async function toggleQueued() {
+  try {
+    await (queued.value ? queue.remove(props.bookId) : queue.add(props.bookId, "last"));
+  } catch (e) {
+    error.value = String(e);
+  }
+}
 async function archive() {
   try {
     await library.archive(props.bookId, !archived.value);
@@ -303,6 +316,10 @@ async function pair() {
               <RefreshCw :size="17" aria-hidden="true" /> Fetch again
             </UiButton>
           </template>
+          <UiButton v-if="summary && !unfetched" variant="raised" size="lg" @click="toggleQueued">
+            <component :is="queued ? ListX : ListEnd" :size="17" aria-hidden="true" />
+            {{ queued ? "Remove from queue" : "Add to queue" }}
+          </UiButton>
           <UiButton variant="raised" size="lg" v-if="summary" @click="markRead">
             <component :is="finished ? RotateCcw : CircleCheck" :size="17" aria-hidden="true" />
             {{ finished ? "Mark as unread" : "Mark as finished" }}

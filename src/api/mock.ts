@@ -57,6 +57,7 @@ import type {
   HomeView,
 } from "@/api/types";
 import type * as Wire from "@/api/contract";
+import type { QueueView, WhyNot } from "@/api/contract";
 import fixtureLibrary from "@/tests/fixtures/library.json";
 import fixtureViews from "@/tests/fixtures/book-views.json";
 import fixturePlayer from "@/tests/fixtures/player.json";
@@ -645,7 +646,10 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     state = { ...next };
     playerHandlers.forEach((h) => h({ ...state }));
   };
-  const emitPlayer = (next: PlayerState) => sendPlayer(withTimes(next));
+  const emitPlayer = (next: PlayerState) => {
+    const timed = withTimes(next);
+    sendPlayer({ ...timed, upNextTitle: upNextTitle(timed) });
+  };
   const emitGeneration = (next: GenerationState) => generationHandlers.forEach((h) => h({ ...next }));
   const changed = () => libraryHandlers.forEach((h) => h());
   /** As the core after a pronunciation list changed: a prepared book that has the word is
@@ -1023,6 +1027,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     if (at >= (state.durationMs ?? 0)) {
       halt();
       emitPlayer(timelineState(id, state.durationMs ?? 0, "stopped"));
+      ended(id);
     } else emitPlayer(timelineState(id, at, "playing"));
     keepTime(id, state.positionMs!);
   };
@@ -1042,6 +1047,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (!next) {
         halt();
         emitPlayer({ ...state, status: "stopped", chapterFraction: 1 });
+        ended(state.bookId);
         return;
       }
       emitPlayer({
@@ -1087,6 +1093,84 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     if (appSettings.archiveFinishedArticles) b.archived = true;
     else finishedHandlers.forEach((h) => h({ id: b.id, title: b.title }));
   };
+  /** The queue, as the core keeps it (core/queue.rs): items to listen to next, in order. When the
+   *  item playing ends, the first that can be listened to plays after a 2 s gap (anything the
+   *  listener does meanwhile cancels that) and leaves the queue; Next at the last chapter hands
+   *  over at once. */
+  const queue: string[] = [];
+  const queueHandlers = new Set<() => void>();
+  const GAP_MS = 2_000;
+  let handOver: ReturnType<typeof setTimeout> | undefined;
+  /** The queued item that started last, while it plays: a feed's article is read once it ends. */
+  let startedFromQueue: string | null = null;
+  const queueChanged = () => {
+    queueHandlers.forEach((h) => h());
+    changed();
+  };
+  function whyNotOf(id: string): WhyNot | null {
+    const book = books.find((b) => b.id === id);
+    if (!book || book.status.kind !== "present") return "missing";
+    const stage = articles.get(id)?.stage.kind;
+    if (stage === "queued" || stage === "fetching") return "fetching";
+    if (stage === "failed") return "notFetched";
+    return null;
+  }
+  const titleOf = (id: string) => books.find((b) => b.id === id)?.title ?? "Untitled";
+  const queueView = (): QueueView => ({
+    items: queue.map((id) => ({ bookId: id, title: titleOf(id), whyNot: whyNotOf(id) })),
+  });
+  const putInQueue = (id: string, at: number) => {
+    const from = queue.indexOf(id);
+    if (from >= 0) queue.splice(from, 1);
+    queue.splice(Math.min(at, queue.length), 0, id);
+    queueChanged();
+  };
+  /** Item `id` started: it leaves the queue. */
+  const started = (id: string) => {
+    const at = queue.indexOf(id);
+    if (at >= 0) {
+      queue.splice(at, 1);
+      startedFromQueue = id;
+      queueChanged();
+    } else if (startedFromQueue !== id) startedFromQueue = null;
+  };
+  /** The first queued item that can be listened to, other than `except`. */
+  const nextInQueue = (except: string | null) => queue.find((id) => id !== except && whyNotOf(id) === null);
+  /** While what plays has under 2 minutes left, the title of the item up next. */
+  function upNextTitle(s: PlayerState): string | null {
+    if (!s.bookId || s.bookLeftMs === null || s.bookLeftMs >= 120_000) return null;
+    const next = nextInQueue(s.bookId);
+    return next ? titleOf(next) : null;
+  }
+  const cancelHandOver = () => {
+    clearTimeout(handOver);
+    handOver = undefined;
+  };
+  const playNext = async (from: string | null) => {
+    const next = nextInQueue(from);
+    if (next) await api.play({ bookId: next, chapter: null, segmentId: null });
+    return Boolean(next);
+  };
+  /** Item `id` played to its end. */
+  const ended = (id: string | null) => {
+    if (!id) return;
+    if (startedFromQueue === id) {
+      startedFromQueue = null;
+      const entry = entries.find((e) => e.bookId === id);
+      if (entry) {
+        entry.read = true;
+        getBook(id).archived = true;
+        feedsChanged();
+        changed();
+      }
+    }
+    if (!queue.length) return;
+    cancelHandOver();
+    handOver = setTimeout(() => {
+      handOver = undefined;
+      void playNext(id);
+    }, GAP_MS);
+  };
   const api: AoideApi = {
     async logUi() {},
     async appInfo() {
@@ -1096,8 +1180,39 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       return [];
     },
     async listBooks() {
-      return structuredClone(books.filter((b) => !feedShelf.has(b.id)));
+      return structuredClone(
+        books.filter((b) => !feedShelf.has(b.id)).map((b) => ({ ...b, queued: queue.includes(b.id) })),
+      );
     },
+    async queue() {
+      return queueView();
+    },
+    async queueAdd({ bookId: id, place }) {
+      getBook(id);
+      putInQueue(id, place === "next" ? 0 : queue.length);
+    },
+    /** As the core: the entry's item is queued, and the entry stays unread. */
+    async queueAddEntry({ entryId, place }) {
+      const id = entryItem(getEntry(entryId));
+      feedsChanged();
+      putInQueue(id, place === "next" ? 0 : queue.length);
+      return id;
+    },
+    async queueRemove({ bookId: id }) {
+      const at = queue.indexOf(id);
+      if (at < 0) return;
+      queue.splice(at, 1);
+      queueChanged();
+    },
+    async queueMove({ bookId: id, to }) {
+      if (!queue.includes(id)) throw refused("That item is not in the queue.");
+      putInQueue(id, to);
+    },
+    async queueClear() {
+      queue.splice(0);
+      queueChanged();
+    },
+    onQueueChanged: (h) => subscribe(queueHandlers, h),
     async home() {
       return homeOverride ? structuredClone(homeOverride) : homeOf(await api.listBooks());
     },
@@ -1312,6 +1427,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async play({ bookId: id, chapter = null, segmentId = null }) {
       const book = getBook(id);
+      cancelHandOver();
+      started(id);
       if (isAudiobook(id)) {
         const parts = partsOf(id),
           total = parts.at(-1)?.end ?? 0;
@@ -1372,9 +1489,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async pause() {
       halt();
+      cancelHandOver();
       emitPlayer({ ...state, status: "paused" });
     },
     async resume() {
+      cancelHandOver();
       if (state.bookId) {
         emitPlayer({ ...state, status: "playing" });
         run();
@@ -1382,6 +1501,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async stop() {
       halt();
+      cancelHandOver();
       // With nothing playing, the usual speed applies.
       emitPlayer({ ...state, status: "stopped", wordIndex: null, speed: usualSpeed, speedScope: "usual" });
     },
@@ -1590,6 +1710,14 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       return hits;
     },
     async skipChapter({ delta }) {
+      cancelHandOver();
+      // As the core: forward from the last chapter, the first queued item plays at once.
+      const last = state.bookId
+        ? (state.positionMs !== null
+            ? partsOf(state.bookId).length
+            : (chapters[Number(state.bookId.split("-")[1])]?.length ?? 1)) - 1
+        : 0;
+      if (delta > 0 && state.bookId && state.chapter >= last && (await playNext(state.bookId))) return;
       if (state.bookId && state.positionMs !== null) {
         const parts = partsOf(state.bookId),
           part = Math.min(parts.length - 1, Math.max(0, state.chapter + delta));
@@ -1602,6 +1730,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       }
     },
     async seek({ bookId: id, positionMs }) {
+      cancelHandOver();
       const total = partsOf(id).at(-1)?.end ?? 0,
         at = Math.min(total, Math.max(0, positionMs));
       if (state.bookId === id && state.positionMs !== null) emitPlayer(timelineState(id, at, state.status));
@@ -2556,6 +2685,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     queueWaitingForTest,
     dispose: () => {
       halt();
+      cancelHandOver();
       clearTimeout(remaking);
       clearInterval(syncTimer);
     },

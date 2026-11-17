@@ -2,3 +2,7 @@
  *  collections to take. A type of its own, so files, links and text dropped on the window are
  *  never mistaken for an item. */
 export const ITEM_DRAG = "application/x-aoide-item";
+
+/** What a queued item carries while it is dragged to another place in the player's queue (its
+ *  item's id). */
+export const QUEUE_DRAG = "application/x-aoide-queued";

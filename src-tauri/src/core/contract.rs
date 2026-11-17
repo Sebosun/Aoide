@@ -198,6 +198,11 @@ fn contract() -> String {
         super::inbox::InboxState,
         super::inbox::InboxView,
         super::reading::FinishedItem,
+        // The queue
+        super::queue::QueuePlace,
+        super::queue::WhyNot,
+        super::queue::QueueItemView,
+        super::queue::QueueView,
     );
     // Type aliases the commands use.
     names.insert("Params".into(), name::<aoide_tts::Params>(&config));
@@ -275,6 +280,7 @@ fn contract() -> String {
             name::<super::articles::ArticleView>(&config),
         ),
         (CoreEvent::FEEDS_CHANGED, "null".to_owned()),
+        (CoreEvent::QUEUE_CHANGED, "null".to_owned()),
         (
             CoreEvent::SIGN_IN_STATE,
             name::<super::signin::SignInView>(&config),

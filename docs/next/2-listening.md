@@ -490,10 +490,18 @@ cached (as `speech_items` does). The listened book's own 90 s still comes first.
 `queued: bool`. A feed entry is queued with `queue_add_entry(entry_id)`, which makes its item
 with `entry_item` and does **not** mark the entry read (`open_feed_entry` would).
 
+(Built: `QueueItemView` carries the item's `title` too, as a queued feed article is not in
+the library's list; `queue-changed` is `queue://changed` with no payload (the window asks for
+`queue()`), sent with `library://changed` for `queued`; `PlayerStateView.up_next_title` names the
+item up next while under 2 minutes are left. With the sleep timer set for the end of the
+chapter, an item that ends hands over to nothing.)
+
 **Interface.** "Listen next" and "Add to queue" in the item menus and on `FeedEntry.vue`
 (`src/components/feeds/`); a queue list in the player dock (a button with the count), with
 move up and move down buttons and drag to reorder (a new drag type beside `ITEM_DRAG` in
-`src/drag.ts`); "Then: *title*" under the time left when the item is nearly over.
+`src/drag.ts`); "Then: *title*" under the time left when the item is nearly over. (Built: the item page has
+"Add to queue" / "Remove from queue" among its buttons; a feed entry has a queue button
+whose menu offers both.)
 
 ### Slices
 

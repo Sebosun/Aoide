@@ -35,6 +35,7 @@ import fixtureArticle from "@/tests/fixtures/article.json";
  *  `added=one|several` shows the toast for books the inbox folder added; `inbox=unavailable`
  *  chooses an inbox folder that is gone (`settings=library` shows it);
  *  `archived=book-1,book-3` archives those items (`filter=archive` shows the library's Archive);
+ *  `queue=book-1,book-3` lines those items up to listen to next, in that order;
  *  `finished=1` shows the toast for an article just finished, offering Archive;
  *  `sleep=again|again-chapter` has a 15-minute (or end-of-chapter) sleep timer just rung, so the
  *  first play starts it again (the pill says "again"). */
@@ -87,6 +88,8 @@ export async function applyPreviewParams(search = location.search) {
         .map((title, n) => ({ id: `book-${n}`, title })),
     );
   for (const id of query.get("archived")?.split(",").filter(Boolean) ?? []) await api.archive({ bookId: id, on: true });
+  for (const id of query.get("queue")?.split(",").filter(Boolean) ?? [])
+    await api.queueAdd({ bookId: id, place: "last" });
   const filter = query.get("filter");
   if (filter) {
     await useLibraryStore().start();

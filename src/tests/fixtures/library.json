@@ -35,7 +35,8 @@
     ],
     "recording": null,
     "article": null,
-    "archived": false
+    "archived": false,
+    "queued": false
   },
   {
     "id": "book-1",
@@ -68,7 +69,8 @@
     ],
     "recording": null,
     "article": null,
-    "archived": false
+    "archived": false,
+    "queued": false
   },
   {
     "id": "book-2",
@@ -100,7 +102,8 @@
     ],
     "recording": null,
     "article": null,
-    "archived": false
+    "archived": false,
+    "queued": false
   },
   {
     "id": "book-3",
@@ -131,7 +134,8 @@
     ],
     "recording": null,
     "article": null,
-    "archived": false
+    "archived": false,
+    "queued": false
   },
   {
     "id": "book-4",
@@ -159,6 +163,7 @@
     "tags": [],
     "recording": null,
     "article": null,
-    "archived": false
+    "archived": false,
+    "queued": false
   }
 ]

@@ -1,10 +1,11 @@
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
 import { api } from "@/api";
-import type { EntryView, FeedView } from "@/api/types";
+import type { EntryView, FeedView, QueuePlace } from "@/api/types";
 import { useArticlesStore } from "@/stores/articles";
 import { useLibraryStore } from "@/stores/library";
 import { useReaderStore } from "@/stores/reader";
+import { useQueueStore } from "@/stores/queue";
 
 /** What the Feeds screen lists: every feed's entries, the saved ones, or one feed's. */
 export type FeedsSource = { kind: "all" } | { kind: "saved" } | { kind: "feed"; id: number };
@@ -122,6 +123,11 @@ export const useFeedsStore = defineStore("feeds", () => {
       error.value = String(e);
     }
   };
+  /** Lines an entry up to listen to, next or last; it stays unread until it has played. */
+  const queue = (entry: EntryView, place: QueuePlace) =>
+    run(async () => {
+      await useQueueStore().addEntry(entry.id, place);
+    });
   const checkNow = () => run(() => api.checkFeeds());
   /** Marks the listed feed's entries read (every feed's, unless one is chosen). */
   const markAllRead = () =>
@@ -168,6 +174,7 @@ export const useFeedsStore = defineStore("feeds", () => {
     loadMore,
     open,
     toggleSaved,
+    queue,
     checkNow,
     markAllRead,
     unsubscribe,

@@ -544,6 +544,7 @@ mod tests {
             position_ms: None,
             duration_ms: None,
             part_position_ms: None,
+            up_next_title: None,
         }
     }
 

@@ -937,6 +937,7 @@ impl Playback {
             position_ms: None,
             duration_ms: None,
             part_position_ms: None,
+            up_next_title: None,
         };
         let playing = lock(&self.playing);
         match playing.as_ref() {
@@ -1315,6 +1316,7 @@ impl super::Core {
     pub(crate) fn player_state(&self) -> super::PlayerStateView {
         super::PlayerStateView {
             sleep: self.controls.sleep_view(),
+            up_next_title: self.queue.up_next_title(),
             ..self.playback.state()
         }
     }

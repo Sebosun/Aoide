@@ -1,16 +1,23 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { BookmarkCheck, BookmarkPlus } from "@lucide/vue";
+import { BookmarkCheck, BookmarkPlus, ListEnd, ListPlus, ListStart } from "@lucide/vue";
+import UiMenu from "@/components/ui/UiMenu.vue";
+import type { MenuEntry } from "@/components/ui/types";
+import type { QueuePlace } from "@/api/types";
 import type { EntryView } from "@/api/types";
 import { age } from "@/days";
 import { formatDuration, readingMs } from "@/estimate";
 import { NEEDS } from "@/articles";
 import { useLibraryStore } from "@/stores/library";
 
-/** One feed entry: its feed, age and length, headline and summary; opening reads it, the
- *  bookmark keeps it in the library. */
+/** One feed entry: its feed, age and length, headline and summary; opening reads it, the queue
+ *  button lines it up to listen to (leaving it unread), the bookmark keeps it in the library. */
 const props = defineProps<{ entry: EntryView; opening?: boolean }>();
-defineEmits<{ open: []; save: [] }>();
+const emit = defineEmits<{ open: []; save: []; queue: [place: QueuePlace] }>();
+const queueItems: MenuEntry[] = [
+  { id: "next", label: "Listen next", icon: ListStart, action: () => emit("queue", "next") },
+  { id: "last", label: "Add to queue", icon: ListEnd, action: () => emit("queue", "last") },
+];
 const library = useLibraryStore();
 /** After the feed's name: " · 2 hours ago · 9 min read · in your library". */
 const meta = computed(() => {
@@ -40,6 +47,20 @@ const meta = computed(() => {
         >The feed carries a summary. The full article is fetched when you open it.</span
       >
     </button>
+    <UiMenu :label="`Queue ${entry.title ?? 'the entry'}`" :items="queueItems" align="end" :width="180">
+      <template #default="{ toggle, trigger }">
+        <button
+          type="button"
+          class="feed-entry__queue"
+          :aria-label="`Queue ${entry.title ?? 'the entry'}`"
+          title="Listen next or add to the queue"
+          v-bind="trigger"
+          @click="toggle"
+        >
+          <ListPlus :size="18" aria-hidden="true" />
+        </button>
+      </template>
+    </UiMenu>
     <button
       type="button"
       class="feed-entry__save"
@@ -123,6 +144,7 @@ const meta = computed(() => {
   color: var(--warn);
   font-weight: 600;
 }
+.feed-entry__queue,
 .feed-entry__save {
   flex: none;
   display: grid;
@@ -132,6 +154,7 @@ const meta = computed(() => {
   border-radius: 50%;
   background: var(--wash);
 }
+.feed-entry__queue:hover,
 .feed-entry__save:hover {
   color: var(--accent);
 }

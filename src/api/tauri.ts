@@ -102,4 +102,5 @@ export const tauriApi: AoideApi = {
   onInboxAdded: (h) => on("inbox://added", h),
   onInboxState: (h) => on("inbox://state", h),
   onFinished: (h) => on("item://finished", h),
+  onQueueChanged: (h) => on("queue://changed", () => h()),
 };

@@ -67,6 +67,7 @@ struct Stored {
     settings: HashMap<BookId, aoide_library::Result<super::BookSettings>>,
     /// Each recording's length.
     recorded_ms: HashMap<BookId, u64>,
+    queued: HashSet<BookId>,
 }
 
 impl Stored {
@@ -94,6 +95,7 @@ impl Stored {
                 .into_iter()
                 .map(|row| (row.book_id, row.total_ms))
                 .collect(),
+            queued: library.queue()?.into_iter().collect(),
         })
     }
 }
@@ -527,6 +529,7 @@ impl Shelf {
                 .unwrap_or(0.0),
             position_ms: progress.position_ms,
         });
+        let queued = stored.queued.contains(id);
         let duration_ms = (record.kind == aoide_library::ItemKind::Audiobook)
             .then(|| stored.recorded_ms.get(id).copied())
             .flatten();
@@ -562,6 +565,7 @@ impl Shelf {
             added_at: record.added_at,
             last_opened_at: record.last_opened_at,
             archived: record.archived_at.is_some(),
+            queued,
         }
     }
 

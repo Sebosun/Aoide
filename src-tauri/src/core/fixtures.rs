@@ -1568,6 +1568,146 @@ async fn scenarios_for_the_ui_mock() {
     // The scenarios after this one start at the usual speed.
     core.set_speed(1.0);
 
+    let mut s = Scenario::new("an item ends, and the queued one plays", "");
+    let queued = |s: &mut Scenario, core: &Core, check: &[&str]| {
+        s.step("queue", json!({}), &core.queue(), check);
+    };
+    let place = |id: &str, where_: &str| json!({"bookId": id, "place": where_});
+    s.step(
+        "queueAdd",
+        place(&second, "last"),
+        &core.queue_add(&second, super::QueuePlace::Last),
+        &[],
+    );
+    s.step(
+        "queueAdd",
+        place(&fourth, "next"),
+        &core.queue_add(&fourth, super::QueuePlace::Next),
+        &[],
+    );
+    queued(
+        &mut s,
+        &core,
+        &[
+            "items.length",
+            "items.0.bookId",
+            "items.1.title",
+            "items.1.whyNot",
+        ],
+    );
+    s.step(
+        "queueMove",
+        json!({"bookId": second, "to": 0}),
+        &core.queue_move(&second, 0),
+        &[],
+    );
+    s.step(
+        "queueMove",
+        json!({"bookId": first, "to": 0}),
+        &core.queue_move(&first, 0),
+        &[],
+    );
+    s.step(
+        "queueRemove",
+        json!({"bookId": fourth}),
+        &core.queue_remove(&fourth),
+        &[],
+    );
+    queued(&mut s, &core, &["items.length", "items.0.bookId"]);
+    s.step(
+        "listBooks",
+        json!({}),
+        &books(&core),
+        &[
+            &format!("[id={second}].queued"),
+            &format!("[id={first}].queued"),
+        ],
+    );
+    // Played from its last sentence at twice the speed, the first book soon ends.
+    core.set_speed(2.0);
+    s.step("setSpeed", json!({"speed": 2.0}), &Ok(()), &[]);
+    let last_chapter = core.book_overview(&first).unwrap().chapters.len() - 1;
+    let last = core
+        .chapter(&first, last_chapter)
+        .unwrap()
+        .blocks
+        .into_iter()
+        .flat_map(|b| b.segments)
+        .rfind(|s| s.speakable)
+        .unwrap()
+        .id;
+    let played = core
+        .play(&first, Some(last_chapter), Some(last.clone()))
+        .await;
+    s.step(
+        "play",
+        json!({"bookId": first, "chapter": last_chapter, "segmentId": last}),
+        &played,
+        &[],
+    );
+    until("the queued item is up next", || {
+        core.player_state().up_next_title.is_some()
+    })
+    .await;
+    s.then(
+        "onPlayerState",
+        &core.player_state(),
+        &["bookId", "upNextTitle"],
+    );
+    until("the queued item plays", || {
+        core.player_state().book_id.as_deref() == Some(second.as_str())
+    })
+    .await;
+    // The window hears of the hand-over, then finds the queue without the item.
+    queued(&mut s, &core, &[]);
+    s.then(
+        "onPlayerState",
+        &core.player_state(),
+        &["bookId", "upNextTitle"],
+    );
+    queued(&mut s, &core, &["items.length"]);
+    // Next at the last chapter plays the queued item at once.
+    s.step(
+        "queueAdd",
+        place(&first, "last"),
+        &core.queue_add(&first, super::QueuePlace::Last),
+        &[],
+    );
+    let second_last = core.book_overview(&second).unwrap().chapters.len() - 1;
+    let played = core.play(&second, Some(second_last), None).await;
+    s.step(
+        "play",
+        json!({"bookId": second, "chapter": second_last, "segmentId": null}),
+        &played,
+        &[],
+    );
+    s.step(
+        "skipChapter",
+        json!({"delta": 1}),
+        &core.skip_chapter(1).await,
+        &[],
+    );
+    s.then("onPlayerState", &core.player_state(), &["bookId"]);
+    s.step(
+        "listBooks",
+        json!({}),
+        &books(&core),
+        &[&format!("[id={first}].queued")],
+    );
+    s.step(
+        "queueAdd",
+        place(&second, "last"),
+        &core.queue_add(&second, super::QueuePlace::Last),
+        &[],
+    );
+    s.step("queueClear", json!({}), &core.queue_clear(), &[]);
+    queued(&mut s, &core, &["items.length"]);
+    core.stop();
+    s.step("stop", json!({}), &Ok(()), &[]);
+    core.set_speed(1.0);
+    s.step("setSpeed", json!({"speed": 1.0}), &Ok(()), &[]);
+    scenarios.push(s.done());
+
     let mut s = Scenario::new("a book is removed", "");
     s.step(
         "removeBook",

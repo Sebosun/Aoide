@@ -238,6 +238,7 @@ onBeforeUnmount(() => watcher?.disconnect());
               :opening="feeds.opening === entry.id"
               @open="feeds.open(entry)"
               @save="feeds.toggleSaved(entry)"
+              @queue="(place) => feeds.queue(entry, place)"
             />
           </UiCard>
         </template>
