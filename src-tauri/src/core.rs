@@ -81,6 +81,7 @@ mod narration;
 mod notes;
 mod notices;
 pub use notices::{Notice, Notifier};
+mod pictures;
 mod playback;
 mod preparation;
 mod presence;
@@ -223,6 +224,7 @@ pub struct Core {
     reading: reading::Reading,
     metadata: metadata::Metadata,
     storage: storage::Storage,
+    pictures: pictures::Pictures,
     exports: export::Exports,
     playback: playback::Playback,
     output: output::Output,
@@ -365,6 +367,7 @@ impl Core {
         let listening = listening::Listening::new(Arc::clone(&library), reporter.clone());
         let reading = reading::Reading::new(Arc::clone(&library), reporter.clone());
         let storage = storage::Storage::new(Arc::clone(&library), &paths);
+        let pictures = pictures::Pictures::new(paths.pictures_dir.clone());
         let audiobooks = Arc::new(audiobooks::Finder::new(
             Arc::clone(&library),
             &paths,
@@ -432,6 +435,7 @@ impl Core {
             reading,
             metadata,
             storage,
+            pictures,
             exports,
             playback: playback::Playback::new(player),
             output: output::Output::new(audio),

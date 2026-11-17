@@ -257,7 +257,33 @@ export type ChapterView = { index: number, title: string, blocks: Array<BlockVie
  * When the book's recording narrates it: the spoken sentences it has no audio for, which
  * playback skips. `None` while a speech engine narrates.
  */
-notNarrated: Array<string> | null, };
+notNarrated: Array<string> | null, 
+/**
+ * Pictures between the blocks, in order; block numbers index `blocks`.
+ */
+inserts: Array<InsertView>, };
+
+export type InsertView = { "type": "picture", 
+/**
+ * It stands before this block (`blocks.length`: after the last).
+ */
+beforeBlock: number, 
+/**
+ * The picture's file.
+ */
+path: string, 
+/**
+ * Its description; empty when it has none.
+ */
+alt: string, 
+/**
+ * The block that is its caption (already read as text).
+ */
+captionBlock: number | null, 
+/**
+ * A caption of its own, outside the text.
+ */
+caption: string | null, };
 
 export type ExcludedView = { title: string, reason: string, };
 
@@ -819,6 +845,10 @@ syncBytes: number,
  * The library's text, indexed for search (kept in the database).
  */
 searchBytes: number, 
+/**
+ * Books' pictures, copied out of them for the reader.
+ */
+picturesBytes: number, 
 /**
  * Speech-recognition models.
  */

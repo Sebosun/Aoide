@@ -56,6 +56,7 @@ pub(super) fn paths(root: &Path) -> Paths {
         models_dir: root.join("data/models"),
         articles_dir: root.join("data/articles"),
         browser_dir: root.join("data/browser"),
+        pictures_dir: root.join("data/pictures"),
     }
 }
 

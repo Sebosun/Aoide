@@ -43,6 +43,8 @@ pub struct StorageReport {
     pub sync_bytes: u64,
     /// The library's text, indexed for search (kept in the database).
     pub search_bytes: u64,
+    /// Books' pictures, copied out of them for the reader.
+    pub pictures_bytes: u64,
     /// Speech-recognition models.
     pub models_bytes: u64,
     /// The optional browser: a downloaded one, and its profile (sign-ins, site data).
@@ -100,12 +102,12 @@ fn tree_bytes(dir: &Path) -> u64 {
 
 /// Opus files in the audio cache's book folders that the index does not list, book folders
 /// left empty, covers (directly in `covers_dir`) of books no longer in the library, and the
-/// folders of articles no longer in it. Only files modified before `before` count, so audio
+/// folders (articles', pictures') of items no longer in it. Only files modified before `before` count, so audio
 /// being written right now is left alone.
 pub(super) fn find_unused(
     audio_dir: &Path,
     covers_dir: &Path,
-    articles_dir: &Path,
+    item_dirs: &[&Path],
     indexed: &HashSet<PathBuf>,
     books: &HashSet<String>,
     before: SystemTime,
@@ -140,7 +142,8 @@ pub(super) fn find_unused(
             unused.files.push(cover);
         }
     }
-    for folder in entries(articles_dir).into_iter().filter(|p| p.is_dir()) {
+    let folders = item_dirs.iter().flat_map(|dir| entries(dir));
+    for folder in folders.filter(|p| p.is_dir()) {
         let name = folder
             .file_name()
             .and_then(|s| s.to_str())
@@ -184,6 +187,7 @@ pub(super) struct Storage {
     audio_dir: PathBuf,
     covers_dir: PathBuf,
     articles_dir: PathBuf,
+    pictures_dir: PathBuf,
     library_dir: PathBuf,
     models_dir: PathBuf,
     browser_dir: PathBuf,
@@ -199,6 +203,7 @@ impl Storage {
             audio_dir: paths.audio_dir.clone(),
             covers_dir: paths.covers_dir.clone(),
             articles_dir: paths.articles_dir.clone(),
+            pictures_dir: paths.pictures_dir.clone(),
             library_dir: paths.library_dir.clone(),
             models_dir: paths.models_dir.clone(),
             browser_dir: paths.browser_dir.clone(),
@@ -220,7 +225,7 @@ impl Storage {
         Ok(find_unused(
             &self.audio_dir,
             &self.covers_dir,
-            &self.articles_dir,
+            &[&self.articles_dir, &self.pictures_dir],
             &indexed,
             &books,
             before,
@@ -257,6 +262,7 @@ impl Storage {
                 .saturating_sub(search_bytes),
             sync_bytes,
             search_bytes,
+            pictures_bytes: tree_bytes(&self.pictures_dir),
             models_bytes: tree_bytes(&self.models_dir),
             browser_bytes: tree_bytes(&self.browser_dir),
             unused_files: unused.files.len() as u64,
@@ -485,7 +491,7 @@ mod tests {
         let books: HashSet<String> = ["a".to_string()].into();
         let later = SystemTime::now() + Duration::from_secs(5);
 
-        let mut unused = find_unused(&audio, &covers, &articles, &indexed, &books, later);
+        let mut unused = find_unused(&audio, &covers, &[&articles], &indexed, &books, later);
         unused.files.sort();
         unused.dirs.sort();
         assert_eq!(
@@ -511,7 +517,7 @@ mod tests {
         let fresh = find_unused(
             &audio,
             &covers,
-            &articles,
+            &[&articles],
             &indexed,
             &books,
             SystemTime::UNIX_EPOCH,

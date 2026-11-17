@@ -26,7 +26,8 @@
       "assetProtocol": {
         "enable": true,
         "scope": [
-          "$APPDATA/covers/**"
+          "$APPDATA/covers/**",
+          "$APPDATA/pictures/**"
         ]
       }
     }

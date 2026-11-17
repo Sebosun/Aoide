@@ -1088,6 +1088,7 @@ impl super::Core {
                 segment.can_say_again = false;
             }
         }
+        view.inserts = book.insert_views(chapter, &|resources| self.picture_files(id, resources));
         view.not_narrated = self.not_narrated(book, chapter);
         Ok(view)
     }
@@ -1096,6 +1097,25 @@ impl super::Core {
 impl super::Core {
     pub fn book_settings(&self, id: &str) -> super::BookSettings {
         self.shelf.settings(id)
+    }
+
+    /// The files of book `id`'s pictures at `resources`, copied out of its EPUB when first
+    /// asked for (read once, only if one is needed).
+    fn picture_files(&self, id: &str, resources: &[&str]) -> Vec<Option<std::path::PathBuf>> {
+        if resources.is_empty() {
+            return Vec::new();
+        }
+        let record = lock(&self.library).book(&BookId(id.into())).ok().flatten();
+        let source = record.filter(|r| r.kind == aoide_library::ItemKind::Book);
+        let bytes = std::sync::OnceLock::new();
+        let read = |resource: &str| -> Result<Vec<u8>, String> {
+            let path = &source.as_ref().ok_or("no book file")?.path;
+            let bytes = bytes.get_or_init(|| std::fs::read(path).map_err(|e| e.to_string()));
+            let bytes = bytes.as_ref().map_err(Clone::clone)?;
+            aoide_epub::read_resource(bytes, resource, &aoide_epub::ParseOptions::default())
+                .map_err(|e| e.to_string())
+        };
+        self.pictures.files(id, resources, &read)
     }
 
     /// Saves book `id`'s settings, keeping the chapters it leaves out and its own playback
@@ -1183,6 +1203,7 @@ impl super::Core {
             self.shelf.keep_out(id);
         }
         self.articles.forget(id);
+        self.pictures.forget(id);
         self.storage.delete_audio(id, files);
         self.emit(CoreEvent::LibraryChanged);
         Ok(())

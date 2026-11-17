@@ -40,6 +40,7 @@ const chapter: ChapterView = {
     },
   ],
   notNarrated: null,
+  inserts: [],
 };
 
 it("estimates speech time from words and speed", () => {

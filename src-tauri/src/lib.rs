@@ -534,6 +534,7 @@ fn user_paths(app: &tauri::App) -> tauri::Result<Paths> {
         models_dir: data.join("models"),
         articles_dir: data.join("articles"),
         browser_dir: data.join("browser"),
+        pictures_dir: data.join("pictures"),
         config_dir: aoide_config::config_dir(
             std::env::var_os("XDG_CONFIG_HOME").as_deref(),
             &path.home_dir()?,

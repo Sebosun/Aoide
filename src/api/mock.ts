@@ -1874,6 +1874,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         databaseBytes: 240_000,
         syncBytes: recordings.size * 1_900_000,
         searchBytes: appSettings.searchText ? 240_000 : 0,
+        picturesBytes: 3_400_000,
         modelsBytes: recordings.size ? 147_964_211 : 0,
         browserBytes: browserDownloaded ? 512_000_000 : 0,
         unusedFiles: unused.files,

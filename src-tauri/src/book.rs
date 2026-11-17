@@ -14,6 +14,8 @@ pub struct ChapterModel {
     pub block_kinds: Vec<BlockKind>,
     /// Global playlist index of the chapter's first segment.
     pub first_entry: usize,
+    /// Pictures shown between blocks, outside the text.
+    pub inserts: Vec<aoide_document::Insert>,
 }
 
 pub struct BookModel {
@@ -97,6 +99,31 @@ pub struct ChapterView {
     /// When the book's recording narrates it: the spoken sentences it has no audio for, which
     /// playback skips. `None` while a speech engine narrates.
     pub not_narrated: Option<Vec<String>>,
+    /// Pictures between the blocks, in order; block numbers index `blocks`.
+    pub inserts: Vec<InsertView>,
+}
+
+/// Something drawn between a chapter's blocks.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum InsertView {
+    Picture {
+        /// It stands before this block (`blocks.length`: after the last).
+        before_block: usize,
+        /// The picture's file.
+        path: String,
+        /// Its description; empty when it has none.
+        alt: String,
+        /// The block that is its caption (already read as text).
+        caption_block: Option<usize>,
+        /// A caption of its own, outside the text.
+        caption: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -182,6 +209,7 @@ impl BookModel {
                     block_kinds: chapter.blocks.iter().map(|b| b.kind).collect(),
                     first_entry,
                     segments,
+                    inserts: chapter.inserts.clone(),
                 };
                 first_entry += model.segments.len();
                 model
@@ -348,7 +376,66 @@ impl BookModel {
             title: model.title.clone(),
             blocks,
             not_narrated: None,
+            inserts: Vec::new(),
         })
+    }
+
+    /// Chapter `index`'s pictures, as its view draws them: `file_of` gives each resource's file
+    /// (`None` leaves it out), and block numbers count the blocks the view shows.
+    pub fn insert_views(
+        &self,
+        index: usize,
+        file_of: &dyn Fn(&[&str]) -> Vec<Option<std::path::PathBuf>>,
+    ) -> Vec<InsertView> {
+        let Some(model) = self.chapters.get(index) else {
+            return Vec::new();
+        };
+        let mut shown = vec![false; model.block_kinds.len()];
+        for segment in &model.segments {
+            if let Some(block) = shown.get_mut(segment.block) {
+                *block = true;
+            }
+        }
+        // A block number in the view: how many shown blocks come before it.
+        let in_view = |block: usize| {
+            shown[..block.min(shown.len())]
+                .iter()
+                .filter(|s| **s)
+                .count()
+        };
+        let resources: Vec<&str> = model
+            .inserts
+            .iter()
+            .map(|insert| match &insert.kind {
+                aoide_document::InsertKind::Picture { resource, .. } => resource.as_str(),
+            })
+            .collect();
+        let files = file_of(&resources);
+        model
+            .inserts
+            .iter()
+            .zip(files)
+            .filter_map(|(insert, file)| match &insert.kind {
+                aoide_document::InsertKind::Picture { alt, caption, .. } => {
+                    let (caption_block, caption) = match caption {
+                        Some(aoide_document::Caption::Block(block))
+                            if shown.get(*block) == Some(&true) =>
+                        {
+                            (Some(in_view(*block)), None)
+                        }
+                        Some(aoide_document::Caption::Text(text)) => (None, Some(text.clone())),
+                        _ => (None, None),
+                    };
+                    Some(InsertView::Picture {
+                        before_block: in_view(insert.before_block),
+                        path: file?.to_string_lossy().into_owned(),
+                        alt: alt.clone(),
+                        caption_block,
+                        caption,
+                    })
+                }
+            })
+            .collect()
     }
 }
 

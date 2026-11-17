@@ -36,6 +36,8 @@ pub struct Paths {
     pub articles_dir: PathBuf,
     /// The optional browser's profile and a downloaded browser.
     pub browser_dir: PathBuf,
+    /// Books' pictures, copied out of them for the reader: a folder per book.
+    pub pictures_dir: PathBuf,
 }
 
 /// Where Core's events go: Tauri's app handle in the app, a recorder in tests.

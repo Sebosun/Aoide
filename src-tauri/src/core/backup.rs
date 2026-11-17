@@ -872,6 +872,7 @@ mod tests {
             models_dir: data.join("models"),
             articles_dir: data.join("articles"),
             browser_dir: data.join("browser"),
+            pictures_dir: data.join("pictures"),
         };
         for dir in [
             &paths.library_dir,

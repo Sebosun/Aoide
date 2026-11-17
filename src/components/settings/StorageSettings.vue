@@ -47,6 +47,7 @@ const parts = computed(() => {
       { key: "articles", label: "Articles", bytes: r.articlesBytes },
       { key: "sync", label: "Audiobook sync", bytes: r.syncBytes },
       { key: "search", label: "Search index", bytes: r.searchBytes },
+      { key: "pictures", label: "Books' pictures", bytes: r.picturesBytes },
       { key: "models", label: "Speech recognition", bytes: r.modelsBytes },
       { key: "browser", label: "Browser and site data", bytes: r.browserBytes },
     ].filter((part) => part.bytes > 0),

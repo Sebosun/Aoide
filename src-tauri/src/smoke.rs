@@ -24,6 +24,7 @@ pub fn paths(home: &Path) -> Paths {
         models_dir: home.join("data").join("models"),
         articles_dir: home.join("data").join("articles"),
         browser_dir: home.join("data").join("browser"),
+        pictures_dir: home.join("data").join("pictures"),
     }
 }
 
