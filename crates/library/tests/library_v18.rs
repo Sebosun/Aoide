@@ -90,8 +90,10 @@ fn a_version_17_library_opens_with_empty_lists() {
     let path = dir.path().join("library.sqlite");
     drop(Library::open(&path).unwrap());
     let conn = rusqlite::Connection::open(&path).unwrap();
-    conn.execute_batch("DROP TABLE pronunciations; DROP TABLE IF EXISTS highlights; PRAGMA user_version = 17;")
-        .unwrap();
+    conn.execute_batch(
+        "DROP TABLE pronunciations; DROP TABLE IF EXISTS highlights; PRAGMA user_version = 17;",
+    )
+    .unwrap();
     drop(conn);
 
     let lib = Library::open(&path).unwrap();
