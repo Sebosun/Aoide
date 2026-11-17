@@ -16,7 +16,7 @@ const TYPING = "input, textarea, select";
 const PRESSABLE =
   'button, a[href], summary, [role="button"], [role="slider"], [role="tab"], [role="menuitem"], [role="menuitemcheckbox"], [role="option"], [role="listbox"]';
 /** Open things that Escape closes before it may leave the reader. */
-const OVERLAYS = '[aria-modal="true"], [role="dialog"], [role="menu"], [role="listbox"], [aria-expanded="true"]';
+export const OVERLAYS = '[aria-modal="true"], [role="dialog"], [role="menu"], [role="listbox"], [aria-expanded="true"]';
 /** Things that use the arrow keys themselves. */
 const ARROWS = '[role="slider"], [role="tablist"], [role="menu"], [role="listbox"]';
 

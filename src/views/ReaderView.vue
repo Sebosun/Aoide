@@ -12,6 +12,7 @@ import ListenButton from "@/components/reader/ListenButton.vue";
 import AudioReader from "@/components/reader/AudioReader.vue";
 import { usePlayerControls } from "@/composables/usePlayerControls";
 import { useReadingTime } from "@/composables/useReadingTime";
+import { useQuietReader } from "@/composables/useQuietReader";
 import { prepareChapter } from "@/preparation";
 import { usePreferencesStore } from "@/stores/preferences";
 import BookToolsSheet from "@/components/book/BookToolsSheet.vue";
@@ -57,10 +58,12 @@ const lines = computed(() => reader.shape === "readAlong" && preferences.appeara
 const audio = computed(() => reader.shape === "listen");
 /** An article has one chapter: its headings stand in for the chapter menu. */
 const { isArticle } = useOpenArticle();
+/** Reading silently, the controls fade while the pointer is still (see useQuietReader). */
+const quiet = useQuietReader(() => reader.shape === "read");
 </script>
 
 <template>
-  <div v-if="reader.book" class="reader">
+  <div v-if="reader.book" class="reader" :class="{ 'reader--idle': quiet }">
     <header class="reader__header">
       <UiButton
         variant="glass"
@@ -142,7 +145,7 @@ const { isArticle } = useOpenArticle();
     </header>
     <AudioReader v-if="audio" />
     <ReaderLines v-else-if="lines" />
-    <ReaderSheet v-else :shape="reader.shape" @tools="openTools" />
+    <ReaderSheet v-else :shape="reader.shape" :quiet="quiet" @tools="openTools" />
     <Transition name="reader__chip">
       <p v-if="offText" class="reader__chip" role="status">
         <Headphones :size="14" aria-hidden="true" /> Not in the text
@@ -173,6 +176,14 @@ const { isArticle } = useOpenArticle();
   align-items: center;
   gap: var(--space-5);
   padding: var(--space-7) 0;
+}
+/* Quiet: the controls fade slowly, and come back quickly. One reached with the keyboard stays. */
+.reader__header {
+  transition: opacity var(--dur-1) var(--ease);
+}
+.reader--idle .reader__header:not(:has(:focus-visible)) {
+  opacity: 0;
+  transition-duration: calc(var(--dur-3) * 2);
 }
 .reader__back {
   justify-self: start;

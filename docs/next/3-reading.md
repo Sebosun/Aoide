@@ -814,7 +814,11 @@ seconds without the pointer moving and return when it moves.
   `leaveReader`).
 - Quiet controls are interface only: a `reader--idle` class after 3 s without pointer or key
   activity while not hovering a control and while `shape` is `read`; never while anything in
-  `OVERLAYS` is open; respects `prefers-reduced-motion`.
+  `OVERLAYS` is open; respects `prefers-reduced-motion`. (Built: `useQuietReader`; keys that
+  only scroll, ↑ ↓ Page Up/Down Home End, are reading and do not bring the controls back. The
+  header, the book's margin and the foot with the progress fade; one holding a control reached
+  with the keyboard stays. The fade is a CSS transition, which the reduced-motion rule in
+  `base.css` already turns off.)
 - The choice is not saved: Aoide starts windowed.
 
 ### Slices

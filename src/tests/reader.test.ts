@@ -936,3 +936,57 @@ it("offers a sign-in window first once the browser is on, else turning it on", a
   expect(start).toHaveBeenCalledWith({ bookId: "book-6" });
   wrapper.unmount();
 });
+
+it("fades the controls after 3 s still while reading silently, and brings them back when the pointer moves", async () => {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  const wrapper = await openReader({ book: "book-1", attach: true });
+  try {
+    const idle = () => wrapper.get(".reader").classes().includes("reader--idle");
+    const move = (on: Element = document.body) => on.dispatchEvent(new MouseEvent("pointermove", { bubbles: true }));
+    const key = (key: string) => window.dispatchEvent(new KeyboardEvent("keydown", { key }));
+    expect(useReaderStore().shape).toBe("read");
+    await vi.advanceTimersByTimeAsync(2_900);
+    expect(idle()).toBe(false);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(idle(), "3 s without the pointer moving").toBe(true);
+    move();
+    await flushPromises();
+    expect(idle()).toBe(false);
+
+    // Scrolling with the keys is reading; another key brings the controls back.
+    await vi.advanceTimersByTimeAsync(3_100);
+    key("ArrowDown");
+    key("PageDown");
+    await flushPromises();
+    expect(idle()).toBe(true);
+    key("Tab");
+    await flushPromises();
+    expect(idle()).toBe(false);
+
+    // Not while the pointer rests on a control.
+    move(wrapper.get('[aria-label="Notes and details"]').element);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(idle()).toBe(false);
+
+    // Not while something is open over the reader.
+    useNavigationStore().openTools();
+    move();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(idle()).toBe(false);
+    useNavigationStore().closeTools();
+    move();
+    await vi.advanceTimersByTimeAsync(3_100);
+    expect(idle()).toBe(true);
+
+    // Not while listening.
+    await useReaderStore().setMode("listen");
+    await flushPromises();
+    expect(useReaderStore().shape).not.toBe("read");
+    expect(idle()).toBe(false);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(idle()).toBe(false);
+  } finally {
+    wrapper.unmount();
+    vi.useRealTimers();
+  }
+});

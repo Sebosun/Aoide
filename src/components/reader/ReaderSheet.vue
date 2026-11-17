@@ -30,7 +30,11 @@ import { prepareChapter } from "@/preparation";
  *  through the book there instead, and the text is only read. While another book plays, the
  *  sleep timer's menu (the T key) opens over that foot: its button lies unseen at its right end,
  *  out of the way of the pointer and of Tab, as in the mini player. */
-const props = defineProps<{ shape: Shape }>();
+const props = defineProps<{
+  shape: Shape;
+  /** The reader is quiet: the margin and the foot fade (see useQuietReader). */
+  quiet?: boolean;
+}>();
 const emit = defineEmits<{ tools: [tab?: "details"] }>();
 const reader = useReaderStore(),
   library = useLibraryStore(),
@@ -138,7 +142,7 @@ const next = computed(() => {
 </script>
 
 <template>
-  <section v-if="reader.book" class="sheet">
+  <section v-if="reader.book" class="sheet" :class="{ 'sheet--quiet': quiet }">
     <div
       ref="scroller"
       class="sheet__scroll"
@@ -329,6 +333,17 @@ const next = computed(() => {
   border-radius: var(--radius-xl);
   background: var(--glass);
   font-weight: 600;
+}
+/* Quiet: the margin and the foot fade slowly, and come back quickly; one with a control reached
+   with the keyboard stays. */
+.sheet__margin,
+.sheet__foot {
+  transition: opacity var(--dur-1) var(--ease);
+}
+.sheet--quiet .sheet__margin:not(:has(:focus-visible)),
+.sheet--quiet .sheet__foot:not(:has(:focus-visible)) {
+  opacity: 0;
+  transition-duration: calc(var(--dur-3) * 2);
 }
 .sheet__foot {
   position: relative;
