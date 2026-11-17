@@ -1,0 +1,16 @@
+[package]
+name = "aoide-imports"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Reads read-later exports (Pocket, Instapaper, Omnivore, Wallabag, Readwise Reader), bookmarks and lists of links; no network"
+publish = false
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+scraper = "0.24"
+serde_json = "1"
+url = "2"
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]

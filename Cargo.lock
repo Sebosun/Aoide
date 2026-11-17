@@ -335,6 +335,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "aoide-imports"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "scraper",
+ "serde_json",
+ "url",
+ "zip 2.6.1",
+]
+
+[[package]]
 name = "aoide-library"
 version = "0.1.0"
 dependencies = [
