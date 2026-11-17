@@ -288,6 +288,7 @@ words.
 ## 1.3 Leave chapters out of the narration
 
 **Size:** M
+**Built:** 2026-11-17 (8450aa5..d431528)
 
 ### Outcome
 
