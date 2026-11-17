@@ -620,6 +620,7 @@ Rows in `docs/logging.md`.
 ## 4.8 Backup and moving to another computer
 
 **Size:** M
+**Built:** 2026-11-17 (df412b3..0d9c28b)
 
 ### Outcome
 
@@ -732,3 +733,25 @@ progress events.
 - Backups are not encrypted; a passphrase can be added to the format later (plan's default).
 - Live sync between two running computers is a different feature and is not planned (plan's
   default).
+
+### As built
+
+- No `Stage` enum: one backup at a time is a flag (`Backups::writing`), and the window shows
+  `BackupProgressView { done, of, finished, automatic }` (`backup://progress`). The restore's
+  own steps are the module's functions: `inspect`, `stage`, `apply_staged`, `roll_back`.
+- `apply_staged` notes each file it puts in place (`restore-previous/placed`), so a roll back
+  removes only those. A start that stopped part way puts the previous library back and does
+  not try again; one that stopped after the restore was in place (`APPLIED`) only tidies up.
+- A remembered home, library, covers and articles folder are in the manifest (`from`); each is
+  moved to this computer's with `move_paths`, which now also moves `recordings.files`.
+  `clear_scanned_files` empties `library_files`.
+- The backup's database is checked with `Library::schema_version_of` on a temporary copy;
+  `inspect_backup` says `refused` for a newer one rather than failing, so the window can say
+  why. The format number is checked too.
+- Automatic backups: `AppSettings.backup { folder, every_days, keep, books }`, checked a minute
+  after start and then hourly; due when the newest `Aoide backup …` file in the folder (by its
+  modification time) is older than `every_days`. Only those files are pruned. The backup made
+  before a restore is `Aoide before restore …`, in that folder or, without one, beside the
+  library (`backups/`), and is never pruned.
+- Restore restarts with `AppHandle::restart` from the `restore_backup` command. A failed
+  restore at start is logged and reported once the core runs (`Core::restore_failed`).
