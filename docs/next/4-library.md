@@ -507,6 +507,7 @@ its own plan.
 ## 4.7 An inbox folder
 
 **Size:** S
+**Built:** 2026-11-17 (8412874..fe56ec9)
 
 ### Outcome
 
