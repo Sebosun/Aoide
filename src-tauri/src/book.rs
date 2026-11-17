@@ -445,6 +445,7 @@ fn with_note_segments(
                 sentences: vec![],
                 words: vec![],
                 pause_after_ms: pause,
+                role: aoide_text::Role::Narration,
             });
             out_notes.push(vec![]);
         }

@@ -7,9 +7,11 @@
 use std::ops::Range;
 
 pub use aoide_epub::{Block, BlockKind};
+pub use dialogue::{quoted_spans, Role, SHORT_SPAN};
 pub use matter::front_and_back_matter;
 pub use pronounce::{pronounce, Rule, Spoken};
 
+mod dialogue;
 mod matter;
 mod pronounce;
 
@@ -29,6 +31,9 @@ pub struct SegmentOptions {
     /// Silence at a scene break: a block with no letter or digit (`* * *`) carries it, and
     /// so does the block before one marked [`Block::break_before`] (a rule).
     pub break_pause_ms: u32,
+    /// A segment never mixes narration and what characters say (see [`quoted_spans`]), so a
+    /// second voice can read the dialogue.
+    pub split_dialogue: bool,
 }
 
 impl Default for SegmentOptions {
@@ -39,6 +44,7 @@ impl Default for SegmentOptions {
             heading_pause_ms: 700,
             paragraph_pause_ms: 250,
             break_pause_ms: 1200,
+            split_dialogue: false,
         }
     }
 }
@@ -59,6 +65,8 @@ pub struct Segment {
     /// Chapter-text ranges of each whitespace-separated word in the segment.
     pub words: Vec<Range<usize>>,
     pub pause_after_ms: u32,
+    /// Narration, or dialogue (only when segmented with `split_dialogue`).
+    pub role: Role,
 }
 
 /// Estimated `[start_ms, end_ms)` for each word of a segment.
@@ -74,16 +82,28 @@ pub fn segment_chapter(chapter: u32, blocks: &[Block], options: &SegmentOptions)
     let mut segments = Vec::new();
     for (index, block) in blocks.iter().enumerate() {
         let chars: Vec<char> = block.text.chars().collect();
-        let units: Vec<Range<usize>> = sentences(&chars)
+        let spans = if options.split_dialogue {
+            quoted_spans(&chars)
+        } else {
+            Vec::new()
+        };
+        let units: Vec<(Range<usize>, Role)> = sentences(&chars)
             .into_iter()
             .flat_map(|sentence| split_long(&chars, sentence, options.max_chars))
+            .flat_map(|unit| {
+                if spans.is_empty() {
+                    vec![(unit, Role::Narration)]
+                } else {
+                    dialogue::pieces(&chars, unit, &spans)
+                }
+            })
             .collect();
         let heading = matches!(block.kind, BlockKind::Heading { .. });
         let scene_break = !block.text.chars().any(char::is_alphanumeric)
             || blocks.get(index + 1).is_some_and(|next| next.break_before);
         let groups = group(&units, options);
         let last = groups.len().saturating_sub(1);
-        for (n, group) in groups.into_iter().enumerate() {
+        for (n, (group, role)) in groups.into_iter().enumerate() {
             let range = group[0].start..group[group.len() - 1].end;
             let display: String = chars[range.clone()].iter().collect();
             let base = offsets[index];
@@ -114,6 +134,7 @@ pub fn segment_chapter(chapter: u32, blocks: &[Block], options: &SegmentOptions)
                 .filter_map(|(applies, ms)| applies.then_some(ms))
                 .max()
                 .unwrap_or(0),
+                role,
             });
         }
     }
@@ -468,20 +489,27 @@ fn split_long(chars: &[char], sentence: Range<usize>, max: usize) -> Vec<Range<u
     pieces
 }
 
-/// Groups consecutive units when either side is shorter than `min_chars` and the result fits.
-fn group(units: &[Range<usize>], options: &SegmentOptions) -> Vec<Vec<Range<usize>>> {
-    let mut groups: Vec<Vec<Range<usize>>> = Vec::new();
-    for unit in units {
-        if let Some(current) = groups.last_mut() {
+/// Groups consecutive units of one role when either side is shorter than `min_chars` and the
+/// result fits.
+fn group(
+    units: &[(Range<usize>, Role)],
+    options: &SegmentOptions,
+) -> Vec<(Vec<Range<usize>>, Role)> {
+    let mut groups: Vec<(Vec<Range<usize>>, Role)> = Vec::new();
+    for (unit, role) in units {
+        if let Some((current, current_role)) = groups.last_mut() {
             let start = current[0].start;
             let current_len = current[current.len() - 1].end - start;
             let fits = unit.end - start <= options.max_chars;
-            if fits && (current_len < options.min_chars || unit.len() < options.min_chars) {
+            if *current_role == *role
+                && fits
+                && (current_len < options.min_chars || unit.len() < options.min_chars)
+            {
                 current.push(unit.clone());
                 continue;
             }
         }
-        groups.push(vec![unit.clone()]);
+        groups.push((vec![unit.clone()], *role));
     }
     groups
 }
