@@ -306,6 +306,7 @@ carry the book id).
 ## 5.3 Feed folders
 
 **Size:** S
+**Built:** 2026-11-17 (be0285e..63a25ff)
 
 ### Outcome
 
