@@ -138,6 +138,8 @@ impl super::Core {
         self.store_book_settings(id, settings).await?;
         if taken_back {
             self.plan(super::PlanEvent::ChaptersTakenBack(id.into()));
+            // A prepared book shows as prepared no longer.
+            self.emit(super::CoreEvent::LibraryChanged);
         }
         tracing::info!(
             event = "narration.left_out",
@@ -155,7 +157,7 @@ mod tests {
 
     use super::super::engine_tests::{start_holding, Scripted};
     use super::super::tests::{book_with_matter, until};
-    use super::super::{Core, PrepareStage, ReadState};
+    use super::super::{Core, CoreEvent, PrepareStage, ReadState};
 
     /// Core with the book with matter, its id and its engine.
     async fn started(
@@ -280,7 +282,14 @@ mod tests {
     #[tokio::test]
     async fn preparing_the_book_leaves_its_chapters_left_out_out_and_is_done_without_them() {
         let dir = tempfile::tempdir().unwrap();
-        let (core, id, engine) = started(dir.path()).await;
+        let engine = Scripted::new("main", EngineStatus::Ready(None), &["A.wav"], false);
+        let (core, events, id) = start_holding(
+            dir.path(),
+            &[&engine],
+            "voiceId = \"A.wav\"",
+            &book_with_matter(),
+        )
+        .await;
         core.set_left_out(&id, vec![0, 3]).await.unwrap();
         engine.hold_synthesis();
 
@@ -308,9 +317,22 @@ mod tests {
         })
         .await;
 
-        // Taken back in, the contents are not made yet: the book is not prepared.
+        // Leaving out more keeps it prepared.
+        let told = events.count(CoreEvent::LIBRARY_CHANGED);
+        core.set_left_out(&id, vec![0, 2, 3]).await.unwrap();
+        assert_eq!(stage(&core, &id), Some(PrepareStage::Done));
+        assert_eq!(events.count(CoreEvent::LIBRARY_CHANGED), told);
+        core.set_left_out(&id, vec![0, 3]).await.unwrap();
+        // Taken back in, the contents are not made yet: the book is not prepared, and the
+        // library says so.
+        let told = events.count(CoreEvent::LIBRARY_CHANGED);
         core.set_left_out(&id, vec![3]).await.unwrap();
         assert_eq!(stage(&core, &id), None);
+        assert_eq!(
+            events.count(CoreEvent::LIBRARY_CHANGED),
+            told + 1,
+            "the library shows the book is no longer prepared"
+        );
         core.prepare_book(&id).await.unwrap();
         until("the book to be prepared again", || {
             stage(&core, &id) == Some(PrepareStage::Done)
