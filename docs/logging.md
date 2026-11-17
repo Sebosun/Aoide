@@ -209,6 +209,8 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `sleep.set` | info | `minutes`, `end_of_chapter` (neither: cancelled) | `core/controls.rs` `Controls::sleep`, where `next` is applied, the timer set or cancelled |
 | `sleep.rang` | info | `minutes`, `end_of_chapter` | `core/controls.rs` `Controls::sleep`, the timer paused playback (or the listener paused while it faded) |
 | `sleep.extended` | info | `minutes`, `end_of_chapter` | `core/controls.rs` `Controls::sleep`, playing within 3 minutes of a ring started the same timer again |
+| `queue.changed` | info | `size` | `core/queue.rs` `Queue`, an item added to, moved in or taken off the queue (one taken off as it starts too) |
+| `queue.handover` | info, warn | `from`, `to`, `outcome` (`waiting`: the item ended, the next plays after the gap; `cancelled`: the listener did something in the gap; `played`; `failed`, with `error`: that item could not play, the next is tried; `nothing_to_play`) | `core/queue.rs`, where `next` is applied and `Queue::hand_over` |
 | `feeder.read` | warn | `error` | `core/feeder.rs` |
 | `cache.evict` | info | `segments`, `books` | `core/storage.rs` `enforce_cache_limit` |
 | `export.done` | info, warn | `kind`, `book`, `file`, `took_ms`, `outcome`, `error` | `core/export.rs` (`Exports`) |

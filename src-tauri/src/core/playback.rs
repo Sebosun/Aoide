@@ -46,6 +46,8 @@ pub struct Tick {
     pub moved: bool,
     /// What was just given to the player without exact word times.
     pub to_align: Vec<Alignable>,
+    /// The player reached the end of what it plays since the last tick.
+    pub ended: bool,
 }
 
 /// The playhead, for saving the listener's place. Returned by each change that should be
@@ -233,6 +235,8 @@ pub struct Playback {
     /// When playback was paused, while it stays paused where it was: how long the listener was
     /// away when it plays again.
     paused_at: Mutex<Option<Instant>>,
+    /// The player was at the end of what it plays at the last tick.
+    at_end: Mutex<bool>,
 }
 
 impl Playback {
@@ -247,6 +251,7 @@ impl Playback {
             latency_ms: Mutex::new(0),
             changes: tokio::sync::Notify::new(),
             paused_at: Mutex::new(None),
+            at_end: Mutex::new(false),
         }
     }
 
@@ -681,7 +686,11 @@ impl Playback {
     /// clips as they are decoded, made speech read from `audio`), and lets it release audio far
     /// behind. `None` when nothing is playing.
     pub fn tick(&self, audio: &dyn SpeechAudio) -> Option<Tick> {
-        let playhead = self.position().index;
+        let position = self.position();
+        let playhead = position.index;
+        let at_end = position.status == Status::Finished;
+        let was_at_end = std::mem::replace(&mut *lock(&self.at_end), at_end);
+        let ended = at_end && !was_at_end && lock(&self.playing).is_some();
         let (moved, pieces, wanted, mut to_align) = {
             let mut playing = lock(&self.playing);
             match playing.as_mut()? {
@@ -755,7 +764,11 @@ impl Playback {
         if let Some(before) = release {
             lock(&self.player).release_before(before);
         }
-        Some(Tick { moved, to_align })
+        Some(Tick {
+            moved,
+            to_align,
+            ended,
+        })
     }
 
     #[cfg(test)]
@@ -836,19 +849,26 @@ impl Playback {
     /// One tick of playback: gives the player audio near the playhead (see [`Playback::tick`]).
     /// When the playhead reached another entry, Generation follows it and the place is saved
     /// every few seconds. `aligned` gets what was given to the player without exact word times.
-    pub fn advance(&self, audio: &dyn SpeechAudio, aligned: impl FnOnce(Vec<Alignable>)) -> Moved {
+    /// Also returns the item that played to its end at this tick, if one did.
+    pub fn advance(
+        &self,
+        audio: &dyn SpeechAudio,
+        aligned: impl FnOnce(Vec<Alignable>),
+    ) -> (Moved, Option<String>) {
         let Some(tick) = self.tick(audio) else {
-            return Moved::default();
+            return (Moved::default(), None);
         };
         aligned(tick.to_align);
+        let ended = tick.ended.then(|| self.playing_id()).flatten();
         if !tick.moved {
-            return Moved::default();
+            return (Moved::default(), ended);
         }
-        Moved {
+        let moved = Moved {
             listening: Some(Listening::Carried),
             place: self.place_to_save(false),
             output: None,
-        }
+        };
+        (moved, ended)
     }
 
     // ------------------------------------------------------------ views
@@ -1158,6 +1178,7 @@ impl super::Core {
         // A pause leaves the output as it is: nothing in it can fail.
         let _ = self.follow_through(self.playback.pause());
         self.sleep(SleepEvent::Paused(Instant::now()));
+        self.queue.on(super::queue::Event::UserStopped);
     }
 
     /// Plays on after a pause, a little earlier after a break unless that is turned off.
@@ -1183,6 +1204,7 @@ impl super::Core {
             now: Instant::now(),
             chapter: self.playback.chapter().unwrap_or_default(),
         });
+        self.queue.on(super::queue::Event::UserPlayed);
     }
 
     /// Whether playback steps back a little after a break (a setting).
@@ -1193,6 +1215,7 @@ impl super::Core {
     pub fn stop(&self) {
         // Closing the output cannot fail.
         let _ = self.follow_through(self.playback.stop());
+        self.queue.on(super::queue::Event::UserStopped);
     }
 
     pub fn toggle(&self) {
@@ -1825,7 +1848,8 @@ mod tests {
         drop(playback.start(speech(&[0, 1]), 0));
         let audio = memory(&["k0", "k1"]);
         let mut aligned = 0;
-        let first = playback.advance(&audio, |to_align| aligned += to_align.len());
+        let (first, ended) = playback.advance(&audio, |to_align| aligned += to_align.len());
+        assert_eq!(ended, None);
         assert_eq!(aligned, 2);
         assert_eq!(
             first.listening,
@@ -1833,7 +1857,27 @@ mod tests {
             "a session's first tick"
         );
         assert!(first.place.is_none(), "saved a moment ago, at the start");
-        let still = playback.advance(&audio, |_| {});
+        let (still, _) = playback.advance(&audio, |_| {});
         assert_eq!(still.parts(), (false, None, None), "the playhead stayed");
+    }
+
+    #[test]
+    fn playing_to_the_end_is_told_once_and_again_after_playing_back_to_it() {
+        let playback = Playback::new(PlayerCore::new(RATE));
+        let ended = |playback: &Playback| {
+            playback
+                .advance(&memory(&["k0", "k1", "k2", "k3"]), |_| {})
+                .1
+        };
+        drop(playback.start(speech(&[0, 1, 2, 3]), 3));
+        assert_eq!(ended(&playback), None);
+        listen(&playback, 5_000);
+        assert_eq!(ended(&playback).as_deref(), Some("b"));
+        assert_eq!(ended(&playback), None, "told once");
+        drop(playback.seek(3, None));
+        drop(playback.play());
+        assert_eq!(ended(&playback), None);
+        listen(&playback, 5_000);
+        assert_eq!(ended(&playback).as_deref(), Some("b"));
     }
 }

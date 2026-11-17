@@ -98,7 +98,6 @@ pub use speech_problems::SpeechProblem;
 mod tagging;
 pub use tagging::{TaggingRun, TaggingSettings};
 mod pronunciation;
-#[allow(dead_code)] // Until the tick loop drives it (the next slice).
 mod queue;
 pub use pronunciation::AffectedView;
 mod takes;
@@ -122,6 +121,8 @@ mod feeds_tests;
 mod fixtures;
 #[cfg(test)]
 mod generation_tests;
+#[cfg(test)]
+mod queue_tests;
 #[cfg(test)]
 mod recording_tests;
 #[cfg(test)]
@@ -219,6 +220,8 @@ pub struct Core {
     /// What went wrong with the speech engine lately.
     speech_problems: speech_problems::SpeechProblems,
     tagging: tagging::Tagging,
+    /// What plays next.
+    queue: queue::Queue,
     /// The sleep timer, the media keys and the player state last sent.
     controls: controls::Controls,
     /// Exact word timings being asked for.
@@ -381,6 +384,7 @@ impl Core {
         let launching =
             launching::Launching::new(Arc::clone(&library), Arc::clone(&events), reporter.clone());
         let inbox = inbox::Inbox::new(Arc::clone(&events));
+        let queue = queue::Queue::new(Arc::clone(&library));
         let core = Arc::new(Self {
             articles,
             feeds,
@@ -409,6 +413,7 @@ impl Core {
             generation,
             speech_problems: Default::default(),
             tagging: Default::default(),
+            queue,
             controls: Default::default(),
             aligner,
             settings: config::Settings::new(config),
@@ -520,6 +525,7 @@ impl Core {
         segment_id: Option<String>,
     ) -> Result<(), String> {
         self.start_playing(book_id, chapter, segment_id).await?;
+        self.queue.started(book_id);
         self.played();
         Ok(())
     }
@@ -747,11 +753,12 @@ impl Core {
                 library: &self.library,
                 audio_dir: &self.paths.audio_dir,
             };
-            let moved = self
+            let (moved, ended) = self
                 .playback
                 .advance(&audio, |to_align| self.align(to_align));
             // Advancing never opens or closes the output.
             let _ = self.follow_through(moved);
+            self.queue_tick(ended);
             self.output.keep_alive(&self.playback);
             let state = self.player_state();
             self.sleep(controls::SleepEvent::Tick {
