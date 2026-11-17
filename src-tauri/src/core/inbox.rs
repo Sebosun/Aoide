@@ -310,7 +310,9 @@ impl Inbox {
         });
         let _watcher = match watcher {
             Ok(watcher) => watcher,
-            Err(error) => {
+            Err(mut error) => {
+                // Its message would name the folder, which logs never do.
+                error.paths.clear();
                 self.lost(&error.to_string());
                 return Ended::Lost;
             }
@@ -913,6 +915,36 @@ mod tests {
         // A browser's placeholder stays empty until the download is renamed over it.
         inbox.pass_at(dir.path(), at(10), &host);
         assert_eq!(host.taken(), ["Growing.epub"]);
+    }
+
+    #[test]
+    fn a_folder_that_cannot_be_watched_is_logged_without_its_path() {
+        #[derive(Clone, Default)]
+        struct Lines(Arc<Mutex<Vec<u8>>>);
+        impl std::io::Write for Lines {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                lock(&self.0).extend_from_slice(buf);
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let gone = dir.path().join("Stick-7f3a");
+        let lines = Lines::default();
+        let written = lines.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(move || written.clone())
+            .finish();
+        let inbox = inbox();
+        inbox.set_folder(Some(gone));
+        inbox.stop();
+        tracing::subscriber::with_default(subscriber, || inbox.run(&Imports::default()));
+
+        let text = String::from_utf8(lock(&lines.0).clone()).unwrap();
+        assert!(text.contains("inbox.unavailable"), "{text}");
+        assert!(!text.contains("Stick-7f3a"), "{text}");
     }
 
     #[test]
