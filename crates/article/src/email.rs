@@ -329,6 +329,7 @@ fn section(title: &str, text: String) -> ExcludedSection {
             kind: BlockKind::Paragraph,
             text: text.clone(),
             break_before: false,
+            layout: None,
         }]
     };
     ExcludedSection {

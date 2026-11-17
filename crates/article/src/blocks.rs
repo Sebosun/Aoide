@@ -94,6 +94,7 @@ impl Builder<'_> {
             kind,
             text,
             break_before: std::mem::take(&mut self.after_break),
+            layout: None,
         });
     }
 

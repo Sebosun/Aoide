@@ -203,3 +203,24 @@ fn a_table_that_is_not_a_grid_of_lines_stays_text_only() {
         "an empty cell is an empty range"
     );
 }
+
+#[test]
+fn code_keeps_its_lines_and_indentation_beside_its_collapsed_text() {
+    let book = parse_epub(&illustrated(), &ParseOptions::default()).unwrap();
+    let code = &book.chapters[0].blocks[9];
+    assert_eq!(code.text, "fn light() { lamp.on(); }", "the text as it was");
+    assert_eq!(
+        code.layout.as_deref(),
+        Some("fn light() {\n    lamp.on();\n}")
+    );
+    // Only code has a layout; a line break in code is a line.
+    assert!(book.chapters[0].blocks[1].layout.is_none());
+    let found = parse_epub(
+        &support::single("<pre>a\n  b <b>c</b>\n\n\n</pre><pre>one line</pre>"),
+        &ParseOptions::default(),
+    )
+    .unwrap();
+    let blocks = &found.chapters[0].blocks;
+    assert_eq!(blocks[0].layout.as_deref(), Some("a\n  b c"));
+    assert_eq!(blocks[1].layout, None, "nothing to keep");
+}

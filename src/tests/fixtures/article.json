@@ -28,6 +28,7 @@
     "blocks": [
       {
         "kind": "paragraph",
+        "layout": null,
         "level": null,
         "segments": [
           {
@@ -105,6 +106,7 @@
       },
       {
         "kind": "heading",
+        "layout": null,
         "level": 2,
         "segments": [
           {
@@ -128,6 +130,7 @@
       },
       {
         "kind": "paragraph",
+        "layout": null,
         "level": null,
         "segments": [
           {
@@ -224,6 +227,7 @@
       },
       {
         "kind": "paragraph",
+        "layout": null,
         "level": null,
         "segments": [
           {

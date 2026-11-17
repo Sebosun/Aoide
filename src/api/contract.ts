@@ -231,7 +231,11 @@ canSayAgain: boolean,
  */
 note: boolean, notes: Array<NoteMarker>, };
 
-export type BlockView = { kind: string, level: number | null, segments: Array<SegmentView>, };
+export type BlockView = { kind: string, level: number | null, segments: Array<SegmentView>, 
+/**
+ * Code as written (line breaks, indentation): the same words as its segments.
+ */
+layout: string | null, };
 
 export type ChapterSummary = { index: number, title: string, 
 /**

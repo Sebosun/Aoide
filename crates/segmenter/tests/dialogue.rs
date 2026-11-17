@@ -51,6 +51,7 @@ fn segments(text: &str, split: bool) -> Vec<aoide_text::Segment> {
         kind: BlockKind::Paragraph,
         text: text.into(),
         break_before: false,
+        layout: None,
     }];
     segment_chapter(
         0,

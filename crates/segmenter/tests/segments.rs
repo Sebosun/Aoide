@@ -8,6 +8,7 @@ fn p(text: &str) -> Block {
         kind: BlockKind::Paragraph,
         text: text.into(),
         break_before: false,
+        layout: None,
     }
 }
 
@@ -16,6 +17,7 @@ fn h(text: &str) -> Block {
         kind: BlockKind::Heading { level: 1 },
         text: text.into(),
         break_before: false,
+        layout: None,
     }
 }
 
@@ -125,6 +127,7 @@ fn a_scene_break_without_letters_carries_the_break_pause_itself() {
 fn a_rule_before_a_block_gives_the_segment_before_it_the_break_pause() {
     let after_rule = Block {
         break_before: true,
+        layout: None,
         ..p("After.")
     };
     let blocks = [p("Before. And more before."), after_rule, p("The end.")];

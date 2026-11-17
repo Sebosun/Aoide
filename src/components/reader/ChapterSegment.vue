@@ -26,7 +26,16 @@ const props = defineProps<{
   openNote: string | null;
   /** Its highlighted parts (see `highlights.ts`). */
   marks: readonly Mark[];
+  /** Code: the whitespace after each word as written. Drawn after the single space that is
+   *  counted as the text's, as what is not the text (`data-not-text`), so line breaks and
+   *  indentation show and selections still count single spaces. */
+  gaps?: readonly string[] | null;
 }>();
+/** What of word `i`'s gap is drawn beyond its counted single space. */
+const extra = (i: number) => {
+  const gap = props.gaps?.[i] ?? " ";
+  return gap.startsWith(" ") ? gap.slice(1) : gap;
+};
 const emit = defineEmits<{ play: []; marker: [note: NoteMarker] }>();
 /** The sentence's words in runs, each ending where footnote markers follow a word (the last
  *  ends with the sentence), with those markers. */
@@ -72,9 +81,12 @@ const wordAt = computed(() => {
     @keydown.enter.prevent="clickable && emit('play')"
     @keydown.space.prevent="clickable && emit('play')"
     ><template v-for="(run, r) in runs" :key="run.first"
-      ><template v-if="current"
+      ><template v-if="current || gaps"
         >{{ r > 0 ? " " : ""
-        }}<template v-for="(text, i) in run.words" :key="i"
+        }}<span v-if="gaps && r > 0 && extra(run.first - 1)" class="chapter-segment__gap" data-not-text>{{
+          extra(run.first - 1)
+        }}</span
+        ><template v-for="(text, i) in run.words" :key="i"
           ><span class="chapter-segment__word" :class="{ 'chapter-segment__word--current': word === run.first + i }"
             ><template v-for="(piece, p) in pieces(text, wordAt[run.first + i], marks)" :key="p"
               ><mark v-if="piece.id !== null" class="chapter-segment__mark" :data-highlight-id="piece.id">{{
@@ -88,7 +100,9 @@ const wordAt = computed(() => {
                 piece.text
               }}</mark
               ><template v-else>{{ piece.text }}</template></template
-            ></template
+            ><span v-if="gaps && extra(run.first + i)" class="chapter-segment__gap" data-not-text>{{
+              extra(run.first + i)
+            }}</span></template
           ></template
         ></template
       ><template v-else
@@ -121,7 +135,10 @@ const wordAt = computed(() => {
           >{{ note.text ?? "The text of this note was not found in the book." }}</span
         >
       </button></template
-    >{{ " " }}</span
+    >{{ " "
+    }}<span v-if="gaps && extra(segment.words.length - 1)" class="chapter-segment__gap" data-not-text>{{
+      extra(segment.words.length - 1)
+    }}</span></span
   >
 </template>
 

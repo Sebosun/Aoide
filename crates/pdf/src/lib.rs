@@ -392,6 +392,7 @@ fn paragraphs(pages: &[Vec<Line>]) -> Vec<Placed> {
                     kind: BlockKind::Paragraph,
                     text: paragraph.text,
                     break_before: false,
+                    layout: None,
                 },
             });
         }
@@ -419,6 +420,7 @@ fn paragraphs(pages: &[Vec<Line>]) -> Vec<Placed> {
                             kind: BlockKind::Heading { level: 2 },
                             text: line.text.clone(),
                             break_before: false,
+                            layout: None,
                         },
                     }),
                 }
@@ -540,6 +542,7 @@ fn chapters(
                         kind: BlockKind::Heading { level: 1 },
                         text: title.clone(),
                         break_before: false,
+                        layout: None,
                     },
                 ),
             }

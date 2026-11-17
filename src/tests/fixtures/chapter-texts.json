@@ -4,6 +4,7 @@
       "blocks": [
         {
           "kind": "heading",
+          "layout": null,
           "level": 2,
           "segments": [
             {
@@ -27,6 +28,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -132,6 +134,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -224,6 +227,7 @@
       "blocks": [
         {
           "kind": "heading",
+          "layout": null,
           "level": 2,
           "segments": [
             {
@@ -247,6 +251,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -315,6 +320,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -380,6 +386,7 @@
       "blocks": [
         {
           "kind": "heading",
+          "layout": null,
           "level": 2,
           "segments": [
             {
@@ -403,6 +410,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -472,6 +480,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -535,6 +544,7 @@
       "blocks": [
         {
           "kind": "heading",
+          "layout": null,
           "level": 2,
           "segments": [
             {
@@ -560,6 +570,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -638,6 +649,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -705,6 +717,7 @@
       "blocks": [
         {
           "kind": "heading",
+          "layout": null,
           "level": 2,
           "segments": [
             {
@@ -730,6 +743,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -794,6 +808,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -843,6 +858,7 @@
       "blocks": [
         {
           "kind": "heading",
+          "layout": null,
           "level": 2,
           "segments": [
             {
@@ -866,6 +882,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -925,6 +942,7 @@
       "blocks": [
         {
           "kind": "heading",
+          "layout": null,
           "level": 2,
           "segments": [
             {
@@ -946,6 +964,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -1001,6 +1020,7 @@
       "blocks": [
         {
           "kind": "heading",
+          "layout": null,
           "level": 2,
           "segments": [
             {
@@ -1022,6 +1042,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -1077,6 +1098,7 @@
       "blocks": [
         {
           "kind": "heading",
+          "layout": null,
           "level": 1,
           "segments": [
             {
@@ -1096,6 +1118,7 @@
         },
         {
           "kind": "paragraph",
+          "layout": null,
           "level": null,
           "segments": [
             {
@@ -1164,6 +1187,7 @@
         },
         {
           "kind": "preformatted",
+          "layout": "fn main() {\n    println!(\"tide\");\n\n        let  x = 1;\n}",
           "level": null,
           "segments": [
             {
@@ -1199,6 +1223,7 @@
         },
         {
           "kind": "listItem",
+          "layout": null,
           "level": null,
           "segments": [
             {

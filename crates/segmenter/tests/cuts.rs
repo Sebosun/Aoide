@@ -6,6 +6,7 @@ fn row(text: &str) -> Block {
         kind: BlockKind::Paragraph,
         text: text.into(),
         break_before: false,
+        layout: None,
     }
 }
 

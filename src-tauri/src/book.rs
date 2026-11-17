@@ -22,6 +22,8 @@ pub struct ChapterModel {
     pub tables: Vec<aoide_document::TableShape>,
     /// Where each block starts in `text`, in characters.
     pub block_starts: Vec<usize>,
+    /// Each code block's layout (see [`BlockView::layout`]).
+    pub layouts: Vec<Option<String>>,
 }
 
 pub struct BookModel {
@@ -76,6 +78,8 @@ pub struct BlockView {
     pub kind: &'static str,
     pub level: Option<u8>,
     pub segments: Vec<SegmentView>,
+    /// Code as written (line breaks, indentation): the same words as its segments.
+    pub layout: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -256,6 +260,19 @@ impl BookModel {
                     inserts: chapter.inserts.clone(),
                     tables: chapter.tables.clone(),
                     block_starts: offsets,
+                    // An article's code keeps its whitespace in its text; an EPUB's beside it.
+                    layouts: chapter
+                        .blocks
+                        .iter()
+                        .map(|b| match b.kind {
+                            BlockKind::Preformatted => b.layout.clone().or_else(|| {
+                                let collapsed =
+                                    b.text.split_whitespace().collect::<Vec<_>>().join(" ");
+                                (collapsed != b.text).then(|| b.text.clone())
+                            }),
+                            _ => None,
+                        })
+                        .collect(),
                 };
                 first_entry += model.segments.len();
                 model
@@ -385,7 +402,9 @@ impl BookModel {
         let mut blocks: Vec<BlockView> = model
             .block_kinds
             .iter()
-            .map(|kind| {
+            .enumerate()
+            .map(|(block, kind)| {
+                let layout = model.layouts.get(block).cloned().flatten();
                 let (kind, level) = match kind {
                     BlockKind::Heading { level } => ("heading", Some(*level)),
                     BlockKind::Paragraph => ("paragraph", None),
@@ -396,6 +415,7 @@ impl BookModel {
                     kind,
                     level,
                     segments: Vec::new(),
+                    layout,
                 }
             })
             .collect();
@@ -785,6 +805,7 @@ pub(crate) mod tests {
             kind,
             text: text.into(),
             break_before: false,
+            layout: None,
         }
     }
 
@@ -1116,6 +1137,21 @@ pub(crate) mod tests {
             warnings: vec![],
             excluded: vec![],
         }
+    }
+
+    #[test]
+    fn code_is_drawn_as_written_and_other_blocks_have_no_layout() {
+        let view = every_shape().chapter_view(0).unwrap();
+        let layouts: Vec<Option<&str>> = view.blocks.iter().map(|b| b.layout.as_deref()).collect();
+        assert_eq!(
+            layouts,
+            [
+                None,
+                None,
+                Some("fn main() {\n    println!(\"tide\");\n\n        let  x = 1;\n}"),
+                None
+            ]
+        );
     }
 
     #[test]

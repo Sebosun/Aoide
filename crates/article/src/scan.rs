@@ -149,6 +149,7 @@ pub(crate) fn plain(html: &str, options: &ExtractOptions) -> Body {
                 kind: BlockKind::Paragraph,
                 text,
                 break_before: std::mem::take(after_break),
+                layout: None,
             });
         }
     };

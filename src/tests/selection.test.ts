@@ -248,3 +248,22 @@ it("does not play a sentence on a click of another button than the main one (Web
   await sentence.trigger("click", { button: 0 });
   expect(wrapper!.emitted("play")).toEqual([["0:1:0"]]);
 });
+
+it("draws code with its lines and indentation, and a selection across them is its words", () => {
+  const { text, chapter } = shapes;
+  const root = draw(chapter);
+  const code = root.querySelector("pre")!;
+  // As written on the page (the counted spaces end each line).
+  expect(code.textContent).toContain('fn main() { \n    println!("tide"); \n\n        let  x = 1; \n}');
+  const id = chapter.blocks.find((b) => b.kind === "preformatted")!.segments[0].id;
+  const words = segment(chapter, id).words;
+  const from = words.indexOf("main()"),
+    to = words.indexOf("let");
+  const range = rangeOfSelection(
+    select(wordPoint(root, chapter, id, from), wordPoint(root, chapter, id, to, true)),
+    root,
+    chapter,
+  );
+  expect(range?.text).toBe('main() { println!("tide"); let');
+  expect(slice(text, range!.start, range!.end)).toBe('main() {\n    println!("tide");\n\n        let');
+});

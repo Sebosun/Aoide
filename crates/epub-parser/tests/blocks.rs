@@ -12,6 +12,7 @@ fn block(kind: BlockKind, text: &str) -> Block {
         kind,
         text: text.into(),
         break_before: false,
+        layout: None,
     }
 }
 

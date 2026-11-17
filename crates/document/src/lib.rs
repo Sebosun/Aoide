@@ -213,6 +213,8 @@ pub struct Block {
     /// A scene break stands before this block: a rule (`<hr>`) or an empty element styled as
     /// one. It adds no block of its own, so block indexes (and segment ids) stay the same.
     pub break_before: bool,
+    /// Code as written (line breaks, indentation), when `text` collapsed it: the same words.
+    pub layout: Option<String>,
 }
 
 /// Whether a class or type name marks an element as a scene break (`scene-break`,

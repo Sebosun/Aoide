@@ -77,6 +77,36 @@ const captions = computed(
       ),
     ),
 );
+/** Code drawn as written: the whitespace before its first word, and after each word of each
+ *  sentence, by block (`null` if the layout's words are not the sentences'). */
+const codeGaps = computed(() => {
+  const by = new Map<number, { lead: string; gaps: Map<string, string[]> }>();
+  props.chapter.blocks.forEach((block, index) => {
+    if (!block.layout) return;
+    const layout = block.layout,
+      space = /\s*/y;
+    const gap = () => {
+      const found = space.exec(layout)?.[0] ?? "";
+      return found;
+    };
+    space.lastIndex = 0;
+    const lead = gap();
+    let at = space.lastIndex;
+    const gaps = new Map<string, string[]>();
+    for (const segment of block.segments) {
+      const after: string[] = [];
+      for (const word of segment.words) {
+        if (!layout.startsWith(word, at)) return;
+        space.lastIndex = at + word.length;
+        after.push(gap());
+        at = space.lastIndex;
+      }
+      gaps.set(segment.id, after);
+    }
+    by.set(index, { lead, gaps });
+  });
+  return by;
+});
 /** Tables by their first row's block; the blocks of their other rows. */
 const tableAt = computed(() => new Map(props.chapter.tables.map((table) => [table.firstBlock, table])));
 const inTable = computed(
@@ -183,6 +213,7 @@ const chapterMissing = computed(
           class="chapter-text__block"
           :class="[`chapter-text__block--${block.kind}`, { 'chapter-text__block--caption': captions.has(index) }]"
         >
+          <span v-if="codeGaps.get(index)?.lead" data-not-text>{{ codeGaps.get(index)!.lead }}</span>
           <ChapterSegment
             v-for="segment in block.segments"
             :key="segment.id"
@@ -194,6 +225,7 @@ const chapterMissing = computed(
             :margin-notes="marginNotes"
             :open-note="openNote?.startsWith(`${segment.id}:`) ? openNote : null"
             :marks="marks.get(segment.id) ?? NO_MARKS"
+            :gaps="codeGaps.get(index)?.gaps.get(segment.id) ?? null"
             @play="emit('play', segment.id)"
             @marker="marker(segment, $event)"
           />

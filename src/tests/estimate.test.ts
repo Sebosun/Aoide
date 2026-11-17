@@ -9,6 +9,7 @@ const chapter: ChapterView = {
     {
       kind: "heading",
       level: 2,
+      layout: null,
       segments: [
         { id: "0:0:0", words: ["Title"], starts: [0], speakable: true, canSayAgain: true, note: false, notes: [] },
       ],
@@ -16,6 +17,7 @@ const chapter: ChapterView = {
     {
       kind: "paragraph",
       level: null,
+      layout: null,
       segments: [
         {
           id: "0:1:0",

@@ -671,6 +671,7 @@ impl super::Core {
             kind: aoide_text::BlockKind::Paragraph,
             text: text.into(),
             break_before,
+            layout: None,
         };
         let blocks = [
             block(

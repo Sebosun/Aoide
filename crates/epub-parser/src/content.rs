@@ -21,6 +21,8 @@ pub(crate) struct Content {
     captions: HashMap<usize, usize>,
     /// Empty tokens where a table's parts open and close.
     table_marks: HashMap<usize, TableMark>,
+    /// Text tokens in code as written, whitespace kept.
+    raw: HashMap<usize, String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -139,6 +141,8 @@ impl Content {
         let mut pictures = Vec::new();
         // The block each caption begins in, by figure.
         let mut caption_blocks: HashMap<usize, usize> = HashMap::new();
+        // The line as written, for code (whose whitespace is its layout).
+        let mut raw_line = String::new();
         let mut tables = Vec::new();
         let mut table: Option<TableBuild> = None;
         let mut blocks = Vec::new();
@@ -150,6 +154,7 @@ impl Content {
         let finish = |blocks: &mut Vec<Block>,
                       refs: &mut Vec<(NoteRef, String)>,
                       line: &mut String,
+                      raw_line: &mut String,
                       kind: &mut Option<BlockKind>,
                       pending: &mut Vec<(usize, String, String)>,
                       after_break: &mut bool| {
@@ -166,14 +171,19 @@ impl Content {
                         href,
                     ));
                 }
+                let layout = (kind == BlockKind::Preformatted)
+                    .then(|| layout_of(raw_line, &text))
+                    .flatten();
                 blocks.push(Block {
                     kind,
                     text,
                     break_before: std::mem::take(after_break),
+                    layout,
                 });
             }
             pending.clear();
             line.clear();
+            raw_line.clear();
         };
         for index in start..end {
             let token = &self.tokens[index];
@@ -182,6 +192,7 @@ impl Content {
                     &mut blocks,
                     &mut refs,
                     &mut line,
+                    &mut raw_line,
                     &mut kind,
                     &mut pending,
                     &mut after_break,
@@ -257,11 +268,13 @@ impl Content {
                 kind = Some(self.kinds[index]);
             }
             line.push_str(token);
+            raw_line.push_str(self.raw.get(&index).unwrap_or(token));
         }
         finish(
             &mut blocks,
             &mut refs,
             &mut line,
+            &mut raw_line,
             &mut kind,
             &mut pending,
             &mut after_break,
@@ -321,6 +334,7 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
         pictures: HashMap::new(),
         captions: HashMap::new(),
         table_marks: HashMap::new(),
+        raw: HashMap::new(),
     };
     // Figures open around the element being read, innermost last; and how many there were.
     let mut figures: Vec<(ego_tree::NodeId, usize)> = Vec::new();
@@ -434,13 +448,18 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
                         content.push("", &stack);
                     }
                 }
-                Node::Text(text) if suppressed == 0 => content.push(
-                    &text
-                        .chars()
-                        .map(|c| if c.is_whitespace() { ' ' } else { c })
-                        .collect::<String>(),
-                    &stack,
-                ),
+                Node::Text(text) if suppressed == 0 => {
+                    if stack.last() == Some(&BlockKind::Preformatted) {
+                        content.raw.insert(content.tokens.len(), text.to_string());
+                    }
+                    content.push(
+                        &text
+                            .chars()
+                            .map(|c| if c.is_whitespace() { ' ' } else { c })
+                            .collect::<String>(),
+                        &stack,
+                    );
+                }
                 _ => {}
             },
             Edge::Close(node) => {
@@ -695,6 +714,17 @@ fn heading_level(name: &str) -> Option<u8> {
         "h6" => Some(6),
         _ => None,
     }
+}
+
+/// Code as written (`raw`), when it differs from its collapsed `text`: its blank lines at the
+/// ends dropped, the first line's indentation kept. `None` if its words are not the text's.
+fn layout_of(raw: &str, text: &str) -> Option<String> {
+    let end = raw.trim_end();
+    let first_line = end.len() - end.trim_start().len();
+    let start = end[..first_line].rfind('\n').map_or(0, |at| at + 1);
+    let layout = &end[start..];
+    let same_words = layout.split_whitespace().eq(text.split_whitespace());
+    (same_words && layout != text).then(|| layout.to_owned())
 }
 
 /// The `src` of a picture to show: `<img>` or SVG's `<image>`, unless marked as decoration.
