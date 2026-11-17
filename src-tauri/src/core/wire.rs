@@ -59,6 +59,20 @@ pub struct BookSummary {
     pub queued: bool,
     /// The details the user corrected by hand; the rest are the file's.
     pub edited: Vec<super::details::DetailField>,
+    /// The series it is in, as its file names it or as the user corrected it.
+    pub series: Option<SeriesView>,
+    /// When it was finished; `None` while unread or in progress.
+    pub finished_at: Option<i64>,
+}
+
+/// A series an item belongs to, and its place in it.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct SeriesView {
+    pub name: String,
+    /// Can be fractional (2.5); `None` when the series gives no order.
+    pub position: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -316,6 +316,7 @@
     "coverPath": null,
     "durationMs": null,
     "edited": [],
+    "finishedAt": null,
     "id": "book-6",
     "kind": "article",
     "language": "en",
@@ -326,6 +327,7 @@
     "queued": false,
     "readState": "unread",
     "recording": null,
+    "series": null,
     "shape": "read",
     "status": {
       "kind": "present"

@@ -37,7 +37,12 @@
     "article": null,
     "archived": false,
     "queued": false,
-    "edited": []
+    "edited": [],
+    "series": {
+      "name": "The Coast Books",
+      "position": 1.0
+    },
+    "finishedAt": null
   },
   {
     "id": "book-1",
@@ -72,7 +77,9 @@
     "article": null,
     "archived": false,
     "queued": false,
-    "edited": []
+    "edited": [],
+    "series": null,
+    "finishedAt": null
   },
   {
     "id": "book-2",
@@ -106,7 +113,9 @@
     "article": null,
     "archived": false,
     "queued": false,
-    "edited": []
+    "edited": [],
+    "series": null,
+    "finishedAt": null
   },
   {
     "id": "book-3",
@@ -139,7 +148,12 @@
     "article": null,
     "archived": false,
     "queued": false,
-    "edited": []
+    "edited": [],
+    "series": {
+      "name": "The Coast Books",
+      "position": 2.0
+    },
+    "finishedAt": null
   },
   {
     "id": "book-4",
@@ -169,6 +183,8 @@
     "article": null,
     "archived": false,
     "queued": false,
-    "edited": []
+    "edited": [],
+    "series": null,
+    "finishedAt": null
   }
 ]

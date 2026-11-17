@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::lock;
 
 /// What the user changed; each field `None` while it is the file's.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct DetailsEdit {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -24,6 +24,11 @@ pub struct DetailsEdit {
     pub cover: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub published: Option<String>,
+    /// The series' name; empty when the user took the book out of any series.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub series: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub series_position: Option<f32>,
 }
 
 /// A detail that can be corrected by hand.
@@ -35,6 +40,8 @@ pub enum DetailField {
     Authors,
     Cover,
     Published,
+    /// Its series or its place in it.
+    Series,
 }
 
 impl DetailsEdit {
@@ -45,6 +52,10 @@ impl DetailsEdit {
             (self.authors.is_some(), DetailField::Authors),
             (self.cover.is_some(), DetailField::Cover),
             (self.published.is_some(), DetailField::Published),
+            (
+                self.series.is_some() || self.series_position.is_some(),
+                DetailField::Series,
+            ),
         ]
         .into_iter()
         .filter_map(|(edited, field)| edited.then_some(field))
@@ -69,6 +80,15 @@ pub fn apply(mut record: BookRecord, edit: &DetailsEdit, covers: &Path) -> BookR
     if let Some(cover) = &edit.cover {
         record.cover_path = Some(covers.join(cover));
     }
+    if let Some(series) = &edit.series {
+        record.series = (!series.is_empty()).then(|| series.clone());
+    }
+    if let Some(position) = edit.series_position {
+        record.series_position = Some(position);
+    }
+    if record.series.is_none() {
+        record.series_position = None;
+    }
     record
 }
 
@@ -90,6 +110,13 @@ pub struct DetailsPatch {
     #[serde(deserialize_with = "super::settings::present")]
     #[cfg_attr(test, ts(optional))]
     pub published: Option<Option<String>>,
+    /// Its series' name; an empty name takes it out of any series.
+    #[serde(deserialize_with = "super::settings::present")]
+    #[cfg_attr(test, ts(optional))]
+    pub series: Option<Option<String>>,
+    #[serde(deserialize_with = "super::settings::present")]
+    #[cfg_attr(test, ts(optional))]
+    pub series_position: Option<Option<f32>>,
 }
 
 /// What a cover is kept as when the user picks it.
@@ -176,6 +203,17 @@ impl super::Core {
         if let Some(published) = patch.published {
             edit.published = blank_is_none(published);
             fields.push("published");
+        }
+        if let Some(series) = patch.series {
+            edit.series = series.map(|name| name.trim().to_owned());
+            fields.push("series");
+        }
+        if let Some(position) = patch.series_position {
+            if position.is_some_and(|p| !p.is_finite()) {
+                return Err("A place in a series is a number.".into());
+            }
+            edit.series_position = position;
+            fields.push("series_position");
         }
         if let Some(cover) = patch.cover {
             edit.cover = match cover {
@@ -322,6 +360,52 @@ mod tests {
             assert_eq!(shown(&edit), expected, "{edit:?}");
             assert_eq!(edit.edited(), edited, "{edit:?}");
         }
+    }
+
+    #[test]
+    fn a_corrected_series_wins_and_an_empty_one_is_none() {
+        let covers = Path::new("/data/covers");
+        let mut file = record();
+        file.series = Some("Harbour Lights".into());
+        file.series_position = Some(2.0);
+        let shown = |edit: DetailsEdit| {
+            let r = apply(file.clone(), &edit, covers);
+            (r.series, r.series_position, edit.edited())
+        };
+        assert_eq!(
+            shown(DetailsEdit::default()),
+            (Some("Harbour Lights".into()), Some(2.0), vec![])
+        );
+        assert_eq!(
+            shown(DetailsEdit {
+                series_position: Some(3.0),
+                ..DetailsEdit::default()
+            }),
+            (
+                Some("Harbour Lights".into()),
+                Some(3.0),
+                vec![DetailField::Series]
+            )
+        );
+        assert_eq!(
+            shown(DetailsEdit {
+                series: Some("The Lamp Room".into()),
+                ..DetailsEdit::default()
+            }),
+            (
+                Some("The Lamp Room".into()),
+                Some(2.0),
+                vec![DetailField::Series]
+            )
+        );
+        // In no series, by hand.
+        assert_eq!(
+            shown(DetailsEdit {
+                series: Some(String::new()),
+                ..DetailsEdit::default()
+            }),
+            (None, None, vec![DetailField::Series])
+        );
     }
 
     #[test]

@@ -252,6 +252,8 @@ pub enum LibrarySort {
     Title,
     Author,
     Progress,
+    /// By series and place in it; books in no series after.
+    Series,
     /// Also used for an order this version does not know.
     #[default]
     #[serde(other)]

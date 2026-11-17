@@ -86,7 +86,15 @@ queued: boolean,
 /**
  * The details the user corrected by hand; the rest are the file's.
  */
-edited: Array<DetailField>, };
+edited: Array<DetailField>, 
+/**
+ * The series it is in, as its file names it or as the user corrected it.
+ */
+series: SeriesView | null, 
+/**
+ * When it was finished; `None` while unread or in progress.
+ */
+finishedAt: number | null, };
 
 export type HomeView = { 
 /**
@@ -593,7 +601,7 @@ subjects: Array<string>,
  */
 coverUrl: string | null, };
 
-export type LibrarySort = "title" | "author" | "progress" | "recent";
+export type LibrarySort = "title" | "author" | "progress" | "series" | "recent";
 
 export type TagFilter = { include: Array<string>, exclude: Array<string>, };
 
@@ -887,9 +895,19 @@ export type FetchStage = { "kind": "queued" } | { "kind": "fetching" } | { "kind
 
 export type ArticleSource = "http" | "archive" | "feed" | "browser" | "email";
 
-export type DetailsPatch = { title?: string | null, authors?: Array<string> | null, cover?: string | null, published?: string | null, };
+export type DetailsPatch = { title?: string | null, authors?: Array<string> | null, cover?: string | null, published?: string | null, 
+/**
+ * Its series' name; an empty name takes it out of any series.
+ */
+series?: string | null, seriesPosition?: number | null, };
 
-export type DetailField = "title" | "authors" | "cover" | "published";
+export type DetailField = "title" | "authors" | "cover" | "published" | "series";
+
+export type SeriesView = { name: string, 
+/**
+ * Can be fractional (2.5); `None` when the series gives no order.
+ */
+position: number | null, };
 
 export type DiscoveredFeed = { url: string, title: string | null, subscribed: boolean, };
 

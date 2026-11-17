@@ -83,10 +83,13 @@ pub fn home(books: &[BookSummary]) -> HomeView {
         list.into_iter().take(n).map(|b| b.id.clone()).collect()
     };
     let continue_ids = ids(continuing, CONTINUE);
-    let up_next_ids = ids(
-        newest.iter().copied().filter(|b| !started(b)).collect(),
-        UP_NEXT,
-    );
+    let mut unstarted: Vec<&BookSummary> = newest.iter().copied().filter(|b| !started(b)).collect();
+    // The next book of the series just finished goes first.
+    if let Some(next) = next_in_series(books, &usable).filter(|b| !started(b)) {
+        unstarted.retain(|b| b.id != next.id);
+        unstarted.insert(0, next);
+    }
+    let up_next_ids = ids(unstarted, UP_NEXT);
     let recent_ids = ids(
         newest
             .into_iter()
@@ -99,6 +102,37 @@ pub fn home(books: &[BookSummary]) -> HomeView {
         up_next_ids,
         recent_ids,
     }
+}
+
+/// A series' name as it is matched: trimmed, case folded. No fuzzier matching: a wrong merge
+/// is worse than two shelves, and a name can be corrected by hand.
+pub(super) fn series_key(name: &str) -> String {
+    name.trim().to_lowercase()
+}
+
+/// The book after the most recently finished item in its series, among `items`: the one with
+/// the next higher place. None when that item has no series or nothing follows it.
+fn next_in_series<'a>(books: &[BookSummary], items: &[&'a BookSummary]) -> Option<&'a BookSummary> {
+    let last = books
+        .iter()
+        .filter(|b| b.finished_at.is_some())
+        .max_by_key(|b| b.finished_at)?;
+    let series = last.series.as_ref()?;
+    let (key, after) = (series_key(&series.name), series.position?);
+    items
+        .iter()
+        .copied()
+        .filter(|b| {
+            b.series.as_ref().is_some_and(|s| {
+                series_key(&s.name) == key && s.position.is_some_and(|p| p > after)
+            })
+        })
+        .min_by(|a, b| {
+            let place = |b: &BookSummary| b.series.as_ref().and_then(|s| s.position);
+            place(a)
+                .partial_cmp(&place(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
 }
 
 impl super::Core {
@@ -191,7 +225,70 @@ mod tests {
             archived: false,
             queued: false,
             edited: Vec::new(),
+            series: None,
+            finished_at: None,
         }
+    }
+
+    fn in_series(
+        id: &str,
+        added_at: i64,
+        position: f32,
+        finished_at: Option<i64>,
+        started: bool,
+    ) -> BookSummary {
+        let mut item = book(id, added_at, None, started.then_some(0.3));
+        item.series = Some(crate::core::SeriesView {
+            name: "Harbour Lights".into(),
+            position: Some(position),
+        });
+        if finished_at.is_some() {
+            item.finished_at = finished_at;
+            item.read_state = crate::core::ReadState::Finished;
+            item.progress = Some(BookProgressView {
+                chapter: 0,
+                segment_id: None,
+                fraction: 1.0,
+                position_ms: None,
+            });
+        }
+        item
+    }
+
+    #[test]
+    fn the_next_book_of_a_series_just_finished_comes_first_up_next() {
+        let other = |id: &str, added_at| book(id, added_at, None, None);
+        // Two finished, the second most recently: its next book (by place, not by when it
+        // was added) goes first, ahead of newer books.
+        let books = vec![
+            in_series("one", 1, 1.0, Some(100), false),
+            in_series("two", 2, 2.0, Some(200), false),
+            in_series("four", 3, 4.0, None, false),
+            in_series("three", 4, 3.0, None, false),
+            other("newer", 50),
+        ];
+        assert_eq!(home(&books).up_next_ids[..2], ["three", "newer"]);
+
+        // Its next one started, or archived, or none left: the usual order.
+        let mut started = books.clone();
+        started[3] = in_series("three", 4, 3.0, None, true);
+        assert_eq!(home(&started).up_next_ids[0], "newer");
+        let mut archived = books.clone();
+        archived[3].archived = true;
+        assert_eq!(home(&archived).up_next_ids[0], "four");
+        let last = vec![
+            in_series("one", 1, 1.0, Some(300), false),
+            in_series("two", 2, 2.0, Some(200), false),
+            other("newer", 50),
+        ];
+        assert_eq!(home(&last).up_next_ids[0], "newer");
+        // The latest finished has no series: nothing moves.
+        let mut plain = books.clone();
+        plain[4].finished_at = Some(900);
+        plain[4].read_state = crate::core::ReadState::Finished;
+        plain[4].progress = started[3].progress.clone();
+        plain.push(other("newest", 60));
+        assert_eq!(home(&plain).up_next_ids[0], "newest");
     }
 
     #[test]

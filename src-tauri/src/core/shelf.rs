@@ -618,6 +618,11 @@ impl Shelf {
             archived: record.archived_at.is_some(),
             queued,
             edited,
+            series: record.series.map(|name| super::SeriesView {
+                name,
+                position: record.series_position,
+            }),
+            finished_at: record.finished_at,
         }
     }
 

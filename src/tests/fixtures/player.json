@@ -1,52 +1,5 @@
 {
   "at": {
-    "book-0": {
-      "0:0:0": {
-        "bookLeftMs": 35000,
-        "chapterLeftMs": 19000,
-        "chapterMs": 19915
-      },
-      "0:1:0": {
-        "bookLeftMs": 33000,
-        "chapterLeftMs": 18000,
-        "chapterMs": 19915
-      },
-      "0:1:1": {
-        "bookLeftMs": 29000,
-        "chapterLeftMs": 14000,
-        "chapterMs": 19915
-      },
-      "0:2:0": {
-        "bookLeftMs": 24000,
-        "chapterLeftMs": 8000,
-        "chapterMs": 19915
-      },
-      "0:2:1": {
-        "bookLeftMs": 21000,
-        "chapterLeftMs": 5000,
-        "chapterMs": 19915
-      },
-      "1:0:0": {
-        "bookLeftMs": 15000,
-        "chapterLeftMs": 15000,
-        "chapterMs": 15582
-      },
-      "1:1:0": {
-        "bookLeftMs": 13000,
-        "chapterLeftMs": 13000,
-        "chapterMs": 15582
-      },
-      "1:1:1": {
-        "bookLeftMs": 10000,
-        "chapterLeftMs": 10000,
-        "chapterMs": 15582
-      },
-      "1:2:0": {
-        "bookLeftMs": 6000,
-        "chapterLeftMs": 6000,
-        "chapterMs": 15582
-      }
-    },
     "book-1": {
       "0:0:0": {
         "bookLeftMs": 56000,
@@ -124,6 +77,53 @@
         "bookLeftMs": 5000,
         "chapterLeftMs": 5000,
         "chapterMs": 6866
+      }
+    },
+    "book-0": {
+      "0:0:0": {
+        "bookLeftMs": 35000,
+        "chapterLeftMs": 19000,
+        "chapterMs": 19915
+      },
+      "0:1:0": {
+        "bookLeftMs": 33000,
+        "chapterLeftMs": 18000,
+        "chapterMs": 19915
+      },
+      "0:1:1": {
+        "bookLeftMs": 29000,
+        "chapterLeftMs": 14000,
+        "chapterMs": 19915
+      },
+      "0:2:0": {
+        "bookLeftMs": 24000,
+        "chapterLeftMs": 8000,
+        "chapterMs": 19915
+      },
+      "0:2:1": {
+        "bookLeftMs": 21000,
+        "chapterLeftMs": 5000,
+        "chapterMs": 19915
+      },
+      "1:0:0": {
+        "bookLeftMs": 15000,
+        "chapterLeftMs": 15000,
+        "chapterMs": 15582
+      },
+      "1:1:0": {
+        "bookLeftMs": 13000,
+        "chapterLeftMs": 13000,
+        "chapterMs": 15582
+      },
+      "1:1:1": {
+        "bookLeftMs": 10000,
+        "chapterLeftMs": 10000,
+        "chapterMs": 15582
+      },
+      "1:2:0": {
+        "bookLeftMs": 6000,
+        "chapterLeftMs": 6000,
+        "chapterMs": 15582
       }
     }
   },

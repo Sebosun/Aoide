@@ -1321,8 +1321,8 @@
         "call": "listBooks",
         "error": null,
         "expect": {
-          "[id=book-0].queued": false,
-          "[id=book-1].queued": true
+          "[id=book-1].queued": true,
+          "[id=book-0].queued": false
         }
       },
       {
@@ -1685,6 +1685,7 @@
             "Ellis Reed"
           ],
           "[id=book-1].edited": [],
+          "[id=book-1].series": null,
           "[id=book-1].title": "A Map of Quiet Places"
         }
       },
@@ -1697,6 +1698,8 @@
               " "
             ],
             "published": "1998",
+            "series": " Harbour Lights ",
+            "seriesPosition": 2.5,
             "title": "  A Map of Quiet Harbours "
           }
         },
@@ -1715,8 +1718,13 @@
           "[id=book-1].edited": [
             "title",
             "authors",
-            "published"
+            "published",
+            "series"
           ],
+          "[id=book-1].series": {
+            "name": "Harbour Lights",
+            "position": 2.5
+          },
           "[id=book-1].title": "A Map of Quiet Harbours"
         }
       },
@@ -1734,7 +1742,38 @@
         "args": {
           "bookId": "book-1",
           "patch": {
+            "series": ""
+          }
+        },
+        "call": "editDetails",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].authors": [
+            "Ada Brightwater"
+          ],
+          "[id=book-1].edited": [
+            "title",
+            "authors",
+            "published",
+            "series"
+          ],
+          "[id=book-1].series": null,
+          "[id=book-1].title": "A Map of Quiet Harbours"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "patch": {
             "published": "",
+            "series": null,
+            "seriesPosition": null,
             "title": null
           }
         },
@@ -1753,6 +1792,7 @@
           "[id=book-1].edited": [
             "authors"
           ],
+          "[id=book-1].series": null,
           "[id=book-1].title": "A Map of Quiet Places"
         }
       },
@@ -2458,10 +2498,10 @@
         "call": "scanForBooks",
         "error": null,
         "expect": {
-          "[id=book-0].audiobook.0": "~/Documents/The Lantern Keeper.m4b",
-          "[id=book-0].status": "inLibrary",
           "[id=h-glass].audiobook.length": 0,
           "[id=h-glass].status": "new",
+          "[id=book-0].audiobook.0": "~/Documents/The Lantern Keeper.m4b",
+          "[id=book-0].status": "inLibrary",
           "[id=h-tide].audiobook.length": 1,
           "[id=h-tide].paths.length": 2,
           "[id=h-tide].status": "new",

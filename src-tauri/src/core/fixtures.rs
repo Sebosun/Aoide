@@ -42,6 +42,8 @@ struct Book {
     /// The text of footnote `n1`, kept at the end of the first chapter (its marker is in the
     /// chapter's text).
     footnote: Option<&'static str>,
+    /// Its series and place in it, as Calibre writes them.
+    series: Option<(&'static str, &'static str)>,
 }
 
 /// The browser preview's books, with original text.
@@ -64,6 +66,7 @@ const BOOKS: [Book; 4] = [
         ],
         notes: false,
         footnote: Some("A short original note shown in the browser preview."),
+        series: Some(("The Coast Books", "1")),
     },
     Book {
         title: "A Map of Quiet Places",
@@ -92,6 +95,7 @@ const BOOKS: [Book; 4] = [
         ],
         notes: true,
         footnote: None,
+        series: None,
     },
     Book {
         title: "The Absent Orchard",
@@ -103,6 +107,7 @@ const BOOKS: [Book; 4] = [
         ]],
         notes: false,
         footnote: None,
+        series: None,
     },
     Book {
         title: "An Unfinished Atlas",
@@ -114,6 +119,7 @@ const BOOKS: [Book; 4] = [
         ]],
         notes: false,
         footnote: None,
+        series: Some(("The Coast Books", "2")),
     },
 ];
 
@@ -130,6 +136,7 @@ const FOUND: [Book; 2] = [
         ]],
         notes: false,
         footnote: None,
+        series: None,
     },
     Book {
         title: "The Glass Meridian",
@@ -141,6 +148,7 @@ const FOUND: [Book; 2] = [
         ]],
         notes: false,
         footnote: None,
+        series: None,
     },
 ];
 
@@ -267,6 +275,9 @@ fn epub(book: &Book) -> Vec<u8> {
             book.subjects
                 .iter()
                 .map(|s| format!("<dc:subject>{s}</dc:subject>"))
+                .chain(book.series.map(|(name, index)| format!(
+                    r#"<meta name="calibre:series" content="{name}"/><meta name="calibre:series_index" content="{index}"/>"#
+                )))
                 .collect::<String>()
         ),
     ));
@@ -1866,10 +1877,20 @@ async fn scenarios_for_the_ui_mock() {
 
     let mut s = Scenario::new("details are corrected by hand and set back", "");
     let book = |field: &str| format!("[id={second}].{field}");
-    let (title, authors, edited) = (book("title"), book("authors"), book("edited"));
-    let shown = [title.as_str(), authors.as_str(), edited.as_str()];
+    let (title, authors, edited, series) = (
+        book("title"),
+        book("authors"),
+        book("edited"),
+        book("series"),
+    );
+    let shown = [
+        title.as_str(),
+        authors.as_str(),
+        edited.as_str(),
+        series.as_str(),
+    ];
     s.step("listBooks", json!({}), &core.list_books(), &shown);
-    let patch = json!({"title": "  A Map of Quiet Harbours ", "authors": ["Ada Brightwater", " "], "published": "1998"});
+    let patch = json!({"title": "  A Map of Quiet Harbours ", "authors": ["Ada Brightwater", " "], "published": "1998", "series": " Harbour Lights ", "seriesPosition": 2.5});
     s.step(
         "editDetails",
         json!({"bookId": second, "patch": patch}),
@@ -1883,7 +1904,16 @@ async fn scenarios_for_the_ui_mock() {
         &core.book_details(&second),
         &["published"],
     );
-    let back = json!({"title": null, "published": ""});
+    // In no series, by hand.
+    let none = json!({"series": ""});
+    s.step(
+        "editDetails",
+        json!({"bookId": second, "patch": none}),
+        &core.edit_details(&second, serde_json::from_value(none.clone()).unwrap()),
+        &[],
+    );
+    s.step("listBooks", json!({}), &core.list_books(), &shown);
+    let back = json!({"title": null, "published": "", "series": null, "seriesPosition": null});
     s.step(
         "editDetails",
         json!({"bookId": second, "patch": back}),

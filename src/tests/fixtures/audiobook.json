@@ -42,6 +42,7 @@
     "coverPath": null,
     "durationMs": 1545,
     "edited": [],
+    "finishedAt": null,
     "id": "book-5",
     "kind": "audiobook",
     "language": null,
@@ -52,6 +53,7 @@
     "queued": false,
     "readState": "unread",
     "recording": "standalone",
+    "series": null,
     "shape": "listen",
     "status": {
       "kind": "present"

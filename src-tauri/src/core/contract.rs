@@ -137,6 +137,7 @@ fn contract() -> String {
         super::articles::ArticleSource,
         super::details::DetailsPatch,
         super::details::DetailField,
+        super::wire::SeriesView,
         super::feeds::DiscoveredFeed,
         super::articles::ArticleView,
         super::articles::ArticleSummary,
