@@ -40,6 +40,9 @@ pub enum ExclusionReason {
     Index,
     Colophon,
     Credits,
+    /// A newsletter's mailing parts: its "view online" link, its unsubscribe footer, its
+    /// tracking images.
+    Mailing,
 }
 
 #[derive(Debug, PartialEq, Eq)]

@@ -81,6 +81,16 @@ pub struct Published {
 
 /// Reads the article in `html`, which was fetched from `url`.
 pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
+    // An email's mailing parts are taken out before the page is read.
+    let (cleaned, excluded) = match options.email {
+        true => email::clean(html),
+        false => (String::new(), Vec::new()),
+    };
+    let html = if options.email {
+        cleaned.as_str()
+    } else {
+        html
+    };
     let (body, read, signs, feeds) = if scan::nesting(html) > options.max_depth {
         let meta = ArticleMeta {
             title: scan::title(html),
@@ -168,7 +178,7 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
             notes: Vec::new(),
             chapters: vec![chapter],
             warnings,
-            excluded: Vec::new(),
+            excluded,
         },
         meta,
         completeness,

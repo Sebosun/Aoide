@@ -166,3 +166,121 @@ fn a_short_email_is_whole_and_an_empty_one_is_not() {
         Completeness::Empty
     );
 }
+
+/// Three newsletters as different senders build them: the body, and the mailing parts around
+/// it that are not the letter.
+const NEWSLETTERS: [&str; 3] = [
+    // Paragraphs, a header link and a footer paragraph.
+    r#"<html><body>
+<p style="font-size:11px"><a href="https://quay.example/w/1">View this email in your browser</a></p>
+<h1>Quay Notes</h1>
+<p>The new crane on the north quay lifted its first container on Monday, two weeks late.</p>
+<p>Dockers say it is quieter than the old one, and the gulls have not yet learned to sit on it.</p>
+<p class="footer">You are receiving this because you signed up at quay.example. <a href="https://quay.example/u?id=7">Unsubscribe</a> · 1 Harbour Row, Portsea</p>
+<img src="https://track.quay.example/o.gif" width="1" height="1" alt="">
+</body></html>"#,
+    // Tables, as most mailing tools write them.
+    r#"<html><body><table width="100%"><tr><td>
+<table><tr><td align="right"><a href="https://lights.example/web">Read online</a></td></tr></table>
+<table><tr><td>
+<h2>Lamp Room</h2>
+<p>This month the lamp on the west head was cleaned and its glass replaced after the storm.</p>
+<p>Keepers logged eleven ships passing in fog, the most since the spring of the year before.</p>
+</td></tr></table>
+<table><tr><td style="font-size:10px;color:#999">
+<p>Lighthouse Letters, Lamp Lane 4.</p>
+<p><a href="https://lights.example/prefs">Update your preferences</a> or <a href="https://lights.example/unsub">unsubscribe from this list</a>.</p>
+</td></tr></table>
+<img src="https://px.lights.example/p.png" style="display:none" alt="">
+</td></tr></table></body></html>"#,
+    // Divs, and a footer of several lines.
+    r#"<html><body><div class="wrapper">
+<div class="preheader">Trouble reading? <a href="https://tide.example/i/3">View it online</a>.</div>
+<div class="content">
+<p>Spring tides arrive on the ninth, and the ferry will run to the tide table, not the clock.</p>
+<p>The pontoon on the outer harbour stays closed while divers check its moorings this week.</p>
+</div>
+<div class="footer">
+<p>Copyright 2026 Tide Table Weekly.</p>
+<p>Want to change how you receive these emails? <a href="https://tide.example/manage">Manage your subscription</a>.</p>
+</div>
+<img src="https://open.tide.example/x.gif" width="1" height="1">
+</div></body></html>"#,
+];
+
+#[test]
+fn a_newsletters_mailing_parts_are_left_out_and_reported_the_same_each_time() {
+    use aoide_article::{extract, ExtractOptions};
+    let email = ExtractOptions {
+        email: true,
+        ..ExtractOptions::default()
+    };
+    let url = url::Url::parse("email:letter@quay.example").unwrap();
+    let kept = [
+        ["first container on Monday", "gulls have not yet learned"],
+        ["west head was cleaned", "eleven ships passing in fog"],
+        [
+            "ferry will run to the tide table",
+            "divers check its moorings",
+        ],
+    ];
+    let gone = [
+        ["View this email", "Unsubscribe", "1 Harbour Row"],
+        ["Read online", "unsubscribe from this list", "Lamp Lane 4"],
+        [
+            "Trouble reading",
+            "Manage your subscription",
+            "Copyright 2026",
+        ],
+    ];
+    for (n, html) in NEWSLETTERS.iter().enumerate() {
+        let read = extract(html, &url, &email);
+        let text = &read.document.chapters[0].text;
+        for words in kept[n] {
+            assert!(
+                text.contains(words),
+                "newsletter {n} keeps {words:?}: {text}"
+            );
+        }
+        for words in gone[n] {
+            assert!(
+                !text.contains(words),
+                "newsletter {n} leaves out {words:?}: {text}"
+            );
+        }
+        let excluded: Vec<(&str, String)> = read
+            .document
+            .excluded
+            .iter()
+            .map(|e| (e.chapter.title.as_str(), format!("{:?}", e.reason)))
+            .collect();
+        assert_eq!(
+            excluded,
+            [
+                ("View online link", "Mailing".to_string()),
+                ("Mailing footer", "Mailing".to_string()),
+                ("Tracking image", "Mailing".to_string()),
+            ],
+            "newsletter {n}"
+        );
+        assert!(read.document.excluded[1].chapter.text.contains(gone[n][1]));
+        // Read again, the same.
+        assert_eq!(extract(html, &url, &email).document, read.document);
+    }
+}
+
+#[test]
+fn a_web_page_keeps_its_footer_and_a_short_email_its_only_paragraph() {
+    use aoide_article::{extract, ExtractOptions};
+    let url = url::Url::parse("https://quay.example/notes").unwrap();
+    let web = extract(NEWSLETTERS[0], &url, &ExtractOptions::default());
+    assert!(web.document.excluded.is_empty());
+    let email = ExtractOptions {
+        email: true,
+        ..ExtractOptions::default()
+    };
+    // The whole letter is one line beside its unsubscribe link: it stays.
+    let short = r#"<p>No ferry today. <a href="https://quay.example/unsub">Unsubscribe</a></p>"#;
+    let read = extract(short, &url, &email);
+    assert!(read.document.chapters[0].text.contains("No ferry today"));
+}

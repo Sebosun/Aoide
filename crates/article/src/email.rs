@@ -1,7 +1,10 @@
 //! A saved email (`.eml`) as a page: its HTML part, or its plain text in paragraphs, with the
 //! headers an article shows. Pure: nothing it links to is fetched.
 
+use aoide_document::{Block, BlockKind, Chapter, ExcludedSection, ExclusionReason};
+use ego_tree::NodeId;
 use mail_parser::{MessageParser, PartType};
+use scraper::{ElementRef, Html, Selector};
 use url::Url;
 
 use crate::Published;
@@ -168,4 +171,174 @@ fn view_online(html: &str) -> Option<Url> {
         let url = Url::parse(link.value().attr("href")?.trim()).ok()?;
         matches!(url.scheme(), "http" | "https").then_some(url)
     })
+}
+
+/// What an unsubscribe footer's links say.
+const FOOTER_LINKS: &[&str] = &[
+    "unsubscribe",
+    "manage your subscription",
+    "manage subscription",
+    "manage your preferences",
+    "update your preferences",
+    "email preferences",
+    "opt out",
+    "opt-out",
+];
+
+/// Words a "view online" line may have.
+const HEADER_WORDS: usize = 30;
+/// Words a mailing footer may have.
+const FOOTER_WORDS: usize = 80;
+
+/// `html` without a newsletter's mailing parts (its "view online" line, its unsubscribe
+/// footer, its tracking images), and each part that was taken out.
+pub(crate) fn clean(html: &str) -> (String, Vec<ExcludedSection>) {
+    let mut page = Html::parse_document(html);
+    let Some(body) = select(&page, "body").into_iter().next() else {
+        return (html.to_owned(), Vec::new());
+    };
+    let total = words(page.tree.get(body).and_then(ElementRef::wrap));
+    let mut excluded = Vec::new();
+    let header = select(&page, "a[href]")
+        .into_iter()
+        .find(|&id| link_says(&page, id, VIEW_ONLINE))
+        .and_then(|link| part(&page, link, HEADER_WORDS, total));
+    if let Some(id) = header {
+        excluded.push(section("View online link", text(&page, id)));
+        detach(&mut page, id);
+    }
+    let footer = select(&page, "a")
+        .into_iter()
+        .rev()
+        .find(|&id| link_says(&page, id, FOOTER_LINKS))
+        .and_then(|link| part(&page, link, FOOTER_WORDS, total));
+    if let Some(id) = footer {
+        excluded.push(section("Mailing footer", text(&page, id)));
+        detach(&mut page, id);
+    }
+    let pixels: Vec<NodeId> = select(&page, "img")
+        .into_iter()
+        .filter(|&id| tracking(&page, id))
+        .collect();
+    if !pixels.is_empty() {
+        let count = pixels.len();
+        excluded.push(section(
+            "Tracking image",
+            format!("{count} image{}", if count == 1 { "" } else { "s" }),
+        ));
+        for id in pixels {
+            detach(&mut page, id);
+        }
+    }
+    (page.html(), excluded)
+}
+
+fn select(page: &Html, selector: &str) -> Vec<NodeId> {
+    let selector = Selector::parse(selector).expect("a valid selector");
+    page.select(&selector).map(|e| e.id()).collect()
+}
+
+fn element(page: &Html, id: NodeId) -> Option<ElementRef<'_>> {
+    page.tree.get(id).and_then(ElementRef::wrap)
+}
+
+fn text(page: &Html, id: NodeId) -> String {
+    element(page, id)
+        .map(|e| e.text().collect::<Vec<_>>().join(" "))
+        .unwrap_or_default()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn words(element: Option<ElementRef<'_>>) -> usize {
+    element.map_or(0, |e| e.text().flat_map(str::split_whitespace).count())
+}
+
+/// Whether link `id`'s text, or its address, says one of `phrases`.
+fn link_says(page: &Html, id: NodeId, phrases: &[&str]) -> bool {
+    let said = text(page, id).to_lowercase();
+    let href = element(page, id)
+        .and_then(|e| e.value().attr("href"))
+        .unwrap_or_default()
+        .to_lowercase();
+    phrases
+        .iter()
+        .any(|p| said.contains(p) || (p.len() > 8 && href.contains(&p.replace(' ', ""))))
+}
+
+/// The mailing part around `link`: the largest block holding it that has at most `limit`
+/// words and less than half of the letter's `total`; `None` when even the closest is more.
+fn part(page: &Html, link: NodeId, limit: usize, total: usize) -> Option<NodeId> {
+    let fits = |id: NodeId| {
+        let n = words(element(page, id));
+        n <= limit && n * 2 < total
+    };
+    let mut best = None;
+    let mut node = page.tree.get(link)?;
+    loop {
+        let Some(e) = ElementRef::wrap(node) else {
+            break;
+        };
+        if matches!(e.value().name(), "body" | "html") || !fits(node.id()) {
+            break;
+        }
+        best = Some(node.id());
+        let Some(parent) = node.parent() else {
+            break;
+        };
+        node = parent;
+    }
+    best
+}
+
+/// An image that only tells the sender the email was opened: one pixel, or hidden.
+fn tracking(page: &Html, id: NodeId) -> bool {
+    let Some(img) = element(page, id) else {
+        return false;
+    };
+    let tiny = |name: &str| {
+        img.value()
+            .attr(name)
+            .is_some_and(|v| matches!(v.trim().trim_end_matches("px"), "0" | "1"))
+    };
+    let style = img
+        .value()
+        .attr("style")
+        .unwrap_or_default()
+        .replace(' ', "")
+        .to_lowercase();
+    tiny("width")
+        || tiny("height")
+        || style.contains("display:none")
+        || style.contains("width:1px")
+        || style.contains("height:1px")
+}
+
+fn detach(page: &mut Html, id: NodeId) {
+    if let Some(mut node) = page.tree.get_mut(id) {
+        node.detach();
+    }
+}
+
+fn section(title: &str, text: String) -> ExcludedSection {
+    let blocks = if text.is_empty() {
+        Vec::new()
+    } else {
+        vec![Block {
+            kind: BlockKind::Paragraph,
+            text: text.clone(),
+            break_before: false,
+        }]
+    };
+    ExcludedSection {
+        chapter: Chapter {
+            title: title.into(),
+            text,
+            blocks,
+            note_refs: Vec::new(),
+            sources: Vec::new(),
+        },
+        reason: ExclusionReason::Mailing,
+    }
 }
