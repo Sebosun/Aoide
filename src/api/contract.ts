@@ -278,7 +278,11 @@ export type SleepView = {
 /**
  * Milliseconds until playback pauses, when timed.
  */
-remainingMs: number | null, endOfChapter: boolean, };
+remainingMs: number | null, endOfChapter: boolean, 
+/**
+ * Started again by playing soon after it paused playback (the pill says "again").
+ */
+extended: boolean, };
 
 export type SpeedScope = "usual" | "book";
 

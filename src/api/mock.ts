@@ -416,6 +416,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const listed = () => structuredClone(found).map((c) => (recordings.has(c.id) ? { ...c, audiobook: [] } : c));
   const query = new URLSearchParams(search);
   const mode = query.get("theme");
+  /** `?sleep=again|again-chapter`: a 15-minute (or end-of-chapter) sleep timer has just paused
+   *  playback; the first play starts it again. */
+  let sleptJustNow = ["again", "again-chapter"].includes(query.get("sleep") ?? "") ? query.get("sleep") : null;
   /** The speech engine's problems (core/speech_problems.rs), newest first; one to show with
    *  `?speech-problems`. */
   let speechProblems: SpeechProblem[] = query.has("speech-problems")
@@ -1354,6 +1357,16 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         durationMs: null,
         partPositionMs: null,
       });
+      if (sleptJustNow) {
+        // `?sleep=again|again-chapter`: the sleep timer had just paused playback, so playing
+        // starts it again, as the core does (core/controls.rs).
+        const endOfChapter = sleptJustNow === "again-chapter";
+        sleptJustNow = null;
+        emitPlayer({
+          ...state,
+          sleep: { remainingMs: endOfChapter ? null : 15 * 60_000, endOfChapter, extended: true },
+        });
+      }
       emitGeneration({ ...(structuredClone(fixtureGenerationPlaying) as GenerationState), bookId: id });
       run();
     },
@@ -1549,7 +1562,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         sleep:
           minutes === null && !endOfChapter
             ? null
-            : { remainingMs: minutes === null ? null : minutes * 60_000, endOfChapter },
+            : { remainingMs: minutes === null ? null : minutes * 60_000, endOfChapter, extended: false },
       });
     },
     async searchBook({ bookId: id, query }) {

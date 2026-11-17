@@ -90,6 +90,8 @@ export function usePlayerControls() {
     () => player.state.sleep,
     (sleep) => {
       if (!sleep) sleepChoice.value = "off";
+      // Started again by the core (playing soon after it paused playback).
+      else if (sleepChoice.value === "off") sleepChoice.value = sleep.endOfChapter ? "chapter" : "";
     },
   );
   function setSleep(value: string) {
@@ -101,9 +103,10 @@ export function usePlayerControls() {
   const sleepLabel = computed(() => {
     const sleep = player.state.sleep;
     if (!sleep) return "";
-    if (sleep.remainingMs === null) return "End of chapter";
+    const again = sleep.extended ? "again, " : "";
+    if (sleep.remainingMs === null) return again ? "again, end of chapter" : "End of chapter";
     const seconds = Math.ceil(sleep.remainingMs / 1000);
-    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+    return `${again}${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
   });
   async function bookmark() {
     const id = player.state.bookId ?? reader.book?.id;

@@ -392,4 +392,6 @@ pub struct SleepView {
     /// Milliseconds until playback pauses, when timed.
     pub remaining_ms: Option<u64>,
     pub end_of_chapter: bool,
+    /// Started again by playing soon after it paused playback (the pill says "again").
+    pub extended: bool,
 }

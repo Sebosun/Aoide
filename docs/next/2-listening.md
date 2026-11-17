@@ -339,10 +339,10 @@ enum Sleep {
     Off,
     Running { until: Until, minutes: Option<u32> },      // Until::At(Instant) | EndOfChapter(usize)
     Fading { ends: Instant, minutes: u32 },              // last 20 s of a timed sleep
-    Stopping { since: Instant, minutes: Option<u32> },   // due; waiting for the sentence's end
+    Stopping { since: Instant, minutes: u32 },           // due; waiting for the sentence's end
     Rang { at: Instant, minutes: Option<u32>, end_of_chapter: bool },
 }
-enum SleepEvent { Set(..), Cancelled, Tick(Instant), Paused, Played(Instant) }
+enum SleepEvent { Set(..), Cancelled, Tick { now, chapter, playing }, Paused(Instant), Played { now, chapter } }
 fn next(sleep: Sleep, event: SleepEvent) -> (Sleep, Option<SleepAction>)
 enum SleepAction { Fade(f32), PauseAtEntryEnd, PauseAtChapterEnd(usize), Pause, RestoreGain }
 ```
@@ -366,6 +366,13 @@ enum SleepAction { Fade(f32), PauseAtEntryEnd, PauseAtChapterEnd(usize), Pause, 
   number.
 
 `SleepView` gains `extended: bool`, shown by the pill ("again, 15 min"); fading is not shown.
+
+(Built: `Running`, `Fading` and `Stopping` carry `extended` too, for the view. The pill keeps its
+countdown and puts "again, " before it ("again, 14:59"), or says "again" by the moon for the end
+of the chapter. A pause while fading or stopping counts as the ring, and play while fading starts
+the timer again; a timed sleep that comes due while paused just ends. Ending the chapter is set up
+again on each play in that chapter, since a new playlist drops the player's pause. The preview
+reaches the state with `sleep=again|again-chapter`.)
 
 ### Slices
 

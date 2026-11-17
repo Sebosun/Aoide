@@ -10,8 +10,13 @@ watch(
   () => player.sleepMenu,
   () => select.value?.show(),
 );
-/** Only a running countdown is spelled out; otherwise the moon (lit while set) says enough. */
-const countdown = computed(() => player.state.sleep?.remainingMs != null);
+/** Only a running countdown is spelled out, and "again" on a timer that playing soon after it
+ *  paused started again; otherwise the moon (lit while set) says enough. */
+const text = computed(() => {
+  const sleep = player.state.sleep;
+  if (sleep?.remainingMs != null) return sleepLabel.value;
+  return sleep?.extended ? "again" : "";
+});
 const title = computed(() =>
   player.state.sleep
     ? `Sleep timer: ${sleepLabel.value === "End of chapter" ? "end of chapter" : sleepLabel.value}`
@@ -38,7 +43,7 @@ const options = computed(() => [
     @update:model-value="setSleep"
   >
     <template #value
-      ><Moon :size="15" aria-hidden="true" /><span v-if="countdown">{{ sleepLabel }}</span></template
+      ><Moon :size="15" aria-hidden="true" /><span v-if="text">{{ text }}</span></template
     >
   </UiSelect>
 </template>

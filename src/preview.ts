@@ -35,7 +35,9 @@ import fixtureArticle from "@/tests/fixtures/article.json";
  *  `added=one|several` shows the toast for books the inbox folder added; `inbox=unavailable`
  *  chooses an inbox folder that is gone (`settings=library` shows it);
  *  `archived=book-1,book-3` archives those items (`filter=archive` shows the library's Archive);
- *  `finished=1` shows the toast for an article just finished, offering Archive. */
+ *  `finished=1` shows the toast for an article just finished, offering Archive;
+ *  `sleep=again|again-chapter` has a 15-minute (or end-of-chapter) sleep timer just rung, so the
+ *  first play starts it again (the pill says "again"). */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
   const view = query.get("view") as View | null,

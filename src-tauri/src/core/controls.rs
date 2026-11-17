@@ -360,28 +360,26 @@ impl Controls {
     pub fn sleep_view(&self) -> Option<SleepView> {
         let now = Instant::now();
         let left = |ends: Instant| Some(ends.saturating_duration_since(now).as_millis() as u64);
-        match *lock(&self.sleep) {
+        let (remaining_ms, end_of_chapter, extended) = match *lock(&self.sleep) {
             Sleep::Running {
                 until: Until::At(ends),
+                extended,
                 ..
             }
-            | Sleep::Fading { ends, .. } => Some(SleepView {
-                remaining_ms: left(ends),
-                end_of_chapter: false,
-            }),
-            Sleep::Stopping { .. } => Some(SleepView {
-                remaining_ms: Some(0),
-                end_of_chapter: false,
-            }),
+            | Sleep::Fading { ends, extended, .. } => (left(ends), false, extended),
+            Sleep::Stopping { extended, .. } => (Some(0), false, extended),
             Sleep::Running {
                 until: Until::EndOfChapter(_),
+                extended,
                 ..
-            } => Some(SleepView {
-                remaining_ms: None,
-                end_of_chapter: true,
-            }),
-            Sleep::Off | Sleep::Rang { .. } => None,
-        }
+            } => (None, true, extended),
+            Sleep::Off | Sleep::Rang { .. } => return None,
+        };
+        Some(SleepView {
+            remaining_ms,
+            end_of_chapter,
+            extended,
+        })
     }
 
     /// Takes the player's `state` at a tick: tells the media keys of a new status or chapter
@@ -811,7 +809,7 @@ mod tests {
             now,
         });
         let view = controls.sleep_view().expect("set");
-        assert!(!view.end_of_chapter);
+        assert!(!view.end_of_chapter && !view.extended);
         assert!(view
             .remaining_ms
             .is_some_and(|ms| ms > 290_000 && ms <= 300_000));
@@ -834,6 +832,13 @@ mod tests {
         assert_eq!(controls.sleep(tick(3)), Some(SleepAction::Pause));
         assert_eq!(controls.sleep(tick(4)), None, "it rings once");
         assert_eq!(controls.sleep_view(), None);
+
+        controls.sleep(SleepEvent::Played { now, chapter: 4 });
+        let view = controls.sleep_view().expect("started again");
+        assert_eq!(
+            (view.remaining_ms, view.end_of_chapter, view.extended),
+            (None, true, true)
+        );
     }
 
     #[test]

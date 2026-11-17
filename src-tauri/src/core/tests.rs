@@ -929,9 +929,10 @@ async fn a_due_sleep_timer_pauses_where_a_sentence_ends_and_playing_soon_after_s
     core.resume().unwrap();
     let again = core.player_state().sleep.expect("set again");
     assert!(
-        again
-            .remaining_ms
-            .is_some_and(|ms| (14 * 60_000..=15 * 60_000).contains(&ms)),
+        again.extended
+            && again
+                .remaining_ms
+                .is_some_and(|ms| (14 * 60_000..=15 * 60_000).contains(&ms)),
         "{again:?}"
     );
     core.stop();
@@ -951,7 +952,7 @@ async fn a_sleep_timer_for_the_end_of_the_chapter_pauses_before_the_next_one_beg
 
     core.resume().unwrap();
     let again = core.player_state().sleep.expect("set again");
-    assert!(again.end_of_chapter, "{again:?}");
+    assert!(again.end_of_chapter && again.extended, "{again:?}");
     core.stop();
 }
 

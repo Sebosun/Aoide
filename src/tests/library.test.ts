@@ -170,6 +170,43 @@ it("removes a book after confirming in a dialog from its card menu", async () =>
   host.unmount();
 });
 
+it("says again on the sleep timer that playing soon after it paused started again", async () => {
+  mock.dispose();
+  mock = createMockApi("?sleep=again");
+  backend.api = mock;
+  await useLibraryStore().start();
+  await usePlayerStore().start();
+  const wrapper = mount(MiniPlayer);
+  await mock.play({ bookId: "book-0", chapter: 1, segmentId: "1:1:0" });
+  await flushPromises();
+  const card = wrapper.get('[aria-label="Now playing"]');
+  expect(card.text()).toContain("sleep again, 15:00");
+  const pill = wrapper.get('[aria-label="Sleep timer"]');
+  expect(pill.text()).toBe("again, 15:00");
+  expect(pill.attributes("title")).toBe("Sleep timer: again, 15:00");
+  expect(pill.classes()).toContain("sleep-pill--on");
+  // Set anew, it is just the countdown.
+  await mock.setSleepTimer({ minutes: 30, endOfChapter: false });
+  await flushPromises();
+  expect(pill.text()).toBe("30:00");
+  wrapper.unmount();
+});
+
+it("says again on a sleep timer for the end of the chapter started again", async () => {
+  mock.dispose();
+  mock = createMockApi("?sleep=again-chapter");
+  backend.api = mock;
+  await useLibraryStore().start();
+  await usePlayerStore().start();
+  const wrapper = mount(MiniPlayer);
+  await mock.play({ bookId: "book-0", chapter: 1, segmentId: "1:1:0" });
+  await flushPromises();
+  const pill = wrapper.get('[aria-label="Sleep timer"]');
+  expect(pill.text()).toBe("again");
+  expect(pill.attributes("title")).toBe("Sleep timer: again, end of chapter");
+  wrapper.unmount();
+});
+
 it("shows the playing book in the now-playing card, and opens the reader from it", async () => {
   await useLibraryStore().start();
   await usePlayerStore().start();
