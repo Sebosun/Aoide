@@ -21,6 +21,8 @@ New dependencies must build on the workspace's Rust 1.77.2 (`rust-version` in
 
 **Size:** M
 
+**Built:** 2026-11-17 (285fb19..44a1cfb)
+
 ### Outcome
 
 Choose the export file from Pocket, Instapaper, Omnivore, Wallabag or Readwise Reader, or a
@@ -217,6 +219,31 @@ keeps its own `article.save`, `article.stage` and `article.fetch` lines.
 
 - Every chosen link is fetched at import, not kept as "not fetched yet" to fetch on open
   (decided 2026-11-16).
+
+### As built
+
+- **Not checked against real exports.** No real Pocket, Instapaper, Omnivore, Wallabag or
+  Readwise Reader export was at hand, so each parser follows the column lists above and the
+  apps' documented formats, on synthetic files. Try one export of each before relying on it.
+- `Stage` carries no counts: `Idle, Reading, Choosing, Fetching, Paused, Done`, and
+  `LinkImportView` has `found`, `unread`, `already`, `duplicates`, `notWeb` (from reading) and
+  `of`, `ready`, `partial`, `failed` (counted from the items' article stages on every change).
+- One `pause_link_import(paused)` command instead of pause and resume; also `link_import`
+  (the view now) and `dismiss_link_import`, which finishes the stored import and hides the
+  summary. A restart with every item settled shows the summary again until it is dismissed.
+- Cancel while choosing forgets the links read (back to `Idle`); cancel while fetching or
+  paused removes the items still on the background lane and goes to `Done`. The one being
+  fetched at that moment is kept.
+- Only items the import made are archived from the old app's archived state; a link already
+  in the library keeps its own. `LinkChoice::Recent` sorts by `saved_at` (none counts as
+  oldest).
+- The background lane's host is the article's canonical address's host. `BACKGROUND_PAUSE` is
+  2 s (zero under `cfg(test)`), measured from the end of one background fetch to the start of
+  the next; a user's save in between is fetched without waiting.
+- The export is read whole, up to 64 MB.
+- The dialog's "most recent" count starts at no more than the number found and is clamped in
+  code: a field limit made the form invalid and silently blocked Import (caught on a
+  WebKitGTK screenshot, not by jsdom).
 
 ---
 
