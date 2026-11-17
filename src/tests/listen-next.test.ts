@@ -129,3 +129,16 @@ it("shows a queued article's reason gone once it has been fetched", async () => 
     vi.useRealTimers();
   }
 });
+
+it("queues an item from Home's Up next, and takes it off again", async () => {
+  mock.setHomeForTest({ continueIds: [], upNextIds: ["book-1"], recentIds: [] });
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await wrapper.get('[aria-label="Add A Map of Quiet Places to the queue"]').trigger("click");
+  await flushPromises();
+  expect((await mock.queue()).items.map((i) => i.bookId)).toEqual(["book-1"]);
+  await wrapper.get('[aria-label="Take A Map of Quiet Places off the queue"]').trigger("click");
+  await flushPromises();
+  expect((await mock.queue()).items).toEqual([]);
+  wrapper.unmount();
+});

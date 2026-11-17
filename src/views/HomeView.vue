@@ -7,11 +7,12 @@ import type { BookSummary, HomeView } from "@/api/types";
 import CoverArt from "@/components/CoverArt.vue";
 import ArticleTile from "@/components/article/ArticleTile.vue";
 import { formatDuration, readingMs } from "@/estimate";
-import { Plus } from "@lucide/vue";
+import { ListEnd, ListX, Plus } from "@lucide/vue";
 import WeekCard from "@/components/library/WeekCard.vue";
 import HomeContinueCard from "@/components/home/HomeContinueCard.vue";
 import { useLibraryStore } from "@/stores/library";
 import { useNavigationStore } from "@/stores/navigation";
+import { useQueueStore } from "@/stores/queue";
 import { dayName } from "@/days";
 import { NEEDS } from "@/articles";
 
@@ -40,6 +41,15 @@ const empty = computed(
   () => home.value !== null && !continuing.value.length && !upNext.value.length && !recent.value.length,
 );
 const added = (at: number) => dayName(at);
+/** An Up next item is lined up to listen to after what plays, or taken off the queue. */
+const queue = useQueueStore();
+async function toggleQueued(book: BookSummary) {
+  try {
+    await (book.queued ? queue.remove(book.id) : queue.add(book.id, "last"));
+  } catch (e) {
+    error.value = String(e);
+  }
+}
 </script>
 
 <template>
@@ -65,7 +75,7 @@ const added = (at: number) => dayName(at);
             <h2 id="home-next" class="home__subtitle">Up next</h2>
           </div>
           <UiCard as="ul" pad="list" class="home__rows">
-            <li v-for="book in upNext" :key="book.id">
+            <li v-for="book in upNext" :key="book.id" class="home__next">
               <button
                 type="button"
                 class="home__row"
@@ -91,6 +101,16 @@ const added = (at: number) => dayName(at);
                 <span v-if="book.kind === 'article' && book.wordCount" class="home__row-time">{{
                   formatDuration(readingMs(book.wordCount, library.readingWpm))
                 }}</span>
+              </button>
+              <button
+                type="button"
+                class="home__queue"
+                :class="{ 'home__queue--on': book.queued }"
+                :aria-label="book.queued ? `Take ${book.title} off the queue` : `Add ${book.title} to the queue`"
+                :title="book.queued ? 'Take off the queue' : 'Add to queue'"
+                @click="toggleQueued(book)"
+              >
+                <component :is="book.queued ? ListX : ListEnd" :size="17" aria-hidden="true" />
               </button>
             </li>
           </UiCard>
@@ -189,12 +209,34 @@ const added = (at: number) => dayName(at);
   border-top: 1px solid var(--wash);
 }
 .home__row {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: baseline;
   gap: var(--space-7);
   padding: var(--space-7) 0;
   text-align: left;
+}
+.home__next {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.home__queue {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--dim);
+}
+.home__queue:hover {
+  background: var(--wash);
+  color: var(--ink);
+}
+.home__queue--on {
+  color: var(--accent);
 }
 .home__row-text {
   flex: 1;

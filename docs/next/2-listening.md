@@ -503,7 +503,8 @@ chapter, an item that ends hands over to nothing.)
 move up and move down buttons and drag to reorder (a new drag type beside `ITEM_DRAG` in
 `src/drag.ts`); "Then: *title*" under the time left when the item is nearly over. (Built: the item page has
 "Add to queue" / "Remove from queue" among its buttons; a feed entry has a queue button
-whose menu offers both.)
+whose menu offers both; each row of Home's "Up next" has a button that adds it to the queue or
+takes it off.)
 
 ### Slices
 
