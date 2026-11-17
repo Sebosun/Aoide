@@ -62,20 +62,27 @@ function charactersBefore(element: Element, boundary: Range): number {
 }
 
 /** The word place `at` characters into a sentence drawn as its words joined by single spaces.
- *  In the space after a word, a start moves to the next word and an end stays with the word
- *  before; past the last word, the place is the end of it (`word` is then the word count for a
- *  start). */
+ *  A start takes the word after it when it is at a word's end or in the space after it; an end
+ *  takes the word before it when it is at a word's start or in the space before it (`{ word: 0,
+ *  char: 0 }`: before the first word). Past the last word, a start is the word count. */
 function place(words: string[], at: number, side: "start" | "end"): { word: number; char: number } {
   let from = 0;
   for (let word = 0; word < words.length; word++) {
     const size = length(words[word]);
-    if (at < from) return { word: word - 1, char: length(words[word - 1]) };
-    if (at < from + size || (at === from + size && side === "end")) return { word, char: at - from };
+    if (side === "start" && at < from + size) return { word, char: Math.max(0, at - from) };
+    if (side === "end" && at <= from && word > 0) return { word: word - 1, char: length(words[word - 1]) };
+    if (side === "end" && at <= from + size) return { word, char: Math.max(0, at - from) };
     from += size + 1;
   }
   return side === "end"
     ? { word: words.length - 1, char: length(words[words.length - 1]) }
     : { word: words.length, char: 0 };
+}
+
+/** The end of sentence `index`'s last word. */
+function endOf(all: Sentence[], index: number): Place {
+  const words = all[index].segment.words;
+  return { sentence: index, word: words.length - 1, char: length(words[words.length - 1]) };
 }
 
 /** Where a boundary point of the selection falls among the sentences: inside one, or between
@@ -86,8 +93,12 @@ function locate(all: Sentence[], boundary: Range, side: "start" | "end"): Place 
   if (inside >= 0) {
     const { words } = all[inside].segment;
     const at = place(words, charactersBefore(all[inside].element, boundary), side);
-    if (at.word < words.length) return { sentence: inside, ...at };
-    return inside + 1 < all.length ? { sentence: inside + 1, word: 0, char: 0 } : null;
+    if (side === "start") {
+      if (at.word < words.length) return { sentence: inside, ...at };
+      return inside + 1 < all.length ? { sentence: inside + 1, word: 0, char: 0 } : null;
+    }
+    if (at.word > 0 || at.char > 0) return { sentence: inside, ...at };
+    return inside > 0 ? endOf(all, inside - 1) : null;
   }
   if (side === "start") {
     const next = all.findIndex((s) => boundary.comparePoint(s.element, 0) > 0);
@@ -95,9 +106,7 @@ function locate(all: Sentence[], boundary: Range, side: "start" | "end"): Place 
   }
   const after = all.findIndex((s) => boundary.comparePoint(s.element, s.element.childNodes.length) >= 0);
   const last = (after < 0 ? all.length : after) - 1;
-  if (last < 0) return null;
-  const words = all[last].segment.words;
-  return { sentence: last, word: words.length - 1, char: length(words[words.length - 1]) };
+  return last < 0 ? null : endOf(all, last);
 }
 
 const offset = (all: Sentence[], at: Place) => all[at.sentence].segment.starts[at.word] + at.char;

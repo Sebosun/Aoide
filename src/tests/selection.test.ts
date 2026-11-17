@@ -181,6 +181,38 @@ it("takes ends between sentences and outside them to the nearest word in the sel
   expect(into.text).not.toContain("Built");
 });
 
+it("starts and ends on words when a drag starts just after a word or ends just before one", () => {
+  const { text, chapter } = shapes;
+  let root = draw(chapter);
+  // From right after "🌊" to right before "when": the words between, no spaces around them.
+  const within = rangeOfSelection(
+    select(wordPoint(root, chapter, "0:1:0", 1, true), wordPoint(root, chapter, "0:1:0", 5)),
+    root,
+    chapter,
+  )!;
+  expect(within).toMatchObject({ start: 14, end: 31, text: "harbour was quiet" });
+  expect(slice(text, within.start, within.end)).toBe(within.text);
+
+  wrapper?.unmount();
+  root = draw(preview.chapter);
+  // To the start of the next sentence's first word: up to the end of "pier.".
+  const across = rangeOfSelection(
+    select(wordPoint(root, preview.chapter, "0:1:0", 3), wordPoint(root, preview.chapter, "0:1:1", 0)),
+    root,
+    preview.chapter,
+  )!;
+  expect(across.text).toMatch(/^carried .* pier\.$/);
+  expect(slice(preview.text, across.start, across.end)).toBe(across.text);
+  // Nothing but the space between two words covers no word.
+  expect(
+    rangeOfSelection(
+      select(wordPoint(root, preview.chapter, "0:1:0", 3, true), wordPoint(root, preview.chapter, "0:1:0", 4)),
+      root,
+      preview.chapter,
+    ),
+  ).toBeNull();
+});
+
 it("covers nothing for a footnote marker alone, an empty selection or one outside the chapter", () => {
   const { chapter } = shapes;
   const root = draw(chapter);
