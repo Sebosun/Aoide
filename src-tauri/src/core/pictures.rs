@@ -296,3 +296,40 @@ mod core_tests {
         assert!(!file.exists(), "removed with the book");
     }
 }
+
+#[cfg(test)]
+mod describe_tests {
+    use crate::core::tests::{epub_of_chapters, library_folder_holding, start, until};
+    use crate::core::AppSettingsPatch;
+    use aoide_tts::testing::FakeEngine;
+
+    #[tokio::test]
+    async fn changing_what_is_said_for_code_lays_the_book_out_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let bytes = epub_of_chapters(&[(
+            "Build",
+            "Run this to light the lamp.</p><pre>make lamp\n  --bright</pre><p>Done.",
+        )]);
+        let id = library_folder_holding(dir.path(), "", "voiceId = \"Test.wav\"", &bytes);
+        let (core, _) = start(dir.path(), &FakeEngine::new());
+        until("the scan", || core.list_books().is_ok_and(|b| b.len() == 1)).await;
+        let said = |core: &crate::core::Core| -> Vec<String> {
+            core.speech_requests(&id)
+                .into_iter()
+                .map(|(text, _)| text)
+                .collect()
+        };
+        assert!(said(&core).iter().any(|t| t.contains("make lamp")));
+
+        let mut describe = core.app_settings().describe;
+        describe.code = crate::book::CodeSpeech::Announce;
+        core.update_app_settings(AppSettingsPatch {
+            describe: Some(describe),
+            ..Default::default()
+        })
+        .unwrap();
+        let now = said(&core);
+        assert!(now.iter().any(|t| t == "A code sample."), "{now:?}");
+        assert!(!now.iter().any(|t| t.contains("make lamp")));
+    }
+}

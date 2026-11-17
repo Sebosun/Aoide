@@ -3,7 +3,8 @@ import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { FileDown, FolderOpen, FolderSearch, FolderX, Inbox, Library, Sparkles } from "@lucide/vue";
 import { api } from "@/api";
-import type { InboxView, TaggingSettings } from "@/api/types";
+import type { CodeSpeech, Describe, InboxView, PictureSpeech, TableSpeech, TaggingSettings } from "@/api/types";
+import UiSelect from "@/components/ui/UiSelect.vue";
 import type { CloseBehaviour } from "@/api/contract";
 import SettingsSection from "@/components/settings/SettingsSection.vue";
 import SettingsField from "@/components/settings/SettingsField.vue";
@@ -28,6 +29,24 @@ const CLOSING: { value: CloseBehaviour; label: string }[] = [
   { value: "keepAlways", label: "Always stay in the background" },
   { value: "quit", label: "Quit" },
 ];
+/** What narration says for pictures, tables and code (book.rs `Describe`). */
+const PICTURES: { value: PictureSpeech; label: string }[] = [
+  { value: "off", label: "Nothing" },
+  { value: "caption", label: "Their captions" },
+  { value: "altAndCaption", label: "Their descriptions and captions" },
+];
+const TABLES: { value: TableSpeech; label: string }[] = [
+  { value: "announce", label: "Say there is a table" },
+  { value: "read", label: "Read them row by row" },
+  { value: "skip", label: "Skip them" },
+];
+const CODE: { value: CodeSpeech; label: string }[] = [
+  { value: "read", label: "Read it" },
+  { value: "announce", label: "Say there is code" },
+  { value: "skip", label: "Skip it" },
+];
+const saveDescribe = (change: Partial<Describe>) =>
+  settings.value && save({ describe: { ...settings.value.describe, ...change } });
 const saveTagging = (change: Partial<TaggingSettings>) =>
   tagging.value && save({ tagging: { ...tagging.value, ...change } });
 const tagRun = ref(""),
@@ -261,6 +280,34 @@ async function chooseInbox() {
         paired with a book (unless the book says otherwise under Narration in its tools). The highlighted word, your
         place and bookmarks stay where they were. Applies the next time one starts playing.</SettingsNote
       >
+      <template v-if="settings">
+        <SettingsField label="Pictures" as="div"
+          ><UiSelect
+            :model-value="settings.describe.pictures"
+            label="What narration says for pictures"
+            :options="PICTURES"
+            @update:model-value="(pictures: PictureSpeech) => saveDescribe({ pictures })"
+        /></SettingsField>
+        <SettingsField label="Tables" as="div"
+          ><UiSelect
+            :model-value="settings.describe.tables"
+            label="What narration says for tables"
+            :options="TABLES"
+            @update:model-value="(tables: TableSpeech) => saveDescribe({ tables })"
+        /></SettingsField>
+        <SettingsField label="Code" as="div"
+          ><UiSelect
+            :model-value="settings.describe.code"
+            label="What narration says for code"
+            :options="CODE"
+            @update:model-value="(code: CodeSpeech) => saveDescribe({ code })"
+        /></SettingsField>
+        <SettingsNote
+          >A caption that is part of a book's text is always read. Saying a table "has 4 columns and 12 rows" keeps it
+          from being read as a run of numbers. Changing these makes again only the audio of what they
+          change.</SettingsNote
+        >
+      </template>
     </SettingsSection>
     <SettingsSection title="Preparing audio">
       <label v-if="settings" class="library-settings__check"

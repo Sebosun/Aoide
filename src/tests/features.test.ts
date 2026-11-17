@@ -131,6 +131,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     backup: { folder: null, everyDays: 7, keep: 5, books: false },
     searchText: true,
     shortenSilences: false,
+    describe: { pictures: "caption", tables: "announce", code: "read" },
   });
   wrapper.unmount();
 });

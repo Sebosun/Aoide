@@ -13,6 +13,7 @@ const sentence = (id: string, text: string): SegmentView => ({
   speakable: true,
   canSayAgain: true,
   note: false,
+  aside: false,
   notes: [],
 });
 const chapter: ChapterView = {
@@ -168,4 +169,29 @@ it("draws an article's table beside the text, not as part of it", () => {
     e.matches("table") ? "table" : e.textContent?.trim(),
   );
   expect(order).toEqual(["The Lamp", "The keeper climbed the stair.", "table", "The lamp, lit at dusk."]);
+});
+
+it("does not draw what narration says aside, which is not the text", () => {
+  const announced: ChapterView = {
+    ...chapter,
+    inserts: [],
+    blocks: [
+      ...chapter.blocks.slice(0, 2),
+      {
+        kind: "preformatted",
+        level: null,
+        layout: "make\n  lamp",
+        segments: [
+          { ...sentence("0:2:i0", "A code sample."), aside: true },
+          { ...sentence("0:2:0", "make lamp"), speakable: false },
+        ],
+      },
+    ],
+  };
+  wrapper = mount(ChapterText, {
+    attachTo: document.body,
+    props: { chapter: announced, currentSegment: "0:2:i0", currentWord: 0, marginNotes: false },
+  });
+  expect(wrapper.text()).not.toContain("A code sample");
+  expect(wrapper.get("pre").text()).toContain("make \n  lamp");
 });

@@ -884,6 +884,7 @@ impl ShelfHost for super::Core {
                 split_dialogue: settings.dialogue_voice_id.is_some() && !recorded,
                 ..self.app_settings().pauses.segment_options()
             },
+            describe: self.app_settings().describe,
         }
     }
 

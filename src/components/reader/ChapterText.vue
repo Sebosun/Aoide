@@ -58,6 +58,8 @@ function marker(segment: SegmentView, note: NoteMarker) {
 let lastMarks: Map<string, readonly Mark[]> | undefined;
 const marks = computed(() => (lastMarks = sentenceMarks(props.chapter, props.highlights, lastMarks)));
 const clickable = (segment: SegmentView) => props.playable && segment.speakable;
+/** What is drawn of a block: not what narration says aside (a table announced, code). */
+const shownSegments = (block: BlockView) => block.segments.filter((segment) => !segment.aside);
 type Picture = Extract<InsertView, { type: "picture" }>;
 /** The pictures and tables before block `index` (after the last block: `blocks.length`). */
 const picturesBefore = computed(() => {
@@ -93,7 +95,7 @@ const codeGaps = computed(() => {
     const lead = gap();
     let at = space.lastIndex;
     const gaps = new Map<string, string[]>();
-    for (const segment of block.segments) {
+    for (const segment of shownSegments(block)) {
       const after: string[] = [];
       for (const word of segment.words) {
         if (!layout.startsWith(word, at)) return;
@@ -215,7 +217,7 @@ const chapterMissing = computed(
         >
           <span v-if="codeGaps.get(index)?.lead" data-not-text>{{ codeGaps.get(index)!.lead }}</span>
           <ChapterSegment
-            v-for="segment in block.segments"
+            v-for="segment in shownSegments(block)"
             :key="segment.id"
             :segment="segment"
             :current="segment.id === currentSegment"

@@ -58,6 +58,7 @@ it("marks a highlight in the sentences it covers, words and the spaces between t
     speakable: true,
     canSayAgain: true,
     note: false,
+    aside: false,
     notes: [],
   };
   const chapter = {

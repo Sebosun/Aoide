@@ -458,7 +458,7 @@ impl ConfigHost for Core {
         if before.feeds != after.feeds {
             self.feeds.settings_changed();
         }
-        if before.pauses != after.pauses {
+        if before.pauses != after.pauses || before.describe != after.describe {
             self.text_laid_out_again();
         }
         if before.inbox != after.inbox {

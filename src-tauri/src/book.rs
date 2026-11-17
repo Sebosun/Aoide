@@ -68,6 +68,9 @@ pub struct SegmentView {
     pub can_say_again: bool,
     /// A spoken footnote inserted after its paragraph (not part of the book's text flow).
     pub note: bool,
+    /// Said, not part of the text, and not drawn on the page: what narration says for a
+    /// picture, a table or code (see [`Describe`]).
+    pub aside: bool,
     pub notes: Vec<NoteMarker>,
 }
 
@@ -186,6 +189,54 @@ pub struct Layout {
     pub read_notes: bool,
     /// How sentences are split, and the pauses after them.
     pub segments: SegmentOptions,
+    /// What is said for pictures, tables and code.
+    pub describe: Describe,
+}
+
+/// What narration says for pictures, tables and code (Settings › Listening).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct Describe {
+    pub pictures: PictureSpeech,
+    pub tables: TableSpeech,
+    pub code: CodeSpeech,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum PictureSpeech {
+    /// Nothing beyond a caption that is part of the text.
+    Off,
+    /// A caption outside the text too (an article's).
+    #[default]
+    Caption,
+    /// Its description ("Picture: …") as well.
+    AltAndCaption,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum TableSpeech {
+    /// "A table of 4 columns and 12 rows", not its cells.
+    #[default]
+    Announce,
+    /// Row by row, each cell after its column's heading.
+    Read,
+    Skip,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum CodeSpeech {
+    #[default]
+    Read,
+    /// "A code sample", not the code.
+    Announce,
+    Skip,
 }
 
 impl BookModel {
@@ -250,6 +301,15 @@ impl BookModel {
                 } else {
                     (segments, notes)
                 };
+                let (segments, notes) = described(
+                    index,
+                    chapter,
+                    &offsets,
+                    segments,
+                    notes,
+                    &layout.describe,
+                    options.paragraph_pause_ms,
+                );
                 let model = ChapterModel {
                     notes,
                     title: chapter.title.clone(),
@@ -432,6 +492,7 @@ impl BookModel {
                     speakable: !segment.speech.is_empty(),
                     can_say_again: !segment.speech.is_empty(),
                     note: segment.id.contains(":n"),
+                    aside: segment.id.contains(":i"),
                     notes: model.notes[local].clone(),
                 });
             }
@@ -617,6 +678,196 @@ impl BookModel {
 const NOTE_PAUSE_MS: u32 = 400;
 
 /// Appends a spoken segment per referenced note after the last segment of its block.
+/// A table's cells (`cols` columns and `rows` rows) as said aloud: "A table of …".
+fn a_table_of(cols: usize, rows: usize, caption: Option<&str>) -> String {
+    let plural = |n: usize, what: &str| format!("{n} {what}{}", if n == 1 { "" } else { "s" });
+    let caption = caption
+        .map(|c| format!(": {}", c.trim_end_matches('.')))
+        .unwrap_or_default();
+    format!(
+        "A table of {} and {}{caption}.",
+        plural(cols, "column"),
+        plural(rows, "row")
+    )
+}
+
+/// The chapter's segments with what `describe` asks said for its pictures, tables and code:
+/// text segments silenced (same ids, nothing said, no pause) or said differently, and spoken
+/// extras (`{chapter}:{block}:i{n}`) before a block, or after the last.
+fn described(
+    chapter_index: usize,
+    chapter: &aoide_document::Chapter,
+    offsets: &[usize],
+    mut segments: Vec<Segment>,
+    mut notes: Vec<Vec<NoteMarker>>,
+    describe: &Describe,
+    pause: u32,
+) -> (Vec<Segment>, Vec<Vec<NoteMarker>>) {
+    use aoide_document::{Caption, InsertKind};
+    let silence = |segment: &mut Segment| {
+        segment.speech.clear();
+        segment.pause_after_ms = 0;
+    };
+    let text = |s: &Segment| !s.id.contains(":n");
+    // (block, said): extras before a block (`blocks.len()`: after the last).
+    let mut extras: Vec<(usize, String)> = Vec::new();
+    for table in &chapter.tables {
+        let in_rows = |s: &Segment| table.rows.contains(&s.block) && text(s);
+        match describe.tables {
+            TableSpeech::Announce | TableSpeech::Skip => {
+                segments.iter_mut().filter(|s| in_rows(s)).for_each(silence);
+                if describe.tables == TableSpeech::Announce {
+                    let cols = table.cells.iter().map(Vec::len).max().unwrap_or(0);
+                    extras.push((table.rows.start, a_table_of(cols, table.rows.len(), None)));
+                }
+            }
+            TableSpeech::Read => {
+                let cell_text = |block: usize, range: &std::ops::Range<usize>| -> String {
+                    chapter.blocks[block]
+                        .text
+                        .chars()
+                        .skip(range.start)
+                        .take(range.len())
+                        .collect()
+                };
+                let headings: Vec<String> = match table.header_rows {
+                    0 => Vec::new(),
+                    n => table.cells[n - 1]
+                        .iter()
+                        .map(|cell| cell_text(table.rows.start + n - 1, cell))
+                        .collect(),
+                };
+                let mut said = std::collections::HashSet::new();
+                for segment in segments.iter_mut().filter(|s| in_rows(s)) {
+                    let row = segment.block - table.rows.start;
+                    if row < table.header_rows {
+                        silence(segment);
+                        continue;
+                    }
+                    let at = segment.range.start - offsets[segment.block];
+                    let column = table.cells[row].iter().rposition(|cell| cell.start <= at);
+                    if let Some(column) = column.filter(|&c| said.insert((row, c))) {
+                        if let Some(heading) = headings.get(column).filter(|h| !h.is_empty()) {
+                            segment.speech = format!("{heading}: {}", segment.speech);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for (block, kind) in chapter.blocks.iter().enumerate().map(|(i, b)| (i, b.kind)) {
+        if kind != BlockKind::Preformatted || describe.code == CodeSpeech::Read {
+            continue;
+        }
+        segments
+            .iter_mut()
+            .filter(|s| s.block == block && text(s))
+            .for_each(silence);
+        if describe.code == CodeSpeech::Announce {
+            extras.push((block, "A code sample.".into()));
+        }
+    }
+    for insert in &chapter.inserts {
+        let said = match &insert.kind {
+            InsertKind::Picture { alt, caption, .. } => {
+                let alt = (describe.pictures == PictureSpeech::AltAndCaption && !alt.is_empty())
+                    .then_some(alt.as_str());
+                let caption = match caption {
+                    Some(Caption::Text(text)) if describe.pictures != PictureSpeech::Off => {
+                        Some(text.as_str())
+                    }
+                    _ => None,
+                };
+                let parts: Vec<String> = alt
+                    .into_iter()
+                    .chain(caption)
+                    .map(|part| format!("{}.", part.trim_end_matches('.')))
+                    .collect();
+                (!parts.is_empty()).then(|| format!("Picture: {}", parts.join(" ")))
+            }
+            InsertKind::Table {
+                rows,
+                header_rows,
+                caption,
+            } => match describe.tables {
+                TableSpeech::Skip => None,
+                TableSpeech::Announce => {
+                    let cols = rows.iter().map(Vec::len).max().unwrap_or(0);
+                    Some(a_table_of(cols, rows.len(), caption.as_deref()))
+                }
+                TableSpeech::Read => {
+                    let headings = header_rows.checked_sub(1).and_then(|h| rows.get(h));
+                    let said: Vec<String> = rows
+                        .iter()
+                        .skip(*header_rows)
+                        .flat_map(|row| row.iter().enumerate())
+                        .filter(|(_, cell)| !cell.is_empty())
+                        .map(|(c, cell)| {
+                            let cell = cell.trim_end_matches('.');
+                            match headings.and_then(|h| h.get(c)).filter(|h| !h.is_empty()) {
+                                Some(heading) => format!("{heading}: {cell}."),
+                                None => format!("{cell}."),
+                            }
+                        })
+                        .collect();
+                    let caption = caption
+                        .iter()
+                        .map(|c| format!("{}.", c.trim_end_matches('.')));
+                    Some(caption.chain(said).collect::<Vec<_>>().join(" "))
+                }
+            },
+        };
+        extras.extend(said.map(|said| (insert.before_block, said)));
+    }
+    if extras.is_empty() {
+        return (segments, notes);
+    }
+    extras.sort_by_key(|(block, _)| *block);
+    let last_block = chapter.blocks.len().saturating_sub(1);
+    let mut counts: std::collections::HashMap<usize, usize> = Default::default();
+    let mut extra = |block: usize, said: String| {
+        let anchor = block.min(last_block);
+        let n = counts.entry(anchor).or_default();
+        let id = format!("{chapter_index}:{anchor}:i{n}");
+        *n += 1;
+        let at = offsets
+            .get(block)
+            .copied()
+            .unwrap_or_else(|| chapter.text.chars().count());
+        Segment {
+            id,
+            block: anchor,
+            range: at..at,
+            speech: said.clone(),
+            display: said,
+            sentences: vec![],
+            words: vec![],
+            pause_after_ms: pause,
+            role: aoide_text::Role::Narration,
+        }
+    };
+    let mut pending = extras.into_iter().peekable();
+    let mut out = Vec::with_capacity(segments.len() + 4);
+    let mut out_notes = Vec::with_capacity(out.capacity());
+    for (segment, markers) in segments.drain(..).zip(notes.drain(..)) {
+        while let Some((block, _)) = pending.peek() {
+            if *block > segment.block {
+                break;
+            }
+            let (block, said) = pending.next().unwrap();
+            out.push(extra(block, said));
+            out_notes.push(Vec::new());
+        }
+        out.push(segment);
+        out_notes.push(markers);
+    }
+    for (block, said) in pending {
+        out.push(extra(block, said));
+        out_notes.push(Vec::new());
+    }
+    (out, out_notes)
+}
+
 fn with_note_segments(
     chapter: usize,
     segments: Vec<Segment>,
@@ -1098,6 +1349,12 @@ pub(crate) mod tests {
 
     /// A chapter with a captioned table of a heading row and two rows.
     fn tabled() -> BookModel {
+        let mut parsed = empty_parsed();
+        parsed.chapters = vec![tabled_chapter()];
+        BookModel::from_parsed("bk", parsed, &Layout::default())
+    }
+
+    fn tabled_chapter() -> Chapter {
         let mut parsed_chapter = chapter(
             "Lamps",
             vec![
@@ -1115,9 +1372,7 @@ pub(crate) mod tests {
             header_rows: 1,
             cells: vec![vec![0..4, 5..10], vec![0..4, 5..7], vec![0..4, 5..18]],
         }];
-        let mut parsed = empty_parsed();
-        parsed.chapters = vec![parsed_chapter];
-        BookModel::from_parsed("bk", parsed, &Layout::default())
+        parsed_chapter
     }
 
     fn empty_parsed() -> ParsedBook {
@@ -1137,6 +1392,171 @@ pub(crate) mod tests {
             warnings: vec![],
             excluded: vec![],
         }
+    }
+
+    fn described(describe: Describe) -> Layout {
+        Layout {
+            describe,
+            ..Layout::default()
+        }
+    }
+
+    /// Each segment's id and what is said for it ("" for nothing), in reading order.
+    fn said(model: &BookModel) -> Vec<(String, String)> {
+        model.chapters[0]
+            .segments
+            .iter()
+            .map(|s| (s.id.clone(), s.speech.clone()))
+            .collect()
+    }
+
+    fn pairs(list: &[(&str, &str)]) -> Vec<(String, String)> {
+        list.iter()
+            .map(|(id, said)| (id.to_string(), said.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn a_table_is_announced_read_row_by_row_or_skipped_as_chosen() {
+        let parsed = || {
+            let mut parsed = empty_parsed();
+            parsed.chapters = vec![tabled_chapter()];
+            parsed
+        };
+        let announced = BookModel::from_parsed("bk", parsed(), &Layout::default());
+        assert_eq!(
+            said(&announced),
+            pairs(&[
+                ("0:0:0", "Lamps."),
+                ("0:1:0", "Lamps lit each year"),
+                ("0:2:i0", "A table of 2 columns and 3 rows."),
+                ("0:2:0", ""),
+                ("0:2:1", ""),
+                ("0:3:0", ""),
+                ("0:3:1", ""),
+                ("0:4:0", ""),
+                ("0:4:1", ""),
+                ("0:5:0", "After the table."),
+            ])
+        );
+        // Its rows say nothing, and leave no silence.
+        let rows = &announced.chapters[0].segments[3..9];
+        assert!(rows.iter().all(|s| s.pause_after_ms == 0));
+        let view = announced.chapter_view(0).unwrap();
+        let aside: Vec<&str> = view
+            .blocks
+            .iter()
+            .flat_map(|b| &b.segments)
+            .filter(|s| s.aside)
+            .map(|s| s.id.as_str())
+            .collect();
+        assert_eq!(aside, ["0:2:i0"], "said, not on the page");
+
+        let read = BookModel::from_parsed(
+            "bk",
+            parsed(),
+            &described(Describe {
+                tables: TableSpeech::Read,
+                ..Describe::default()
+            }),
+        );
+        assert_eq!(
+            said(&read)[2..8],
+            pairs(&[
+                ("0:2:0", ""),
+                ("0:2:1", ""),
+                ("0:3:0", "Year: 1901"),
+                ("0:3:1", "Lamps: 12"),
+                ("0:4:0", "Year: 1902"),
+                ("0:4:1", "Lamps: 14 and a half"),
+            ])
+        );
+        let skipped = BookModel::from_parsed(
+            "bk",
+            parsed(),
+            &described(Describe {
+                tables: TableSpeech::Skip,
+                ..Describe::default()
+            }),
+        );
+        assert_eq!(said(&skipped).len(), 9, "no announcement");
+        // The text and the sentences' ids are the same whatever is said.
+        for model in [&read, &skipped] {
+            assert_eq!(model.chapters[0].text, announced.chapters[0].text);
+        }
+    }
+
+    #[test]
+    fn code_and_a_pictures_description_are_said_as_chosen() {
+        let coded = || {
+            let mut parsed_chapter = chapter(
+                "Code",
+                vec![
+                    block(BlockKind::Paragraph, "Run this."),
+                    block(BlockKind::Preformatted, "make lamp"),
+                    block(BlockKind::Paragraph, "Done."),
+                ],
+            );
+            parsed_chapter.inserts = vec![
+                aoide_document::Insert {
+                    before_block: 2,
+                    kind: aoide_document::InsertKind::Picture {
+                        resource: "a.png".into(),
+                        alt: "The lamp lit".into(),
+                        caption: None,
+                    },
+                },
+                aoide_document::Insert {
+                    before_block: 3,
+                    kind: aoide_document::InsertKind::Table {
+                        rows: vec![
+                            vec!["Month".into(), "Task".into()],
+                            vec!["April".into(), "Check the queen".into()],
+                        ],
+                        header_rows: 1,
+                        caption: Some("The year".into()),
+                    },
+                },
+            ];
+            parsed_chapter
+        };
+        let model = |describe| {
+            let mut parsed = empty_parsed();
+            parsed.chapters = vec![coded()];
+            said(&BookModel::from_parsed("bk", parsed, &described(describe)))
+        };
+        assert_eq!(
+            model(Describe::default()),
+            pairs(&[
+                ("0:0:0", "Run this."),
+                ("0:1:0", "make lamp"),
+                ("0:2:0", "Done."),
+                ("0:2:i0", "A table of 2 columns and 2 rows: The year."),
+            ])
+        );
+        assert_eq!(
+            model(Describe {
+                code: CodeSpeech::Announce,
+                pictures: PictureSpeech::AltAndCaption,
+                tables: TableSpeech::Read,
+            }),
+            pairs(&[
+                ("0:0:0", "Run this."),
+                ("0:1:i0", "A code sample."),
+                ("0:1:0", ""),
+                ("0:2:i0", "Picture: The lamp lit."),
+                ("0:2:0", "Done."),
+                ("0:2:i1", "The year. Month: April. Task: Check the queen."),
+            ])
+        );
+        assert_eq!(
+            model(Describe {
+                code: CodeSpeech::Skip,
+                tables: TableSpeech::Skip,
+                ..Describe::default()
+            }),
+            pairs(&[("0:0:0", "Run this."), ("0:1:0", ""), ("0:2:0", "Done.")])
+        );
     }
 
     #[test]
@@ -1160,6 +1580,7 @@ pub(crate) mod tests {
         let displays: Vec<&str> = model.chapters[0]
             .segments
             .iter()
+            .filter(|s| !s.id.contains(":i"))
             .map(|s| s.display.as_str())
             .collect();
         assert_eq!(

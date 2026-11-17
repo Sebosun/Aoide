@@ -8,6 +8,7 @@
           "level": 2,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:0:0",
               "note": false,
@@ -32,6 +33,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:1:0",
               "note": false,
@@ -73,6 +75,7 @@
               ]
             },
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:1:1",
               "note": false,
@@ -110,6 +113,7 @@
               ]
             },
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:1:n0",
               "note": true,
@@ -138,6 +142,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:2:0",
               "note": false,
@@ -165,6 +170,7 @@
               ]
             },
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:2:1",
               "note": false,
@@ -231,6 +237,7 @@
           "level": 2,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "1:0:0",
               "note": false,
@@ -255,6 +262,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "1:1:0",
               "note": false,
@@ -282,6 +290,7 @@
               ]
             },
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "1:1:1",
               "note": false,
@@ -324,6 +333,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "1:2:0",
               "note": false,
@@ -390,6 +400,7 @@
           "level": 2,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:0:0",
               "note": false,
@@ -414,6 +425,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:1:0",
               "note": false,
@@ -484,6 +496,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:2:0",
               "note": false,
@@ -548,6 +561,7 @@
           "level": 2,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "1:0:0",
               "note": false,
@@ -574,6 +588,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "1:1:0",
               "note": false,
@@ -603,6 +618,7 @@
               ]
             },
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "1:1:1",
               "note": false,
@@ -653,6 +669,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "1:2:0",
               "note": false,
@@ -721,6 +738,7 @@
           "level": 2,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "2:0:0",
               "note": false,
@@ -747,6 +765,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "2:1:0",
               "note": false,
@@ -774,6 +793,7 @@
               ]
             },
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "2:1:1",
               "note": false,
@@ -812,6 +832,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "2:2:0",
               "note": false,
@@ -862,6 +883,7 @@
           "level": 2,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "3:0:0",
               "note": false,
@@ -886,6 +908,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "3:1:0",
               "note": false,
@@ -946,6 +969,7 @@
           "level": 2,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:0:0",
               "note": false,
@@ -968,6 +992,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:1:0",
               "note": false,
@@ -1024,6 +1049,7 @@
           "level": 2,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:0:0",
               "note": false,
@@ -1046,6 +1072,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:1:0",
               "note": false,
@@ -1102,6 +1129,7 @@
           "level": 1,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:0:0",
               "note": false,
@@ -1122,6 +1150,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:1:0",
               "note": false,
@@ -1169,6 +1198,7 @@
               ]
             },
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:1:n0",
               "note": true,
@@ -1191,6 +1221,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:2:0",
               "note": false,
@@ -1227,6 +1258,7 @@
           "level": null,
           "segments": [
             {
+              "aside": false,
               "canSayAgain": true,
               "id": "0:3:0",
               "note": false,

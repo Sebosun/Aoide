@@ -23,6 +23,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -65,6 +66,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": [
                 {
                   "afterWord": 2,
@@ -108,6 +110,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -142,6 +145,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             },
             {
@@ -189,6 +193,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -222,6 +227,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -256,6 +262,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             },
             {
@@ -291,6 +298,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -345,6 +353,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -380,6 +389,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -450,6 +460,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -502,6 +513,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -537,6 +549,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -573,6 +586,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             },
             {
@@ -616,6 +630,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -672,6 +687,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -707,6 +723,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -741,6 +758,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             },
             {
@@ -772,6 +790,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -810,6 +829,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -843,6 +863,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -891,6 +912,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -924,6 +946,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -968,6 +991,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -1001,6 +1025,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],
@@ -1045,6 +1070,7 @@
               "speakable": true,
               "canSayAgain": true,
               "note": false,
+              "aside": false,
               "notes": []
             }
           ],

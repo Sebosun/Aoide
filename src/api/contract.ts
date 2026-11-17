@@ -229,7 +229,12 @@ canSayAgain: boolean,
 /**
  * A spoken footnote inserted after its paragraph (not part of the book's text flow).
  */
-note: boolean, notes: Array<NoteMarker>, };
+note: boolean, 
+/**
+ * Said, not part of the text, and not drawn on the page: what narration says for a
+ * picture, a table or code (see [`Describe`]).
+ */
+aside: boolean, notes: Array<NoteMarker>, };
 
 export type BlockView = { kind: string, level: number | null, segments: Array<SegmentView>, 
 /**
@@ -306,6 +311,14 @@ captionBlock: number | null,
  * Each row's cells, as `[start, end)` in the chapter's text (as words' `starts`).
  */
 cells: Array<Array<[number, number]>>, };
+
+export type Describe = { pictures: PictureSpeech, tables: TableSpeech, code: CodeSpeech, };
+
+export type PictureSpeech = "off" | "caption" | "altAndCaption";
+
+export type TableSpeech = "announce" | "read" | "skip";
+
+export type CodeSpeech = "read" | "announce" | "skip";
 
 export type ExcludedView = { title: string, reason: string, };
 
@@ -828,9 +841,13 @@ searchText: boolean,
 /**
  * Shorten the long silences of recordings (a book can say otherwise).
  */
-shortenSilences: boolean, };
+shortenSilences: boolean, 
+/**
+ * What narration says for pictures, tables and code.
+ */
+describe: Describe, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, backup?: BackupSettings, searchText?: boolean, shortenSilences?: boolean, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, backup?: BackupSettings, searchText?: boolean, shortenSilences?: boolean, describe?: Describe, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**

@@ -26,6 +26,7 @@
         "level": null,
         "segments": [
           {
+            "aside": false,
             "canSayAgain": true,
             "id": "0:0:0",
             "note": false,
@@ -94,6 +95,7 @@
         "level": null,
         "segments": [
           {
+            "aside": false,
             "canSayAgain": true,
             "id": "0:1:0",
             "note": false,

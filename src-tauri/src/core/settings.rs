@@ -56,6 +56,8 @@ pub struct AppSettings {
     pub search_text: bool,
     /// Shorten the long silences of recordings (a book can say otherwise).
     pub shorten_silences: bool,
+    /// What narration says for pictures, tables and code.
+    pub describe: crate::book::Describe,
 }
 
 /// The silences narration leaves, in milliseconds (each within [`PAUSE_MS`]). The largest that
@@ -157,6 +159,8 @@ pub struct AppSettingsPatch {
     pub search_text: Option<bool>,
     #[cfg_attr(test, ts(optional))]
     pub shorten_silences: Option<bool>,
+    #[cfg_attr(test, ts(optional))]
+    pub describe: Option<crate::book::Describe>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -202,6 +206,7 @@ impl AppSettingsPatch {
         set(&mut settings.backup, self.backup);
         set(&mut settings.search_text, self.search_text);
         set(&mut settings.shorten_silences, self.shorten_silences);
+        set(&mut settings.describe, self.describe);
         settings
     }
 }
@@ -233,6 +238,7 @@ impl From<AppSettings> for AppSettingsPatch {
             backup,
             search_text,
             shorten_silences,
+            describe,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -258,6 +264,7 @@ impl From<AppSettings> for AppSettingsPatch {
             backup: Some(backup),
             search_text: Some(search_text),
             shorten_silences: Some(shorten_silences),
+            describe: Some(describe),
         }
     }
 }
@@ -314,6 +321,7 @@ impl Default for AppSettings {
             backup: Default::default(),
             search_text: true,
             shorten_silences: false,
+            describe: Default::default(),
         }
     }
 }

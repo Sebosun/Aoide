@@ -665,6 +665,7 @@ mod tests {
         let layout = crate::book::Layout {
             read_notes: false,
             segments: pauses.segment_options(),
+            describe: Default::default(),
         };
         let book = BookModel::parse("b", &bytes, &layout).unwrap();
         assert_eq!(book.total_entries(), 6);
