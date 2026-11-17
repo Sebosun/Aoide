@@ -106,7 +106,7 @@ const readTime = computed(() => `${formatDuration(readingMs(props.words, props.w
 }
 .article-header__title {
   margin: var(--space-7) 0 var(--space-4);
-  font: 500 calc(44px * var(--read-scale)) / 1.08 var(--font-read);
+  font: 500 calc(44px * var(--read-scale)) / 1.08 var(--read-font);
   letter-spacing: -0.01em;
   color: var(--ink);
 }
