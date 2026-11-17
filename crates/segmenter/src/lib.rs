@@ -7,6 +7,9 @@
 use std::ops::Range;
 
 pub use aoide_epub::{Block, BlockKind};
+pub use pronounce::{pronounce, Rule, Spoken};
+
+mod pronounce;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SegmentOptions {
