@@ -22,7 +22,7 @@ Aoide reads your EPUB books aloud with a text-to-speech engine that runs on your
 
 ## What you get
 
-- **Read along.** The current sentence and word are highlighted as they're spoken. Click any sentence to listen from there. Switch between a full *Page* view and a calm *Lines* view that shows one passage at a time.
+- **Read along.** The current sentence and word are highlighted as they're spoken. Click any sentence to listen from there. Switch between a full *Page* view and a calm *Lines* view that shows one passage at a time. Set the page as you like to read it: text size, font (a serif, a sans, Atkinson Hyperlegible or your desktop's own), line spacing, column width, justified or ragged, and hyphenation in the book's language.
 - **Starts in seconds, not hours.** Aoide makes audio just ahead of where you're listening, so you can press play on a new book right away. If you want a book ready for later or offline, ask it to prepare the whole thing.
 - **Your voice, your engine.** Works with [Chatterbox TTS Server](https://github.com/devnen/Chatterbox-TTS-Server), [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) and any other server that speaks the OpenAI speech API. Pick a different voice for each book and preview it first.
 - **A real player.** Gapless playback, 0.5× to 3× speed without the chipmunk effect, sleep timer, bookmarks with notes, chapter skipping, media keys and your desktop's now-playing controls. It remembers where you stopped. The time left is at your speed, in the chapter or in the whole book (click it to switch), and its tooltip says when that runs out by the clock.
@@ -200,6 +200,8 @@ Any of these works:
 Open a book and read, or press **Listen**.
 
 ## Using Aoide
+
+**The page.** **Aa** at the top of the reader sets the text: its size, the font, the spacing between lines, the width of the column, justified or ragged, and hyphenation. *Lines* follows the font and the spacing. Hyphenation uses your system's dictionaries (on Linux, the `hyphen-*` packages) for the book's language; a language without one is not hyphenated. **Settings → Appearance** has the same controls.
 
 **Listening.** Press <kbd>Space</kbd> to play or pause and <kbd>←</kbd> <kbd>→</kbd> to move a sentence. Click any sentence to jump there. If you scroll away while listening, the page stops following you until you click *Back to playhead*. If the voice garbles, repeats or cuts off a sentence, press **Say this again** (the circling arrow at the top of the reader) while it is spoken: Aoide throws away that sentence's audio and makes it again, read differently, then plays it, or waits there if you had paused. The rest of the book's audio is left alone, and a prepared book stays prepared. The voice leaves a short pause after each paragraph, a longer one at a scene break (a line such as `* * *`, or a rule) and after headings and chapters. Set their length under **Settings → Speech engine → Pauses** and press **Hear it** to try them before saving; changing them makes no audio again. Come back after a break and playback starts a little earlier so you catch the thread: from the start of the sentence after a short pause, a sentence back after five minutes, two after an hour (an audiobook without text goes back 3, 10 or 20 seconds), never into the chapter before. Turn it off under **Settings → Library → Listening**.
 
@@ -407,4 +409,4 @@ Test books are tiny EPUBs generated in the tests from original text. Please keep
 
 ## Licence
 
-[MIT](LICENSE). The bundled Manrope and Newsreader fonts are under the [SIL Open Font License](src/assets/fonts/OFL-Newsreader.txt).
+[MIT](LICENSE). The bundled Manrope, Newsreader and Atkinson Hyperlegible Next fonts are under the [SIL Open Font License](src/assets/fonts/OFL-Newsreader.txt).

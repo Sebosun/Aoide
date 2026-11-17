@@ -32,7 +32,7 @@ export const TEXT_WIDTHS = [520, 580, 640, 720, 800] as const;
 export const READER_FONTS: Record<ReaderFont, string> = {
   serif: "var(--font-read)",
   sans: "var(--font-ui)",
-  legible: '"Atkinson Hyperlegible", var(--font-ui)',
+  legible: '"Atkinson Hyperlegible Next", var(--font-ui)',
   system: "system-ui, sans-serif",
 };
 

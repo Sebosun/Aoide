@@ -319,7 +319,7 @@ ragged text, and hyphenation. Today there is one font and five text sizes.
 
 | Field | Values |
 |-------|--------|
-| `reader_font` | `serif` (Newsreader), `sans` (the interface font), `legible` (Atkinson Hyperlegible, OFL), `system` |
+| `reader_font` | `serif` (Newsreader), `sans` (the interface font), `legible` (Atkinson Hyperlegible Next, OFL), `system` (`system-ui`) |
 | `line_spacing` | 0–4, 2 is today's (1.68) |
 | `text_width` | 0–4, 2 is today's (640 px) |
 | `justify` | bool, false |
@@ -329,7 +329,9 @@ Steps, not raw numbers, as `text_size` does. The step-to-value tables sit beside
 in `src/theme.ts`; `applyAppearance` clamps each step as it does the text size and sets
 `--read-line` and `--read-width` on the root, which `ChapterText.vue` and `ReaderSheet.vue`
 use. An unknown `reader_font` in a hand edit is a section problem like any other malformed
-value.
+value. As built, the font, justification and hyphenation are root properties too
+(`--read-font` from `READER_FONTS`, `--read-align`, `--read-hyphens`), with today's values as
+defaults in `theme.css`; `--font-read` stays Newsreader for the rest of the interface.
 
 **Hyphenation** uses the browser (`hyphens: auto`), which needs the text's language: the
 chapter root gets `lang` from `BookView.language`. WebKitGTK hyphenates with the system's
@@ -339,12 +341,19 @@ is acceptable. Check by hand in slice 5.
 
 **Fonts.** Add the font files under `src/assets/fonts/` with their licences, their faces in
 `fonts.css`, and make `readingFont()` load the chosen face. A font is loaded only when chosen.
+As built: Atkinson Hyperlegible *Next* (the variable successor, weights 200–800 with italics,
+so headings at 600 are not faked; from Fontsource 5.3.0, Latin and extended Latin).
+`applyAppearance` starts loading the chosen font, and `readingFont()` with no argument waits
+for the font chosen last (the saved place is shown once it is in).
 
 **Lines view** follows the font and spacing; width and justification do not apply to it.
 
 **Interface.** `ReaderTools.vue`: a "Text" popover with the size (already there), font
 (`UiSelect`), spacing and width (`UiSegmented` or steps), two switches. Settings › Appearance
-(`AppearanceSettings.vue`) shows the same controls.
+(`AppearanceSettings.vue`) shows the same controls. As built: one component,
+`ReaderTypography.vue`, in both places; the font is a `UiSegmented` of four (a `UiSelect`'s
+list is teleported, a popover inside a popover), size, spacing and width are `ReaderSteps.vue`,
+and the switches are checkboxes, as elsewhere in the app.
 
 ### Slices
 

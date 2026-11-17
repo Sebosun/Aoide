@@ -121,7 +121,7 @@ it("sets the reader's font, spacing, width, justification and hyphenation, keepi
   );
   expect(root.style.getPropertyValue("--read-line")).toBe(String(LINE_HEIGHTS[LINE_HEIGHTS.length - 1]));
   expect(root.style.getPropertyValue("--read-width")).toBe(`${TEXT_WIDTHS[0]}px`);
-  expect(root.style.getPropertyValue("--read-font")).toContain("Atkinson Hyperlegible");
+  expect(root.style.getPropertyValue("--read-font")).toContain("Atkinson Hyperlegible Next");
   expect(root.style.getPropertyValue("--read-align")).toBe("justify");
   expect(root.style.getPropertyValue("--read-hyphens")).toBe("auto");
 
@@ -156,6 +156,17 @@ it("changes appearance from Settings and saves it to the config file", async () 
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ mode: "dark", theme: "dusk" }) });
   expect(wrapper.text()).toContain("~/.config/aoide");
+
+  // The reader's typography, as in the reader's Text.
+  await wrapper
+    .get('[aria-label="Reader font"]')
+    .findAll("button")
+    .find((b) => b.text() === "Sans")!
+    .trigger("click");
+  await wrapper.get('[aria-label="Wider text"]').trigger("click");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ readerFont: "sans", textWidth: 3 }) });
+  expect(document.documentElement.style.getPropertyValue("--read-width")).toBe("720px");
   wrapper.unmount();
 });
 

@@ -156,13 +156,13 @@ it("leaves the reader with Escape, unless Escape is closing something over it", 
 
   useNavigationStore().closeTools();
   await flushPromises();
-  await wrapper.get('[aria-label="Text size"]').trigger("click");
+  await wrapper.get('[aria-label="Text"]').trigger("click");
   press("Escape");
   await flushPromises();
   expect(useNavigationStore().view).toBe("reader");
 
   (document.activeElement as HTMLElement | null)?.blur();
-  await wrapper.get('[aria-label="Text size"]').trigger("click");
+  await wrapper.get('[aria-label="Text"]').trigger("click");
   await flushPromises();
   expect(press("Escape").defaultPrevented).toBe(true);
   await flushPromises();

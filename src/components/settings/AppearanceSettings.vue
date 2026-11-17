@@ -4,7 +4,7 @@ import { computed, onMounted, ref } from "vue";
 import { Minus, Palette, Plus } from "@lucide/vue";
 import ThemePicker from "@/components/settings/ThemePicker.vue";
 import type { AppearanceMode } from "@/api/types";
-import { TEXT_SCALES } from "@/theme";
+import ReaderTypography from "@/components/reader/ReaderTypography.vue";
 import { ZOOM_STEPS, clampZoom, stepZoom, zoomLabel } from "@/zoom";
 import SettingsNote from "@/components/settings/SettingsNote.vue";
 import { usePreferencesStore } from "@/stores/preferences";
@@ -59,19 +59,10 @@ const zoom = computed(() => clampZoom(preferences.appearance.zoom));
         @update:model-value="(theme) => preferences.update({ theme })"
       />
     </div>
-    <label class="appearance__row">
+    <div class="appearance__row appearance__row--top">
       <span class="appearance__label">Reading text</span>
-      <input
-        class="appearance__range"
-        type="range"
-        min="0"
-        :max="TEXT_SCALES.length - 1"
-        step="1"
-        :value="preferences.appearance.textSize"
-        aria-label="Reading text size"
-        @input="preferences.update({ textSize: Number(($event.target as HTMLInputElement).value) })"
-      />
-    </label>
+      <ReaderTypography tone="ground" />
+    </div>
     <label class="appearance__row">
       <span class="appearance__label">Reading speed</span>
       <span class="appearance__wpm"
@@ -199,9 +190,8 @@ const zoom = computed(() => clampZoom(preferences.appearance.zoom));
 .appearance__themes {
   align-self: start;
 }
-.appearance__range {
-  justify-self: start;
-  width: min(260px, 100%);
+.appearance__row--top {
+  align-items: start;
 }
 .appearance__wpm {
   justify-self: start;

@@ -416,7 +416,7 @@ it("changes the text size and the reader mode, and remembers both", async () => 
   const save = vi.spyOn(mock, "saveAppearance");
   const wrapper = await openReader();
   await usePreferencesStore().start();
-  await wrapper.get('[aria-label="Text size"]').trigger("click");
+  await wrapper.get('[aria-label="Text"]').trigger("click");
   await wrapper.get('[aria-label="Larger text"]').trigger("click");
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ textSize: 3 }) });
@@ -427,6 +427,43 @@ it("changes the text size and the reader mode, and remembers both", async () => 
     .trigger("click");
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ readerMode: "lines" }) });
+  wrapper.unmount();
+});
+
+it("sets the reader's font, line spacing, width, justification and hyphenation from Text, and remembers them", async () => {
+  const save = vi.spyOn(mock, "saveAppearance");
+  const wrapper = await openReader();
+  await usePreferencesStore().start();
+  await wrapper.get('[aria-label="Text"]').trigger("click");
+  const panel = wrapper.get('[role="group"][aria-label="Text"]');
+  const font = panel.get('[aria-label="Reader font"]');
+  expect(font.findAll("button").map((b) => b.text())).toEqual(["Serif", "Sans", "Legible", "System"]);
+  await font
+    .findAll("button")
+    .find((b) => b.text() === "Legible")!
+    .trigger("click");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ readerFont: "legible" }) });
+  await panel.get('[aria-label="More line spacing"]').trigger("click");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ lineSpacing: 3 }) });
+  await panel.get('[aria-label="Narrower text"]').trigger("click");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ textWidth: 1 }) });
+  await panel.get('input[aria-label="Justify"]').setValue(true);
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ appearance: expect.objectContaining({ justify: true }) });
+  await panel.get('input[aria-label="Hyphenate"]').setValue(true);
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({
+    appearance: expect.objectContaining({
+      readerFont: "legible",
+      lineSpacing: 3,
+      textWidth: 1,
+      justify: true,
+      hyphenate: true,
+    }),
+  });
   wrapper.unmount();
 });
 
@@ -692,7 +729,7 @@ it("shows an audiobook as a player with its parts, and nothing that needs text",
   // No Page/Lines switch, text size, Listen button or chapter menu.
   for (const absent of [ReaderTools, ListenButton, ChapterMenu, ChapterText])
     expect(wrapper.findComponent(absent).exists()).toBe(false);
-  expect(wrapper.find('[aria-label="Text size"]').exists()).toBe(false);
+  expect(wrapper.find('[aria-label="Text"]').exists()).toBe(false);
   wrapper.unmount();
 });
 
