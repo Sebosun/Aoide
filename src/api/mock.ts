@@ -1050,6 +1050,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async appInfo() {
       return { libraryFolder: "~/Documents/Aoide/Books" };
     },
+    async takeOpenRequests() {
+      return [];
+    },
     async listBooks() {
       return structuredClone(books.filter((b) => !feedShelf.has(b.id)));
     },

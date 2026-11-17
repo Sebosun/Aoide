@@ -16,10 +16,59 @@ pub(super) trait LaunchHost {
     fn import(&self, path: &Path) -> ImportResult;
 }
 
+/// Whether the window can be asked to open an item yet.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Window {
+    /// Starting: what it is to open is held, oldest first.
+    Waiting(Vec<String>),
+    /// Listening: items are sent as they come.
+    Ready,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Event {
+    /// An item is to be opened.
+    Opened(String),
+    /// The window asked for what was held.
+    WindowReady,
+}
+
+/// What to do with the items to open.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Deliver {
+    Nothing,
+    /// Send this one to the window now.
+    Send(String),
+    /// Hand these to the window, which asked.
+    Hand(Vec<String>),
+}
+
+fn next(window: Window, event: Event) -> (Window, Deliver) {
+    match (window, event) {
+        (Window::Waiting(mut held), Event::Opened(id)) => {
+            held.push(id);
+            (Window::Waiting(held), Deliver::Nothing)
+        }
+        (Window::Waiting(held), Event::WindowReady) => (Window::Ready, Deliver::Hand(held)),
+        (Window::Ready, Event::Opened(id)) => (Window::Ready, Deliver::Send(id)),
+        (Window::Ready, Event::WindowReady) => (Window::Ready, Deliver::Hand(Vec::new())),
+    }
+}
+
+impl Window {
+    fn name(&self) -> &'static str {
+        match self {
+            Window::Waiting(_) => "waiting",
+            Window::Ready => "ready",
+        }
+    }
+}
+
 pub(super) struct Launching {
     library: Arc<Mutex<Library>>,
     events: Arc<dyn Events>,
     reporter: Reporter,
+    window: Mutex<Window>,
 }
 
 impl Launching {
@@ -28,6 +77,7 @@ impl Launching {
             library,
             events,
             reporter,
+            window: Mutex::new(Window::Waiting(Vec::new())),
         }
     }
 
@@ -54,7 +104,9 @@ impl Launching {
             }
         }
         if let Some(id) = first {
-            self.emit(CoreEvent::OpenItem(id));
+            if let Deliver::Send(id) = self.apply(Event::Opened(id)) {
+                self.emit(CoreEvent::OpenItem(id));
+            }
         }
     }
 
@@ -85,6 +137,31 @@ impl Launching {
         (record.status == BookStatus::Present).then_some(id.0)
     }
 
+    /// The items asked to be opened before the window was ready, which it opens now; from now
+    /// on they are sent as they come.
+    pub fn take_open_requests(&self) -> Vec<String> {
+        match self.apply(Event::WindowReady) {
+            Deliver::Hand(held) => held,
+            _ => Vec::new(),
+        }
+    }
+
+    fn apply(&self, event: Event) -> Deliver {
+        let mut window = lock(&self.window);
+        let from = window.name();
+        let (to, deliver) = next(std::mem::replace(&mut *window, Window::Ready), event);
+        *window = to;
+        if from != window.name() {
+            tracing::info!(
+                event = "launch.window",
+                from,
+                to = window.name(),
+                "The window opens what it is asked to"
+            );
+        }
+        deliver
+    }
+
     fn emit(&self, event: CoreEvent) {
         let name = event.name();
         match event.payload() {
@@ -93,6 +170,31 @@ impl Launching {
                 tracing::error!(event = "app.emit", name, %error, "Cannot send an event to the window")
             }
         }
+    }
+}
+
+impl LaunchHost for super::Core {
+    fn import(&self, path: &Path) -> ImportResult {
+        let mut results = self.import_files(vec![path.to_string_lossy().into_owned()]);
+        results.pop().unwrap_or_else(|| ImportResult {
+            path: path.to_string_lossy().into_owned(),
+            book_id: None,
+            error: Some("it was not added".into()),
+        })
+    }
+}
+
+impl super::Core {
+    /// Acts on what a start of Aoide asks for (blocks while a new book is added).
+    // Called from `lib.rs` once a start hands its arguments over (the next step).
+    #[allow(dead_code)]
+    pub fn launch(&self, requests: Vec<Request>) {
+        self.launching.act(requests, self);
+    }
+
+    /// The items asked to be opened before the window was ready; from now on they are sent.
+    pub fn take_open_requests(&self) -> Vec<String> {
+        self.launching.take_open_requests()
     }
 }
 
@@ -136,6 +238,7 @@ mod tests {
             events.clone(),
         );
         let launching = Launching::new(library, events.clone(), Reporter::new(events.clone()));
+        assert_eq!(launching.take_open_requests(), [] as [String; 0]);
         World {
             _dir: dir,
             root,
@@ -237,5 +340,83 @@ mod tests {
             world.opened(),
             [serde_json::json!(aoide_library::content_hash(&lamp).0)]
         );
+    }
+
+    #[test]
+    fn what_comes_before_the_window_is_ready_is_held_until_it_asks() {
+        let dir = tempfile::tempdir().unwrap();
+        let library = Arc::new(Mutex::new(Library::open_in_memory().unwrap()));
+        let events = Arc::new(Recorder::default());
+        let launching = Launching::new(library, events.clone(), Reporter::default());
+        let (quay, lamp) = (dir.path().join("Quay.epub"), dir.path().join("Lamp.epub"));
+        let host = Imports(vec![(quay.clone(), "quay"), (lamp.clone(), "lamp")]);
+
+        launching.act(vec![Request::OpenFile(quay)], &host);
+        launching.act(vec![Request::Show], &host);
+        assert_eq!(events.count(CoreEvent::OPEN_ITEM), 0);
+
+        assert_eq!(launching.take_open_requests(), ["quay"]);
+        launching.act(vec![Request::OpenFile(lamp)], &host);
+        assert_eq!(
+            events.payloads(CoreEvent::OPEN_ITEM),
+            [serde_json::json!("lamp")]
+        );
+        // A window loaded again finds nothing held.
+        assert_eq!(launching.take_open_requests(), [] as [String; 0]);
+    }
+
+    /// Imports each of its files as the id it gives it.
+    struct Imports(Vec<(PathBuf, &'static str)>);
+
+    impl LaunchHost for Imports {
+        fn import(&self, path: &Path) -> ImportResult {
+            let id = self
+                .0
+                .iter()
+                .find(|(p, _)| p == path)
+                .map(|(_, id)| id.to_string());
+            ImportResult {
+                path: path.to_string_lossy().into_owned(),
+                book_id: id,
+                error: None,
+            }
+        }
+    }
+
+    #[test]
+    fn the_window_state_moves_on_named_events() {
+        use Event::*;
+        use Window::*;
+        let held = |ids: &[&str]| Waiting(ids.iter().map(|id| id.to_string()).collect());
+        let ids = |ids: &[&str]| ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
+        let cases = [
+            (
+                held(&[]),
+                Opened("a".into()),
+                held(&["a"]),
+                Deliver::Nothing,
+            ),
+            (
+                held(&["a"]),
+                Opened("b".into()),
+                held(&["a", "b"]),
+                Deliver::Nothing,
+            ),
+            (
+                held(&["a", "b"]),
+                WindowReady,
+                Ready,
+                Deliver::Hand(ids(&["a", "b"])),
+            ),
+            (Ready, Opened("c".into()), Ready, Deliver::Send("c".into())),
+            (Ready, WindowReady, Ready, Deliver::Hand(Vec::new())),
+        ];
+        for (from, event, to, deliver) in cases {
+            assert_eq!(
+                next(from.clone(), event.clone()),
+                (to, deliver),
+                "{from:?} on {event:?}"
+            );
+        }
     }
 }

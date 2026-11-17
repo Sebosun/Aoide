@@ -52,8 +52,6 @@ pub use signin::SignInView;
 pub use sites::SiteView;
 mod generation;
 mod item;
-// Wired into the window's start in a later step.
-#[allow(dead_code)]
 mod launching;
 mod shelf;
 use generation::PlanEvent;
@@ -236,6 +234,8 @@ pub struct Core {
     sign_in: signin::SignIn,
     /// Desktop notifications when long jobs end.
     notices: notices::Notices,
+    /// What starts of Aoide ask it to open.
+    launching: launching::Launching,
 }
 
 impl Core {
@@ -373,6 +373,8 @@ impl Core {
             &paths.config_dir,
             browser_download,
         ));
+        let launching =
+            launching::Launching::new(Arc::clone(&library), Arc::clone(&events), reporter.clone());
         let core = Arc::new(Self {
             articles,
             feeds,
@@ -407,6 +409,7 @@ impl Core {
             recordings,
             audiobooks,
             notices: notices::Notices::new(notifier),
+            launching,
         });
         Ok((core, worker_events))
     }

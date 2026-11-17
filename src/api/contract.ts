@@ -1230,6 +1230,11 @@ export type Commands = {
   /** Writes a line to Aoide's log (a failure the window saw). */
   "log_ui": { args: { entry: UiLog }; result: void };
   "app_info": { args: Record<string, never>; result: AppInfo };
+  /**
+   * The items a start of Aoide asked to open before the window was listening (a book opened
+   * from the file manager); called once the window listens for `item://open`.
+   */
+  "take_open_requests": { args: Record<string, never>; result: string[] };
   "app_settings": { args: Record<string, never>; result: AppSettings };
   /** Merges a change into the app settings; resolves with the settings now saved. */
   "update_app_settings": { args: { patch: AppSettingsPatch }; result: AppSettings };
@@ -1583,6 +1588,11 @@ export interface CommandApi {
   /** Writes a line to Aoide's log (a failure the window saw). */
   logUi(args: { entry: UiLog }): Promise<void>;
   appInfo(): Promise<AppInfo>;
+  /**
+   * The items a start of Aoide asked to open before the window was listening (a book opened
+   * from the file manager); called once the window listens for `item://open`.
+   */
+  takeOpenRequests(): Promise<string[]>;
   appSettings(): Promise<AppSettings>;
   /** Merges a change into the app settings; resolves with the settings now saved. */
   updateAppSettings(args: { patch: AppSettingsPatch }): Promise<AppSettings>;
@@ -1935,6 +1945,7 @@ export interface CommandApi {
 export const COMMANDS = {
   logUi: "log_ui",
   appInfo: "app_info",
+  takeOpenRequests: "take_open_requests",
   appSettings: "app_settings",
   updateAppSettings: "update_app_settings",
   preferences: "preferences",

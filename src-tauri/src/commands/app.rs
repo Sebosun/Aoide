@@ -11,6 +11,13 @@ pub fn app_info(core: CoreState<'_>) -> AppInfo {
     core.app_info()
 }
 
+/// The items a start of Aoide asked to open before the window was listening (a book opened
+/// from the file manager); called once the window listens for `item://open`.
+#[tauri::command]
+pub fn take_open_requests(core: CoreState<'_>) -> Vec<String> {
+    core.take_open_requests()
+}
+
 #[tauri::command]
 pub fn app_settings(core: CoreState<'_>) -> AppSettings {
     core.app_settings()

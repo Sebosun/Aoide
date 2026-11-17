@@ -31,6 +31,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::app::log_ui,
             commands::app::app_info,
+            commands::app::take_open_requests,
             commands::library::list_books,
             commands::library::home,
             commands::library::add_audiobook,
