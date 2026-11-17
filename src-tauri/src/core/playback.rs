@@ -1207,7 +1207,9 @@ impl super::Core {
     /// counting only those narrated.
     pub async fn skip_chapter(&self, delta: i64) -> Result<(), String> {
         if let Some(timeline) = self.playback.timeline() {
-            return self.skip_part(&timeline, delta);
+            self.skip_part(&timeline, delta)?;
+            self.played();
+            return Ok(());
         }
         let book = self.playback.book().ok_or("nothing is playing")?;
         let (chapter, _) = book

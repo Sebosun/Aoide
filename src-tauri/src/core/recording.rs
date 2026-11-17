@@ -610,10 +610,12 @@ impl Core {
             return Err("choose the recording as the book's narration to listen to it".into());
         }
         if self.playback.recording_of(id).is_none() {
-            self.play(id, None, None).await?;
+            self.start_playing(id, None, None).await?;
         }
         self.follow_through(self.playback.seek_recording(id, at_ms)?)?;
-        self.follow_through(self.playback.play())
+        self.follow_through(self.playback.play())?;
+        self.played();
+        Ok(())
     }
 
     /// The spoken sentences of `chapter` that the book's recording has no audio for, when the

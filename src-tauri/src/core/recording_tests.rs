@@ -436,6 +436,20 @@ async fn a_stretch_of_the_recording_plays_from_its_time() {
     let state = f.core.player_state();
     assert_eq!(state.chapter, 1, "{state:?}");
     assert_eq!(state.source, Narration::Recording);
+    // Played again soon after the sleep timer paused it: the timer starts again.
+    f.core.sleep(super::controls::SleepEvent::Set {
+        minutes: None,
+        end_of_chapter: true,
+        chapter: Some(0),
+        now: std::time::Instant::now(),
+    });
+    until("the sleep timer", || f.core.player_state().sleep.is_none()).await;
+    f.core
+        .play_recording_at(&f.id, second_chapter + 100)
+        .await
+        .unwrap();
+    let again = f.core.player_state().sleep.expect("started again");
+    assert!(again.end_of_chapter && again.extended, "{again:?}");
     // The last chapter runs to the end of the recording: what is left is known, not estimated.
     let left = state
         .chapter_left_ms

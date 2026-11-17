@@ -660,6 +660,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn skipping_a_part_soon_after_the_sleep_timer_paused_starts_it_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = core(dir.path()).await;
+        let folder = three_parts(dir.path());
+        let id = core
+            .add_audiobook(vec![folder.to_string_lossy().into()])
+            .book_id
+            .unwrap();
+        core.play(&id, None, None).await.unwrap();
+        core.seek_to(&id, 59_000).unwrap();
+        core.set_sleep_timer(None, true);
+        state_until(&core, "the sleep timer", |s| {
+            s.status == PlaybackStatus::Paused && s.sleep.is_none()
+        })
+        .await;
+
+        core.skip_chapter(-1).await.unwrap();
+        let again = core.player_state().sleep.expect("started again");
+        assert!(again.end_of_chapter && again.extended, "{again:?}");
+        core.stop();
+    }
+
+    #[tokio::test]
     async fn an_audiobook_plays_seeks_skips_and_resumes_on_its_timeline() {
         let dir = tempfile::tempdir().unwrap();
         let core = core(dir.path()).await;
