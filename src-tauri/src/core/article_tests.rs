@@ -8,6 +8,7 @@ use aoide_library::{ArticleRow, BookId, ItemKind, Library, NewBook};
 use aoide_tts::testing::FakeEngine;
 use url::Url;
 
+use super::articles::NO_WEB_PAGE;
 use super::articles::{ArticleSource, Fetcher, Fetching};
 use super::fetching::{Reason, Stage};
 use super::tests::{library_folder, start_fetching, until};
@@ -724,7 +725,10 @@ async fn a_saved_email_becomes_an_article_without_a_request() {
     assert!(text.contains("The spring tides come early"), "{text}");
 
     // The same email again is the same item; the file is not copied into the library.
-    assert_eq!(core.import_files(vec![path]).remove(0).book_id, Some(id));
+    assert_eq!(
+        core.import_files(vec![path]).remove(0).book_id.as_deref(),
+        Some(id.as_str())
+    );
     let articles = core
         .list_books()
         .unwrap()
@@ -734,6 +738,15 @@ async fn a_saved_email_becomes_an_article_without_a_request() {
     assert_eq!(articles, 1);
     assert!(!dir.path().join("Books/Tides.eml").exists());
     assert_eq!(pages.asks(), 0, "nothing is fetched");
+
+    // It has no page on the web: nothing that needs one is offered or done.
+    let view = core.article(&id).unwrap();
+    assert!(!view.on_the_web);
+    let no_page = Err(NO_WEB_PAGE.to_string());
+    assert_eq!(core.refetch_article(&id, ArticleSource::Http), no_page);
+    assert_eq!(core.open_original(&id), no_page);
+    assert_eq!(core.start_sign_in(&id).map(drop), no_page);
+    assert_eq!(pages.asks(), 0);
 }
 
 #[tokio::test]
@@ -759,6 +772,8 @@ async fn an_email_with_a_web_copy_is_kept_under_its_address_and_a_non_email_is_r
         core.article(&id).unwrap().canonical_url,
         "https://harbour.example/issues/41"
     );
+    // Its web copy can be fetched.
+    assert!(core.article(&id).unwrap().on_the_web);
     assert_eq!(results[1].book_id, None);
     assert_eq!(results[1].error.as_deref(), Some("not an email"));
     assert_eq!(pages.asks(), 0);

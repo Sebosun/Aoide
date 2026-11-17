@@ -46,7 +46,7 @@ const collections = computed(() => {
       <span class="article-header__site">{{ siteOf(article) }}</span>
       <span v-if="published">{{ published }}</span>
       <span>{{ readTime }}</span>
-      <button type="button" class="article-header__original" @click="emit('original')">
+      <button v-if="article.onTheWeb" type="button" class="article-header__original" @click="emit('original')">
         Open original<ExternalLink :size="13" aria-hidden="true" />
       </button>
       <button v-if="!article.inLibrary" type="button" class="article-header__save" @click="emit('save')">

@@ -290,6 +290,21 @@ it("shows an article's page: its site and fetch, narration only, the original an
   wrapper.unmount();
 });
 
+it("offers nothing that needs a web page on a saved email's page", async () => {
+  mock.dispose();
+  mock = createMockApi("?article=email");
+  backend.api = mock;
+  useNavigationStore().openItem("book-7");
+  const wrapper = await app();
+  const about = () => wrapper.get(".item-page");
+  expect(about().get(".item-page__kind").text()).toBe("Article · unread");
+  expect(about().get('[aria-labelledby="item-text"]').text()).toContain("Harbour Weekly");
+  expect(about().find('[aria-label="Read"]').exists()).toBe(true);
+  expect(about().find('[aria-label="Open original"]').exists()).toBe(false);
+  expect(about().find('[aria-label="Fetch again"]').exists()).toBe(false);
+  wrapper.unmount();
+});
+
 it("shows why an article could not be fetched, and fetches it again", async () => {
   const { wrapper, about } = await articlePage("failed");
   expect(wrapper.find(".item-page__error").exists(), "not an error loading the page").toBe(false);

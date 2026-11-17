@@ -382,6 +382,10 @@ impl super::Core {
     /// Opens a window on article `id`'s page for the user to sign in or pass a check; the
     /// article is fetched again once the window shows it whole or the user says so.
     pub fn start_sign_in(self: &Arc<Self>, id: &str) -> Result<SignInView, String> {
+        // A saved email has no page to sign in to, whether or not the browser is on.
+        if !self.articles.view(id)?.on_the_web {
+            return Err(super::articles::NO_WEB_PAGE.into());
+        }
         self.require_browser()?;
         let (url, asks) = self.sign_in.begin(&**self, id)?;
         let core = Arc::clone(self);

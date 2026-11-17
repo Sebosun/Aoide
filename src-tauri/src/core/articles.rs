@@ -173,7 +173,13 @@ pub struct ArticleView {
     pub feeds: Vec<DiscoveredFeed>,
     /// Kept in the library; false while it was only opened from a feed.
     pub in_library: bool,
+    /// Its address is a web page's: it can be fetched again, opened in the browser and
+    /// signed in to. False for a saved email with no web copy.
+    pub on_the_web: bool,
 }
+
+/// Why an article from a saved email is not fetched, opened or signed in to.
+pub(super) const NO_WEB_PAGE: &str = "This came from an email and has no page on the web.";
 
 /// What a library card shows of an article.
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -508,7 +514,6 @@ impl Articles {
             id: id.into(),
             stage: Stage::from_stored(&row.stage, row.reason.as_deref()),
             url: row.url,
-            canonical_url: row.canonical_url,
             site_name: row.site_name,
             byline: row.byline,
             published_at: row.published_at,
@@ -519,6 +524,8 @@ impl Articles {
             declared_words: row.declared_words,
             feeds,
             in_library: true,
+            on_the_web: web_address(&row.canonical_url).is_ok(),
+            canonical_url: row.canonical_url,
         })
     }
 
@@ -1003,6 +1010,9 @@ impl super::Core {
 
     /// Fetches article `id` again: from the page, an archived copy, or in the browser.
     pub fn refetch_article(&self, id: &str, source: ArticleSource) -> Result<(), String> {
+        if !self.articles.view(id)?.on_the_web {
+            return Err(NO_WEB_PAGE.into());
+        }
         if source == ArticleSource::Browser {
             self.require_browser()?;
         }
@@ -1030,6 +1040,9 @@ impl super::Core {
     /// are opened.
     pub fn open_original(&self, id: &str) -> Result<(), String> {
         let view = self.articles.view(id)?;
+        if !view.on_the_web {
+            return Err(NO_WEB_PAGE.into());
+        }
         let url = web_address(&view.canonical_url)?;
         (self.open_link)(url.as_str())
     }

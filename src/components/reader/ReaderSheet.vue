@@ -198,7 +198,7 @@ const next = computed(() => {
           </template>
           <template #after>
             <NeedsYouNotice
-              v-if="article && needs"
+              v-if="article?.onTheWeb && needs"
               :article="article"
               :reason="needs"
               :browser-on="browserOn"

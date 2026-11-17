@@ -874,6 +874,20 @@ it("heads an article with its site, reading time and original, and outlines its 
   wrapper.unmount();
 });
 
+it("heads a saved email with its sender, and no original to open", async () => {
+  mock.dispose();
+  setActivePinia(createPinia());
+  mock = createMockApi("?article=email");
+  backend.api = mock;
+  const wrapper = await openReader({ book: "book-7", attach: true });
+  const head = wrapper.get('[aria-label="About this article"]');
+  expect(head.get("h1").text()).toBe("Tides this week");
+  expect(head.text()).toContain("Harbour Weekly");
+  expect(head.findAll("button").some((b) => b.text() === "Open original")).toBe(false);
+  expect(wrapper.text()).toContain("The spring tides come early this year");
+  wrapper.unmount();
+});
+
 it("shows an article's collections in its header, and opens the picker there", async () => {
   const wrapper = await openArticle("ready");
   const night = await mock.createCollection({ name: "Night reading" });

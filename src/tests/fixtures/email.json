@@ -1,0 +1,204 @@
+{
+  "article": {
+    "byline": "Harbour Weekly",
+    "canonicalUrl": "email:issue-41@harbour.example",
+    "capturedWords": 38,
+    "declaredWords": null,
+    "error": null,
+    "feeds": [],
+    "fetchedAt": 215,
+    "id": "book-7",
+    "inLibrary": true,
+    "onTheWeb": false,
+    "publishedAt": 1794295800000,
+    "siteName": "Harbour Weekly",
+    "stage": {
+      "kind": "ready"
+    },
+    "url": "email:issue-41@harbour.example",
+    "via": "email"
+  },
+  "chapter": {
+    "blocks": [
+      {
+        "kind": "paragraph",
+        "level": null,
+        "segments": [
+          {
+            "canSayAgain": true,
+            "id": "0:0:0",
+            "note": false,
+            "notes": [],
+            "speakable": true,
+            "starts": [
+              0,
+              4,
+              11,
+              17,
+              22,
+              28,
+              33,
+              39,
+              43,
+              47,
+              55,
+              62,
+              66,
+              72,
+              76,
+              85,
+              88,
+              92,
+              98,
+              104,
+              110,
+              114,
+              118,
+              121,
+              125
+            ],
+            "words": [
+              "The",
+              "spring",
+              "tides",
+              "come",
+              "early",
+              "this",
+              "year,",
+              "and",
+              "the",
+              "harbour",
+              "master",
+              "has",
+              "moved",
+              "the",
+              "moorings",
+              "to",
+              "the",
+              "inner",
+              "basin",
+              "until",
+              "the",
+              "end",
+              "of",
+              "the",
+              "month."
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "paragraph",
+        "level": null,
+        "segments": [
+          {
+            "canSayAgain": true,
+            "id": "0:1:0",
+            "note": false,
+            "notes": [],
+            "speakable": true,
+            "starts": [
+              133,
+              139,
+              142,
+              146,
+              152,
+              160,
+              167,
+              174,
+              176,
+              183,
+              187,
+              190,
+              194
+            ],
+            "words": [
+              "Boats",
+              "on",
+              "the",
+              "outer",
+              "pontoon",
+              "should",
+              "expect",
+              "a",
+              "strong",
+              "set",
+              "on",
+              "the",
+              "ebb."
+            ]
+          }
+        ]
+      }
+    ],
+    "index": 0,
+    "notNarrated": null,
+    "title": "Tides this week"
+  },
+  "summary": {
+    "addedAt": 220,
+    "archived": false,
+    "article": {
+      "error": null,
+      "lead": "The spring tides come early this year, and the harbour master has moved the moorings to the inner basin until the end of the month.",
+      "siteName": "Harbour Weekly",
+      "stage": {
+        "kind": "ready"
+      }
+    },
+    "audio": "none",
+    "audioBytes": 0,
+    "authors": [
+      "Harbour Weekly"
+    ],
+    "collections": [],
+    "coverPath": null,
+    "durationMs": null,
+    "id": "book-7",
+    "kind": "article",
+    "language": null,
+    "lastOpenedAt": null,
+    "mode": "read",
+    "prepare": null,
+    "progress": null,
+    "queued": false,
+    "readState": "unread",
+    "recording": null,
+    "shape": "read",
+    "status": {
+      "kind": "present"
+    },
+    "tags": [],
+    "title": "Tides this week",
+    "wordCount": 38
+  },
+  "view": {
+    "authors": [
+      "Harbour Weekly"
+    ],
+    "chapters": [
+      {
+        "durationMs": null,
+        "index": 0,
+        "leftOut": false,
+        "suggested": false,
+        "title": "Tides this week",
+        "wordCount": 38
+      }
+    ],
+    "chaptersLeftOut": 0,
+    "excluded": [],
+    "id": "book-7",
+    "kind": "article",
+    "language": null,
+    "languageWarning": null,
+    "mode": "read",
+    "narratedWordCount": 38,
+    "progress": null,
+    "shape": "read",
+    "title": "Tides this week",
+    "voiceWarning": null,
+    "warnings": [],
+    "wordCount": 38
+  }
+}

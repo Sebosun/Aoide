@@ -15,6 +15,7 @@
     "fetchedAt": 205,
     "id": "book-6",
     "inLibrary": true,
+    "onTheWeb": true,
     "publishedAt": null,
     "siteName": "Quay Weekly",
     "stage": {

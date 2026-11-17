@@ -65,6 +65,7 @@ import fixtureGenerationPlaying from "@/tests/fixtures/generation-playing.json";
 import fixtureRecording from "@/tests/fixtures/recording.json";
 import fixtureAudiobook from "@/tests/fixtures/audiobook.json";
 import fixtureArticle from "@/tests/fixtures/article.json";
+import fixtureEmail from "@/tests/fixtures/email.json";
 import fixtureFeeds from "@/tests/fixtures/feeds.json";
 import fixtureStages from "@/tests/fixtures/stages.json";
 import fixtureChapters from "@/tests/fixtures/chapters.json";
@@ -111,7 +112,9 @@ const coreView = (id: string): BookView | undefined =>
       ? (fixtureAudiobook.view as unknown as BookView)
       : id === fixtureArticle.view.id
         ? (fixtureArticle.view as unknown as BookView)
-        : (fixtureViews as unknown as Record<string, BookView>)[id],
+        : id === fixtureEmail.view.id
+          ? (fixtureEmail.view as unknown as BookView)
+          : (fixtureViews as unknown as Record<string, BookView>)[id],
   );
 /** A saved link as the core reads it (core/articles.rs `parse_link`). */
 const parseLink = (link: string) => {
@@ -745,6 +748,27 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     } as Record<string, ArticleView["stage"]>
   )[query.get("article") ?? ""];
   if (previewArticle) addArticle(previewArticle);
+  /** The preview's saved email (`email.json`), read at once: it has no page on the web. */
+  const addEmail = () => {
+    const { coverPath, ...summary } = structuredClone(fixtureEmail.summary) as unknown as Wire.BookSummary;
+    if (!articles.has(summary.id)) {
+      books.push({ ...summary, coverUrl: coverPath, addedAt: Date.now() });
+      articles.set(summary.id, structuredClone(fixtureEmail.article) as unknown as ArticleView);
+      fetched.add(summary.id);
+      changed();
+    }
+    return summary.id;
+  };
+  if (query.get("article") === "email") addEmail();
+  /** An article's one chapter: the preview's email's, or the preview article's. */
+  const articleChapter = (id: string) =>
+    structuredClone(
+      id === fixtureEmail.view.id ? fixtureEmail.chapter : fixtureArticle.chapter,
+    ) as unknown as ChapterView;
+  /** As the core does: an article from an email has no page to fetch, open or sign in to. */
+  const onTheWeb = (id: string) => {
+    if (articles.get(id)?.onTheWeb === false) throw refused("This came from an email and has no page on the web.");
+  };
   /** A sign-in, as the core runs it (core/signin.rs): opening, waiting for the user, fetching
    *  with the session, done. `?signin=waiting|fetching` opens one on the preview's article. */
   let signIn: SignInView | null = null;
@@ -1225,12 +1249,13 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async home() {
       return homeOverride ? structuredClone(homeOverride) : homeOf(await api.listBooks());
     },
+    /** A saved email becomes the preview's email article; other files are not read. */
     async importFiles({ paths }) {
-      return paths.map((path) => ({
-        path,
-        bookId: null,
-        error: "Browser preview cannot read local paths. Add books in the desktop app.",
-      }));
+      return paths.map((path) =>
+        /\.eml$/i.test(path)
+          ? { path, bookId: addEmail(), error: null }
+          : { path, bookId: null, error: "Browser preview cannot read local paths. Add books in the desktop app." },
+      );
     },
     /** As the core does for the preview's audiobook (`audiobook.json`): added once, then the
      *  same item; a protected file is refused. */
@@ -1401,7 +1426,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (isArticle(id)) {
         if (!fetched.has(id)) throw refused(articles.get(id)!.error ?? "Not fetched yet.");
         if (chapter !== 0) throw refused("no such chapter");
-        return structuredClone(fixtureArticle.chapter) as unknown as ChapterView;
+        return articleChapter(id);
       }
       return getChapter(id, chapter);
     },
@@ -1632,7 +1657,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       if (isAudiobook(id)) throw refused(NO_TEXT);
       const chapter = Number(segmentId.split(":")[0]);
       const view = isArticle(id)
-        ? (fixtureArticle.chapter as unknown as ChapterView)
+        ? articleChapter(id)
         : chapters[Number(id.split("-")[1])]?.[chapter] && getChapter(id, chapter);
       const segment = view?.blocks.flatMap((b) => b.segments).find((s) => s.id === segmentId);
       if (!segment) throw refused("no such sentence");
@@ -2188,6 +2213,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async refetchArticle({ bookId: id, source }) {
       const view = articles.get(id);
       if (!view) throw refused("Not an article.");
+      onTheWeb(id);
       if (source === "browser" && appSettings.browser.use === "off")
         throw refused("The browser is off. Turn it on in Settings › Sites.");
       if (view.stage.kind === "queued" || view.stage.kind === "fetching") return;
@@ -2372,6 +2398,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     /** The preview opens nothing. */
     async openOriginal({ bookId: id }) {
       if (!articles.has(id)) throw refused("Not an article.");
+      onTheWeb(id);
     },
     async mergeAudiobook({ audiobookId, bookId }) {
       if (!isAudiobook(audiobookId)) throw refused("That is not an audiobook on its own.");
@@ -2574,6 +2601,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       sites.delete(siteHost(host));
     },
     async startSignIn({ bookId: id }) {
+      onTheWeb(id);
       browserOff();
       if (signInOpen()) throw refused("A sign-in is already open. Finish or cancel it first.");
       openSignIn(id);

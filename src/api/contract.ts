@@ -905,7 +905,12 @@ feeds: Array<DiscoveredFeed>,
 /**
  * Kept in the library; false while it was only opened from a feed.
  */
-inLibrary: boolean, };
+inLibrary: boolean, 
+/**
+ * Its address is a web page's: it can be fetched again, opened in the browser and
+ * signed in to. False for a saved email with no web copy.
+ */
+onTheWeb: boolean, };
 
 export type ArticleSummary = { 
 /**

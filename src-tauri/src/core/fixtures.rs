@@ -570,6 +570,49 @@ async fn an_article_for_the_ui_mock() {
     );
 }
 
+/// A saved email read as an article (`?article=email`, and what an `.eml` given to import
+/// becomes in the mock): it has no page on the web.
+#[tokio::test]
+async fn an_email_for_the_ui_mock() {
+    use super::article_tests::{Pages, NEWSLETTER};
+    if !wanted() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    super::tests::library_folder(dir.path(), "");
+    let (core, _) = super::tests::start_fetching(dir.path(), &FakeEngine::new(), Pages::with(&[]));
+    let mail = dir.path().join("Tides.eml");
+    std::fs::write(&mail, NEWSLETTER).unwrap();
+    let id = core
+        .import_files(vec![mail.to_string_lossy().into_owned()])
+        .remove(0)
+        .book_id
+        .unwrap();
+    let mut summary = core
+        .list_books()
+        .unwrap()
+        .into_iter()
+        .find(|b| b.id == id)
+        .unwrap();
+    summary.added_at = 220;
+    let mut article = core.article(&id).unwrap();
+    article.fetched_at = Some(215);
+    let renames = vec![
+        (id.clone(), "book-7".to_owned()),
+        (dir.path().to_string_lossy().into_owned(), "~".to_owned()),
+    ];
+    write(
+        "email",
+        &serde_json::json!({
+            "summary": summary,
+            "article": article,
+            "view": core.book_overview(&id).unwrap(),
+            "chapter": core.chapter(&id, 0).unwrap(),
+        }),
+        &renames,
+    );
+}
+
 /// The preview's web beyond its feeds, as `pages` serves it: a site with a new feed, which its
 /// front page names with a second one, a page naming none, and the feed of the preview
 /// article's site. Written as `web.json`, so the mock knows what is there.
@@ -2514,6 +2557,45 @@ async fn scenarios_for_the_ui_mock() {
     renames.insert(0, (tide, "h-tide".into()));
     renames.insert(0, (glass, "h-glass".into()));
     renames.push((found_dir.path().to_string_lossy().into_owned(), "~".into()));
+
+    // ---- a saved email, as the mock starts with `?article=email`
+    let email_dir = tempfile::tempdir().unwrap();
+    super::tests::library_folder(email_dir.path(), "");
+    let (core, _) = super::tests::start_fetching(
+        email_dir.path(),
+        &FakeEngine::new(),
+        super::article_tests::Pages::with(&[]),
+    );
+    let mail = email_dir.path().join("Tides.eml");
+    std::fs::write(&mail, super::article_tests::NEWSLETTER).unwrap();
+    let email = core
+        .import_files(vec![mail.to_string_lossy().into_owned()])
+        .remove(0)
+        .book_id
+        .unwrap();
+    let mut s = Scenario::new("a saved email has no page on the web", "?article=email");
+    let book = json!({"bookId": "book-7"});
+    s.step(
+        "article",
+        book.clone(),
+        &core.article(&email),
+        &["onTheWeb", "via"],
+    );
+    s.step(
+        "refetchArticle",
+        json!({"bookId": "book-7", "source": "http"}),
+        &core.refetch_article(&email, super::ArticleSource::Http),
+        &[],
+    );
+    s.step(
+        "openOriginal",
+        book.clone(),
+        &core.open_original(&email),
+        &[],
+    );
+    let signing = core.start_sign_in(&email).map(drop);
+    s.step("startSignIn", book, &signing, &[]);
+    scenarios.push(s.done());
 
     write("scenarios", &scenarios, &renames);
 }

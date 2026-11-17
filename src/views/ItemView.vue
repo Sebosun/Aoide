@@ -308,7 +308,8 @@ async function pair() {
           >
             <Library :size="17" aria-hidden="true" /> Add to collection
           </UiButton>
-          <template v-if="isArticle">
+          <!-- A saved email with no web copy has no page to open or fetch. -->
+          <template v-if="isArticle && article?.onTheWeb !== false">
             <UiButton variant="raised" size="lg" aria-label="Open original" @click="openOriginal">
               <ExternalLink :size="17" aria-hidden="true" /> Open original
             </UiButton>

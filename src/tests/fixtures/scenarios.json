@@ -2554,5 +2554,47 @@
         }
       }
     ]
+  },
+  {
+    "name": "a saved email has no page on the web",
+    "start": "?article=email",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-7"
+        },
+        "call": "article",
+        "error": null,
+        "expect": {
+          "onTheWeb": false,
+          "via": "email"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-7",
+          "source": "http"
+        },
+        "call": "refetchArticle",
+        "error": "This came from an email and has no page on the web.",
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-7"
+        },
+        "call": "openOriginal",
+        "error": "This came from an email and has no page on the web.",
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-7"
+        },
+        "call": "startSignIn",
+        "error": "This came from an email and has no page on the web.",
+        "expect": {}
+      }
+    ]
   }
 ]
