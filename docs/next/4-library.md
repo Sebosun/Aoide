@@ -148,6 +148,7 @@ Option<String>` opens the file chooser, beside `choose_books` in `commands/disco
 ## 4.2 Series
 
 **Size:** M. Needs 4.1 for hand edits.
+**Built:** 2026-11-17 (ddab347..263a77c)
 
 ### Outcome
 
@@ -228,6 +229,23 @@ merge is worse than two shelves, and 4.1 lets the user fix a name.
 ### Done when
 
 - A Calibre-managed trilogy shows as 1, 2, 3 without any editing.
+
+### As built
+
+- The series is stored apart from the record (`Library::set_series`), so a scan storing a
+  record again leaves it; the scan sets it for a new book, and for a listed one only while
+  `GlobalKey::SeriesRead` is unset. `subjects_of` became `package_of` (subjects and series
+  from one package read). Library version 24.
+- `aoide_document::Series` is `PartialEq` and `Eq` by hand: positions are read only when
+  finite. `BookRecord` lost `Eq` (it has an `f32` now).
+- A hand edit keeps the name and the number apart (`DetailsEdit.series`,
+  `series_position`); an empty name is "in no series". Edit details has Series and Number;
+  one **Use the file's** sets both back.
+- The view is `SeriesShelfView { name, items: [{ bookId, position, state }] }` from the
+  `series` command; items without a place come last. The strip lists every book of the
+  series (archived ones too), its number, title and a finished mark.
+- The card badge shows only while the library is sorted by series.
+- The preview's *The Lantern Keeper* and *An Unfinished Atlas* are *The Coast Books* 1 and 2.
 
 ---
 
