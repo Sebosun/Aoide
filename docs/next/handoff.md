@@ -2,6 +2,7 @@
 
 Goal: build every in-scope feature in `docs/next/plan.md`. Out of scope (decided 2026-11-16):
 3.4 Dictionary, 4.6 Calibre/OPDS, 5.4 Podcasts, 6.5 Windows/macOS; 6.6 is direction only.
+4.4 Goals was dropped on 2026-11-17 (its started work is on the local branch `dropped/4.4-goals`).
 Delete this file when the remaining work is done.
 
 ## Where it stands
@@ -9,14 +10,6 @@ Delete this file when the remaining work is done.
 Built, independently reviewed (all checks green) and pushed, through `a91e619`:
 6.4, 1.1, 1.4, 2.1, 2.2, 2.7, 6.2, 1.2, 1.3, 3.3, 3.1, 3.2, 6.1, 5.2, 4.7, 4.3, 2.3, 2.4, 2.5,
 3.7. Each plan section has a `**Built:** 2026-11-17 (<first>..<last>)` line.
-
-**In progress, 4.4 Goals** (stopped by hand mid-build):
-- Slice 1 (`progress` in `src-tauri/src/core/goals.rs`) is committed on the machine where this
-  was built ("The core can tell how today and the year are going against a daily and a yearly
-  goal…"), **local only, not pushed, not reviewed**. On another machine it is not there: redo it.
-- Slice 2 (settings and patch: `AppSettings.goals`, `GoalSettings::validate`, contract) is
-  **uncommitted** in that machine's working tree (config.rs, contract.rs, goals.rs, settings.rs, tests.rs,
-  contract.ts, mock.ts, features.test.ts). Finish it: run the checks, commit, then do slices 3–4.
 
 **Not started**, in the order planned: 5.3, 5.5, 4.1, 4.2 (needs 4.1), 6.3, 4.8, 5.1, 3.5, 2.6,
 1.5, 3.6, 4.5 (every format the section lists).

@@ -10,7 +10,8 @@ unless "Needs" says otherwise. PDF support has landed (`crates/pdf`);
 
 **Checked against the code on 2026-11-16.** Every plan file answers its "Check" items in place
 and lists decided questions under **Settled**; questions still open are under **Open
-questions**. 3.4, 4.6, 5.4 and 6.5 are not planned for now (decided 2026-11-16).
+questions**. 3.4, 4.6, 5.4 and 6.5 are not planned for now (decided 2026-11-16); 4.4 was dropped on
+2026-11-17.
 
 ## The features
 
@@ -41,7 +42,7 @@ an open design question.
 | 4.1 | Edit a book's details | [4-library.md](4-library.md#41-edit-a-books-details) | M | |
 | 4.2 | Series | [4-library.md](4-library.md#42-series) | M | 4.1 |
 | 4.3 | Archive, and quicker collections | [4-library.md](4-library.md#43-archive-and-quicker-collections) | S | |
-| 4.4 | Goals | [4-library.md](4-library.md#44-goals) | S | |
+| 4.4 | Goals | [4-library.md](4-library.md#44-goals) | dropped | |
 | 4.5 | More formats | [4-library.md](4-library.md#45-more-formats) | M each | PDF |
 | 4.6 | Calibre libraries and OPDS catalogues | [4-library.md](4-library.md#46-calibre-libraries-and-opds-catalogues) | not planned for now | |
 | 4.7 | An inbox folder | [4-library.md](4-library.md#47-an-inbox-folder) | S | |

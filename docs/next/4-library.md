@@ -313,6 +313,9 @@ collections.
 
 ## 4.4 Goals
 
+**Dropped** (decided 2026-11-17): goals get ignored after a day or two; the activity stats are
+enough. The started work is on the local branch `dropped/4.4-goals`.
+
 **Size:** S
 
 ### Outcome
