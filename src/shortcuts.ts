@@ -15,6 +15,7 @@ export type ShortcutId =
   | "highlight"
   | "sleep"
   | "collection"
+  | "fullscreen"
   | "find"
   | "add"
   | "settings"
@@ -93,13 +94,14 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "highlight", label: "Highlight the sentence just spoken", keys: [{ key: "h" }] },
   { id: "sleep", label: "Sleep timer", keys: [{ key: "t" }] },
   { id: "collection", label: "Add the open item to a collection", keys: [{ key: "c" }] },
+  { id: "fullscreen", label: "Fill the screen, or back to a window", keys: [{ key: "F11" }, { key: "f" }] },
   { id: "find", label: "Search the open book, or the library", keys: [{ key: "f", ctrl: true }], typing: true },
   { id: "add", label: "Add books or audiobooks", keys: [{ key: "n", ctrl: true }], typing: true },
   { id: "settings", label: "Settings", keys: [{ key: ",", ctrl: true }], typing: true },
   { id: "zoomIn", label: "Larger interface", keys: [{ key: "+", ctrl: true, also: ["="] }], typing: true },
   { id: "zoomOut", label: "Smaller interface", keys: [{ key: "-", ctrl: true, also: ["_"] }], typing: true },
   { id: "zoomReset", label: "Interface at 100%", keys: [{ key: "0", ctrl: true }], typing: true },
-  { id: "back", label: "Close a dialog or menu, or leave the reader", keys: [{ key: "Escape" }] },
+  { id: "back", label: "Close a dialog or menu, leave fullscreen, or leave the reader", keys: [{ key: "Escape" }] },
   {
     id: "textMenu",
     label: "The menu on the selected text, or on the sentence in focus",

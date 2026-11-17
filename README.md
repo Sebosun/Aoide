@@ -206,7 +206,7 @@ Open a book and read, or press **Listen**.
 
 ## Using Aoide
 
-**The page.** **Aa** at the top of the reader sets the text: its size, the font, the spacing between lines, the width of the column, justified or ragged, and hyphenation. *Lines* follows the font and the spacing. Hyphenation uses your system's dictionaries (on Linux, the `hyphen-*` packages) for the book's language; a language without one is not hyphenated. **Settings → Appearance** has the same controls.
+**The page.** **Aa** at the top of the reader sets the text: its size, the font, the spacing between lines, the width of the column, justified or ragged, and hyphenation. *Lines* follows the font and the spacing. Hyphenation uses your system's dictionaries (on Linux, the `hyphen-*` packages) for the book's language; a language without one is not hyphenated. **Settings → Appearance** has the same controls. Press <kbd>F11</kbd> or <kbd>F</kbd> to fill the screen, and <kbd>Esc</kbd> to go back to a window; Aoide always starts in one.
 
 **Listening.** Press <kbd>Space</kbd> to play or pause and <kbd>←</kbd> <kbd>→</kbd> to move a sentence. Click any sentence to jump there. Dragging across words selects them and does not jump: a small menu appears over them to **Copy** them (without footnote markers), **Highlight** them, **Search the book** for them, **Listen from here**, or, for a word or a few, **Say this differently…**. Right-click a sentence for **Listen from here**, **Say this again** and **Bookmark here**, which bookmarks that sentence rather than where you are listening. Press <kbd>H</kbd> while listening to highlight the sentence just spoken (pressed in the first second of a sentence, the one before it); its toast offers **Undo**. If you scroll away while listening, the page stops following you until you click *Back to playhead*. If the voice garbles, repeats or cuts off a sentence, press **Say this again** (the circling arrow at the top of the reader) while it is spoken: Aoide throws away that sentence's audio and makes it again, read differently, then plays it, or waits there if you had paused. The rest of the book's audio is left alone, and a prepared book stays prepared. The voice leaves a short pause after each paragraph, a longer one at a scene break (a line such as `* * *`, or a rule) and after headings and chapters. Set their length under **Settings → Speech engine → Pauses** and press **Hear it** to try them before saving; changing them makes no audio again. Come back after a break and playback starts a little earlier so you catch the thread: from the start of the sentence after a short pause, a sentence back after five minutes, two after an hour (an audiobook without text goes back 3, 10 or 20 seconds), never into the chapter before. Turn it off under **Settings → Library → Listening**.
 
@@ -262,13 +262,14 @@ Then turn on **Settings → Word highlighting → Exact word timing** with the a
 | <kbd>H</kbd> | Highlight the sentence just spoken |
 | <kbd>T</kbd> | Sleep timer |
 | <kbd>C</kbd> | Add the open item to a collection |
+| <kbd>F11</kbd> / <kbd>F</kbd> | Fill the screen, or back to a window |
 | <kbd>Ctrl</kbd> <kbd>F</kbd> | Search the open book, or the library |
 | <kbd>Ctrl</kbd> <kbd>N</kbd> | Add books or audiobooks |
 | <kbd>Ctrl</kbd> <kbd>,</kbd> | Settings |
 | <kbd>Ctrl</kbd> <kbd>+</kbd> | Larger interface |
 | <kbd>Ctrl</kbd> <kbd>−</kbd> | Smaller interface |
 | <kbd>Ctrl</kbd> <kbd>0</kbd> | Interface at 100% |
-| <kbd>Esc</kbd> | Close a dialog or menu, or leave the reader |
+| <kbd>Esc</kbd> | Close a dialog or menu, leave fullscreen, or leave the reader |
 | <kbd>Menu</kbd> / <kbd>Shift</kbd> <kbd>F10</kbd> | The menu on the selected text, or on the sentence in focus |
 | <kbd>?</kbd> | Show this list |
 

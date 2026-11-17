@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted } from "vue";
+import { api } from "@/api";
 import { useNavigationStore } from "@/stores/navigation";
 import { useReaderStore } from "@/stores/reader";
 import { useLibraryStore } from "@/stores/library";
@@ -43,7 +44,10 @@ const volumeLabel = (volume: number) => (volume > 0 ? `Volume ${Math.round(volum
  *  - B bookmarks the playing (or open) book's place; H highlights the sentence just spoken (in
  *    the first second of a sentence, the one before it); T opens the player's sleep timer menu.
  *  - C picks the collections of the item whose page or text is open, once it is in the library.
- *  - Escape leaves the reader for the screen it was opened from, when nothing is open over it.
+ *  - F11 or F makes the window fill the screen, or a window again. The window says when it
+ *    changed (also when the window manager's own shortcut changed it), and that is what counts.
+ *  - Escape, when nothing is open over the screen, leaves fullscreen first; then it leaves the
+ *    reader for the screen it was opened from.
  *  - The menu key (or Shift F10) is the reader's text menu's (ReaderSelection), which also has
  *    Shift ← / → and ↑ / ↓ while text is selected or a sentence was reached with the keyboard.
  *  - ? shows the list of shortcuts.
@@ -86,6 +90,11 @@ export function useShortcuts() {
     ui.toast(volumeLabel(volume), "info", "volume");
   }
   let spaceHeld = false;
+  /** Whether the window fills the screen, as it last said. */
+  let fullscreen = false;
+  function setFullscreen(on: boolean) {
+    api.setFullscreen({ on }).catch(() => ui.toast("The window cannot change to or from fullscreen", "error"));
+  }
   const dialogOpen = () => document.querySelector('[aria-modal="true"]');
   /** What each shortcut does, given its combination's `arg` and the focused element. One that
    *  returns false did nothing, and leaves the key to the page. */
@@ -155,9 +164,12 @@ export function useShortcuts() {
     zoomIn: () => zoom(stepZoom(preferences.appearance.zoom, 1)),
     zoomOut: () => zoom(stepZoom(preferences.appearance.zoom, -1)),
     zoomReset: () => zoom(1),
+    fullscreen: () => setFullscreen(!fullscreen),
     back() {
-      if (navigation.view !== "reader" || document.querySelector(OVERLAYS)) return false;
-      navigation.leaveReader();
+      if (document.querySelector(OVERLAYS)) return false;
+      if (fullscreen) setFullscreen(false);
+      else if (navigation.view === "reader") navigation.leaveReader();
+      else return false;
     },
     // The reader's text opens it (components/reader/ReaderSelection), and the key reaches it
     // first: here it is only listed.
@@ -210,7 +222,10 @@ export function useShortcuts() {
   const onCtrlUp = (event: KeyboardEvent) => isCtrl(event) && wheelZoom(held(event));
   const onPointer = (event: MouseEvent) => wheelZoom(held(event));
   const onBlur = () => wheelZoom(false);
+  let mounted = true,
+    offFullscreen: (() => void) | undefined;
   onMounted(() => {
+    void api.onFullscreen((on) => (fullscreen = on)).then((off) => (mounted ? (offFullscreen = off) : off()));
     window.addEventListener("pointerdown", onPointerdown, true);
     window.addEventListener("keydown", onAnyKey, true);
     window.addEventListener("focusin", onFocusin, true);
@@ -222,6 +237,8 @@ export function useShortcuts() {
     window.addEventListener("blur", onBlur);
   });
   onUnmounted(() => {
+    mounted = false;
+    offFullscreen?.();
     window.removeEventListener("pointerdown", onPointerdown, true);
     window.removeEventListener("keydown", onAnyKey, true);
     window.removeEventListener("focusin", onFocusin, true);

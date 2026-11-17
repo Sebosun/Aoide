@@ -170,6 +170,49 @@ it("leaves the reader with Escape, unless Escape is closing something over it", 
   wrapper.unmount();
 });
 
+it("fills the screen with F11 or F and back, and Escape leaves fullscreen before it leaves the reader", async () => {
+  const setFullscreen = vi.spyOn(mock, "setFullscreen");
+  const wrapper = await app();
+  await reading(wrapper);
+  expect(press("F11").defaultPrevented).toBe(true);
+  await flushPromises();
+  expect(setFullscreen).toHaveBeenLastCalledWith({ on: true });
+  expect(press("Escape").defaultPrevented).toBe(true);
+  await flushPromises();
+  expect(setFullscreen).toHaveBeenLastCalledWith({ on: false });
+  expect(useNavigationStore().view).toBe("reader");
+  press("f");
+  await flushPromises();
+  expect(setFullscreen).toHaveBeenLastCalledWith({ on: true });
+  press("f");
+  await flushPromises();
+  expect(setFullscreen).toHaveBeenLastCalledWith({ on: false });
+  // The window manager's own shortcut made it fullscreen: Escape still leaves that first.
+  await mock.setFullscreen({ on: true });
+  setFullscreen.mockClear();
+  press("Escape");
+  await flushPromises();
+  expect(setFullscreen).toHaveBeenLastCalledWith({ on: false });
+  expect(useNavigationStore().view).toBe("reader");
+  press("Escape");
+  await flushPromises();
+  expect(useNavigationStore().view).toBe("library");
+  // Fullscreen anywhere; Escape leaves it on any screen.
+  press("F11");
+  await flushPromises();
+  expect(setFullscreen).toHaveBeenLastCalledWith({ on: true });
+  expect(press("Escape").defaultPrevented).toBe(true);
+  await flushPromises();
+  expect(setFullscreen).toHaveBeenLastCalledWith({ on: false });
+  // Not while typing.
+  setFullscreen.mockClear();
+  wrapper.get<HTMLInputElement>('[aria-label="Search library"]').element.focus();
+  press("f");
+  await flushPromises();
+  expect(setFullscreen).not.toHaveBeenCalled();
+  wrapper.unmount();
+});
+
 it("finds each listed shortcut from its keys, so the list and the handler share one table", () => {
   for (const shortcut of SHORTCUTS)
     for (const combo of shortcut.keys) {
