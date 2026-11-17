@@ -32,6 +32,8 @@ use super::{lock, now_ms, CoreEvent, Events, GenerationStateView, PreparingView}
 
 /// How far ahead of the playhead speech is made.
 const LOOKAHEAD_MS: u32 = 90_000;
+/// How much of the item up next in the queue is made before it plays.
+const UP_NEXT_MS: u32 = 60_000;
 
 /// Something that changes what should be made.
 pub(super) enum PlanEvent {
@@ -101,6 +103,16 @@ pub(super) enum PlanEvent {
     },
     /// The worker dropped what it made: its audio was deleted meanwhile.
     WorkDiscarded,
+    /// The item up next in the queue, and the entry it plays from: its first minute is made
+    /// before the item playing ends. `None`: nothing is up next.
+    UpNext(Option<(String, usize)>),
+}
+
+/// The item up next in the queue, and the plan for its first minute once made.
+struct UpNext {
+    book: String,
+    start: usize,
+    plan: Option<Plan>,
 }
 
 /// What is being listened to.
@@ -143,6 +155,8 @@ pub(super) struct Generation {
     events: Arc<dyn Events>,
     /// Work is held back until the engine's server runs (see [`PlanEvent::EngineHeld`]).
     held: std::sync::atomic::AtomicBool,
+    /// See [`PlanEvent::UpNext`].
+    up_next: Mutex<Option<UpNext>>,
 }
 
 impl Generation {
@@ -178,6 +192,7 @@ impl Generation {
             library,
             events,
             held: Default::default(),
+            up_next: Mutex::new(None),
         };
         (generation, receiver)
     }
@@ -323,10 +338,12 @@ impl Generation {
                 Some(false)
             }
             PlanEvent::BookSettingsChanged(book) => {
+                self.drop_up_next_plan();
                 lock(&self.preparation).drop_plans(Some(&book));
                 Some(true)
             }
             PlanEvent::ChaptersTakenBack(book) => {
+                self.drop_up_next_plan();
                 let mut preparation = lock(&self.preparation);
                 preparation.audio_lost(
                     &lock(&self.library),
@@ -337,6 +354,7 @@ impl Generation {
                 Some(true)
             }
             PlanEvent::PronunciationsChanged { book, changed } => {
+                self.drop_up_next_plan();
                 let mut preparation = lock(&self.preparation);
                 // A prepared book it changes is prepared no longer; queued ones plan again.
                 preparation.audio_lost(&lock(&self.library), &changed, &HashSet::new());
@@ -354,6 +372,7 @@ impl Generation {
                 *lock(&self.worker) = worker;
                 lock(&self.state).generating_segment_id = None;
                 lock(&self.preparation).drop_plans(None);
+                self.drop_up_next_plan();
                 Some(true)
             }
             PlanEvent::EngineHeld | PlanEvent::EngineReady => {
@@ -363,8 +382,9 @@ impl Generation {
                 (was != held).then_some(true)
             }
             PlanEvent::VoicesKnown => {
+                let up_next = self.drop_up_next_plan();
                 let mut preparation = lock(&self.preparation);
-                if preparation.planned_books().is_empty() {
+                if preparation.planned_books().is_empty() && !up_next {
                     return None;
                 }
                 preparation.drop_plans(None);
@@ -372,11 +392,13 @@ impl Generation {
             }
             PlanEvent::AudioLost { books, keys } => {
                 lock(&self.worker).forget(keys.iter().cloned());
+                self.drop_up_next_plan();
                 let mut preparation = lock(&self.preparation);
                 preparation.audio_lost(&lock(&self.library), &books, &keys);
                 Some(false)
             }
             PlanEvent::BookAudioDeleted(book) => {
+                self.drop_up_next_plan();
                 let mut preparation = lock(&self.preparation);
                 preparation.audio_lost(
                     &lock(&self.library),
@@ -387,6 +409,7 @@ impl Generation {
                 Some(true)
             }
             PlanEvent::SaidAgain { book, key } => {
+                self.drop_up_next_plan();
                 let mut preparation = lock(&self.preparation);
                 // Other books sharing the audio make their own again.
                 preparation.audio_lost(
@@ -407,6 +430,9 @@ impl Generation {
                     let mut preparation = lock(&self.preparation);
                     preparation.segment_made(&lock(&self.library), &key, duration_ms)
                 };
+                if let Some(plan) = lock(&self.up_next).as_mut().and_then(|u| u.plan.as_mut()) {
+                    plan.mark_cached(&key, duration_ms);
+                }
                 if !finished.is_empty() {
                     self.emit(CoreEvent::LibraryChanged);
                 }
@@ -419,6 +445,23 @@ impl Generation {
             PlanEvent::WorkDiscarded => {
                 lock(&self.state).generating_segment_id = None;
                 None
+            }
+            PlanEvent::UpNext(target) => {
+                let mut up_next = lock(&self.up_next);
+                let same = match (up_next.as_ref(), target.as_ref()) {
+                    (Some(now), Some((book, start))) => now.book == *book && now.start == *start,
+                    (None, None) => true,
+                    _ => false,
+                };
+                if same {
+                    return None;
+                }
+                *up_next = target.map(|(book, start)| UpNext {
+                    book,
+                    start,
+                    plan: None,
+                });
+                Some(false)
             }
             PlanEvent::WorkFailed { error } => {
                 if let Some(id) = lock(&self.preparation).work_failed() {
@@ -436,6 +479,7 @@ impl Generation {
     /// replaces the plan at once; otherwise the worker finishes what it is on first.
     fn replan(&self, jump: bool, host: &dyn GenerationHost) {
         self.plan_waiting_books(host);
+        self.plan_up_next(host);
         let mut work = Vec::new();
         host.with_listening(&mut |listening| work = self.work(listening));
         if self.held.load(std::sync::atomic::Ordering::SeqCst) {
@@ -467,8 +511,15 @@ impl Generation {
                 playhead,
                 lookahead_ms: LOOKAHEAD_MS,
             });
-        let preparing: Vec<Preparing<'_>> = planned
+        let up_next = lock(&self.up_next);
+        let up_next = up_next
+            .as_ref()
+            .and_then(|u| Some((u.book.as_str(), u.plan.as_ref()?)));
+        // The item up next comes first among the books to make ahead.
+        let preparing: Vec<Preparing<'_>> = up_next
             .iter()
+            .map(|(book, plan)| (*book, *plan))
+            .chain(planned.iter().map(|(book, plan)| (*book, *plan)))
             .map(|(book, plan)| Preparing {
                 book,
                 items: &plan.items,
@@ -481,8 +532,10 @@ impl Generation {
             .filter_map(|job| {
                 let request = match (job.reason, speech.as_ref()) {
                     (Reason::Playhead, Some(l)) => l.narration.request(job.index),
-                    _ => planned
+                    _ => up_next
                         .iter()
+                        .map(|(book, plan)| (*book, *plan))
+                        .chain(planned.iter().map(|(book, plan)| (*book, *plan)))
                         .find(|(book, _)| *book == job.book)?
                         .1
                         .requests
@@ -501,6 +554,46 @@ impl Generation {
             .as_ref()
             .map_or(0, |items| buffered_ahead_ms(items, playhead));
         work
+    }
+
+    /// Lets go of the plan for the item up next, to be made again; true when there was one.
+    fn drop_up_next_plan(&self) -> bool {
+        lock(&self.up_next)
+            .as_mut()
+            .is_some_and(|u| u.plan.take().is_some())
+    }
+
+    /// Plans the first minute of the item up next from its place, when it has no plan yet:
+    /// the rest of it is left out.
+    fn plan_up_next(&self, host: &dyn GenerationHost) {
+        let Some((book, start)) = lock(&self.up_next)
+            .as_ref()
+            .filter(|u| u.plan.is_none())
+            .map(|u| (u.book.clone(), u.start))
+        else {
+            return;
+        };
+        let mut plan = match host.book_plan(&book, None) {
+            None => return, // No voice yet: planned once there is one.
+            Some(Err(error)) => {
+                tracing::warn!(event = "prep.plan", book = crate::logging::book(&book), %error, "Cannot plan the item up next");
+                return;
+            }
+            Some(Ok(plan)) => plan,
+        };
+        let mut end = start;
+        let mut ahead = 0u32;
+        while end < plan.items.len() && ahead < UP_NEXT_MS {
+            ahead = ahead.saturating_add(plan.items[end].duration_ms);
+            end += 1;
+        }
+        plan.only(|index| (start..end).contains(&index));
+        if let Some(up_next) = lock(&self.up_next)
+            .as_mut()
+            .filter(|u| u.book == book && u.start == start)
+        {
+            up_next.plan = Some(plan);
+        }
     }
 
     /// Builds plans for queued books waiting for one. A book that cannot be planned leaves the
@@ -763,6 +856,8 @@ mod tests {
     struct Host {
         voice: Mutex<String>,
         asked: Mutex<usize>,
+        /// When set, the book is five segments of this length each.
+        item_ms: Option<u32>,
     }
 
     impl GenerationHost for Host {
@@ -773,7 +868,10 @@ mod tests {
         fn book_plan(&self, _: &str, _: Option<&[usize]>) -> Option<Result<Plan, String>> {
             *lock(&self.asked) += 1;
             let voice = lock(&self.voice).clone();
-            let texts = ["One.", "Two.", "Three."];
+            let texts: &[&str] = match self.item_ms {
+                Some(_) => &["One.", "Two.", "Three.", "Four.", "Five."],
+                None => &["One.", "Two.", "Three."],
+            };
             Some(Ok(Plan {
                 items: texts
                     .iter()
@@ -781,7 +879,9 @@ mod tests {
                         key: format!("{voice}-{text}"),
                         speakable: true,
                         cached: false,
-                        duration_ms: estimate_ms(text.chars().count()),
+                        duration_ms: self
+                            .item_ms
+                            .unwrap_or_else(|| estimate_ms(text.chars().count())),
                     })
                     .collect(),
                 requests: texts
@@ -832,6 +932,7 @@ mod tests {
         let host = Host {
             voice: Mutex::new("Guess.wav".into()),
             asked: Mutex::new(0),
+            item_ms: None,
         };
         (generation, made, host)
     }
@@ -915,5 +1016,21 @@ mod tests {
 
         assert_eq!(*lock(&host.asked), 0);
         assert!(engine.texts().is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_first_minute_of_the_item_up_next_is_made_from_its_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Scripted::new("plain", EngineStatus::Ready(None), &[], false);
+        let (generation, _made, mut host) = generation(dir.path(), &engine);
+        host.item_ms = Some(30_000);
+
+        generation.apply(PlanEvent::UpNext(Some(("book".into(), 1))), &host);
+        until("the minute up next", || engine.texts().len() == 2).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(engine.texts(), ["Two.", "Three."]);
+
+        generation.apply(PlanEvent::UpNext(None), &host);
+        assert_eq!(generation.state().pending, 0, "nothing is up next any more");
     }
 }

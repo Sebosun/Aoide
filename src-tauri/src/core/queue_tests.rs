@@ -12,6 +12,12 @@ use super::Core;
 /// Core with two items in its library: the test book and a short second one. Returns the
 /// core and the two ids.
 async fn two_items(root: &Path) -> (Arc<Core>, String, String) {
+    let (core, first, second, _engine) = two_items_with_engine(root).await;
+    (core, first, second)
+}
+
+/// [`two_items`], with the engine that speaks them.
+async fn two_items_with_engine(root: &Path) -> (Arc<Core>, String, String, Arc<FakeEngine>) {
     let first = library_folder(root, "");
     let bytes = epub_of_chapters(&[("The Ferry", "The ferry left at noon.")]);
     std::fs::write(root.join("Books/the-ferry.epub"), &bytes).unwrap();
@@ -26,7 +32,7 @@ async fn two_items(root: &Path) -> (Arc<Core>, String, String) {
         core.list_books().is_ok_and(|b| b.len() == 2)
     })
     .await;
-    (core, first, second)
+    (core, first, second, engine)
 }
 
 fn playing(core: &Core) -> Option<String> {
@@ -122,5 +128,24 @@ async fn next_at_the_last_chapter_plays_the_queued_item_at_once() {
     core.skip_chapter(1).await.unwrap();
     assert_eq!(playing(&core).as_deref(), Some(second.as_str()));
     assert!(core.queue.ids().unwrap().is_empty());
+    core.stop();
+}
+
+#[tokio::test]
+async fn the_queued_item_is_spoken_ahead_while_the_one_playing_is_nearly_over() {
+    let dir = tempfile::tempdir().unwrap();
+    let (core, first, second, engine) = two_items_with_engine(dir.path()).await;
+    core.queue_add(&second, QueuePlace::Last).unwrap();
+    core.play(&first, Some(0), None).await.unwrap();
+    // Paused with well under two minutes left, the item up next is made meanwhile.
+    core.pause();
+    until("the queued item's first sentence", || {
+        engine
+            .calls()
+            .iter()
+            .any(|t| t.starts_with("The ferry left"))
+    })
+    .await;
+    assert_eq!(playing(&core).as_deref(), Some(first.as_str()));
     core.stop();
 }

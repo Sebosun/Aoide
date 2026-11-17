@@ -758,9 +758,9 @@ impl Core {
                 .advance(&audio, |to_align| self.align(to_align));
             // Advancing never opens or closes the output.
             let _ = self.follow_through(moved);
-            self.queue_tick(ended);
             self.output.keep_alive(&self.playback);
             let state = self.player_state();
+            self.queue_tick(ended, &state);
             self.sleep(controls::SleepEvent::Tick {
                 now: Instant::now(),
                 chapter: state.chapter,

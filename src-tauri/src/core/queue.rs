@@ -11,10 +11,13 @@ use serde::Serialize;
 
 use super::browsing::Pending;
 use super::fetching::Stage as FetchStage;
-use super::lock;
+use super::generation::PlanEvent;
+use super::{lock, PlayerStateView};
 
 /// How long after an item ends the next one starts.
 pub const GAP: Duration = Duration::from_secs(2);
+/// With less than this left of the item playing, the item up next is made ready.
+pub const AHEAD_MS: u64 = 2 * 60_000;
 
 /// Where the queue is in handing over from one item to the next.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -133,6 +136,9 @@ pub(super) trait QueueHost: Sync {
 pub(super) struct Queue {
     library: Arc<Mutex<Library>>,
     stage: Mutex<Stage>,
+    /// The item nearly over, and the item up next after it, as last told (see
+    /// [`Queue::look_ahead`]).
+    ahead: Mutex<Option<(String, Option<String>)>>,
 }
 
 impl Queue {
@@ -140,6 +146,7 @@ impl Queue {
         Self {
             library,
             stage: Mutex::new(Stage::Idle),
+            ahead: Mutex::new(None),
         }
     }
 
@@ -182,7 +189,48 @@ impl Queue {
     fn changed(&self) {
         let size = self.ids().map_or(0, |ids| ids.len());
         tracing::info!(event = "queue.changed", size, "The queue changed");
+        // What is up next is looked for again.
+        if let Some((playing, _)) = lock(&self.ahead).as_mut() {
+            playing.clear();
+        }
         self.on(Event::Changed);
+    }
+
+    /// While item `playing` has less than [`AHEAD_MS`] left (`left_ms`), the first queued
+    /// item that can be listened to is up next, to be made ready. Returns what is up next when
+    /// that changed.
+    pub fn look_ahead(
+        &self,
+        host: &impl QueueHost,
+        playing: Option<&str>,
+        left_ms: Option<u64>,
+    ) -> Option<Option<String>> {
+        let nearly_over = playing
+            .zip(left_ms)
+            .filter(|(_, left)| *left < AHEAD_MS)
+            .map(|(id, _)| id);
+        let mut ahead = lock(&self.ahead);
+        match nearly_over {
+            None => ahead.take().map(|_| None),
+            Some(id) if ahead.as_ref().is_some_and(|(told, _)| told == id) => None,
+            Some(id) => {
+                let next = self
+                    .ids()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .find(|next| next != id && host.can_listen(next).is_ok());
+                *ahead = Some((id.to_owned(), next.clone()));
+                Some(next)
+            }
+        }
+    }
+
+    /// The item up next, while the one playing is nearly over.
+    #[allow(dead_code)] // Shown by the player.
+    pub fn up_next(&self) -> Option<String> {
+        lock(&self.ahead)
+            .as_ref()
+            .and_then(|(_, next)| next.clone())
     }
 
     /// Item `id` started playing: it leaves the queue. True when it was queued.
@@ -300,6 +348,25 @@ impl super::Core {
         self.queue.view(self)
     }
 
+    /// Item `id` and the entry it plays from, when it is read by the speech engine: what is
+    /// made ready of it before it plays.
+    fn made_ready_from(&self, id: &str) -> Option<(String, usize)> {
+        if self.item_kind(id) == Some(aoide_library::ItemKind::Audiobook)
+            || self.plays_recording(id, &self.book_settings(id))
+        {
+            return None;
+        }
+        let book = self.load_book(id).ok()?;
+        let saved = lock(&self.library)
+            .progress(&BookId(id.into()))
+            .ok()
+            .flatten();
+        let start = saved
+            .and_then(|p| book.index_at(p.chapter as usize, p.char_offset as usize))
+            .or_else(|| book.chapter_start(0))?;
+        Some((id.to_owned(), start))
+    }
+
     /// Next was asked for at the end of item `from`: the first queued item that can be
     /// listened to plays now. False when none did.
     pub(super) async fn next_in_queue(&self, from: &str) -> bool {
@@ -311,8 +378,16 @@ impl super::Core {
     }
 
     /// Tells the queue of a tick of the player (`ended`: the item that just played to its
-    /// end), and hands over when it is time.
-    pub(super) fn queue_tick(self: &Arc<Self>, ended: Option<String>) {
+    /// end; `state`: the player's), hands over when it is time, and has the item up next made
+    /// ready while the one playing is nearly over.
+    pub(super) fn queue_tick(self: &Arc<Self>, ended: Option<String>, state: &PlayerStateView) {
+        if let Some(next) =
+            self.queue
+                .look_ahead(&**self, state.book_id.as_deref(), state.book_left_ms)
+        {
+            let target = next.and_then(|id| self.made_ready_from(&id));
+            self.plan(PlanEvent::UpNext(target));
+        }
         let now = Instant::now();
         // With the sleep timer set for the end of the chapter, the listener sleeps there.
         let sleeping = || self.controls.sleep_view().is_some_and(|s| s.end_of_chapter);
@@ -536,5 +611,37 @@ mod component_tests {
         assert_eq!(queue.hand_over(&host, "x").await, None);
         assert!(lock(&host.played).is_empty());
         assert_eq!(queue.ids().unwrap(), ["a"]);
+    }
+
+    #[test]
+    fn the_first_item_that_can_be_listened_to_is_up_next_once_under_two_minutes_are_left() {
+        let queue = queue(&["a", "b"]);
+        let host = Host {
+            cannot: vec![("a", WhyNot::Fetching)],
+            ..Host::default()
+        };
+        let minutes = |m: u64| Some(m * 60_000);
+        assert_eq!(queue.look_ahead(&host, Some("x"), minutes(3)), None);
+        assert_eq!(
+            queue.look_ahead(&host, Some("x"), Some(119_000)),
+            Some(Some("b".into()))
+        );
+        assert_eq!(
+            queue.look_ahead(&host, Some("x"), minutes(1)),
+            None,
+            "told once"
+        );
+        assert_eq!(queue.up_next().as_deref(), Some("b"));
+
+        // The queue changing looks again.
+        queue.put("c", 0).unwrap();
+        assert_eq!(
+            queue.look_ahead(&host, Some("x"), minutes(1)),
+            Some(Some("c".into()))
+        );
+        // Another item playing, with long to go: nothing is up next.
+        assert_eq!(queue.look_ahead(&host, Some("c"), minutes(9)), Some(None));
+        assert_eq!(queue.up_next(), None);
+        assert_eq!(queue.look_ahead(&host, None, None), None);
     }
 }
