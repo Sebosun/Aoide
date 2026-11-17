@@ -11,6 +11,7 @@ import { useNavigationStore } from "@/stores/navigation";
 import { prepareChapter } from "@/preparation";
 import { clickToPlay } from "@/components/reader/selection";
 import ReaderSelection from "@/components/reader/ReaderSelection.vue";
+import { NO_MARKS, pieces, sentenceMarks } from "@/components/reader/highlights";
 
 /** Lines mode, for listening from across the room: the spoken sentence large, filling word by
  *  word, with the sentences around it at reading size. */
@@ -57,6 +58,12 @@ function wordState(i: number) {
   if (!onPage.value || player.state.wordIndex === null) return onPage.value ? "ahead" : "plain";
   return i < player.state.wordIndex ? "done" : i === player.state.wordIndex ? "current" : "ahead";
 }
+/** The highlighted parts of each sentence of the chapter. */
+const marks = computed(() => (reader.chapter ? sentenceMarks(reader.chapter, reader.highlights) : new Map()));
+const marksOf = (segment: SegmentView) => marks.value.get(segment.id) ?? NO_MARKS;
+/** Where word `i` of `segment` starts in it as drawn (words joined by single spaces). */
+const wordAt = (segment: SegmentView, i: number) =>
+  segment.words.slice(0, i).reduce((at, word) => at + word.length + 1, 0);
 const play = (segment: SegmentView) => {
   if (reader.book) void player.play(reader.book.id, reader.currentChapter, segment.id);
 };
@@ -120,10 +127,26 @@ const play = (segment: SegmentView) => {
         >
           <template v-if="segment.id === now?.id"
             ><template v-for="(word, i) in segment.words" :key="i"
-              ><span class="reader-lines__word" :class="`reader-lines__word--${wordState(i)}`">{{ word }}</span
-              >{{ i < segment.words.length - 1 ? " " : "" }}</template
+              ><span class="reader-lines__word" :class="`reader-lines__word--${wordState(i)}`"
+                ><template v-for="(piece, p) in pieces(word, wordAt(segment, i), marksOf(segment))" :key="p"
+                  ><mark v-if="piece.id !== null" class="reader-lines__mark">{{ piece.text }}</mark
+                  ><template v-else>{{ piece.text }}</template></template
+                ></span
+              ><template v-if="i < segment.words.length - 1"
+                ><template
+                  v-for="(piece, p) in pieces(' ', wordAt(segment, i) + word.length, marksOf(segment))"
+                  :key="p"
+                  ><mark v-if="piece.id !== null" class="reader-lines__mark">{{ piece.text }}</mark
+                  ><template v-else>{{ piece.text }}</template></template
+                ></template
+              ></template
             ></template
-          ><template v-else>{{ segment.words.join(" ") }}</template>
+          ><template v-else
+            ><template v-for="(piece, p) in pieces(segment.words.join(' '), 0, marksOf(segment))" :key="p"
+              ><mark v-if="piece.id !== null" class="reader-lines__mark">{{ piece.text }}</mark
+              ><template v-else>{{ piece.text }}</template></template
+            ></template
+          >
         </p>
       </TransitionGroup>
     </div>
@@ -133,6 +156,12 @@ const play = (segment: SegmentView) => {
 </template>
 
 <style scoped>
+.reader-lines__mark {
+  background: var(--mark);
+  color: inherit;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
 .reader-lines {
   position: relative;
   flex: 1;
@@ -245,11 +274,13 @@ const play = (segment: SegmentView) => {
 .reader-lines__line--now:hover {
   color: var(--ink);
 }
+/* The words ahead are faded in their colour, not their opacity, so a highlight under them
+   keeps its colour. */
 .reader-lines__word {
-  transition: opacity 0.2s;
+  transition: color 0.2s;
 }
 .reader-lines__word--ahead {
-  opacity: 0.5;
+  color: color-mix(in srgb, currentColor 50%, transparent);
 }
 .reader-lines__word--current {
   text-decoration: underline 3px var(--accent);

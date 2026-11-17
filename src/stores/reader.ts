@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import { computed, markRaw, ref, watch } from "vue";
 import { api } from "@/api";
-import type { BookView, ChapterView, ReadingMode } from "@/api/types";
+import type { BookView, ChapterView, HighlightView, ReadingMode } from "@/api/types";
 import { useLibraryStore } from "@/stores/library";
 import { useNavigationStore } from "@/stores/navigation";
 import { usePlayerStore } from "@/stores/player";
@@ -19,6 +19,32 @@ export const useReaderStore = defineStore("reader", () => {
   /** Where the user is reading in the open book: the saved place, then the first sentence
    *  at the top of the screen while reading silently. */
   const place = ref<{ chapter: number; segmentId: string } | null>(null);
+  /** The open book's highlights in reading order. They change while a chapter is open, so they
+   *  travel beside the chapters (which are replaced whole), not in them. */
+  const highlights = ref<HighlightView[]>([]);
+  /** The open book's highlights, fetched again. */
+  async function loadHighlights() {
+    const id = book.value?.id;
+    if (!id) return;
+    const list = await api.highlights({ bookId: id });
+    if (book.value?.id === id) highlights.value = list;
+  }
+  /** Highlights characters `start..end` of a chapter of the open book. */
+  async function addHighlight(chapter: number, start: number, end: number) {
+    const id = book.value?.id;
+    if (!id) return;
+    const list = await api.addHighlight({ bookId: id, chapter, start, end });
+    if (book.value?.id === id) highlights.value = list;
+  }
+  /** Writes a highlight's note (the open book's). */
+  async function noteHighlight(id: number, note: string) {
+    const list = await api.updateHighlightNote({ id, note });
+    highlights.value = list;
+  }
+  async function removeHighlight(id: number) {
+    const list = await api.deleteHighlight({ id });
+    highlights.value = list;
+  }
   /** What the reader screen is for the open book, as the core says. */
   const shape = computed(() => book.value?.shape ?? "read");
   // Playing the book from elsewhere (the player, a media key) makes the core listen to it; the
@@ -72,11 +98,12 @@ export const useReaderStore = defineStore("reader", () => {
       const result = await api.openBook({ bookId: id });
       if (request !== openRequest) return;
       book.value = result;
+      highlights.value = [];
       const saved = result.progress;
       place.value = saved?.segmentId ? { chapter: saved.chapter, segmentId: saved.segmentId } : null;
       // An audiobook on its own has no text to show: its parts are played.
       if (result.shape === "listen") currentChapter.value = saved?.chapter ?? 0;
-      else await loadChapter(saved?.chapter ?? 0);
+      else await Promise.all([loadChapter(saved?.chapter ?? 0), loadHighlights()]);
       useNavigationStore().view = "reader";
     } catch (e) {
       error.value = String(e);
@@ -120,5 +147,10 @@ export const useReaderStore = defineStore("reader", () => {
     loadChapter,
     startChapter,
     refreshBook,
+    highlights,
+    loadHighlights,
+    addHighlight,
+    noteHighlight,
+    removeHighlight,
   };
 });

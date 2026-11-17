@@ -20,6 +20,7 @@ export const TOKENS = [
   "ok",
   "warn",
   "shadow",
+  "mark",
 ] as const;
 
 /** Reading-text scale for each text-size step (2 is the designed size). */

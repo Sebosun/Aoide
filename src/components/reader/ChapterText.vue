@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { BlockView, ChapterView, NoteMarker, SegmentView } from "@/api/types";
+import type { BlockView, ChapterView, HighlightView, NoteMarker, SegmentView } from "@/api/types";
 import ChapterSegment from "@/components/reader/ChapterSegment.vue";
 import { noteId, noteKey } from "@/components/reader/notes";
+import { sentenceMarks, NO_MARKS, type Mark } from "@/components/reader/highlights";
 
 /** A chapter set as a page: headings and paragraphs, the spoken sentence washed and the
  *  current word underlined (nothing changes size, so lines never reflow). When `playable`,
@@ -16,8 +17,10 @@ const props = withDefaults(
     currentWord: number | null;
     marginNotes: boolean;
     playable?: boolean;
+    /** The book's highlights; each sentence is handed the parts that fall in it. */
+    highlights?: HighlightView[];
   }>(),
-  { playable: true },
+  { playable: true, highlights: () => [] },
 );
 const emit = defineEmits<{ play: [segmentId: string] }>();
 const openNote = ref<string | null>(null);
@@ -42,6 +45,10 @@ function marker(segment: SegmentView, note: NoteMarker) {
   const key = noteKey(segment, note);
   openNote.value = openNote.value === key ? null : key;
 }
+/** Each sentence's highlighted parts; a sentence whose parts did not change keeps its array,
+ *  so a new highlight draws again only the sentences it covers. */
+let lastMarks: Map<string, readonly Mark[]> | undefined;
+const marks = computed(() => (lastMarks = sentenceMarks(props.chapter, props.highlights, lastMarks)));
 const clickable = (segment: SegmentView) => props.playable && segment.speakable;
 /** Sentences the book's recording has no audio for (playback skips them). */
 const unnarrated = computed(() => new Set(props.chapter.notNarrated ?? []));
@@ -72,6 +79,7 @@ const chapterMissing = computed(
           :clickable="clickable(segment)"
           :margin-notes="marginNotes"
           :open-note="openNote?.startsWith(`${segment.id}:`) ? openNote : null"
+          :marks="marks.get(segment.id) ?? NO_MARKS"
           @play="emit('play', segment.id)"
           @marker="marker(segment, $event)"
         />

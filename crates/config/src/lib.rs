@@ -42,6 +42,7 @@ pub const TOKENS: &[&str] = &[
     "ok",
     "warn",
     "shadow",
+    "mark",
 ];
 
 #[derive(Debug, thiserror::Error)]

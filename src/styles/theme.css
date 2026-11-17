@@ -19,6 +19,8 @@
   --ok: #1e8f5a;
   --warn: #a8650f;
   --shadow: rgba(18, 22, 56, 0.32);
+  /* A highlight: see-through, so the sentence being spoken still shows its wash under it. */
+  --mark: rgba(245, 186, 36, 0.36);
   /* Aoide's own colours again, for its swatch beside other themes (a theme overrides
      only the tokens above). */
   --aoide-ground: #e9ecf7;
@@ -63,6 +65,7 @@
     --ok: #4fd495;
     --warn: #e9a94b;
     --shadow: rgba(0, 0, 0, 0.6);
+    --mark: rgba(233, 169, 75, 0.3);
     /* Aoide's own colours again, for its swatch beside other themes (a theme overrides
        only the tokens above). */
     --aoide-ground: #0c0f22;
@@ -89,6 +92,7 @@
   --ok: #4fd495;
   --warn: #e9a94b;
   --shadow: rgba(0, 0, 0, 0.6);
+  --mark: rgba(233, 169, 75, 0.3);
   /* Aoide's own colours again, for its swatch beside other themes (a theme overrides
      only the tokens above). */
   --aoide-ground: #0c0f22;

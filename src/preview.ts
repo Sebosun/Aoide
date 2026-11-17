@@ -25,6 +25,8 @@ import { useRecordingsStore } from "@/stores/recordings";
  *  one found; `settings=sites` shows it); `signin=waiting|fetching` opens a sign-in on the
  *  preview's article; `shortcuts=1` shows the list of keyboard shortcuts (the ? key);
  *  `pronounce=1` fills the pronunciation lists (book-1's and the one for all books), and
+ *  `highlight=1` highlights two passages of `book`'s first chapter, the first with a note, and
+ *  bookmarks a sentence of it;
  *  `select=Ren` selects that word in the chapter text once the screen is up (before any `click`). */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
@@ -35,6 +37,23 @@ export async function applyPreviewParams(search = location.search) {
     await api.savePronunciation({ bookId: "book-1", written: "Ren", spoken: "wren", matchCase: false });
     await api.savePronunciation({ bookId: null, written: "SQL", spoken: "sequel", matchCase: true });
     await api.savePronunciation({ bookId: null, written: "Dr. Xu", spoken: "doctor shoe", matchCase: false });
+  }
+  if (query.has("highlight")) {
+    const id = query.get("book") ?? "book-0";
+    const chapter = await api.chapter({ bookId: id, chapter: 0 });
+    const sentences = chapter.blocks.flatMap((b) => b.segments).filter((s) => s.speakable && s.words.length > 4);
+    for (const [n, s] of sentences.slice(0, 2).entries()) {
+      const last = n === 0 ? s.words.length - 1 : 3;
+      await api.addHighlight({
+        bookId: id,
+        chapter: 0,
+        start: s.starts[0],
+        end: s.starts[last] + Array.from(s.words[last]).length,
+      });
+    }
+    const [first] = await api.highlights({ bookId: id });
+    if (first) await api.updateHighlightNote({ id: first.id, note: "Where the story begins." });
+    if (sentences[2]) await api.addBookmark({ bookId: id, note: "", segmentId: sentences[2].id });
   }
   const leftOut = query.get("leftout");
   if (leftOut !== null)

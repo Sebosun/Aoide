@@ -19,6 +19,7 @@ on-accent = "#eff1f5"
 ok = "#2e7d1f"
 warn = "#a8650f"
 shadow = "rgba(76, 79, 105, 0.3)"
+mark = "rgba(223, 142, 29, 0.28)"
 
 [dark]
 ground = "#11111b"
@@ -37,3 +38,4 @@ on-accent = "#11111b"
 ok = "#a6e3a1"
 warn = "#f9e2af"
 shadow = "rgba(0, 0, 0, 0.6)"
+mark = "rgba(249, 226, 175, 0.22)"

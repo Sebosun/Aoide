@@ -3,6 +3,7 @@ import { computed } from "vue";
 import type { NoteMarker, SegmentView } from "@/api/types";
 import { noteId, noteKey } from "@/components/reader/notes";
 import { clickToPlay } from "@/components/reader/selection";
+import { pieces, type Mark } from "@/components/reader/highlights";
 
 /** One sentence of a chapter's text: its words (the one being spoken underlined) and the
  *  markers of its footnotes. A sentence is drawn again only when its own props change, so a
@@ -23,21 +24,35 @@ const props = defineProps<{
   marginNotes: boolean;
   /** The key of its footnote whose popover is open. */
   openNote: string | null;
+  /** Its highlighted parts (see `highlights.ts`). */
+  marks: readonly Mark[];
 }>();
 const emit = defineEmits<{ play: []; marker: [note: NoteMarker] }>();
 /** The sentence's words in runs, each ending where footnote markers follow a word (the last
  *  ends with the sentence), with those markers. */
 const runs = computed(() => {
   const { words, notes } = props.segment;
-  const runs: { first: number; words: string[]; notes: NoteMarker[] }[] = [];
-  let first = 0;
+  const runs: { first: number; words: string[]; notes: NoteMarker[]; at: number }[] = [];
+  let first = 0,
+    at = 0;
   words.forEach((_, index) => {
     const after = notes.filter((note) => note.afterWord === index);
     if (!after.length && index < words.length - 1) return;
-    runs.push({ first, words: words.slice(first, index + 1), notes: after });
+    const run = words.slice(first, index + 1);
+    runs.push({ first, words: run, notes: after, at });
+    at += run.join(" ").length + 1;
     first = index + 1;
   });
   return runs;
+});
+/** Where each word starts in the sentence as drawn (words joined by single spaces). */
+const wordAt = computed(() => {
+  let at = 0;
+  return props.segment.words.map((word) => {
+    const start = at;
+    at += word.length + 1;
+    return start;
+  });
 });
 </script>
 
@@ -57,15 +72,34 @@ const runs = computed(() => {
     @keydown.enter.prevent="clickable && emit('play')"
     @keydown.space.prevent="clickable && emit('play')"
     ><template v-for="(run, r) in runs" :key="run.first"
-      >{{ r > 0 ? " " : ""
-      }}<template v-if="current"
-        ><template v-for="(text, i) in run.words" :key="i"
-          ><span class="chapter-segment__word" :class="{ 'chapter-segment__word--current': word === run.first + i }">{{
-            text
-          }}</span
-          >{{ i < run.words.length - 1 ? " " : "" }}</template
+      ><template v-if="current"
+        >{{ r > 0 ? " " : ""
+        }}<template v-for="(text, i) in run.words" :key="i"
+          ><span class="chapter-segment__word" :class="{ 'chapter-segment__word--current': word === run.first + i }"
+            ><template v-for="(piece, p) in pieces(text, wordAt[run.first + i], marks)" :key="p"
+              ><mark v-if="piece.id !== null" class="chapter-segment__mark" :data-highlight-id="piece.id">{{
+                piece.text
+              }}</mark
+              ><template v-else>{{ piece.text }}</template></template
+            ></span
+          ><template v-if="i < run.words.length - 1"
+            ><template v-for="(piece, p) in pieces(' ', wordAt[run.first + i] + text.length, marks)" :key="p"
+              ><mark v-if="piece.id !== null" class="chapter-segment__mark" :data-highlight-id="piece.id">{{
+                piece.text
+              }}</mark
+              ><template v-else>{{ piece.text }}</template></template
+            ></template
+          ></template
         ></template
-      ><template v-else>{{ run.words.join(" ") }}</template
+      ><template v-else
+        ><template
+          v-for="(piece, p) in pieces((r > 0 ? ' ' : '') + run.words.join(' '), run.at - (r > 0 ? 1 : 0), marks)"
+          :key="p"
+          ><mark v-if="piece.id !== null" class="chapter-segment__mark" :data-highlight-id="piece.id">{{
+            piece.text
+          }}</mark
+          ><template v-else>{{ piece.text }}</template></template
+        ></template
       ><button
         v-for="(note, n) in run.notes"
         :key="n"
@@ -122,6 +156,17 @@ const runs = computed(() => {
   background: var(--wash);
   box-shadow: 0 0 0 3px var(--wash);
   color: var(--ink);
+}
+.chapter-segment__mark {
+  background: var(--mark);
+  color: inherit;
+  border-radius: var(--radius-xs);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* Drawn word by word while spoken: square ends, so the pieces meet. */
+.chapter-segment--current .chapter-segment__mark {
+  border-radius: 0;
 }
 .chapter-segment__word--current {
   text-decoration: underline 2.5px var(--accent);

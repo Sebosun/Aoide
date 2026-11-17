@@ -174,6 +174,7 @@ const next = computed(() => {
           :current-word="onPage ? player.state.wordIndex : null"
           :margin-notes="wide"
           :playable="along"
+          :highlights="reader.highlights"
           @play="play"
         >
           <!-- Slots are always given (what they show decides): a slot given only sometimes makes
