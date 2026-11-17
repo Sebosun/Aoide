@@ -360,3 +360,64 @@ it("lists an item's tags on its page and edits them there", async () => {
   ).toEqual(["Fiction", "Literary"]);
   wrapper.unmount();
 });
+
+/** The item page of `id`, with its Edit details dialog open. */
+async function editing(id: string) {
+  useNavigationStore().openItem(id);
+  const wrapper = await app();
+  await wrapper.get('.item-page [aria-label="Edit details"]').trigger("click");
+  await flushPromises();
+  const dialog = () => wrapper.get('[role="dialog"][aria-label^="Details of"]');
+  return { wrapper, dialog, about: () => wrapper.get(".item-page") };
+}
+
+it("corrects a book's title, authors and date by hand, and sets one back to the file's", async () => {
+  const edit = vi.spyOn(mock, "editDetails");
+  const { wrapper, dialog, about } = await editing("book-1");
+  const field = (label: string) => dialog().get(`[aria-label="${label}"]`);
+  expect((field("Title").element as HTMLInputElement).value).toBe("A Map of Quiet Places");
+  await field("Title").setValue("  A Map of Quiet Harbours ");
+  await field("Authors, one per line").setValue("Ada Brightwater\n\nTom Keel");
+  await field("Published").setValue("1998");
+  await dialog().get("form").trigger("submit");
+  await flushPromises();
+  expect(edit).toHaveBeenCalledWith({
+    bookId: "book-1",
+    patch: { title: "A Map of Quiet Harbours", authors: ["Ada Brightwater", "Tom Keel"], published: "1998" },
+  });
+  expect(wrapper.find('[role="dialog"]').exists(), "closed once saved").toBe(false);
+  expect(about().get(".item-page__title").text()).toBe("A Map of Quiet Harbours");
+  expect(about().get(".item-page__authors").text()).toContain("Ada Brightwater");
+  expect(about().text()).toContain("1998");
+
+  // Unchanged fields are not sent; a corrected one can go back to the file's.
+  await about().get('[aria-label="Edit details"]').trigger("click");
+  await flushPromises();
+  await dialog().get(`[aria-label="Use the file's title"]`).trigger("click");
+  await flushPromises();
+  expect(edit).toHaveBeenLastCalledWith({ bookId: "book-1", patch: { title: null } });
+  expect((field("Title").element as HTMLInputElement).value).toBe("A Map of Quiet Places");
+  expect(dialog().find(`[aria-label="Use the file's title"]`).exists()).toBe(false);
+  expect(dialog().find(`[aria-label="Use the file's authors"]`).exists()).toBe(true);
+  await dialog().get("form").trigger("submit");
+  await flushPromises();
+  expect(edit).toHaveBeenCalledTimes(2);
+  expect(about().get(".item-page__title").text()).toBe("A Map of Quiet Places");
+  wrapper.unmount();
+});
+
+it("chooses a cover picture for an item, and goes back to the file's", async () => {
+  const edit = vi.spyOn(mock, "editDetails");
+  const { wrapper, dialog, about } = await editing("book-2");
+  const cover = () => about().find(".item-page__cover img");
+  expect(cover().exists()).toBe(false);
+  await dialog().get('[aria-label="Choose a cover picture"]').trigger("click");
+  await flushPromises();
+  expect(edit).toHaveBeenLastCalledWith({ bookId: "book-2", patch: { cover: "~/Pictures/cover.png" } });
+  expect(cover().exists()).toBe(true);
+  await dialog().get(`[aria-label="Use the file's cover"]`).trigger("click");
+  await flushPromises();
+  expect(edit).toHaveBeenLastCalledWith({ bookId: "book-2", patch: { cover: null } });
+  expect(cover().exists()).toBe(false);
+  wrapper.unmount();
+});

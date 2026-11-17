@@ -14,6 +14,7 @@ import {
   ListEnd,
   ListX,
   Mic,
+  Pencil,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -22,6 +23,7 @@ import {
   Tag,
 } from "@lucide/vue";
 import TagsDialog from "@/components/library/TagsDialog.vue";
+import DetailsDialog from "@/components/library/DetailsDialog.vue";
 import { api } from "@/api";
 import type { BookDetails, BookSettings, BookView, DayListening } from "@/api/types";
 import CoverArt from "@/components/CoverArt.vue";
@@ -88,6 +90,8 @@ onMounted(load);
 const summary = computed(() => library.books.find((b) => b.id === props.bookId) ?? null);
 /** The item's tags are being edited. */
 const editingTags = ref(false);
+/** Its title, authors, date or cover are being corrected. */
+const editingDetails = ref(false);
 const title = computed(() => summary.value?.title ?? overview.value?.title ?? "");
 /** An article without a byline names no one. */
 const authors = computed(
@@ -361,7 +365,22 @@ async function pair() {
           <button type="button" class="item-page__edit-tags" aria-label="Edit tags" @click="editingTags = true">
             <Tag :size="13" aria-hidden="true" /> {{ summary.tags.length ? "Edit" : "Add tags" }}
           </button>
+          <button
+            type="button"
+            class="item-page__edit-tags"
+            aria-label="Edit details"
+            aria-haspopup="dialog"
+            @click="editingDetails = true"
+          >
+            <Pencil :size="13" aria-hidden="true" /> Edit details
+          </button>
         </div>
+        <DetailsDialog
+          v-if="editingDetails && summary"
+          :book-id="summary.id"
+          @changed="load"
+          @close="editingDetails = false"
+        />
         <TagsDialog
           v-if="editingTags && summary"
           :book-id="summary.id"
