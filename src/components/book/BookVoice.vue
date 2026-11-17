@@ -8,6 +8,7 @@ import ParamControl from "@/components/ParamControl.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { voiceOptions } from "@/components/ui/voiceOptions";
 import VoicePreview from "@/components/settings/VoicePreview.vue";
+import { useSample } from "@/composables/useVoicePreview";
 import PronunciationList from "@/components/settings/PronunciationList.vue";
 import { useLibraryStore } from "@/stores/library";
 import { useReaderStore } from "@/stores/reader";
@@ -119,6 +120,23 @@ async function exportBook() {
     exporting.value = { ...exporting.value!, stage: "error", error: String(e) };
   }
 }
+/** Both voices as the book will have them: a narration sentence, then a quoted one, from it. */
+const dialogueSample = useSample();
+function previewDialogue() {
+  const s = settings.value;
+  if (!s?.dialogueVoiceId || !profile.value) return;
+  const request = {
+    bookId: props.bookId,
+    profile: profile.value,
+    voiceId: s.voiceId?.trim() || null,
+    dialogueVoiceId: s.dialogueVoiceId,
+    params: s.params,
+    language: s.language?.trim() || summary.value?.language || null,
+  };
+  void dialogueSample.play(null, () => api.previewDialogue(request));
+}
+/** The engine may load each voice anew, so switching for every quote can be slow. */
+const slowSwitch = computed(() => descriptor.value !== null && !descriptor.value.cheapVoiceSwitch);
 const preparation = computed(() => preparationStatus(summary.value?.prepare ?? null));
 async function prepareAction(action: PrepareAction) {
   await runPrepareAction(props.bookId, action);
@@ -170,6 +188,46 @@ async function prepareAction(action: PrepareAction) {
         language: settings.language?.trim() || summary?.language || null,
       }"
     />
+    <div class="book-voice__field">
+      <span>Voice for dialogue</span>
+      <UiSelect
+        v-if="voices"
+        label="Voice for dialogue"
+        :options="voiceOptions(voices, settings.dialogueVoiceId, 'The same voice')"
+        :model-value="settings.dialogueVoiceId ?? ''"
+        @update:model-value="(id) => (settings!.dialogueVoiceId = id || null)"
+      />
+      <input
+        v-else
+        :value="settings.dialogueVoiceId ?? ''"
+        type="text"
+        aria-label="Voice for dialogue"
+        placeholder="The same voice"
+        @input="settings.dialogueVoiceId = ($event.target as HTMLInputElement).value.trim() || null"
+      />
+    </div>
+    <template v-if="settings.dialogueVoiceId">
+      <p class="book-voice__hint">
+        What characters say in quotation marks is read in this voice, the narration in the one above. Saving segments
+        the book anew: sentences with speech in them are made again, the rest keep their audio.
+      </p>
+      <p v-if="slowSwitch" class="book-voice__warning" role="status">
+        {{ descriptor?.name }} may load each voice anew, so switching between two can make narration slow.
+      </p>
+      <div class="book-voice__row">
+        <UiButton
+          size="sm"
+          aria-label="Preview both voices"
+          :disabled="dialogueSample.state.value === 'loading'"
+          @click="previewDialogue"
+        >
+          {{ dialogueSample.state.value === "loading" ? "Preparing…" : "Preview both voices" }}
+        </UiButton>
+        <span v-if="dialogueSample.error.value" class="book-voice__error" role="alert">{{
+          dialogueSample.error.value
+        }}</span>
+      </div>
+    </template>
     <label class="book-voice__check"
       ><input v-model="settings.readNotes" type="checkbox" aria-label="Read footnotes aloud" /> Read footnotes aloud
       after their paragraph</label
@@ -258,6 +316,17 @@ async function prepareAction(action: PrepareAction) {
 </template>
 
 <style scoped>
+.book-voice__warning {
+  color: var(--warn);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.book-voice__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
 .book-voice__form,
 .book-voice__words,
 .book-voice__audio {
