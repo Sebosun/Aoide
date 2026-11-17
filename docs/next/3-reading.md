@@ -158,6 +158,7 @@ something log in the core (`highlight.added`). Never the text.
 ## 3.2 Highlights, and exporting notes
 
 **Size:** M. Needs 3.1.
+**Built:** 2026-11-17 (2074a33..7a98ba1)
 
 ### Outcome
 
@@ -255,6 +256,15 @@ Front matter for other tools is a flag away (`---` block with title, author, url
 articles); keep the default plain. "Export all notes" writes one file per book into a chosen
 folder.
 
+As built: the library step is version 19 (`crates/library/src/highlights.rs`); the component is
+`core/highlights.rs`, the Markdown and the export `core/notes.rs` (golden file
+`core/testdata/notes.md`). `highlight_spoken` answers `HighlightAdded { id, can_undo,
+highlights }`: Undo is offered only when the new highlight joined no other, since removing a
+joined one would take the others' passages and notes with it. Exporting goes through
+`choose_notes_target(file_name)` then `export_notes`, and "Export all notes" (in **Settings ›
+Library › Notes**) through `choose_notes_folder` then `export_all_notes(folder) -> u32`, which
+loads only the books that have highlights or bookmarks. No front-matter flag yet.
+
 **Interface.**
 
 - Drawing: `ChapterText` turns the list into the parts that fall inside each sentence
@@ -267,6 +277,12 @@ folder.
   order, a filter for each, **Export…** and **Copy as Markdown**. An audiobook's Notes tab
   lists bookmarks only.
 - The spoken-sentence key is `H` (2.7), with a toast "Highlighted" and Undo.
+- As built: **Highlight** is in the menu on selected text only; the right-click menu on a
+  sentence keeps its three entries. A toast can carry one action (Undo). The highlight card is
+  `HighlightCard.vue`, on the page and in Lines; the Notes tab is `BookNotes.vue`, and the
+  button that opens book tools is now "Notes and details". `src/components/reader/highlights.ts`
+  turns the list into each sentence's marks. The mock scenario was added with the commands
+  (slice 6).
 
 ### Slices
 
