@@ -74,7 +74,7 @@ pub struct NewBook {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BookRecord {
     pub id: BookId,
@@ -95,6 +95,9 @@ pub struct BookRecord {
     pub shelf: String,
     /// When it was archived; `None` while it is not.
     pub archived_at: Option<i64>,
+    /// The series its file names, set apart from the rest of the record (`set_series`).
+    pub series: Option<String>,
+    pub series_position: Option<f32>,
 }
 
 /// What a library item is.
@@ -225,6 +228,17 @@ impl Library {
         self.conn.execute(
             "UPDATE books SET cover_path = ?2 WHERE id = ?1",
             rusqlite::params![id.0, cover.map(store::path_text).transpose()?],
+        )?;
+        Ok(())
+    }
+
+    /// Sets book `id`'s series and place in it (`None`: in none). Storing the record again
+    /// leaves them.
+    pub fn set_series(&self, id: &BookId, series: Option<(&str, Option<f32>)>) -> Result<()> {
+        let (name, position) = series.map_or((None, None), |(n, p)| (Some(n), p));
+        self.conn.execute(
+            "UPDATE books SET series = ?2, series_position = ?3 WHERE id = ?1",
+            rusqlite::params![id.0, name, position],
         )?;
         Ok(())
     }

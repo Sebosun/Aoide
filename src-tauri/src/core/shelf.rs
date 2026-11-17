@@ -182,11 +182,12 @@ impl Shelf {
         let (mut new, mut read) = (0usize, 0usize);
         let ignored = self.ignored();
         let mut present = Vec::new();
-        // Books listed before tags came have their subjects read once.
-        let subjects_read = matches!(
-            lock(&self.library).value::<bool>(GlobalKey::SubjectsRead),
-            Ok(Some(true))
-        );
+        // Books listed before tags came have their subjects read once; before series, their
+        // series (each from one read of the package).
+        let flag = |key| matches!(lock(&self.library).value::<bool>(key), Ok(Some(true)));
+        let (subjects_read, series_read) =
+            (flag(GlobalKey::SubjectsRead), flag(GlobalKey::SeriesRead));
+        let mut with_series = 0usize;
         for file in files {
             if ignored.contains(&file.id.0) {
                 continue;
@@ -194,8 +195,11 @@ impl Shelf {
             let existing = lock(&self.library)
                 .book(&file.id)
                 .map_err(|e| e.to_string())?;
-            let (book, subjects) = match existing {
+            let (book, subjects, series) = match existing {
                 Some(record) if !matches!(record.status, BookStatus::Error(_)) => {
+                    let package = (!subjects_read || !series_read).then(|| package_of(&file.path));
+                    let (file_subjects, file_series) = package.unwrap_or_default();
+                    let series = (!series_read).then_some(file_series);
                     let subjects = if subjects_read {
                         Vec::new()
                     } else {
@@ -206,7 +210,7 @@ impl Shelf {
                             .flatten()
                             .map(|d| d.subjects)
                             .unwrap_or_default();
-                        [subjects_of(&file.path), looked_up].concat()
+                        [file_subjects, looked_up].concat()
                     };
                     let record = NewBook {
                         id: record.id,
@@ -218,7 +222,7 @@ impl Shelf {
                         error: None,
                         kind: aoide_library::ItemKind::Book,
                     };
-                    (record, subjects)
+                    (record, subjects, series)
                 }
                 existing => {
                     let described = self.describe(&file.path, &file.id);
@@ -230,7 +234,8 @@ impl Shelf {
                         new += 1;
                     }
                     read += 1;
-                    described
+                    let (record, subjects, series) = described;
+                    (record, subjects, Some(series))
                 }
             };
             present.push(file.id.clone());
@@ -238,6 +243,15 @@ impl Shelf {
             library
                 .upsert_book(&book, now_ms())
                 .map_err(|e| e.to_string())?;
+            if let Some(series) = series {
+                with_series += usize::from(series.is_some());
+                library
+                    .set_series(
+                        &book.id,
+                        series.as_ref().map(|s| (s.name.as_str(), s.position)),
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
             let tags = aoide_library::tidy_tags(&subjects);
             if !tags.is_empty() {
                 library
@@ -245,11 +259,17 @@ impl Shelf {
                     .map_err(|e| e.to_string())?;
             }
         }
-        if !subjects_read {
-            if let Err(error) = lock(&self.library).set_value(GlobalKey::SubjectsRead, &true) {
+        for (read, key, what) in [
+            (subjects_read, GlobalKey::SubjectsRead, "subjects"),
+            (series_read, GlobalKey::SeriesRead, "series"),
+        ] {
+            if read {
+                continue;
+            }
+            if let Err(error) = lock(&self.library).set_value(key, &true) {
                 self.reporter.report(
                     "library.save",
-                    "Could not note that the books' subjects were read",
+                    &format!("Could not note that the books' {what} were read"),
                     error,
                 );
             }
@@ -274,6 +294,7 @@ impl Shelf {
             books = present.len(),
             new,
             read,
+            with_series,
             took_ms = crate::logging::took(started),
             "Scanned the library folder"
         );
@@ -282,8 +303,12 @@ impl Shelf {
     }
 
     /// Parses a new book's metadata and extracts its cover.
-    /// The book's record from its file, and its subjects.
-    fn describe(&self, path: &Path, id: &BookId) -> (NewBook, Vec<String>) {
+    /// The book's record from its file, its subjects and its series.
+    fn describe(
+        &self,
+        path: &Path,
+        id: &BookId,
+    ) -> (NewBook, Vec<String>, Option<aoide_epub::Series>) {
         let fallback_title = path.file_stem().map(|s| s.to_string_lossy().into_owned());
         let parsed = std::fs::read(path)
             .map_err(|e| e.to_string())
@@ -317,7 +342,7 @@ impl Shelf {
                     error: None,
                     kind: aoide_library::ItemKind::Book,
                 };
-                (record, book.subjects)
+                (record, book.subjects, book.series)
             }
             Err(error) => {
                 let record = NewBook {
@@ -330,7 +355,7 @@ impl Shelf {
                     error: Some(error),
                     kind: aoide_library::ItemKind::Book,
                 };
-                (record, Vec::new())
+                (record, Vec::new(), None)
             }
         }
     }
@@ -1107,19 +1132,20 @@ fn is_pdf_file(path: &Path) -> bool {
         .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
 }
 
-/// A book's subjects, from an EPUB's package or a PDF's keywords alone; none when it cannot be
-/// read.
-fn subjects_of(path: &Path) -> Vec<String> {
+/// A book's subjects and series, from one read of an EPUB's package (or a PDF's keywords,
+/// which name no series); none when it cannot be read.
+fn package_of(path: &Path) -> (Vec<String>, Option<aoide_epub::Series>) {
     let Ok(bytes) = std::fs::read(path) else {
-        return Vec::new();
+        return Default::default();
     };
     if aoide_pdf::is_pdf(&bytes) {
-        return aoide_pdf::read_pdf_metadata(&bytes)
+        let subjects = aoide_pdf::read_pdf_metadata(&bytes)
             .map(|meta| meta.subjects)
             .unwrap_or_default();
+        return (subjects, None);
     }
     aoide_epub::read_metadata(&bytes, &aoide_epub::ParseOptions::default())
-        .map(|meta| meta.subjects)
+        .map(|meta| (meta.subjects, meta.series))
         .unwrap_or_default()
 }
 
@@ -1302,6 +1328,75 @@ mod tests {
             .unwrap();
         shelf.rescan().unwrap();
         assert_eq!(tags(), ["Lighthouses", "To read"]);
+    }
+
+    #[test]
+    fn a_books_series_is_read_when_it_is_added_and_once_for_books_listed_before() {
+        let dir = tempfile::tempdir().unwrap();
+        let shelf = shelf(dir.path());
+        let in_series = super::super::tests::epub_in_series;
+        std::fs::write(
+            dir.path().join("books/one.epub"),
+            in_series("The First Light", "Harbour Lights", "1"),
+        )
+        .unwrap();
+        shelf.rescan().unwrap();
+        let series = |shelf: &Shelf| {
+            let mut found: Vec<(String, Option<String>, Option<f32>)> = shelf
+                .shelve(|library| library.books())
+                .unwrap()
+                .into_iter()
+                .map(|r| (r.title.unwrap(), r.series, r.series_position))
+                .collect();
+            found.sort_by(|a, b| a.0.cmp(&b.0));
+            found
+        };
+        assert_eq!(
+            series(&shelf),
+            [(
+                "The First Light".into(),
+                Some("Harbour Lights".into()),
+                Some(1.0)
+            )]
+        );
+        // As a library from before series: the book stored without one, never read for it.
+        shelf
+            .shelve(|library| {
+                let id = library.books()?[0].id.clone();
+                library.set_series(&id, None)?;
+                library.remove_value(GlobalKey::SeriesRead)
+            })
+            .unwrap();
+        std::fs::write(
+            dir.path().join("books/two.epub"),
+            in_series("The Second Light", "Harbour Lights", "2.5"),
+        )
+        .unwrap();
+        shelf.rescan().unwrap();
+        assert_eq!(
+            series(&shelf),
+            [
+                (
+                    "The First Light".into(),
+                    Some("Harbour Lights".into()),
+                    Some(1.0)
+                ),
+                (
+                    "The Second Light".into(),
+                    Some("Harbour Lights".into()),
+                    Some(2.5)
+                ),
+            ]
+        );
+        // Read once: a series taken off afterwards is not put back by the next scan.
+        shelf
+            .shelve(|library| {
+                let id = library.books()?[0].id.clone();
+                library.set_series(&id, None)
+            })
+            .unwrap();
+        shelf.rescan().unwrap();
+        assert_eq!(series(&shelf).iter().filter(|s| s.1.is_none()).count(), 1);
     }
 
     #[test]

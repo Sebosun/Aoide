@@ -263,6 +263,8 @@ mod tests {
             kind: ItemKind::Book,
             shelf: "library".into(),
             archived_at: None,
+            series: None,
+            series_position: None,
         }
     }
 

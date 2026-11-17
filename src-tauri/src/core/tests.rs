@@ -117,12 +117,31 @@ pub(super) fn book_with_matter() -> Vec<u8> {
     ])
 }
 
+/// A one-chapter book titled `title` in Calibre's `series` at `position`.
+pub(super) fn epub_in_series(title: &str, series: &str, position: &str) -> Vec<u8> {
+    let text = format!(
+        r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>{title}</h1><p>The {title} part of the story.</p></body></html>"#
+    );
+    epub_package(
+        &[text],
+        title,
+        &format!(
+            r#"<meta name="calibre:series" content="{series}"/><meta name="calibre:series_index" content="{position}"/>"#
+        ),
+    )
+}
+
 /// The test book's package with these chapter documents, listing `subjects`.
 fn epub_of(documents: &[String], subjects: &[&str]) -> Vec<u8> {
     let subjects: String = subjects
         .iter()
         .map(|s| format!("<dc:subject>{s}</dc:subject>"))
         .collect();
+    epub_package(documents, "Quay Lights", &subjects)
+}
+
+/// A book titled `title` of these chapter documents, its package's metadata holding `more`.
+fn epub_package(documents: &[String], title: &str, more: &str) -> Vec<u8> {
     // The first two named as they always were, so the two-chapter book keeps its id.
     let names: Vec<String> = (0..documents.len())
         .map(|i| match i {
@@ -142,7 +161,7 @@ fn epub_of(documents: &[String], subjects: &[&str]) -> Vec<u8> {
     let mut files = vec![
         ("mimetype".to_string(), "application/epub+zip".to_string()),
         ("META-INF/container.xml".into(), r#"<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#.into()),
-        ("OPS/book.opf".into(), format!(r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Quay Lights</dc:title><dc:creator>Test Author</dc:creator><dc:language>en</dc:language>{subjects}</metadata><manifest>{manifest}</manifest><spine>{spine}</spine></package>"#)),
+        ("OPS/book.opf".into(), format!(r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{title}</dc:title><dc:creator>Test Author</dc:creator><dc:language>en</dc:language>{more}</metadata><manifest>{manifest}</manifest><spine>{spine}</spine></package>"#)),
     ];
     for (name, document) in names.iter().zip(documents) {
         files.push((format!("OPS/{name}.xhtml"), document.clone()));

@@ -322,6 +322,12 @@ const MIGRATIONS: &[Step] = &[
     // Version 23.
     // Feed folders: one level, a folder exists while a feed is in it.
     Step::Run(|tx| add_column_if_missing(tx, "feeds", "folder", "TEXT")),
+    // Version 24.
+    // A book's series and its place in it, as its file names them.
+    Step::Run(|tx| {
+        add_column_if_missing(tx, "books", "series", "TEXT")?;
+        add_column_if_missing(tx, "books", "series_position", "REAL")
+    }),
 ];
 
 fn add_column_if_missing(
@@ -411,6 +417,8 @@ pub(super) fn read_book(row: &Row<'_>) -> Result<BookRecord> {
         kind: ItemKind::from_column(&row.get::<_, String>("kind")?)?,
         shelf: row.get("shelf")?,
         archived_at: row.get("archived_at")?,
+        series: row.get("series")?,
+        series_position: row.get("series_position")?,
     })
 }
 

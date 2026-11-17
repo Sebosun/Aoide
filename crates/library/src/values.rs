@@ -22,6 +22,9 @@ pub enum GlobalKey {
     /// The library's books have had their subjects read for tags (books listed before tags
     /// came have theirs read once).
     SubjectsRead,
+    /// The library's books have had their series read (books listed before series came have
+    /// theirs read once).
+    SeriesRead,
 }
 
 impl GlobalKey {
@@ -35,6 +38,7 @@ impl GlobalKey {
             GlobalKey::OldPlayerSpeed => "player.speed",
             GlobalKey::OldAppSettings => "app.settings",
             GlobalKey::SubjectsRead => "tags.subjects-read",
+            GlobalKey::SeriesRead => "library.series-read",
         }
     }
 }
