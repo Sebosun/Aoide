@@ -209,6 +209,22 @@ pub enum TimeLeft {
     Book,
 }
 
+/// The reader's typeface. Every one is bundled with Aoide or is the system's own.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub enum ReaderFont {
+    /// Newsreader, the designed reading face.
+    #[default]
+    Serif,
+    /// The interface font.
+    Sans,
+    /// Atkinson Hyperlegible.
+    Legible,
+    /// The system's own serif or sans.
+    System,
+}
+
 /// The `[appearance]` section.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -224,6 +240,16 @@ pub struct Appearance {
     pub zoom: f64,
     /// The player's time left, switched by clicking it.
     pub time_left: TimeLeft,
+    /// The reading text's typeface.
+    pub reader_font: ReaderFont,
+    /// Reading line spacing step, 0 (tightest) to 4; 2 is the designed spacing.
+    pub line_spacing: u8,
+    /// Reading column width step, 0 (narrowest) to 4; 2 is the designed width.
+    pub text_width: u8,
+    /// Justified reading text instead of ragged right.
+    pub justify: bool,
+    /// Hyphenate the reading text, in the book's language where the system has a dictionary.
+    pub hyphenate: bool,
 }
 
 impl Default for Appearance {
@@ -235,6 +261,11 @@ impl Default for Appearance {
             reader_mode: ReaderMode::Page,
             zoom: 1.0,
             time_left: TimeLeft::Chapter,
+            reader_font: ReaderFont::Serif,
+            line_spacing: 2,
+            text_width: 2,
+            justify: false,
+            hyphenate: false,
         }
     }
 }

@@ -3,8 +3,8 @@ use std::ffi::OsStr;
 use std::path::Path;
 
 use aoide_config::{
-    config_dir, is_colour, load_themes, Appearance, ConfigError, Mode, ReaderMode, SettingsFile,
-    TimeLeft, SETTINGS_FILE,
+    config_dir, is_colour, load_themes, Appearance, ConfigError, Mode, ReaderFont, ReaderMode,
+    SettingsFile, TimeLeft, SETTINGS_FILE,
 };
 use serde::{Deserialize, Serialize};
 
@@ -113,6 +113,65 @@ fn the_time_left_shown_is_read_from_appearance_and_defaults_to_the_chapter() {
 }
 
 #[test]
+fn the_reader_typography_is_read_from_appearance_and_defaults_to_the_designed_look() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(SETTINGS_FILE);
+    std::fs::write(
+        &path,
+        "[appearance]\nreaderFont = \"sans\"\nlineSpacing = 3\ntextWidth = 1\njustify = true\nhyphenate = true\n",
+    )
+    .unwrap();
+    let file = SettingsFile::load(&path).unwrap().unwrap();
+    let appearance = file.section::<Appearance>("appearance").unwrap().unwrap();
+    assert_eq!(appearance.reader_font, ReaderFont::Sans);
+    assert_eq!((appearance.line_spacing, appearance.text_width), (3, 1));
+    assert!(appearance.justify && appearance.hyphenate);
+
+    let designed = Appearance::default();
+    assert_eq!(designed.reader_font, ReaderFont::Serif);
+    assert_eq!((designed.line_spacing, designed.text_width), (2, 2));
+    assert!(!designed.justify && !designed.hyphenate);
+}
+
+#[test]
+fn an_appearance_written_before_the_reader_typography_loads_unchanged() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(SETTINGS_FILE);
+    std::fs::write(
+        &path,
+        "[appearance]\nmode = \"dark\"\ntheme = \"nord\"\ntextSize = 3\nreaderMode = \"lines\"\nzoom = 1.1\ntimeLeft = \"book\"\n",
+    )
+    .unwrap();
+    let file = SettingsFile::load(&path).unwrap().unwrap();
+    assert_eq!(
+        file.section::<Appearance>("appearance").unwrap(),
+        Some(Appearance {
+            mode: Mode::Dark,
+            theme: "nord".into(),
+            text_size: 3,
+            reader_mode: ReaderMode::Lines,
+            zoom: 1.1,
+            time_left: TimeLeft::Book,
+            ..Appearance::default()
+        })
+    );
+}
+
+#[test]
+fn an_unknown_reader_font_is_a_section_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join(SETTINGS_FILE);
+    std::fs::write(&path, "[appearance]\nreaderFont = \"comic\"\n").unwrap();
+    let file = SettingsFile::load(&path).unwrap().unwrap();
+    match file.section::<Appearance>("appearance") {
+        Err(error @ ConfigError::Section { .. }) => {
+            assert!(error.to_string().contains("[appearance]"), "{error}")
+        }
+        other => panic!("expected a section error, got {other:?}"),
+    }
+}
+
+#[test]
 fn sections_round_trip_through_the_file() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("nested").join(SETTINGS_FILE);
@@ -124,6 +183,11 @@ fn sections_round_trip_through_the_file() {
         reader_mode: ReaderMode::Lines,
         zoom: 1.1,
         time_left: TimeLeft::Book,
+        reader_font: ReaderFont::Legible,
+        line_spacing: 4,
+        text_width: 0,
+        justify: true,
+        hyphenate: true,
     };
     file.set_section("appearance", &appearance).unwrap();
     file.set_section("engine", &engine()).unwrap();
