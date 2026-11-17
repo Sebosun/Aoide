@@ -102,8 +102,10 @@ the event sink):
 - `OpenFile`: first look the content hash up in the library (`Library::book`). A book that is
   already there with its file present (not an error record; a missing one is imported, which
   gives it its file back) is opened without copying anything; this check is
-  new, `import_files` alone would copy it again under the new name. Otherwise
-  `Shelf::import_files(vec![path])` on a blocking thread, and its `book_id` is opened. A failed
+  new, `import_files` alone would copy it again under the new name. A book the user removed
+  earlier left its file in the library folder (the last scan, `Library::scanned_files`, knows
+  it): that file is imported instead, which takes it off the ignored list without a copy.
+  Otherwise `Shelf::import_files(vec![path])` on a blocking thread, and its `book_id` is opened. A failed
   import shows as a problem (`CoreEvent::Problem`), the same as a failed drop. With several
   files, all are imported and the first one's page opens.
 - Opening is a new event, `CoreEvent::OpenItem(String)` (`"item://open"`, payload the book

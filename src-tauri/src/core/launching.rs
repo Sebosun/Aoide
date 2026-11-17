@@ -1,10 +1,10 @@
 //! Acting on what a start of Aoide asks for (`crate::launch`): a book file opened from the file
 //! manager or the command line is shown on its page, added to the library first when it is new.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use aoide_library::{BookStatus, Library};
+use aoide_library::{BookId, BookStatus, Library};
 
 use super::error::Reporter;
 use super::{lock, CoreEvent, Events, ImportResult};
@@ -149,11 +149,19 @@ impl Launching {
     /// copied), else the one it is imported as.
     fn open_file(&self, path: &Path, host: &dyn LaunchHost) -> Option<String> {
         let file = crate::logging::file(path);
-        if let Some(id) = self.present(path) {
-            tracing::info!(event = "launch.request", kind = "file", outcome = "present", %file, book = crate::logging::book(&id), "Opening a book already in the library");
-            return Some(id);
+        let id = std::fs::read(path)
+            .ok()
+            .map(|bytes| aoide_library::content_hash(&bytes));
+        if let Some(id) = id.as_ref().filter(|id| self.present(id)) {
+            tracing::info!(event = "launch.request", kind = "file", outcome = "present", %file, book = crate::logging::book(&id.0), "Opening a book already in the library");
+            return Some(id.0.clone());
         }
-        let result = host.import(path);
+        // A book removed earlier left its file in the library folder: that one is taken back.
+        let source = id
+            .as_ref()
+            .and_then(|id| self.own_file(id))
+            .unwrap_or_else(|| path.to_owned());
+        let result = host.import(&source);
         let Some(id) = result.book_id else {
             let failure = Failure {
                 doing: format!("Could not open {file}"),
@@ -168,12 +176,22 @@ impl Launching {
         Some(id)
     }
 
-    /// The id of the book in the library with the content of the file at `path`, if it is
-    /// there and its file is present and readable.
-    fn present(&self, path: &Path) -> Option<String> {
-        let id = aoide_library::content_hash(&std::fs::read(path).ok()?);
-        let record = lock(&self.library).book(&id).ok().flatten()?;
-        (record.status == BookStatus::Present).then_some(id.0)
+    /// Whether book `id` is in the library with its file present.
+    fn present(&self, id: &BookId) -> bool {
+        lock(&self.library)
+            .book(id)
+            .ok()
+            .flatten()
+            .is_some_and(|record| record.status == BookStatus::Present)
+    }
+
+    /// A file in the library folder with the content of book `id`, as the last scan found it.
+    fn own_file(&self, id: &BookId) -> Option<PathBuf> {
+        let scanned = lock(&self.library).scanned_files().ok()?;
+        scanned
+            .into_iter()
+            .find(|file| file.id == *id && file.path.is_file())
+            .map(|file| file.path)
     }
 
     /// The items asked to be opened before the window was ready, which it opens now; the files
@@ -324,6 +342,25 @@ mod tests {
             .act(vec![Request::OpenFile(downloaded)], &world.shelf);
 
         assert_eq!(world.books(), ["Quay.epub"]);
+        assert_eq!(world.opened(), [serde_json::json!(id)]);
+    }
+
+    #[test]
+    fn a_book_removed_earlier_comes_back_from_its_own_file_without_a_second_copy() {
+        let world = world();
+        std::fs::write(world.root.join("Books/Quay.epub"), epub()).unwrap();
+        world.shelf.rescan().unwrap();
+        let id = aoide_library::content_hash(&epub()).0;
+        world.shelf.remove(&id).unwrap();
+        let downloaded = world.root.join("Downloads/quay-lights.epub");
+        std::fs::write(&downloaded, epub()).unwrap();
+
+        world
+            .launching
+            .act(vec![Request::OpenFile(downloaded)], &world.shelf);
+
+        assert_eq!(world.books(), ["Quay.epub"]);
+        assert!(!world.shelf.ignored().contains(&id));
         assert_eq!(world.opened(), [serde_json::json!(id)]);
     }
 
