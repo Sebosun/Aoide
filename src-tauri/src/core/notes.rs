@@ -1,9 +1,13 @@
 //! A book's notes as Markdown: its highlights with their notes and its bookmarks, by chapter in
 //! reading order, for Copy as Markdown and for exporting.
 
-use aoide_library::Bookmark;
+use std::collections::HashSet;
+use std::path::Path;
+
+use aoide_library::{BookId, Bookmark, ItemKind};
 
 use super::highlights::HighlightView;
+use super::{lock, Core};
 
 /// What goes into a book's notes.
 pub(super) struct Notes<'a> {
@@ -140,6 +144,112 @@ pub(super) fn markdown(notes: &Notes) -> String {
     out
 }
 
+/// Book `id`'s notes and what is in them: (Markdown, highlights, bookmarks).
+fn notes_of(core: &Core, id: &str) -> Result<(String, usize, usize), String> {
+    let record = lock(&core.library)
+        .book(&BookId(id.into()))
+        .map_err(|e| e.to_string())?
+        .ok_or("that book is not in the library")?;
+    let bookmarks = core.bookmarks(id)?;
+    let (chapters, highlights) = if record.kind == ItemKind::Audiobook {
+        // A time bookmark's excerpt is the title of its part.
+        let mut parts = Vec::new();
+        for bookmark in &bookmarks {
+            let part = bookmark.chapter as usize;
+            if parts.len() <= part {
+                parts.resize(part + 1, String::new());
+            }
+            parts[part].clone_from(&bookmark.excerpt);
+        }
+        (parts, Vec::new())
+    } else {
+        let book = core.load_book(id)?;
+        let titles = book.chapters.iter().map(|c| c.title.clone()).collect();
+        (titles, core.highlights(id)?)
+    };
+    let title = record.title.unwrap_or_else(|| "Untitled".into());
+    let text = markdown(&Notes {
+        title: &title,
+        authors: &record.authors,
+        chapters: &chapters,
+        highlights: &highlights,
+        bookmarks: &bookmarks,
+        date: &chrono::Local::now().format("%Y-%m-%d").to_string(),
+    });
+    Ok((text, highlights.len(), bookmarks.len()))
+}
+
+/// Writes book `id`'s notes to `path`.
+fn write_notes(core: &Core, id: &str, path: &Path) -> Result<(), String> {
+    let (text, highlights, bookmarks) = notes_of(core, id)?;
+    std::fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))?;
+    tracing::info!(
+        event = "notes.exported",
+        book = crate::logging::book(id),
+        highlights,
+        bookmarks,
+        file = %crate::logging::file(path),
+        "Exported a book's notes"
+    );
+    Ok(())
+}
+
+impl Core {
+    /// Book `id`'s highlights, their notes and its bookmarks as Markdown (Copy as Markdown).
+    pub fn notes_markdown(&self, id: &str) -> Result<String, String> {
+        Ok(notes_of(self, id)?.0)
+    }
+
+    /// Writes book `id`'s notes as Markdown to the file `path`.
+    pub fn export_notes(&self, id: &str, path: &str) -> Result<(), String> {
+        write_notes(self, id, Path::new(path))
+    }
+
+    /// Writes the notes of every book in the library that has highlights or bookmarks into
+    /// `folder`, one file per book named after its title; returns how many files.
+    pub fn export_all_notes(&self, folder: &str) -> Result<u32, String> {
+        let folder = Path::new(folder);
+        let books = lock(&self.library).books().map_err(|e| e.to_string())?;
+        let mut taken = HashSet::new();
+        let mut written = 0;
+        for book in books {
+            let has_notes = {
+                let library = lock(&self.library);
+                !library
+                    .highlights(&book.id)
+                    .map_err(|e| e.to_string())?
+                    .is_empty()
+                    || !library
+                        .bookmarks(&book.id)
+                        .map_err(|e| e.to_string())?
+                        .is_empty()
+            };
+            if !has_notes {
+                continue;
+            }
+            if written == 0 {
+                std::fs::create_dir_all(folder)
+                    .map_err(|e| format!("{}: {e}", folder.display()))?;
+            }
+            let name = super::export::file_name(book.title.as_deref().unwrap_or("Notes"));
+            let stem = name.strip_suffix(".m4b").unwrap_or(&name).to_owned();
+            let stem = (1..)
+                .map(|n| {
+                    if n == 1 {
+                        stem.clone()
+                    } else {
+                        format!("{stem} ({n})")
+                    }
+                })
+                .find(|s| taken.insert(s.to_lowercase()))
+                .expect("unbounded");
+            write_notes(self, &book.id.0, &folder.join(format!("{stem}.md")))?;
+            written += 1;
+        }
+        Ok(written)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -197,5 +307,54 @@ mod tests {
             date: "2026-11-16",
         };
         assert_eq!(markdown(&notes), include_str!("testdata/notes.md"));
+    }
+
+    #[tokio::test]
+    async fn a_books_notes_are_exported_to_a_file_and_every_books_to_a_folder() {
+        use crate::core::tests::{library_folder, start_with, until};
+        use std::sync::Arc;
+        let dir = tempfile::tempdir().unwrap();
+        let id = library_folder(dir.path(), "");
+        let (core, _events) = start_with(
+            dir.path(),
+            &aoide_tts::testing::FakeEngine::new(),
+            Arc::new(|_| Err("no speech recognition in this test".into())),
+        );
+        until("the library scan", || {
+            core.list_books().is_ok_and(|b| b.len() == 1)
+        })
+        .await;
+        // Nothing to export yet: no file is written.
+        assert_eq!(
+            core.export_all_notes(&dir.path().join("all").to_string_lossy())
+                .unwrap(),
+            0
+        );
+        let text = core.load_book(&id).unwrap().chapters[1].text.clone();
+        let start = text.find("lit the lamp").unwrap();
+        core.add_highlight(&id, 1, start, start + 12).unwrap();
+        core.add_bookmark_at(&id, "here", None).unwrap();
+
+        let markdown = core.notes_markdown(&id).unwrap();
+        assert!(
+            markdown.starts_with("# Quay Lights\n*Test Author* · exported "),
+            "{markdown}"
+        );
+        assert!(
+            markdown.contains("## The Lamp\n\n> lit the lamp\n"),
+            "{markdown}"
+        );
+        assert!(markdown.contains("- 🔖 "), "{markdown}");
+
+        let file = dir.path().join("notes.md");
+        core.export_notes(&id, &file.to_string_lossy()).unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), markdown);
+
+        let folder = dir.path().join("all");
+        assert_eq!(core.export_all_notes(&folder.to_string_lossy()).unwrap(), 1);
+        assert_eq!(
+            std::fs::read_to_string(folder.join("Quay Lights.md")).unwrap(),
+            markdown
+        );
     }
 }

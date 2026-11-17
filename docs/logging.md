@@ -170,6 +170,8 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `pronunciation.removed` | info | `book` or `scope` (`all`), `affected` | `core/pronunciation.rs` `delete_pronunciation`, as `pronunciation.saved` |
 | `highlight.added` | info | `book`, `chapter`, `chars`, `from` (`selection` or `spoken`) | `core/highlights.rs` `add`; `chars` is the passage's length after joining the highlights it overlaps or touches. Never the text or the note |
 | `highlight.detached` | info | `book`, `chapter` | `core/highlights.rs` `list`, each time a book's highlights are listed and one's text is no longer in its chapter (an article fetched again, newer extraction rules); it is listed, not drawn. A highlight whose text moved is moved with it, without a line |
+| `highlight.removed` | info | `book`, `chapter` | `core/highlights.rs` `delete_highlight` |
+| `notes.exported` | info | `book`, `highlights`, `bookmarks`, `file` | `core/notes.rs`, a book's notes written as Markdown (`export_notes`, and each book of `export_all_notes`); `file` is the file's name only |
 | `gen.failed` | warn | `key`, `error` (the whole error; the player shows a short message, and Settings › Speech engine › Problems lists both) | `core.rs` |
 | `engine.state` | info | `engine`, `from`, `to`, `detail` | `core/engine.rs` `publish` |
 | `engine.server.stage` | info (warn into `failed`, `waiting`) | `program` (`engine`, `aligner`), `from`, `to`, `cause` (the event), `attempt`, `failure` (kind) | `core/engine_process.rs` `step`, where `next` is applied |

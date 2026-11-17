@@ -4,10 +4,11 @@
 
 use std::sync::{Arc, Mutex};
 
-use aoide_library::{BookId, Highlight, Library, NewHighlight};
+use aoide_library::{BookId, Highlight, ItemKind, Library, NewHighlight};
 use serde::Serialize;
 
-use super::{lock, now_ms};
+use super::item::Needs;
+use super::{lock, now_ms, Core};
 use crate::book::BookModel;
 
 /// Pressed within this long of a sentence starting, the highlight key means the sentence before
@@ -136,7 +137,7 @@ impl Highlights {
         book: &BookModel,
         index: usize,
         offset_ms: u32,
-    ) -> Result<Highlight, String> {
+    ) -> Result<Added, String> {
         let (chapter, local) = book.locate(index).ok_or("nothing is playing")?;
         let segments = &book.chapters[chapter].segments;
         let in_text = |s: &aoide_text::Segment| !s.speech.is_empty() && !s.range.is_empty();
@@ -167,7 +168,7 @@ impl Highlights {
         start: usize,
         end: usize,
         from: From,
-    ) -> Result<Highlight, String> {
+    ) -> Result<Added, String> {
         let text = &book
             .chapters
             .get(chapter)
@@ -221,10 +222,118 @@ impl Highlights {
             from = from.name(),
             "Highlighted a passage"
         );
-        library
+        let highlight = library
             .highlight(added)
             .map_err(|e| e.to_string())?
-            .ok_or_else(|| "the highlight was not saved".into())
+            .ok_or("the highlight was not saved")?;
+        Ok(Added {
+            highlight,
+            joined: !replacing.is_empty(),
+        })
+    }
+
+    /// Writes highlight `id`'s note; returns its book.
+    pub fn update_note(&self, id: i64, note: &str) -> Result<String, String> {
+        let library = lock(&self.library);
+        let found = library.highlight(id).map_err(|e| e.to_string())?;
+        let found = found.ok_or("that highlight is not there any more")?;
+        library
+            .update_highlight_note(id, note.trim())
+            .map_err(|e| e.to_string())?;
+        Ok(found.book_id.0)
+    }
+
+    /// Removes highlight `id`; returns its book.
+    pub fn delete(&self, id: i64) -> Result<String, String> {
+        let library = lock(&self.library);
+        let found = library.highlight(id).map_err(|e| e.to_string())?;
+        let found = found.ok_or("that highlight is not there any more")?;
+        library.delete_highlight(id).map_err(|e| e.to_string())?;
+        tracing::info!(
+            event = "highlight.removed",
+            book = crate::logging::book(&found.book_id.0),
+            chapter = found.chapter,
+            "Removed a highlight"
+        );
+        Ok(found.book_id.0)
+    }
+}
+
+/// A highlight just made.
+pub(super) struct Added {
+    pub highlight: Highlight,
+    /// It took the place of highlights it overlapped or touched.
+    pub joined: bool,
+}
+
+/// What the highlight key made: the highlight, whether removing it undoes the key (it joined
+/// no other highlight, whose passage and note removing it would lose too), and the book's
+/// highlights now.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct HighlightAdded {
+    pub id: i64,
+    pub can_undo: bool,
+    pub highlights: Vec<HighlightView>,
+}
+
+impl Core {
+    /// Book `id`'s highlights in reading order; none for an audiobook, which has no text.
+    pub fn highlights(&self, id: &str) -> Result<Vec<HighlightView>, String> {
+        if self.item_kind(id) == Some(ItemKind::Audiobook) {
+            return Ok(Vec::new());
+        }
+        self.highlights.list(&*self.load_book(id)?)
+    }
+
+    /// Highlights characters `start..end` of chapter `chapter` of book `id` (a selection in
+    /// the reader); returns the book's highlights.
+    pub fn add_highlight(
+        &self,
+        id: &str,
+        chapter: usize,
+        start: usize,
+        end: usize,
+    ) -> Result<Vec<HighlightView>, String> {
+        self.require(id, Needs::Text)?;
+        let book = self.load_book(id)?;
+        self.highlights
+            .add(&book, chapter, start, end, From::Selection)?;
+        self.highlights.list(&book)
+    }
+
+    /// Highlights the sentence just spoken in book `id`, which must be the one playing.
+    pub fn highlight_spoken(&self, id: &str) -> Result<HighlightAdded, String> {
+        self.require(id, Needs::Text)?;
+        let book = self
+            .playback
+            .book()
+            .filter(|book| book.id == id)
+            .ok_or("this book is not being listened to")?;
+        let at = self.playback.position();
+        let added = self.highlights.add_spoken(&book, at.index, at.offset_ms)?;
+        Ok(HighlightAdded {
+            id: added.highlight.id,
+            can_undo: !added.joined,
+            highlights: self.highlights.list(&book)?,
+        })
+    }
+
+    /// Writes a highlight's note; returns its book's highlights.
+    pub fn update_highlight_note(
+        &self,
+        highlight: i64,
+        note: &str,
+    ) -> Result<Vec<HighlightView>, String> {
+        let book = self.highlights.update_note(highlight, note)?;
+        self.highlights(&book)
+    }
+
+    /// Removes a highlight; returns its book's highlights.
+    pub fn delete_highlight(&self, highlight: i64) -> Result<Vec<HighlightView>, String> {
+        let book = self.highlights.delete(highlight)?;
+        self.highlights(&book)
     }
 }
 
@@ -261,7 +370,8 @@ mod tests {
         let (start, end) = range_of(&book, 1, "lit the lamp");
         let added = highlights
             .add(&book, 1, start, end, From::Selection)
-            .unwrap();
+            .unwrap()
+            .highlight;
         assert_eq!(added.text, "lit the lamp");
         assert_eq!((added.start as usize, added.end as usize), (start, end));
         assert_eq!(passages(&highlights), [(1, "lit the lamp".into())]);
@@ -274,7 +384,8 @@ mod tests {
         let (start, end) = range_of(&book, 0, "Gulls argued");
         let first = highlights
             .add(&book, 0, start, end, From::Selection)
-            .unwrap();
+            .unwrap()
+            .highlight;
         lock(&highlights.library)
             .update_highlight_note(first.id, "noisy")
             .unwrap();
@@ -286,6 +397,8 @@ mod tests {
         let joined = highlights
             .add(&book, 0, start, end, From::Selection)
             .unwrap();
+        assert!(joined.joined);
+        let joined = joined.highlight;
         assert_eq!(joined.text, "Gulls argued over the nets.");
         assert_eq!(joined.note, "noisy");
         // Not touching: a highlight of its own.
@@ -412,7 +525,10 @@ mod tests {
         .unwrap();
         let entry = |id: &str| book.index_of(id).unwrap();
         let spoken = |index: usize, offset_ms: u32| {
-            let added = highlights.add_spoken(&book, index, offset_ms).unwrap();
+            let added = highlights
+                .add_spoken(&book, index, offset_ms)
+                .unwrap()
+                .highlight;
             lock(&highlights.library)
                 .delete_highlight(added.id)
                 .unwrap();
@@ -425,5 +541,50 @@ mod tests {
         // Not back into the chapter before: a chapter's first sentence is itself.
         assert_eq!(spoken(entry("1:0:0"), 400), "The Lamp");
         assert!(highlights.add_spoken(&book, 99, 0).is_err());
+    }
+
+    #[tokio::test]
+    async fn the_reader_highlights_notes_and_removes_through_the_core() {
+        use super::super::tests::{library_folder, start_with, until};
+        let dir = tempfile::tempdir().unwrap();
+        let id = library_folder(dir.path(), "");
+        let (core, _events) = start_with(
+            dir.path(),
+            &aoide_tts::testing::FakeEngine::new(),
+            Arc::new(|_| Err("no speech recognition in this test".into())),
+        );
+        until("the library scan", || {
+            core.list_books().is_ok_and(|b| b.len() == 1)
+        })
+        .await;
+        let book = core.load_book(&id).unwrap();
+        let (start, end) = range_of(&book, 1, "lit the lamp");
+        let listed = core.add_highlight(&id, 1, start, end).unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!(
+            (listed[0].text.as_str(), listed[0].chapter_title.as_str()),
+            ("lit the lamp", "The Lamp")
+        );
+        let noted = core
+            .update_highlight_note(listed[0].id, " bright ")
+            .unwrap();
+        assert_eq!(noted[0].note, "bright");
+        assert_eq!(core.highlights(&id).unwrap(), noted);
+
+        // Not playing: nothing was just spoken.
+        assert!(core.highlight_spoken(&id).is_err());
+        core.play(&id, Some(0), None).await.unwrap();
+        core.pause();
+        let spoken = core.highlight_spoken(&id).unwrap();
+        assert!(spoken.can_undo, "it joined nothing");
+        assert_eq!(spoken.highlights.len(), 2);
+        assert_eq!(spoken.highlights[0].id, spoken.id);
+        assert_eq!(spoken.highlights[0].chapter, 0);
+
+        let left = core.delete_highlight(spoken.id).unwrap();
+        assert_eq!(left, noted);
+        assert!(core.delete_highlight(spoken.id).is_err());
+        assert!(core.update_highlight_note(spoken.id, "gone").is_err());
+        assert!(core.add_highlight(&id, 1, end, end + 999).is_err());
     }
 }

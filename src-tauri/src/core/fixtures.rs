@@ -1214,6 +1214,94 @@ async fn scenarios_for_the_ui_mock() {
     );
     scenarios.push(s.done());
 
+    let mut s = Scenario::new("highlight, then it is listed", "");
+    let segments: Vec<crate::book::SegmentView> = core
+        .chapter(&second, 1)
+        .unwrap()
+        .blocks
+        .into_iter()
+        .skip(1)
+        .flat_map(|b| b.segments)
+        .collect();
+    let words = &segments[0];
+    let end_of = |i: usize| words.starts[i] + words.words[i].chars().count();
+    let (start, middle, end) = (words.starts[0], end_of(1), end_of(3));
+    let check = &[
+        "length",
+        "0.text",
+        "0.chapterTitle",
+        "0.start",
+        "0.end",
+        "0.note",
+    ];
+    s.step(
+        "highlights",
+        json!({"bookId": second}),
+        &core.highlights(&second),
+        &["length"],
+    );
+    s.step(
+        "addHighlight",
+        json!({"bookId": second, "chapter": 1, "start": start, "end": middle}),
+        &core.add_highlight(&second, 1, start, middle),
+        check,
+    );
+    let first_id = core.highlights(&second).unwrap()[0].id;
+    s.step(
+        "updateHighlightNote",
+        json!({"id": first_id, "note": " A note "}),
+        &core.update_highlight_note(first_id, " A note "),
+        check,
+    );
+    // Touching the first: joined with it, its note kept.
+    s.step(
+        "addHighlight",
+        json!({"bookId": second, "chapter": 1, "start": middle, "end": end}),
+        &core.add_highlight(&second, 1, middle, end),
+        check,
+    );
+    // Across into the next paragraph, the paragraph break kept in the text.
+    let next = &segments
+        .iter()
+        .find(|s| s.id.split(':').nth(1) != words.id.split(':').nth(1))
+        .unwrap();
+    let (across, past) = (
+        words.starts[words.words.len() - 1],
+        next.starts[0] + next.words[0].chars().count(),
+    );
+    s.step(
+        "addHighlight",
+        json!({"bookId": second, "chapter": 1, "start": across, "end": past}),
+        &core.add_highlight(&second, 1, across, past),
+        &["length", "1.text", "1.start", "1.end"],
+    );
+    s.step(
+        "highlights",
+        json!({"bookId": second}),
+        &core.highlights(&second),
+        check,
+    );
+    s.step(
+        "addHighlight",
+        json!({"bookId": second, "chapter": 1, "start": 0, "end": 99_999}),
+        &core.add_highlight(&second, 1, 0, 99_999),
+        &[],
+    );
+    let joined = core.highlights(&second).unwrap()[0].id;
+    s.step(
+        "deleteHighlight",
+        json!({"id": joined}),
+        &core.delete_highlight(joined),
+        &["length", "0.start"],
+    );
+    s.step(
+        "deleteHighlight",
+        json!({"id": joined}),
+        &core.delete_highlight(joined),
+        &[],
+    );
+    scenarios.push(s.done());
+
     let mut s = Scenario::new(
         "a word is said another way in the sentences that have it, and only there",
         "",

@@ -455,6 +455,135 @@
     ]
   },
   {
+    "name": "highlight, then it is listed",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "highlights",
+        "error": null,
+        "expect": {
+          "length": 0
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 1,
+          "end": 27,
+          "start": 19
+        },
+        "call": "addHighlight",
+        "error": null,
+        "expect": {
+          "0.chapterTitle": "The long way home",
+          "0.end": 27,
+          "0.note": "",
+          "0.start": 19,
+          "0.text": "Ren drew",
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "id": 1,
+          "note": " A note "
+        },
+        "call": "updateHighlightNote",
+        "error": null,
+        "expect": {
+          "0.chapterTitle": "The long way home",
+          "0.end": 27,
+          "0.note": "A note",
+          "0.start": 19,
+          "0.text": "Ren drew",
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 1,
+          "end": 36,
+          "start": 27
+        },
+        "call": "addHighlight",
+        "error": null,
+        "expect": {
+          "0.chapterTitle": "The long way home",
+          "0.end": 36,
+          "0.note": "A note",
+          "0.start": 19,
+          "0.text": "Ren drew a circle",
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 1,
+          "end": 155,
+          "start": 60
+        },
+        "call": "addHighlight",
+        "error": null,
+        "expect": {
+          "1.end": 155,
+          "1.start": 60,
+          "1.text": "be. Then came the bridge, the cool stone steps, and the lane where the wind always rested.\n\nThe",
+          "length": 2
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "highlights",
+        "error": null,
+        "expect": {
+          "0.chapterTitle": "The long way home",
+          "0.end": 36,
+          "0.note": "A note",
+          "0.start": 19,
+          "0.text": "Ren drew a circle",
+          "length": 2
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 1,
+          "end": 99999,
+          "start": 0
+        },
+        "call": "addHighlight",
+        "error": "that passage is not in the chapter",
+        "expect": {}
+      },
+      {
+        "args": {
+          "id": 2
+        },
+        "call": "deleteHighlight",
+        "error": null,
+        "expect": {
+          "0.start": 60,
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "id": 2
+        },
+        "call": "deleteHighlight",
+        "error": "that highlight is not there any more",
+        "expect": {}
+      }
+    ]
+  },
+  {
     "name": "a word is said another way in the sentences that have it, and only there",
     "start": "",
     "steps": [

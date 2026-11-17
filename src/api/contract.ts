@@ -482,6 +482,18 @@ excerpt: string, note: string, createdAt: number,
  */
 positionMs: number | null, };
 
+export type HighlightView = { id: number, chapter: number, chapterTitle: string, 
+/**
+ * Characters of the chapter's display text (Unicode scalar values), as `SegmentView.starts`.
+ */
+start: number, end: number, text: string, note: string, 
+/**
+ * Its text is no longer in the chapter: listed, not drawn.
+ */
+detached: boolean, };
+
+export type HighlightAdded = { id: number, canUndo: boolean, highlights: Array<HighlightView>, };
+
 export type Pronunciation = { id: number, 
 /**
  * The book whose list it is in; `None` for the list for all books.
@@ -1442,6 +1454,35 @@ export type Commands = {
   "add_bookmark": { args: { bookId: string; note: string; segmentId?: string | null }; result: Bookmark };
   "update_bookmark_note": { args: { id: number; note: string }; result: void };
   "delete_bookmark": { args: { id: number }; result: void };
+  /**
+   * A book's highlights in reading order, each kept on its text (a highlight whose text is no
+   * longer in its chapter is `detached`); none for an audiobook.
+   */
+  "highlights": { args: { bookId: string }; result: HighlightView[] };
+  /**
+   * Highlights characters `start..end` of a chapter's text (as `SegmentView.starts` counts
+   * them), joined with highlights it overlaps or touches; resolves with the book's highlights.
+   */
+  "add_highlight": { args: { bookId: string; chapter: number; start: number; end: number }; result: HighlightView[] };
+  /** Highlights the sentence just spoken in the book being listened to. */
+  "highlight_spoken": { args: { bookId: string }; result: HighlightAdded };
+  /** Resolves with the highlight's book's highlights. */
+  "update_highlight_note": { args: { id: number; note: string }; result: HighlightView[] };
+  /** Resolves with the highlight's book's highlights. */
+  "delete_highlight": { args: { id: number }; result: HighlightView[] };
+  /** A book's highlights, their notes and its bookmarks as Markdown. */
+  "notes_markdown": { args: { bookId: string }; result: string };
+  /** The system's save dialog for a book's notes, offering `fileName`; null when cancelled. */
+  "choose_notes_target": { args: { fileName: string }; result: string | null };
+  /** Writes a book's notes as Markdown to `path`. */
+  "export_notes": { args: { bookId: string; path: string }; result: void };
+  /** The system's folder chooser for exporting every book's notes; null when cancelled. */
+  "choose_notes_folder": { args: Record<string, never>; result: string | null };
+  /**
+   * Writes the notes of every book that has some into `folder`, one Markdown file per book;
+   * resolves with how many files.
+   */
+  "export_all_notes": { args: { folder: string }; result: number };
   /** One book's listened time per local day, oldest first. */
   "book_listening": { args: { bookId: string }; result: DayListening[] };
   /** Reading and listening time, per day and per book. */
@@ -1766,6 +1807,35 @@ export interface CommandApi {
   addBookmark(args: { bookId: string; note: string; segmentId?: string | null }): Promise<Bookmark>;
   updateBookmarkNote(args: { id: number; note: string }): Promise<void>;
   deleteBookmark(args: { id: number }): Promise<void>;
+  /**
+   * A book's highlights in reading order, each kept on its text (a highlight whose text is no
+   * longer in its chapter is `detached`); none for an audiobook.
+   */
+  highlights(args: { bookId: string }): Promise<HighlightView[]>;
+  /**
+   * Highlights characters `start..end` of a chapter's text (as `SegmentView.starts` counts
+   * them), joined with highlights it overlaps or touches; resolves with the book's highlights.
+   */
+  addHighlight(args: { bookId: string; chapter: number; start: number; end: number }): Promise<HighlightView[]>;
+  /** Highlights the sentence just spoken in the book being listened to. */
+  highlightSpoken(args: { bookId: string }): Promise<HighlightAdded>;
+  /** Resolves with the highlight's book's highlights. */
+  updateHighlightNote(args: { id: number; note: string }): Promise<HighlightView[]>;
+  /** Resolves with the highlight's book's highlights. */
+  deleteHighlight(args: { id: number }): Promise<HighlightView[]>;
+  /** A book's highlights, their notes and its bookmarks as Markdown. */
+  notesMarkdown(args: { bookId: string }): Promise<string>;
+  /** The system's save dialog for a book's notes, offering `fileName`; null when cancelled. */
+  chooseNotesTarget(args: { fileName: string }): Promise<string | null>;
+  /** Writes a book's notes as Markdown to `path`. */
+  exportNotes(args: { bookId: string; path: string }): Promise<void>;
+  /** The system's folder chooser for exporting every book's notes; null when cancelled. */
+  chooseNotesFolder(): Promise<string | null>;
+  /**
+   * Writes the notes of every book that has some into `folder`, one Markdown file per book;
+   * resolves with how many files.
+   */
+  exportAllNotes(args: { folder: string }): Promise<number>;
   /** One book's listened time per local day, oldest first. */
   bookListening(args: { bookId: string }): Promise<DayListening[]>;
   /** Reading and listening time, per day and per book. */
@@ -1966,6 +2036,16 @@ export const COMMANDS = {
   addBookmark: "add_bookmark",
   updateBookmarkNote: "update_bookmark_note",
   deleteBookmark: "delete_bookmark",
+  highlights: "highlights",
+  addHighlight: "add_highlight",
+  highlightSpoken: "highlight_spoken",
+  updateHighlightNote: "update_highlight_note",
+  deleteHighlight: "delete_highlight",
+  notesMarkdown: "notes_markdown",
+  chooseNotesTarget: "choose_notes_target",
+  exportNotes: "export_notes",
+  chooseNotesFolder: "choose_notes_folder",
+  exportAllNotes: "export_all_notes",
   bookListening: "book_listening",
   activityStats: "activity_stats",
   inspectRecording: "inspect_recording",

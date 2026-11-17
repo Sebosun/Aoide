@@ -1,4 +1,5 @@
 use super::prelude::*;
+use crate::core::{HighlightAdded, HighlightView};
 
 #[tauri::command]
 pub async fn mark_finished(core: CoreState<'_>, book_id: String) -> Result<(), CoreError> {
@@ -80,6 +81,112 @@ pub fn update_bookmark_note(core: CoreState<'_>, id: i64, note: String) -> Resul
 #[tauri::command]
 pub fn delete_bookmark(core: CoreState<'_>, id: i64) -> Result<(), CoreError> {
     Ok(core.delete_bookmark(id)?)
+}
+
+/// A book's highlights in reading order, each kept on its text (a highlight whose text is no
+/// longer in its chapter is `detached`); none for an audiobook.
+#[tauri::command]
+pub async fn highlights(
+    core: CoreState<'_>,
+    book_id: String,
+) -> Result<Vec<HighlightView>, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.highlights(&book_id)).await
+}
+
+/// Highlights characters `start..end` of a chapter's text (as `SegmentView.starts` counts
+/// them), joined with highlights it overlaps or touches; resolves with the book's highlights.
+#[tauri::command]
+pub async fn add_highlight(
+    core: CoreState<'_>,
+    book_id: String,
+    chapter: usize,
+    start: usize,
+    end: usize,
+) -> Result<Vec<HighlightView>, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.add_highlight(&book_id, chapter, start, end)).await
+}
+
+/// Highlights the sentence just spoken in the book being listened to.
+#[tauri::command]
+pub async fn highlight_spoken(
+    core: CoreState<'_>,
+    book_id: String,
+) -> Result<HighlightAdded, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.highlight_spoken(&book_id)).await
+}
+
+/// Resolves with the highlight's book's highlights.
+#[tauri::command]
+pub async fn update_highlight_note(
+    core: CoreState<'_>,
+    id: i64,
+    note: String,
+) -> Result<Vec<HighlightView>, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.update_highlight_note(id, &note)).await
+}
+
+/// Resolves with the highlight's book's highlights.
+#[tauri::command]
+pub async fn delete_highlight(
+    core: CoreState<'_>,
+    id: i64,
+) -> Result<Vec<HighlightView>, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.delete_highlight(id)).await
+}
+
+/// A book's highlights, their notes and its bookmarks as Markdown.
+#[tauri::command]
+pub async fn notes_markdown(core: CoreState<'_>, book_id: String) -> Result<String, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.notes_markdown(&book_id)).await
+}
+
+/// The system's save dialog for a book's notes, offering `fileName`; null when cancelled.
+#[tauri::command]
+pub async fn choose_notes_target(app: tauri::AppHandle, file_name: String) -> Option<String> {
+    pick(&app, |dialog, done| {
+        dialog
+            .set_title("Export notes")
+            .set_file_name(file_name)
+            .add_filter("Markdown", &["md"])
+            .save_file(move |p| done(p.map(|p| p.to_string())))
+    })
+    .await
+}
+
+/// Writes a book's notes as Markdown to `path`.
+#[tauri::command]
+pub async fn export_notes(
+    core: CoreState<'_>,
+    book_id: String,
+    path: String,
+) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.export_notes(&book_id, &path)).await
+}
+
+/// The system's folder chooser for exporting every book's notes; null when cancelled.
+#[tauri::command]
+pub async fn choose_notes_folder(app: tauri::AppHandle) -> Option<String> {
+    pick(&app, |dialog, done| {
+        dialog
+            .set_title("Export all notes into a folder")
+            .pick_folder(move |p| done(p.map(|p| p.to_string())))
+    })
+    .await
+}
+
+/// Writes the notes of every book that has some into `folder`, one Markdown file per book;
+/// resolves with how many files.
+#[tauri::command]
+pub async fn export_all_notes(core: CoreState<'_>, folder: String) -> Result<u32, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.export_all_notes(&folder)).await
 }
 
 /// One book's listened time per local day, oldest first.

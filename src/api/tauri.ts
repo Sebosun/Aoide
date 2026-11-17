@@ -21,6 +21,9 @@ const LONG = new Set<keyof Commands>([
   "download_browser",
   "choose_books",
   "choose_audio",
+  "choose_notes_target",
+  "choose_notes_folder",
+  "export_all_notes",
 ]);
 /** Answers slower than this go to the log. */
 const SLOW_MS = 2_000;

@@ -64,6 +64,7 @@ mod bookmarks;
 mod export;
 mod feeder;
 mod highlights;
+pub use highlights::{HighlightAdded, HighlightView};
 mod leaving_out;
 mod listening;
 mod metadata;

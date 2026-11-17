@@ -43,6 +43,7 @@ import type {
   EngineProfile,
   BookSettings,
   Bookmark,
+  HighlightView,
   Pronunciation,
   AppSettings,
   BookDetails,
@@ -267,6 +268,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     };
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
+  const highlights: (HighlightView & { bookId: string })[] = [];
+  let nextHighlight = 1;
   const pronunciations: Pronunciation[] = [];
   let nextPronunciation = 1;
   /** Words separated by single spaces, if any has a letter or digit (as the core keeps them). */
@@ -881,6 +884,58 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   };
   /** An audiobook on its own plays on a timeline of its parts, as the core does
    *  (core/timeline.rs); its parts and their lengths come from the core's view of it. */
+  /** Chapter `chapter`'s display text, as far as its sentences tell it: the words at their
+   *  `starts`, a space between words of a block and line breaks between blocks. */
+  const chapterText = (id: string, chapter: number) => {
+    const text: string[] = [];
+    for (const block of getChapter(id, chapter).blocks) {
+      let first = true;
+      for (const segment of block.segments) {
+        segment.words.forEach((word, i) => {
+          const at = segment.starts[i];
+          while (text.length < at) text.push(first ? "\n" : " ");
+          Array.from(word).forEach((c, k) => (text[at + k] = c));
+          first = false;
+        });
+      }
+    }
+    return text;
+  };
+  const highlightsOf = (id: string): HighlightView[] =>
+    structuredClone(
+      highlights
+        .filter((h) => h.bookId === id)
+        .sort((a, b) => a.chapter - b.chapter || a.start - b.start || a.id - b.id)
+        .map(({ bookId: _, ...h }) => h),
+    );
+  /** As the core: the text cut from the chapter, joined with the highlights it overlaps or touches. */
+  const addHighlight = (id: string, chapter: number, start: number, end: number) => {
+    const text = chapterText(id, chapter);
+    if (start >= end || end > text.length) throw refused("that passage is not in the chapter");
+    const joined = highlights.filter(
+      (h) => h.bookId === id && h.chapter === chapter && h.start <= end && h.end >= start,
+    );
+    start = Math.min(start, ...joined.map((h) => h.start));
+    end = Math.max(end, ...joined.map((h) => h.end));
+    if (end - start > 2000) throw refused(`a highlight holds at most 2000 characters; this is ${end - start}`);
+    for (const h of joined) highlights.splice(highlights.indexOf(h), 1);
+    const added = nextHighlight++;
+    highlights.push({
+      id: added,
+      bookId: id,
+      chapter,
+      chapterTitle: getChapter(id, chapter).title,
+      start,
+      end,
+      text: text.slice(start, end).join(""),
+      note: joined
+        .map((h) => h.note)
+        .filter(Boolean)
+        .join("\n\n"),
+      detached: false,
+    });
+    return { added, joined: joined.length > 0 };
+  };
   const isAudiobook = (id: string) => books.find((b) => b.id === id)?.kind === "audiobook";
   const partsOf = (id: string) => {
     let start = 0;
@@ -1540,6 +1595,67 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async deleteBookmark({ id }) {
       const index = bookmarks.findIndex((b) => b.id === id);
       if (index >= 0) bookmarks.splice(index, 1);
+    },
+    async highlights({ bookId: id }) {
+      return highlightsOf(id);
+    },
+    async addHighlight({ bookId: id, chapter, start, end }) {
+      if (isAudiobook(id)) throw refused("an audiobook has no text");
+      addHighlight(id, chapter, start, end);
+      return highlightsOf(id);
+    },
+    /** As the core: the sentence at the playhead (the mock's playhead is always well into it). */
+    async highlightSpoken({ bookId: id }) {
+      if (isAudiobook(id)) throw refused("an audiobook has no text");
+      if (state.bookId !== id || !state.segmentId) throw refused("this book is not being listened to");
+      const segment = getChapter(id, state.chapter ?? 0)
+        .blocks.flatMap((b) => b.segments)
+        .find((s) => s.id === state.segmentId);
+      if (!segment?.starts.length) throw refused("there is no sentence here to highlight");
+      const last = segment.starts.length - 1;
+      const { added, joined } = addHighlight(
+        id,
+        state.chapter ?? 0,
+        segment.starts[0],
+        segment.starts[last] + Array.from(segment.words[last]).length,
+      );
+      return { id: added, canUndo: !joined, highlights: highlightsOf(id) };
+    },
+    async updateHighlightNote({ id, note }) {
+      const found = highlights.find((h) => h.id === id);
+      if (!found) throw refused("that highlight is not there any more");
+      found.note = note.trim();
+      return highlightsOf(found.bookId);
+    },
+    async deleteHighlight({ id }) {
+      const index = highlights.findIndex((h) => h.id === id);
+      if (index < 0) throw refused("that highlight is not there any more");
+      const [gone] = highlights.splice(index, 1);
+      return highlightsOf(gone.bookId);
+    },
+    async notesMarkdown({ bookId: id }) {
+      const book = getBook(id);
+      const lines = [`# ${book.title ?? "Untitled"}`, `*${book.authors.join(", ")}* · exported from Aoide`];
+      let chapter = -1;
+      for (const h of highlightsOf(id)) {
+        if (h.chapter !== chapter) lines.push("", `## ${h.chapterTitle || `Chapter ${h.chapter + 1}`}`);
+        chapter = h.chapter;
+        lines.push("", ...h.text.split("\n").map((l) => (l ? `> ${l}` : ">")));
+        if (h.note) lines.push("", h.note);
+      }
+      return lines.join("\n") + "\n";
+    },
+    async chooseNotesTarget({ fileName }) {
+      return `~/${fileName}`;
+    },
+    async exportNotes({ bookId: id }) {
+      getBook(id);
+    },
+    async chooseNotesFolder() {
+      return "~/Notes";
+    },
+    async exportAllNotes() {
+      return new Set([...highlights.map((h) => h.bookId), ...bookmarks.map((b) => b.bookId)]).size;
     },
     async pronunciations({ bookId } = {}) {
       return structuredClone(
