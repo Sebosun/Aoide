@@ -15,6 +15,11 @@
                 "small",
                 "light"
               ],
+              "starts": [
+                0,
+                4,
+                10
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -41,6 +46,20 @@
                 "of",
                 "the",
                 "pier."
+              ],
+              "starts": [
+                17,
+                23,
+                32,
+                36,
+                44,
+                46,
+                54,
+                57,
+                61,
+                65,
+                68,
+                72
               ],
               "speakable": true,
               "canSayAgain": true,
@@ -70,6 +89,21 @@
                 "little",
                 "stars."
               ],
+              "starts": [
+                78,
+                82,
+                86,
+                96,
+                100,
+                111,
+                115,
+                121,
+                124,
+                129,
+                131,
+                139,
+                146
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -92,6 +126,16 @@
                 "beside",
                 "the",
                 "steps."
+              ],
+              "starts": [
+                154,
+                162,
+                164,
+                170,
+                175,
+                182,
+                189,
+                193
               ],
               "speakable": true,
               "canSayAgain": true,
@@ -120,6 +164,26 @@
                 "the",
                 "bay."
               ],
+              "starts": [
+                200,
+                207,
+                210,
+                214,
+                216,
+                221,
+                226,
+                229,
+                232,
+                240,
+                244,
+                249,
+                252,
+                256,
+                260,
+                264,
+                271,
+                275
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -145,6 +209,11 @@
                 "the",
                 "water"
               ],
+              "starts": [
+                0,
+                7,
+                11
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -168,6 +237,16 @@
                 "rowing",
                 "boat."
               ],
+              "starts": [
+                18,
+                21,
+                26,
+                30,
+                39,
+                43,
+                48,
+                55
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -188,6 +267,20 @@
                 "in",
                 "the",
                 "water."
+              ],
+              "starts": [
+                61,
+                66,
+                71,
+                74,
+                78,
+                83,
+                90,
+                92,
+                98,
+                106,
+                109,
+                113
               ],
               "speakable": true,
               "canSayAgain": true,
@@ -222,6 +315,26 @@
                 "the",
                 "light."
               ],
+              "starts": [
+                121,
+                124,
+                128,
+                132,
+                139,
+                141,
+                150,
+                157,
+                160,
+                164,
+                169,
+                177,
+                181,
+                189,
+                192,
+                198,
+                203,
+                207
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -248,6 +361,11 @@
                 "An",
                 "ordinary",
                 "discovery"
+              ],
+              "starts": [
+                0,
+                3,
+                12
               ],
               "speakable": true,
               "canSayAgain": true,
@@ -290,6 +408,34 @@
                 "and",
                 "rain."
               ],
+              "starts": [
+                23,
+                26,
+                30,
+                34,
+                41,
+                45,
+                51,
+                54,
+                58,
+                63,
+                66,
+                72,
+                80,
+                82,
+                89,
+                93,
+                95,
+                101,
+                107,
+                113,
+                117,
+                125,
+                133,
+                136,
+                142,
+                146
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -322,6 +468,25 @@
                 "no",
                 "ending."
               ],
+              "starts": [
+                153,
+                157,
+                161,
+                166,
+                170,
+                180,
+                188,
+                192,
+                201,
+                203,
+                211,
+                215,
+                226,
+                228,
+                233,
+                238,
+                241
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -348,6 +513,12 @@
                 "way",
                 "home"
               ],
+              "starts": [
+                0,
+                4,
+                9,
+                13
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -371,6 +542,17 @@
                 "bench",
                 "should",
                 "be."
+              ],
+              "starts": [
+                19,
+                23,
+                28,
+                30,
+                37,
+                43,
+                47,
+                53,
+                60
               ],
               "speakable": true,
               "canSayAgain": true,
@@ -396,6 +578,24 @@
                 "wind",
                 "always",
                 "rested."
+              ],
+              "starts": [
+                64,
+                69,
+                74,
+                78,
+                86,
+                90,
+                95,
+                101,
+                108,
+                112,
+                116,
+                121,
+                127,
+                131,
+                136,
+                143
               ],
               "speakable": true,
               "canSayAgain": true,
@@ -431,6 +631,27 @@
                 "hurried",
                 "past."
               ],
+              "starts": [
+                152,
+                156,
+                160,
+                164,
+                168,
+                173,
+                177,
+                182,
+                191,
+                194,
+                199,
+                204,
+                208,
+                212,
+                216,
+                223,
+                227,
+                231,
+                239
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -457,6 +678,12 @@
                 "to",
                 "begin"
               ],
+              "starts": [
+                0,
+                2,
+                8,
+                11
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -480,6 +707,16 @@
                 "for",
                 "directions."
               ],
+              "starts": [
+                18,
+                22,
+                27,
+                36,
+                38,
+                47,
+                53,
+                57
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -498,6 +735,18 @@
                 "walk",
                 "beside",
                 "her."
+              ],
+              "starts": [
+                69,
+                73,
+                80,
+                84,
+                88,
+                92,
+                100,
+                103,
+                108,
+                115
               ],
               "speakable": true,
               "canSayAgain": true,
@@ -524,6 +773,18 @@
                 "of",
                 "time."
               ],
+              "starts": [
+                121,
+                126,
+                131,
+                135,
+                140,
+                145,
+                151,
+                155,
+                162,
+                165
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -548,6 +809,11 @@
                 "About",
                 "the",
                 "author"
+              ],
+              "starts": [
+                0,
+                6,
+                10
               ],
               "speakable": true,
               "canSayAgain": true,
@@ -579,6 +845,23 @@
                 "quiet",
                 "there."
               ],
+              "starts": [
+                18,
+                24,
+                29,
+                35,
+                37,
+                47,
+                54,
+                60,
+                68,
+                72,
+                79,
+                84,
+                89,
+                93,
+                99
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -604,6 +887,10 @@
               "words": [
                 "The",
                 "gate"
+              ],
+              "starts": [
+                0,
+                4
               ],
               "speakable": true,
               "canSayAgain": true,
@@ -633,6 +920,21 @@
                 "seen",
                 "it."
               ],
+              "starts": [
+                10,
+                14,
+                22,
+                26,
+                31,
+                36,
+                43,
+                47,
+                55,
+                61,
+                65,
+                70,
+                75
+              ],
               "speakable": true,
               "canSayAgain": true,
               "note": false,
@@ -658,6 +960,10 @@
               "words": [
                 "Blank",
                 "pages"
+              ],
+              "starts": [
+                0,
+                6
               ],
               "speakable": true,
               "canSayAgain": true,
@@ -686,6 +992,21 @@
                 "best",
                 "that",
                 "way."
+              ],
+              "starts": [
+                13,
+                18,
+                22,
+                28,
+                32,
+                39,
+                43,
+                47,
+                60,
+                66,
+                69,
+                74,
+                79
               ],
               "speakable": true,
               "canSayAgain": true,

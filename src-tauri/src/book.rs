@@ -48,6 +48,10 @@ pub struct NoteMarker {
 pub struct SegmentView {
     pub id: String,
     pub words: Vec<String>,
+    /// Where each word starts in the chapter's display text (Unicode scalar values, as
+    /// `Segment::words`): the page rejoins words with single spaces, so a selection on it is
+    /// counted from these. Empty for a spoken note, which is not in the text.
+    pub starts: Vec<usize>,
     pub speakable: bool,
     /// The speech engine says it, so it can be said again (see `Core::say_again`): not a
     /// silent entry, nor anything of a book its recording narrates.
@@ -330,6 +334,7 @@ impl BookModel {
                         .split_whitespace()
                         .map(str::to_owned)
                         .collect(),
+                    starts: segment.words.iter().map(|word| word.start).collect(),
                     speakable: !segment.speech.is_empty(),
                     can_say_again: !segment.speech.is_empty(),
                     note: segment.id.contains(":n"),
@@ -823,6 +828,82 @@ mod tests {
         assert_eq!(view.blocks[1].segments[1].words[0], "Everyone");
         let two = book().chapter_view(1).unwrap();
         assert!(!two.blocks[0].segments[0].speakable);
+    }
+
+    /// A chapter of every shape the page draws: a heading, a paragraph with a footnote read
+    /// aloud, astral characters and a combining accent, a code block that keeps its line breaks
+    /// and indentation, and a list item.
+    fn every_shape() -> BookModel {
+        let mut parsed_chapter = chapter(
+            "Shapes",
+            vec![
+                block(BlockKind::Heading { level: 1 }, "Shapes"),
+                block(
+                    BlockKind::Paragraph,
+                    "The 🌊 harbour was quiet when the boats came in. Cafe\u{301} lights burned 𝒶ll night.",
+                ),
+                block(
+                    BlockKind::Preformatted,
+                    "fn main() {\n    println!(\"tide\");\n\n        let  x = 1;\n}",
+                ),
+                block(BlockKind::ListItem, "A rope,  coiled twice."),
+            ],
+        );
+        parsed_chapter.note_refs = vec![aoide_epub::NoteRef {
+            block: 1,
+            offset: 13,
+            label: "1".into(),
+            note: Some(0),
+        }];
+        let parsed = ParsedBook {
+            title: None,
+            authors: vec![],
+            language: None,
+            publisher: None,
+            description: None,
+            identifiers: vec![],
+            isbn: None,
+            subjects: Vec::new(),
+            cover: None,
+            notes: vec![aoide_epub::Note {
+                id: "a#n".into(),
+                text: "Built in 1820.".into(),
+            }],
+            chapters: vec![parsed_chapter],
+            warnings: vec![],
+            excluded: vec![],
+        };
+        BookModel::from_parsed("bk", parsed, &notes_read())
+    }
+
+    #[test]
+    fn each_word_of_a_sentence_says_where_it_starts_in_the_chapter_text() {
+        let mut checked = 0;
+        for model in [book(), every_shape()] {
+            for (index, chapter) in model.chapters.iter().enumerate() {
+                let view = model.chapter_view(index).unwrap();
+                let text: Vec<char> = chapter.text.chars().collect();
+                let views: Vec<&SegmentView> =
+                    view.blocks.iter().flat_map(|b| &b.segments).collect();
+                assert_eq!(views.len(), chapter.segments.len());
+                for (segment, view) in chapter.segments.iter().zip(views) {
+                    let starts: Vec<usize> = segment.words.iter().map(|w| w.start).collect();
+                    assert_eq!(view.starts, starts, "{}", segment.id);
+                    if view.note {
+                        assert!(view.starts.is_empty(), "a spoken note is not in the text");
+                        continue;
+                    }
+                    assert_eq!(view.starts.len(), view.words.len(), "{}", segment.id);
+                    for (word, start) in view.words.iter().zip(&view.starts) {
+                        let at: String =
+                            text[*start..*start + word.chars().count()].iter().collect();
+                        assert_eq!(&at, word);
+                        checked += 1;
+                    }
+                }
+            }
+        }
+        assert!(checked > 40, "{checked}");
     }
 
     #[test]

@@ -181,7 +181,13 @@ afterWord: number, label: string,
  */
 text: string | null, };
 
-export type SegmentView = { id: string, words: Array<string>, speakable: boolean, 
+export type SegmentView = { id: string, words: Array<string>, 
+/**
+ * Where each word starts in the chapter's display text (Unicode scalar values, as
+ * `Segment::words`): the page rejoins words with single spaces, so a selection on it is
+ * counted from these. Empty for a spoken note, which is not in the text.
+ */
+starts: Array<number>, speakable: boolean, 
 /**
  * The speech engine says it, so it can be said again (see `Core::say_again`): not a
  * silent entry, nor anything of a book its recording narrates.
