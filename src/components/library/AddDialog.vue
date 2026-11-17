@@ -90,11 +90,7 @@ async function chooseBooks() {
   close();
   navigation.view = "library";
   const collections = into.value;
-  await library.importFiles(paths);
-  await library.addToCollections(
-    library.imports.flatMap((r) => (r.bookId && !r.error ? [r.bookId] : [])),
-    collections,
-  );
+  await library.addToCollections(await library.importFiles(paths), collections);
 }
 /** An audiobook (files or a folder) is paired with a book or added on its own, as when dropped. */
 async function chooseAudio(folder: boolean) {

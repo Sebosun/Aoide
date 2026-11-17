@@ -199,6 +199,34 @@ it("imports chosen EPUBs, closing the dialog on Library", async () => {
   wrapper.unmount();
 });
 
+it("puts chosen books on the collections chosen as chips, and nothing on them when the import fails", async () => {
+  const long = await mock.createCollection({ name: "Long reads" });
+  const imported = vi.spyOn(mock, "importFiles");
+  imported.mockResolvedValueOnce([{ path: "~/Downloads/the-lantern-keeper.epub", bookId: "book-0", error: null }]);
+  const shelve = vi.spyOn(mock, "setBookCollections");
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  const chooseInto = async () => {
+    await nav(wrapper, "Add").trigger("click");
+    await flushPromises();
+    const chips = dialog(wrapper).get('[role="group"][aria-label="Collections to add to"]');
+    await chips
+      .findAll("button")
+      .find((b) => b.text() === "Long reads")!
+      .trigger("click");
+    await button(wrapper, "Choose books").trigger("click");
+    await flushPromises();
+  };
+  await chooseInto();
+  expect(shelve).toHaveBeenCalledWith({ bookId: "book-0", ids: [long] });
+
+  shelve.mockClear();
+  imported.mockRejectedValueOnce(new Error("The folder cannot be read."));
+  await chooseInto();
+  expect(shelve).not.toHaveBeenCalled();
+  wrapper.unmount();
+});
+
 it("pairs a chosen audiobook with a book, as a dropped one is", async () => {
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();

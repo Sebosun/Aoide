@@ -279,11 +279,15 @@ export const useLibraryStore = defineStore("library", () => {
       }
     })());
   }
+  /** Adds the books at `paths`; returns the items this import added (none when it failed). */
   async function importFiles(paths: string[]) {
+    let results: ImportResult[] = [];
     await perform(async () => {
-      imports.value = await api.importFiles({ paths });
+      imports.value = results = await api.importFiles({ paths });
     });
-    await lookForAudiobooks(imports.value.flatMap((r) => (r.bookId ? [r.bookId] : [])));
+    const added = results.flatMap((r) => (r.bookId && !r.error ? [r.bookId] : []));
+    await lookForAudiobooks(results.flatMap((r) => (r.bookId ? [r.bookId] : [])));
+    return added;
   }
   /** After books were added: the core looks for their audiobooks (if the user wants that), and
    *  when some wait for the user, Find audiobooks opens on them. */
