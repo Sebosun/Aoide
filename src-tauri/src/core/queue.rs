@@ -18,6 +18,9 @@ use super::{lock, CoreEvent, Events, PlayerStateView};
 pub const GAP: Duration = Duration::from_secs(2);
 /// With less than this left of the item playing, the item up next is made ready.
 pub const AHEAD_MS: u64 = 2 * 60_000;
+/// How often the item up next is looked for again while the one playing is nearly over: a
+/// queued article may have been fetched meanwhile, or a voice chosen.
+const LOOK_AGAIN: Duration = Duration::from_secs(1);
 
 /// Where the queue is in handing over from one item to the next.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -140,13 +143,21 @@ pub(super) trait QueueHost: Sync {
 /// An item's id and title.
 type Titled = (String, String);
 
+/// The item nearly over, and the item up next after it with its title, as last told.
+struct Ahead {
+    /// Empty when the queue changed since: up next is looked for again at once.
+    playing: String,
+    next: Option<Titled>,
+    /// When it was looked for.
+    at: Instant,
+}
+
 /// The queue: its order in the library, and the hand-over.
 pub(super) struct Queue {
     library: Arc<Mutex<Library>>,
     stage: Mutex<Stage>,
-    /// The item nearly over, and the item up next after it with its title, as last told (see
-    /// [`Queue::look_ahead`]).
-    ahead: Mutex<Option<(String, Option<Titled>)>>,
+    /// See [`Queue::look_ahead`].
+    ahead: Mutex<Option<Ahead>>,
     events: Arc<dyn Events>,
     /// The item that left the queue as it started, while it is the one playing.
     started: Mutex<Option<String>>,
@@ -202,8 +213,8 @@ impl Queue {
         let size = self.ids().map_or(0, |ids| ids.len());
         tracing::info!(event = "queue.changed", size, "The queue changed");
         // What is up next is looked for again.
-        if let Some((playing, _)) = lock(&self.ahead).as_mut() {
-            playing.clear();
+        if let Some(ahead) = lock(&self.ahead).as_mut() {
+            ahead.playing.clear();
         }
         self.on(Event::Changed);
         for event in [CoreEvent::QueueChanged, CoreEvent::LibraryChanged] {
@@ -222,13 +233,14 @@ impl Queue {
     }
 
     /// While item `playing` has less than [`AHEAD_MS`] left (`left_ms`), the first queued
-    /// item that can be listened to is up next, to be made ready. Returns what is up next when
-    /// that changed.
+    /// item that can be listened to is up next, to be made ready; it is looked for again each
+    /// [`LOOK_AGAIN`] and whenever the queue changes. Returns what is up next when that changed.
     pub fn look_ahead(
         &self,
         host: &impl QueueHost,
         playing: Option<&str>,
         left_ms: Option<u64>,
+        now: Instant,
     ) -> Option<Option<String>> {
         let nearly_over = playing
             .zip(left_ms)
@@ -237,7 +249,13 @@ impl Queue {
         let mut ahead = lock(&self.ahead);
         match nearly_over {
             None => ahead.take().map(|_| None),
-            Some(id) if ahead.as_ref().is_some_and(|(told, _)| told == id) => None,
+            Some(id)
+                if ahead
+                    .as_ref()
+                    .is_some_and(|told| told.playing == id && now < told.at + LOOK_AGAIN) =>
+            {
+                None
+            }
             Some(id) => {
                 let next = self
                     .ids()
@@ -248,8 +266,15 @@ impl Queue {
                     let title = self.title(&next);
                     (next, title)
                 });
-                *ahead = Some((id.to_owned(), titled));
-                Some(next)
+                let same = ahead.as_ref().is_some_and(|told| {
+                    told.playing == id && told.next.as_ref().map(|(next, _)| next) == next.as_ref()
+                });
+                *ahead = Some(Ahead {
+                    playing: id.to_owned(),
+                    next: titled,
+                    at: now,
+                });
+                (!same).then_some(next)
             }
         }
     }
@@ -259,14 +284,14 @@ impl Queue {
     pub fn up_next(&self) -> Option<String> {
         lock(&self.ahead)
             .as_ref()
-            .and_then(|(_, next)| Some(next.as_ref()?.0.clone()))
+            .and_then(|ahead| Some(ahead.next.as_ref()?.0.clone()))
     }
 
     /// The title of the item up next, while the one playing is nearly over.
     pub fn up_next_title(&self) -> Option<String> {
         lock(&self.ahead)
             .as_ref()
-            .and_then(|(_, next)| Some(next.as_ref()?.1.clone()))
+            .and_then(|ahead| Some(ahead.next.as_ref()?.1.clone()))
     }
 
     fn title(&self, id: &str) -> String {
@@ -486,14 +511,14 @@ impl super::Core {
     /// end; `state`: the player's), hands over when it is time, and has the item up next made
     /// ready while the one playing is nearly over.
     pub(super) fn queue_tick(self: &Arc<Self>, ended: Option<String>, state: &PlayerStateView) {
+        let now = Instant::now();
         if let Some(next) =
             self.queue
-                .look_ahead(&**self, state.book_id.as_deref(), state.book_left_ms)
+                .look_ahead(&**self, state.book_id.as_deref(), state.book_left_ms, now)
         {
             let target = next.and_then(|id| self.made_ready_from(&id));
             self.plan(PlanEvent::UpNext(target));
         }
-        let now = Instant::now();
         if let Some(id) = &ended {
             self.queue.played_out(&**self, id);
         }
@@ -737,13 +762,14 @@ mod component_tests {
             ..Host::default()
         };
         let minutes = |m: u64| Some(m * 60_000);
-        assert_eq!(queue.look_ahead(&host, Some("x"), minutes(3)), None);
+        let t0 = Instant::now();
+        assert_eq!(queue.look_ahead(&host, Some("x"), minutes(3), t0), None);
         assert_eq!(
-            queue.look_ahead(&host, Some("x"), Some(119_000)),
+            queue.look_ahead(&host, Some("x"), Some(119_000), t0),
             Some(Some("b".into()))
         );
         assert_eq!(
-            queue.look_ahead(&host, Some("x"), minutes(1)),
+            queue.look_ahead(&host, Some("x"), minutes(1), t0),
             None,
             "told once"
         );
@@ -752,13 +778,47 @@ mod component_tests {
         // The queue changing looks again.
         queue.put("c", 0).unwrap();
         assert_eq!(
-            queue.look_ahead(&host, Some("x"), minutes(1)),
+            queue.look_ahead(&host, Some("x"), minutes(1), t0),
             Some(Some("c".into()))
         );
         // Another item playing, with long to go: nothing is up next.
-        assert_eq!(queue.look_ahead(&host, Some("c"), minutes(9)), Some(None));
+        assert_eq!(
+            queue.look_ahead(&host, Some("c"), minutes(9), t0),
+            Some(None)
+        );
         assert_eq!(queue.up_next(), None);
-        assert_eq!(queue.look_ahead(&host, None, None), None);
+        assert_eq!(queue.look_ahead(&host, None, None, t0), None);
+    }
+
+    #[test]
+    fn an_item_that_can_be_listened_to_later_is_up_next_within_a_second() {
+        let queue = queue(&["a"]);
+        let fetching = Host {
+            cannot: vec![("a", WhyNot::Fetching)],
+            ..Host::default()
+        };
+        let fetched = Host::default();
+        let t0 = Instant::now();
+        let at = |ms: u64| t0 + Duration::from_millis(ms);
+        assert_eq!(
+            queue.look_ahead(&fetching, Some("x"), Some(60_000), at(0)),
+            Some(None)
+        );
+        assert_eq!(
+            queue.look_ahead(&fetched, Some("x"), Some(60_000), at(500)),
+            None,
+            "looked again at most once a second"
+        );
+        assert_eq!(
+            queue.look_ahead(&fetched, Some("x"), Some(60_000), at(1_000)),
+            Some(Some("a".into()))
+        );
+        assert_eq!(queue.up_next_title().as_deref(), Some("Book a"));
+        assert_eq!(
+            queue.look_ahead(&fetched, Some("x"), Some(60_000), at(2_000)),
+            None,
+            "told again only when it changes"
+        );
     }
 
     #[test]

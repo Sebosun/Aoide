@@ -495,7 +495,8 @@ with `entry_item` and does **not** mark the entry read (`open_feed_entry` would)
 (Built: `QueueItemView` carries the item's `title` too, as a queued feed article is not in
 the library's list; `queue-changed` is `queue://changed` with no payload (the window asks for
 `queue()`), sent with `library://changed` for `queued`; `PlayerStateView.up_next_title` names the
-item up next while under 2 minutes are left. With the sleep timer set for the end of the
+item up next while under 2 minutes are left, looked for again each second, as a queued article
+may be fetched meanwhile. With the sleep timer set for the end of the
 chapter, an item that ends hands over to nothing.)
 
 **Interface.** "Listen next" and "Add to queue" in the item menus and on `FeedEntry.vue`
