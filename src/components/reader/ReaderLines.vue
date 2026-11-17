@@ -9,6 +9,7 @@ import { useLibraryStore } from "@/stores/library";
 import { useReaderStore } from "@/stores/reader";
 import { useNavigationStore } from "@/stores/navigation";
 import { prepareChapter } from "@/preparation";
+import { selecting } from "@/components/reader/selection";
 
 /** Lines mode, for listening from across the room: the spoken sentence large, filling word by
  *  word, with the sentences around it at reading size. */
@@ -113,7 +114,7 @@ const play = (segment: SegmentView) => {
           :data-segment-id="segment.id"
           role="button"
           tabindex="0"
-          @click="play(segment)"
+          @click="!selecting() && play(segment)"
           @keydown.enter.prevent="play(segment)"
         >
           <template v-if="segment.id === now?.id"

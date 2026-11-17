@@ -155,3 +155,10 @@ export function rangeOfSelection(
     firstSegmentId: all[from.sentence].segment.id,
   };
 }
+
+/** Whether the page has text selected: the click that ends a drag selecting words is not a
+ *  click to play. */
+export function selecting(): boolean {
+  const selection = document.getSelection();
+  return Boolean(selection && !selection.isCollapsed);
+}

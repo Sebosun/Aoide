@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import type { NoteMarker, SegmentView } from "@/api/types";
 import { noteId, noteKey } from "@/components/reader/notes";
+import { selecting } from "@/components/reader/selection";
 
 /** One sentence of a chapter's text: its words (the one being spoken underlined) and the
  *  markers of its footnotes. A sentence is drawn again only when its own props change, so a
@@ -52,7 +53,7 @@ const runs = computed(() => {
     :data-segment-id="segment.id"
     :role="clickable ? 'button' : undefined"
     :tabindex="clickable ? 0 : undefined"
-    @click="clickable && emit('play')"
+    @click="clickable && !selecting() && emit('play')"
     @keydown.enter.prevent="clickable && emit('play')"
     @keydown.space.prevent="clickable && emit('play')"
     ><template v-for="(run, r) in runs" :key="run.first"

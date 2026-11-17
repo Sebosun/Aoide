@@ -194,3 +194,15 @@ it("covers nothing for a footnote marker alone, an empty selection or one outsid
   expect(rangeOfSelection(select([outside.firstChild!, 0], [outside.firstChild!, 4]), root, chapter)).toBeNull();
   outside.remove();
 });
+
+it("does not play a sentence when a drag selected words in it; a plain click still plays", async () => {
+  const { chapter } = shapes;
+  const root = draw(chapter);
+  const sentence = wrapper!.get('[data-segment-id="0:1:0"]');
+  select(wordPoint(root, chapter, "0:1:0", 2), wordPoint(root, chapter, "0:1:0", 4, true));
+  await sentence.trigger("click");
+  expect(wrapper!.emitted("play")).toBeUndefined();
+  document.getSelection()!.collapseToEnd();
+  await sentence.trigger("click");
+  expect(wrapper!.emitted("play")).toEqual([["0:1:0"]]);
+});

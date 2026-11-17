@@ -67,6 +67,24 @@ it("plays a neighbouring sentence when it is clicked", async () => {
   wrapper.unmount();
 });
 
+it("does not play a line when a drag selected words in it", async () => {
+  const play = vi.spyOn(mock, "play");
+  const wrapper = await lines();
+  mock.emitPlayer({ ...initialPlayer(), bookId: "book-0", status: "playing", segmentId: "0:1:0", wordIndex: 0 });
+  await flushPromises();
+  const line = wrapper.get('[data-segment-id="0:2:0"]');
+  const range = document.createRange();
+  range.selectNodeContents(line.element);
+  document.getSelection()!.removeAllRanges();
+  document.getSelection()!.addRange(range);
+  await line.trigger("click");
+  expect(play).not.toHaveBeenCalled();
+  document.getSelection()!.removeAllRanges();
+  await line.trigger("click");
+  expect(play).toHaveBeenCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:2:0" });
+  wrapper.unmount();
+});
+
 it("shows the book on the left with a chapter picker", async () => {
   const play = vi.spyOn(mock, "play");
   const wrapper = await lines();
