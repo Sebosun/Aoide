@@ -100,3 +100,19 @@ fn a_version_21_library_opens_with_an_empty_queue() {
         .unwrap();
     assert_eq!(version, 22);
 }
+
+#[test]
+fn the_queue_is_kept_when_the_library_is_opened_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("library.sqlite");
+    {
+        let lib = Library::open(&path).unwrap();
+        for id in ["a", "b"] {
+            item(&lib, id, ItemKind::Article);
+        }
+        lib.queue_put(&BookId("b".into()), usize::MAX).unwrap();
+        lib.queue_put(&BookId("a".into()), usize::MAX).unwrap();
+    }
+    let lib = Library::open(&path).unwrap();
+    assert_eq!(ids(&lib), ["b", "a"]);
+}
