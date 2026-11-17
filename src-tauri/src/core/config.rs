@@ -796,4 +796,23 @@ mod tests {
         assert_eq!(config.app, AppSettings::default());
         assert_eq!(config.problems().len(), 1, "{:?}", config.problems());
     }
+
+    #[test]
+    fn an_inbox_inside_the_library_folder_written_by_hand_is_not_used() {
+        let dir = tempfile::tempdir().unwrap();
+        let library = dir.path().join("Books");
+        std::fs::create_dir_all(library.join("Incoming")).unwrap();
+        edit(
+            dir.path(),
+            &format!(
+                "[app]\ninbox = {:?}\nmetadataLookup = false\n",
+                library.join("Incoming").to_string_lossy()
+            ),
+        );
+        let config = Config::open(dir.path(), &library, &Library::open_in_memory().unwrap());
+        assert_eq!(config.app, AppSettings::default());
+        let problems = config.problems();
+        assert_eq!(problems.len(), 1, "{problems:?}");
+        assert!(problems[0].contains("library folder"), "{problems:?}");
+    }
 }
