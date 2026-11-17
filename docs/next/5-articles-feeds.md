@@ -223,6 +223,7 @@ keeps its own `article.save`, `article.stage` and `article.fetch` lines.
 ## 5.2 Send a page from the browser
 
 **Size:** S. Needs 6.1 (one running copy that receives addresses).
+**Built:** 2026-11-17 (dd83404..f8d6ff3)
 
 ### Outcome
 
