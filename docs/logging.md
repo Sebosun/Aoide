@@ -102,6 +102,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `tags.classify_all` | info | `tagged`, `missed` (items given nothing or that failed), `took_ms`, `outcome` | `core/tagging.rs` |
 | `library.import` | info, warn | `ok`, `failed`; per failure `file`, `error` | `core.rs` `import_files` |
 | `library.watch` | warn | `error` | `core.rs`, the library folder watcher |
+| `inbox.stage` | info | `from`, `to` (`idle`, `settling`, `importing`, `unavailable`) | `core/inbox.rs` `Inbox::apply`, where the inbox's `next` is applied |
 | `discovery.scan` | info, warn | `roots`, `epubs`, `read`, `took_ms`, `outcome`, `error` | `core/discovery.rs` |
 | `discovery.import` | info | `chosen`, `failed` | `core/discovery.rs` |
 | `library.audiobook` | info | `book`, `outcome` (`ok`, `refused`), `error` | `core/audiobook.rs` `add_audiobook` |

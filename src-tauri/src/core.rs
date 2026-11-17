@@ -51,6 +51,7 @@ pub use fetching::Stage as FetchStage;
 pub use signin::SignInView;
 pub use sites::SiteView;
 mod generation;
+mod inbox;
 mod item;
 mod launching;
 mod shelf;
