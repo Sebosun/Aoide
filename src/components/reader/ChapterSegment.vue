@@ -70,6 +70,7 @@ const runs = computed(() => {
         :key="n"
         type="button"
         class="chapter-segment__note"
+        data-not-text
         :aria-label="`Note ${note.label}`"
         :aria-describedby="marginNotes ? noteId(segment, note) : undefined"
         :aria-expanded="marginNotes ? undefined : openNote === noteKey(segment, note)"

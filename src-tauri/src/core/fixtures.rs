@@ -492,6 +492,38 @@ fn listening_times(core: &Core, books: &[super::BookSummary]) -> Value {
     Value::Object(times)
 }
 
+/// Chapters with their display text, for the UI's tests of what a selection on the page covers:
+/// every preview book's chapters (footnotes read aloud) and a chapter of every shape the page
+/// draws (`book::tests::every_shape`).
+#[test]
+fn chapter_texts_for_the_ui_tests() {
+    use crate::book::{BookModel, Layout};
+    if !wanted() {
+        return;
+    }
+    let layout = Layout {
+        read_notes: true,
+        ..Layout::default()
+    };
+    let mut models: Vec<BookModel> = BOOKS
+        .iter()
+        .map(|book| BookModel::parse("b", &epub(book), &layout).unwrap())
+        .collect();
+    models.push(crate::book::tests::every_shape());
+    let chapters: Vec<Value> = models
+        .iter()
+        .flat_map(|model| {
+            (0..model.chapters.len()).map(|n| {
+                serde_json::json!({
+                    "text": model.chapters[n].text,
+                    "chapter": model.chapter_view(n).unwrap(),
+                })
+            })
+        })
+        .collect();
+    write("chapter-texts", &chapters, &[]);
+}
+
 /// An article saved and fetched, which the mock adds when a link is saved: its summary, its
 /// view, its overview and its text, as `book-6`.
 #[tokio::test]

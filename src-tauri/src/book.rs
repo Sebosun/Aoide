@@ -551,7 +551,7 @@ pub fn plain_text(html: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     #[test]
     fn plain_text_strips_markup_and_entities() {
         assert_eq!(
@@ -832,8 +832,9 @@ mod tests {
 
     /// A chapter of every shape the page draws: a heading, a paragraph with a footnote read
     /// aloud, astral characters and a combining accent, a code block that keeps its line breaks
-    /// and indentation, and a list item.
-    fn every_shape() -> BookModel {
+    /// and indentation, and a list item. The UI's selection tests count on it too
+    /// (`chapter-texts` in `core/fixtures.rs`).
+    pub(crate) fn every_shape() -> BookModel {
         let mut parsed_chapter = chapter(
             "Shapes",
             vec![

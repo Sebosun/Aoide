@@ -78,9 +78,13 @@ words with single spaces, and an article's preformatted block keeps its line bre
 indentation in the display text (`preformatted` in `crates/article/src/blocks.rs`). So
 **`SegmentView` gains `starts: Vec<usize>`**, the chapter offset of each word. A point in the
 DOM becomes (sentence by `data-segment-id`, word index, character in the word) and then
-`starts[word] + character`; a point in the space between words is the end of the word before
-it. `rangeOfSelection` reads `starts` from the `ChapterView`, so the DOM needs no offsets of its
-own.
+`starts[word] + character`; in the space between words, a selection's end is the end of the
+word before it and its start the start of the word after it, and an end outside any sentence
+(a triple click ends at the next block) goes back to the last word before it, so a range starts
+and ends on words. `rangeOfSelection` reads `starts` from the `ChapterView`, so the DOM needs no
+offsets of its own. Its tests draw the core's chapters with their display text
+(`src/tests/fixtures/chapter-texts.json`, written by `chapter_texts_for_the_ui_tests` in
+`core/fixtures.rs`: the preview books and `book::tests::every_shape`).
 
 Not part of the display text, and skipped when counting: footnote markers and margin notes
 (mark them `data-not-text`), and spoken-footnote segments (`note: true`).

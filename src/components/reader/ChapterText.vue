@@ -76,7 +76,7 @@ const chapterMissing = computed(
           @marker="marker(segment, $event)"
         />
       </component>
-      <aside v-if="marginNotes && blockNotes(block).length" class="chapter-text__margin">
+      <aside v-if="marginNotes && blockNotes(block).length" class="chapter-text__margin" data-not-text>
         <p
           v-for="{ segment, note } in blockNotes(block)"
           :id="noteId(segment, note)"

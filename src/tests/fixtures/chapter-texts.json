@@ -1,0 +1,1216 @@
+[
+  {
+    "chapter": {
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:0:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                0,
+                4,
+                10
+              ],
+              "words": [
+                "The",
+                "small",
+                "light"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:1:0",
+              "note": false,
+              "notes": [
+                {
+                  "afterWord": 2,
+                  "label": "1",
+                  "text": "A short original note shown in the browser preview."
+                }
+              ],
+              "speakable": true,
+              "starts": [
+                17,
+                23,
+                32,
+                36,
+                44,
+                46,
+                54,
+                57,
+                61,
+                65,
+                68,
+                72
+              ],
+              "words": [
+                "Every",
+                "evening,",
+                "Ada",
+                "carried",
+                "a",
+                "lantern",
+                "to",
+                "the",
+                "end",
+                "of",
+                "the",
+                "pier."
+              ]
+            },
+            {
+              "canSayAgain": true,
+              "id": "0:1:1",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                78,
+                82,
+                86,
+                96,
+                100,
+                111,
+                115,
+                121,
+                124,
+                129,
+                131,
+                139,
+                146
+              ],
+              "words": [
+                "The",
+                "sea",
+                "collected",
+                "its",
+                "reflection",
+                "and",
+                "broke",
+                "it",
+                "into",
+                "a",
+                "hundred",
+                "little",
+                "stars."
+              ]
+            },
+            {
+              "canSayAgain": true,
+              "id": "0:1:n0",
+              "note": true,
+              "notes": [],
+              "speakable": true,
+              "starts": [],
+              "words": [
+                "Note",
+                "1.",
+                "A",
+                "short",
+                "original",
+                "note",
+                "shown",
+                "in",
+                "the",
+                "browser",
+                "preview."
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:2:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                154,
+                162,
+                164,
+                170,
+                175,
+                182,
+                189,
+                193
+              ],
+              "words": [
+                "Tonight",
+                "a",
+                "paper",
+                "boat",
+                "waited",
+                "beside",
+                "the",
+                "steps."
+              ]
+            },
+            {
+              "canSayAgain": true,
+              "id": "0:2:1",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                200,
+                207,
+                210,
+                214,
+                216,
+                221,
+                226,
+                229,
+                232,
+                240,
+                244,
+                249,
+                252,
+                256,
+                260,
+                264,
+                271,
+                275
+              ],
+              "words": [
+                "Inside",
+                "it",
+                "lay",
+                "a",
+                "key,",
+                "warm",
+                "as",
+                "if",
+                "someone",
+                "had",
+                "held",
+                "it",
+                "all",
+                "the",
+                "way",
+                "across",
+                "the",
+                "bay."
+              ]
+            }
+          ]
+        }
+      ],
+      "index": 0,
+      "notNarrated": null,
+      "title": "The small light"
+    },
+    "text": "The small light\n\nEvery evening, Ada carried a lantern to the end of the pier. The sea collected its reflection and broke it into a hundred little stars.\n\nTonight a paper boat waited beside the steps. Inside it lay a key, warm as if someone had held it all the way across the bay."
+  },
+  {
+    "chapter": {
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "1:0:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                0,
+                7,
+                11
+              ],
+              "words": [
+                "Across",
+                "the",
+                "water"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "1:1:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                18,
+                21,
+                26,
+                30,
+                39,
+                43,
+                48,
+                55
+              ],
+              "words": [
+                "At",
+                "dawn",
+                "she",
+                "borrowed",
+                "the",
+                "blue",
+                "rowing",
+                "boat."
+              ]
+            },
+            {
+              "canSayAgain": true,
+              "id": "1:1:1",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                61,
+                66,
+                71,
+                74,
+                78,
+                83,
+                90,
+                92,
+                98,
+                106,
+                109,
+                113
+              ],
+              "words": [
+                "Each",
+                "pull",
+                "of",
+                "the",
+                "oars",
+                "opened",
+                "a",
+                "quiet",
+                "doorway",
+                "in",
+                "the",
+                "water."
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "1:2:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                121,
+                124,
+                128,
+                132,
+                139,
+                141,
+                150,
+                157,
+                160,
+                164,
+                169,
+                177,
+                181,
+                189,
+                192,
+                198,
+                203,
+                207
+              ],
+              "words": [
+                "On",
+                "the",
+                "far",
+                "shore,",
+                "a",
+                "gardener",
+                "waved.",
+                "He",
+                "had",
+                "been",
+                "waiting",
+                "for",
+                "someone",
+                "to",
+                "bring",
+                "back",
+                "the",
+                "light."
+              ]
+            }
+          ]
+        }
+      ],
+      "index": 1,
+      "notNarrated": null,
+      "title": "Across the water"
+    },
+    "text": "Across the water\n\nAt dawn she borrowed the blue rowing boat. Each pull of the oars opened a quiet doorway in the water.\n\nOn the far shore, a gardener waved. He had been waiting for someone to bring back the light."
+  },
+  {
+    "chapter": {
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:0:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                0,
+                3,
+                12
+              ],
+              "words": [
+                "An",
+                "ordinary",
+                "discovery"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:1:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                23,
+                26,
+                30,
+                34,
+                41,
+                45,
+                51,
+                54,
+                58,
+                63,
+                66,
+                72,
+                80,
+                82,
+                89,
+                93,
+                95,
+                101,
+                107,
+                113,
+                117,
+                125,
+                133,
+                136,
+                142,
+                146
+              ],
+              "words": [
+                "No",
+                "one",
+                "had",
+                "marked",
+                "the",
+                "bench",
+                "on",
+                "any",
+                "map.",
+                "It",
+                "stood",
+                "between",
+                "a",
+                "bakery",
+                "and",
+                "a",
+                "clock",
+                "shop,",
+                "where",
+                "the",
+                "morning",
+                "smelled",
+                "of",
+                "bread",
+                "and",
+                "rain."
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:2:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                153,
+                157,
+                161,
+                166,
+                170,
+                180,
+                188,
+                192,
+                201,
+                203,
+                211,
+                215,
+                226,
+                228,
+                233,
+                238,
+                241
+              ],
+              "words": [
+                "Ren",
+                "sat",
+                "down",
+                "and",
+                "listened.",
+                "Beneath",
+                "the",
+                "traffic,",
+                "a",
+                "sparrow",
+                "was",
+                "rehearsing",
+                "a",
+                "song",
+                "with",
+                "no",
+                "ending."
+              ]
+            }
+          ]
+        }
+      ],
+      "index": 0,
+      "notNarrated": null,
+      "title": "An ordinary discovery"
+    },
+    "text": "An ordinary discovery\n\nNo one had marked the bench on any map. It stood between a bakery and a clock shop, where the morning smelled of bread and rain.\n\nRen sat down and listened. Beneath the traffic, a sparrow was rehearsing a song with no ending."
+  },
+  {
+    "chapter": {
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "1:0:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                0,
+                4,
+                9,
+                13
+              ],
+              "words": [
+                "The",
+                "long",
+                "way",
+                "home"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "1:1:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                19,
+                23,
+                28,
+                30,
+                37,
+                43,
+                47,
+                53,
+                60
+              ],
+              "words": [
+                "Ren",
+                "drew",
+                "a",
+                "circle",
+                "where",
+                "the",
+                "bench",
+                "should",
+                "be."
+              ]
+            },
+            {
+              "canSayAgain": true,
+              "id": "1:1:1",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                64,
+                69,
+                74,
+                78,
+                86,
+                90,
+                95,
+                101,
+                108,
+                112,
+                116,
+                121,
+                127,
+                131,
+                136,
+                143
+              ],
+              "words": [
+                "Then",
+                "came",
+                "the",
+                "bridge,",
+                "the",
+                "cool",
+                "stone",
+                "steps,",
+                "and",
+                "the",
+                "lane",
+                "where",
+                "the",
+                "wind",
+                "always",
+                "rested."
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "1:2:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                152,
+                156,
+                160,
+                164,
+                168,
+                173,
+                177,
+                182,
+                191,
+                194,
+                199,
+                204,
+                208,
+                212,
+                216,
+                223,
+                227,
+                231,
+                239
+              ],
+              "words": [
+                "The",
+                "map",
+                "did",
+                "not",
+                "make",
+                "the",
+                "city",
+                "smaller.",
+                "It",
+                "made",
+                "room",
+                "for",
+                "all",
+                "the",
+                "things",
+                "Ren",
+                "had",
+                "hurried",
+                "past."
+              ]
+            }
+          ]
+        }
+      ],
+      "index": 1,
+      "notNarrated": null,
+      "title": "The long way home"
+    },
+    "text": "The long way home\n\nRen drew a circle where the bench should be. Then came the bridge, the cool stone steps, and the lane where the wind always rested.\n\nThe map did not make the city smaller. It made room for all the things Ren had hurried past."
+  },
+  {
+    "chapter": {
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "2:0:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                0,
+                2,
+                8,
+                11
+              ],
+              "words": [
+                "A",
+                "place",
+                "to",
+                "begin"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "2:1:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                18,
+                22,
+                27,
+                36,
+                38,
+                47,
+                53,
+                57
+              ],
+              "words": [
+                "The",
+                "next",
+                "morning,",
+                "a",
+                "stranger",
+                "asked",
+                "for",
+                "directions."
+              ]
+            },
+            {
+              "canSayAgain": true,
+              "id": "2:1:1",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                69,
+                73,
+                80,
+                84,
+                88,
+                92,
+                100,
+                103,
+                108,
+                115
+              ],
+              "words": [
+                "Ren",
+                "folded",
+                "the",
+                "map",
+                "and",
+                "offered",
+                "to",
+                "walk",
+                "beside",
+                "her."
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "2:2:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                121,
+                126,
+                131,
+                135,
+                140,
+                145,
+                151,
+                155,
+                162,
+                165
+              ],
+              "words": [
+                "They",
+                "took",
+                "the",
+                "long",
+                "way.",
+                "There",
+                "was",
+                "plenty",
+                "of",
+                "time."
+              ]
+            }
+          ]
+        }
+      ],
+      "index": 2,
+      "notNarrated": null,
+      "title": "A place to begin"
+    },
+    "text": "A place to begin\n\nThe next morning, a stranger asked for directions. Ren folded the map and offered to walk beside her.\n\nThey took the long way. There was plenty of time."
+  },
+  {
+    "chapter": {
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "3:0:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                0,
+                6,
+                10
+              ],
+              "words": [
+                "About",
+                "the",
+                "author"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "3:1:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                18,
+                24,
+                29,
+                35,
+                37,
+                47,
+                54,
+                60,
+                68,
+                72,
+                79,
+                84,
+                89,
+                93,
+                99
+              ],
+              "words": [
+                "Ellis",
+                "Reed",
+                "walks",
+                "a",
+                "different",
+                "street",
+                "every",
+                "morning",
+                "and",
+                "writes",
+                "down",
+                "what",
+                "was",
+                "quiet",
+                "there."
+              ]
+            }
+          ]
+        }
+      ],
+      "index": 3,
+      "notNarrated": null,
+      "title": "About the author"
+    },
+    "text": "About the author\n\nEllis Reed walks a different street every morning and writes down what was quiet there."
+  },
+  {
+    "chapter": {
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:0:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                0,
+                4
+              ],
+              "words": [
+                "The",
+                "gate"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:1:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                10,
+                14,
+                22,
+                26,
+                31,
+                36,
+                43,
+                47,
+                55,
+                61,
+                65,
+                70,
+                75
+              ],
+              "words": [
+                "The",
+                "orchard",
+                "had",
+                "been",
+                "sold",
+                "twice,",
+                "and",
+                "neither",
+                "owner",
+                "had",
+                "ever",
+                "seen",
+                "it."
+              ]
+            }
+          ]
+        }
+      ],
+      "index": 0,
+      "notNarrated": null,
+      "title": "The gate"
+    },
+    "text": "The gate\n\nThe orchard had been sold twice, and neither owner had ever seen it."
+  },
+  {
+    "chapter": {
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:0:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                0,
+                6
+              ],
+              "words": [
+                "Blank",
+                "pages"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:1:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                13,
+                18,
+                22,
+                28,
+                32,
+                39,
+                43,
+                47,
+                60,
+                66,
+                69,
+                74,
+                79
+              ],
+              "words": [
+                "Half",
+                "the",
+                "atlas",
+                "was",
+                "empty,",
+                "and",
+                "the",
+                "cartographer",
+                "liked",
+                "it",
+                "best",
+                "that",
+                "way."
+              ]
+            }
+          ]
+        }
+      ],
+      "index": 0,
+      "notNarrated": null,
+      "title": "Blank pages"
+    },
+    "text": "Blank pages\n\nHalf the atlas was empty, and the cartographer liked it best that way."
+  },
+  {
+    "chapter": {
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 1,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:0:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                0
+              ],
+              "words": [
+                "Shapes"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:1:0",
+              "note": false,
+              "notes": [
+                {
+                  "afterWord": 2,
+                  "label": "1",
+                  "text": "Built in 1820."
+                }
+              ],
+              "speakable": true,
+              "starts": [
+                8,
+                12,
+                14,
+                22,
+                26,
+                32,
+                37,
+                41,
+                47,
+                52,
+                56,
+                62,
+                69,
+                76,
+                80
+              ],
+              "words": [
+                "The",
+                "🌊",
+                "harbour",
+                "was",
+                "quiet",
+                "when",
+                "the",
+                "boats",
+                "came",
+                "in.",
+                "Café",
+                "lights",
+                "burned",
+                "𝒶ll",
+                "night."
+              ]
+            },
+            {
+              "canSayAgain": true,
+              "id": "0:1:n0",
+              "note": true,
+              "notes": [],
+              "speakable": true,
+              "starts": [],
+              "words": [
+                "Note",
+                "1.",
+                "Built",
+                "in",
+                "1820."
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "preformatted",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:2:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                88,
+                91,
+                98,
+                104,
+                131,
+                136,
+                138,
+                140,
+                143
+              ],
+              "words": [
+                "fn",
+                "main()",
+                "{",
+                "println!(\"tide\");",
+                "let",
+                "x",
+                "=",
+                "1;",
+                "}"
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "listItem",
+          "level": null,
+          "segments": [
+            {
+              "canSayAgain": true,
+              "id": "0:3:0",
+              "note": false,
+              "notes": [],
+              "speakable": true,
+              "starts": [
+                146,
+                148,
+                155,
+                162
+              ],
+              "words": [
+                "A",
+                "rope,",
+                "coiled",
+                "twice."
+              ]
+            }
+          ]
+        }
+      ],
+      "index": 0,
+      "notNarrated": null,
+      "title": "Shapes"
+    },
+    "text": "Shapes\n\nThe 🌊 harbour was quiet when the boats came in. Café lights burned 𝒶ll night.\n\nfn main() {\n    println!(\"tide\");\n\n        let  x = 1;\n}\n\nA rope,  coiled twice."
+  }
+]
