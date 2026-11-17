@@ -5,6 +5,7 @@
 mod address;
 mod blocks;
 mod completeness;
+mod email;
 mod meta;
 mod patterns;
 mod scan;
@@ -14,6 +15,7 @@ use url::Url;
 
 pub use address::{canonical_id, normalise};
 pub use completeness::{Completeness, WallKind};
+pub use email::{from_email, EmailPage};
 pub use meta::FeedLink;
 
 /// Bounds on the work one extraction may do.
