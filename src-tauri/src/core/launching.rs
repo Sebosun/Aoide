@@ -67,7 +67,12 @@ impl Launching {
             return Some(id);
         }
         let result = host.import(path);
-        let id = result.book_id?;
+        let Some(id) = result.book_id else {
+            let error = result.error.unwrap_or_else(|| "it was not added".into());
+            self.reporter
+                .report("launch.open", &format!("Could not open {file}"), error);
+            return None;
+        };
         tracing::info!(event = "launch.request", kind = "file", outcome = "imported", %file, book = crate::logging::book(&id), "Opening a book just added");
         Some(id)
     }
@@ -170,5 +175,67 @@ mod tests {
 
         assert_eq!(world.books(), ["Quay.epub"]);
         assert_eq!(world.opened(), [serde_json::json!(id)]);
+    }
+
+    #[test]
+    fn a_new_book_is_added_and_then_opened() {
+        let world = world();
+        let downloaded = world.root.join("Downloads/Quay.epub");
+        std::fs::write(&downloaded, epub()).unwrap();
+        let id = aoide_library::content_hash(&epub()).0;
+
+        world
+            .launching
+            .act(vec![Request::OpenFile(downloaded)], &world.shelf);
+
+        assert_eq!(world.books(), ["Quay.epub"]);
+        assert_eq!(world.opened(), [serde_json::json!(id)]);
+        assert_eq!(world.events.count(CoreEvent::PROBLEM), 0);
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_added_is_a_problem_and_opens_nothing() {
+        let world = world();
+        let broken = world.root.join("Downloads/Torn.epub");
+        std::fs::write(&broken, b"not a book").unwrap();
+
+        world
+            .launching
+            .act(vec![Request::OpenFile(broken)], &world.shelf);
+
+        assert_eq!(world.opened(), [] as [serde_json::Value; 0]);
+        let problems = world.events.payloads(CoreEvent::PROBLEM);
+        assert_eq!(problems.len(), 1);
+        let message = problems[0]["message"].as_str().unwrap();
+        assert!(message.starts_with("Could not open Torn.epub"), "{message}");
+    }
+
+    #[test]
+    fn with_several_files_all_are_added_and_the_first_opened() {
+        let world = world();
+        let lamp = super::super::tests::epub_with(
+            "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><p>The lamp burned.</p></body></html>".into(),
+            "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><p>Until morning.</p></body></html>".into(),
+        );
+        let broken = world.root.join("Downloads/Torn.epub");
+        std::fs::write(&broken, b"not a book").unwrap();
+        for (name, bytes) in [("Quay.epub", epub()), ("Lamp.epub", lamp.clone())] {
+            std::fs::write(world.root.join("Downloads").join(name), bytes).unwrap();
+        }
+
+        world.launching.act(
+            vec![
+                Request::OpenFile(broken),
+                Request::OpenFile(world.root.join("Downloads/Lamp.epub")),
+                Request::OpenFile(world.root.join("Downloads/Quay.epub")),
+            ],
+            &world.shelf,
+        );
+
+        assert_eq!(world.books(), ["Lamp.epub", "Quay.epub", "Torn.epub"]);
+        assert_eq!(
+            world.opened(),
+            [serde_json::json!(aoide_library::content_hash(&lamp).0)]
+        );
     }
 }

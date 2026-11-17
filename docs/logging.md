@@ -213,6 +213,7 @@ from it:
 
 | Event | What failed | Where |
 |---|---|---|
+| `launch.open` | adding a book file opened from the file manager or the command line (the message names the file) | `core/launching.rs` `Launching::act` |
 | `progress.save` | saving the listening position | `core.rs` `save_progress` |
 | `library.save` | saving the books left out, or when a book was opened | `core.rs` |
 | `listening.save` | saving listening time | `core/listening.rs` |
