@@ -230,8 +230,10 @@ A bookmark in your browser's toolbar saves the page you are on to Aoide.
 
 ### What exists
 
-- Nothing of 6.1 is built: no `src-tauri/src/launch.rs`, no single-instance or deep-link
-  plugin.
+- 6.1 is built: `src-tauri/src/launch.rs` `requests` already turns `aoide://save?url=…` into
+  `Request::SaveLink` (only an `http`/`https` address with a host inside; tested there), and
+  `core/launching.rs` `Launching::act` ignores and logs it. The single-instance plugin hands a
+  second start's arguments over; no deep-link plugin.
 - `parse_link` (`core/articles.rs`) already refuses anything but `http` and `https` with a
   host, so `javascript:`, `file:` and a nested `aoide:` address are refused by it.
 - `Core::save_article` saves a link as an article and only that. `Core::add_link` (what Add

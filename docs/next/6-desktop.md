@@ -19,6 +19,7 @@ grants `core:default` and webview zoom only. Aoide reads no command-line argumen
 ## 6.1 Open with Aoide, one running copy
 
 **Size:** M. 5.2 needs it; file associations in 6.5 need it.
+**Built:** 2026-11-17 (c2efc09..9e2b6d5)
 
 ### Outcome
 
