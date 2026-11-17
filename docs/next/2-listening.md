@@ -545,6 +545,8 @@ takes it off.)
 
 **Size:** M for paired recordings; standalone audiobooks (slice 5) add about as much again.
 
+**Built:** 2026-11-17 (c1292f3..16cd5ae)
+
 ### Outcome
 
 For a paired or standalone audiobook, long silences are shortened. The item page shows how much
@@ -627,6 +629,29 @@ it, not per clip. New row in `docs/logging.md`.
 
 - A slow narrator's pauses are shorter and the word highlight still lands on the word.
 - Bookmarks and the saved place mean the same place with the setting on or off.
+
+### As built
+
+- `Trimmer::new(rate, options, keep_from_ms, peak)`: the loudest frame heard is carried by the
+  feeder thread from clip to clip (one feeder per recording), not by the session. Silence is a
+  frame's RMS under 35 dB below that peak or under 0.002; a run is cut only when it is longer
+  than `keep_ms` plus the 5 ms cross-fade.
+- `Fed.cuts`; `Feeder::push(index, audio, Option<Trim>)`. `Playback` keeps the cuts with what
+  they saved so far (`Cuts`, a leaf lock), maps in `position()` and `state()` (the word heard is
+  `to_original(trimmed - latency)`), and turns a seek into played time. A seek into a removed
+  silence plays from just after it. `Session::sought` / `TimelineSession::sought` give
+  `keep_from` to an entry fed again.
+- The time left (paired and alone) subtracts the cuts known so far, ahead of the playhead.
+- The saved time is counted as the playhead passes a cut (all of an entry's when it plays on
+  to the next, none of the rest when it is sought away from), kept per chapter, and handed out
+  by `Playback::take_trimmed` when the chapter is left or playback stops; the tick loop adds
+  it to `BookKey::SilenceSaved` and logs `recording.trimmed`. Not in `Moved`, which has 16
+  literal constructions.
+- The app setting applies from the next start (no restart when it changes); a book's own
+  setting restarts its session, as any book setting does. An audiobook alone has no
+  per-book switch in the interface (its `BookSettings` value is honoured).
+- Shown under Narration (paired) and in the audio card's facts (alone): "Shortened silences
+  saved 14 min".
 
 ---
 
