@@ -449,6 +449,49 @@ async fn a_stretch_of_the_recording_plays_from_its_time() {
 }
 
 #[tokio::test]
+async fn a_recording_passes_over_a_chapter_left_out_and_its_time_is_not_counted() {
+    let f = fixture_with(Some(super::tests::book_with_matter())).await;
+    put_model(&f.root);
+    let words = read(&texts(&f.core, &f.id), 0);
+    let total = words.last().unwrap().1 + 500;
+    *f.script.lock().unwrap() = words;
+    write_recording(&f.audio, total);
+    f.core
+        .attach_recording(&f.id, vec![f.audio.to_string_lossy().into()])
+        .unwrap();
+    sync(&f.core);
+
+    f.core.play(&f.id, Some(0), None).await.unwrap();
+    f.core.pause();
+    let all = f.core.player_state().book_left_ms.unwrap();
+    f.core.set_left_out(&f.id, vec![1]).await.unwrap();
+    let state = f.core.player_state();
+    assert_eq!(state.source, Narration::Recording);
+    let without = state.book_left_ms.unwrap();
+    // "The Quay" and its ten words, 400 ms a word, and the gap after the chapter.
+    let quay = 12 * 400 + 600;
+    assert!(
+        all - without + 1_000 > quay && all - without < quay + 1_000,
+        "{all} ms left with it, {without} without"
+    );
+
+    f.core.resume().unwrap();
+    let seen = Mutex::new(Vec::new());
+    until("the lamp", || {
+        let chapter = f.core.player_state().chapter;
+        let mut seen = seen.lock().unwrap();
+        if seen.last() != Some(&chapter) {
+            seen.push(chapter);
+        }
+        chapter == 2
+    })
+    .await;
+    let seen = seen.into_inner().unwrap();
+    assert!(!seen.contains(&1), "{seen:?}");
+    f.core.stop();
+}
+
+#[tokio::test]
 async fn the_word_being_heard_moves_on_as_the_recording_plays() {
     let f = fixture().await;
     put_model(&f.root);

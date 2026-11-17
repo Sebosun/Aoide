@@ -101,6 +101,22 @@ pub(super) fn epub_of_chapters(chapters: &[(&str, &str)]) -> Vec<u8> {
     epub_of(&documents, &[])
 }
 
+/// A book with front and back matter around two chapters.
+pub(super) fn book_with_matter() -> Vec<u8> {
+    epub_of_chapters(&[
+        ("Contents", "Two chapters and a page of notes."),
+        (
+            "The Quay",
+            "Gulls argued over the nets. The tide came in slowly.",
+        ),
+        (
+            "The Lamp",
+            "Someone lit the lamp at dusk. It burned until morning.",
+        ),
+        ("Notes", "Quay: a stone landing where boats tie up."),
+    ])
+}
+
 /// The test book's package with these chapter documents, listing `subjects`.
 fn epub_of(documents: &[String], subjects: &[&str]) -> Vec<u8> {
     let subjects: String = subjects

@@ -154,24 +154,8 @@ mod tests {
     use aoide_tts::EngineStatus;
 
     use super::super::engine_tests::{start_holding, Scripted};
-    use super::super::tests::{epub_of_chapters, until};
+    use super::super::tests::{book_with_matter, until};
     use super::super::{Core, PrepareStage, ReadState};
-
-    /// A book with front and back matter around two chapters.
-    pub(in crate::core) fn book_with_matter() -> Vec<u8> {
-        epub_of_chapters(&[
-            ("Contents", "Two chapters and a page of notes."),
-            (
-                "The Quay",
-                "Gulls argued over the nets. The tide came in slowly.",
-            ),
-            (
-                "The Lamp",
-                "Someone lit the lamp at dusk. It burned until morning.",
-            ),
-            ("Notes", "Quay: a stone landing where boats tie up."),
-        ])
-    }
 
     /// Core with the book with matter, its id and its engine.
     async fn started(
