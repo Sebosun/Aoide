@@ -202,6 +202,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `player.status` | info | `book`, `from`, `to`, `chapter`, `source`, `error` | `core.rs` `tick_loop` |
 | `output.start` | info, error | `outcome`, `latency_ms`, `error` | `core.rs`, the audio output |
 | `output.restart` | warn | | `core.rs` `keep_output_alive` |
+| `playback.book_speed` | info | `book`, `on` | `core/playback.rs` `Core::set_book_speed`, when a book's own playback speed is turned on or off |
 | `playback.cache` | warn | `key`, `error` | `core/playback.rs` |
 | `playback.resumed` | info | `book`, `away_s`, `stepped_back` (a number of `unit`: `entries`, 0 being the sentence's start, or `ms` for an audiobook alone), `unit`, `from` (`pause`, or `saved`: the saved place's time) | `core/playback.rs` `step_back_in`, `core/timeline.rs` `step_back_on`, one line per resume that steps back |
 | `playback.skipped_left_out` | info | `book`, `from`, `to` (chapter indexes; `to` is the chapter count when the book ended) | `core/playback.rs` `tick`, one line each time playback passes over chapters left out |

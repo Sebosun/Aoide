@@ -695,6 +695,9 @@ impl Shelf {
     pub fn set_playback_speed(&self, id: &str, speed: Option<f32>) -> Result<(), String> {
         let book = BookId(id.into());
         let library = lock(&self.library);
+        if library.book(&book).map_err(|e| e.to_string())?.is_none() {
+            return Err("book not found".into());
+        }
         library
             .book_value::<super::BookSettings>(&book, BookKey::Settings)
             .and_then(|stored| {

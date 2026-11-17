@@ -19,7 +19,7 @@ use super::recording::{Narration, RecordingPlan};
 use super::resuming::{self, Away};
 use super::session::Session;
 use super::timeline::{self, Timeline, TimelineSession};
-use super::{lock, PlaybackStatus, PlayerStateView, Target};
+use super::{lock, PlaybackStatus, PlayerStateView, SpeedScope, Target};
 use crate::book::BookModel;
 
 /// A recording being listened to while it syncs takes up the sync's progress at least this
@@ -449,6 +449,11 @@ impl Playback {
         change
     }
 
+    /// The speed the player plays at.
+    pub fn speed(&self) -> f32 {
+        lock(&self.player).speed()
+    }
+
     /// The usual speed, which items without their own play at.
     pub fn usual_speed(&self) -> f32 {
         lock(&self.speeds).usual
@@ -843,6 +848,11 @@ impl Playback {
             let player = lock(&self.player);
             (player.position(), player.speed(), player.volume())
         };
+        let speed_scope = if lock(&self.speeds).own.is_some() {
+            SpeedScope::Book
+        } else {
+            SpeedScope::Usual
+        };
         let stopped = PlayerStateView {
             book_id: None,
             status: PlaybackStatus::Stopped,
@@ -850,6 +860,7 @@ impl Playback {
             segment_id: None,
             word_index: None,
             speed,
+            speed_scope,
             volume,
             chapter_fraction: 0.0,
             error: lock(&self.error).clone(),
@@ -1170,6 +1181,30 @@ impl super::Core {
     pub fn set_volume(&self, volume: f32) {
         self.playback.set_volume(volume);
         self.save_player_settings();
+    }
+
+    /// Gives book `id` its own speed (`on`), the speed it plays at when it is playing, else
+    /// the usual one; or takes it away, and the book plays at the usual speed.
+    pub fn set_book_speed(&self, id: &str, on: bool) -> Result<(), String> {
+        let playing = self.playback.is_book(id);
+        let speed = on.then(|| {
+            if playing {
+                self.playback.speed()
+            } else {
+                self.playback.usual_speed()
+            }
+        });
+        self.shelf.set_playback_speed(id, speed)?;
+        tracing::info!(
+            event = "playback.book_speed",
+            book = crate::logging::book(id),
+            on,
+            "A book's own speed turned on or off"
+        );
+        if playing {
+            self.playback.use_own_speed(speed);
+        }
+        Ok(())
     }
 
     pub(super) fn save_player_settings(&self) {

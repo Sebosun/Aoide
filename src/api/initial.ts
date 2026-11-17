@@ -8,6 +8,7 @@ export const initialPlayer = (): PlayerState => ({
   segmentId: null,
   wordIndex: null,
   speed: 1,
+  speedScope: "usual",
   volume: 1,
   chapterFraction: 0,
   error: null,

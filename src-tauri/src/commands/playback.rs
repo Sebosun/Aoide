@@ -32,7 +32,14 @@ pub fn set_speed(core: CoreState<'_>, speed: f32) {
     core.set_speed(speed);
 }
 
-/// Output gain, 0–1; saved with the speed.
+/// Gives the book its own playback speed (on: the speed it plays at, or the usual one when it
+/// is not playing), or takes it away (off: it plays at the usual speed).
+#[tauri::command]
+pub fn set_book_speed(core: CoreState<'_>, book_id: String, on: bool) -> Result<(), CoreError> {
+    Ok(core.set_book_speed(&book_id, on)?)
+}
+
+/// Output gain, 0–1; saved with the usual speed.
 #[tauri::command]
 pub fn set_volume(core: CoreState<'_>, volume: f32) {
     core.set_volume(volume);

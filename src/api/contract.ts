@@ -280,7 +280,14 @@ export type SleepView = {
  */
 remainingMs: number | null, endOfChapter: boolean, };
 
+export type SpeedScope = "usual" | "book";
+
 export type PlayerState = { bookId: string | null, status: PlaybackStatus, chapter: number, segmentId: string | null, wordIndex: number | null, speed: number, 
+/**
+ * Whether `speed` is the playing book's own (changing it changes the book's) or the usual
+ * one.
+ */
+speedScope: SpeedScope, 
 /**
  * Output gain, 0.0..=1.0.
  */
@@ -1498,7 +1505,12 @@ export type Commands = {
   "resume": { args: Record<string, never>; result: void };
   "stop": { args: Record<string, never>; result: void };
   "set_speed": { args: { speed: number }; result: void };
-  /** Output gain, 0–1; saved with the speed. */
+  /**
+   * Gives the book its own playback speed (on: the speed it plays at, or the usual one when it
+   * is not playing), or takes it away (off: it plays at the usual speed).
+   */
+  "set_book_speed": { args: { bookId: string; on: boolean }; result: void };
+  /** Output gain, 0–1; saved with the usual speed. */
   "set_volume": { args: { volume: number }; result: void };
   /** minutes: pause after that long; endOfChapter: pause at the chapter end; neither: cancel. */
   "set_sleep_timer": { args: { minutes?: number | null; endOfChapter: boolean }; result: void };
@@ -1862,7 +1874,12 @@ export interface CommandApi {
   resume(): Promise<void>;
   stop(): Promise<void>;
   setSpeed(args: { speed: number }): Promise<void>;
-  /** Output gain, 0–1; saved with the speed. */
+  /**
+   * Gives the book its own playback speed (on: the speed it plays at, or the usual one when it
+   * is not playing), or takes it away (off: it plays at the usual speed).
+   */
+  setBookSpeed(args: { bookId: string; on: boolean }): Promise<void>;
+  /** Output gain, 0–1; saved with the usual speed. */
   setVolume(args: { volume: number }): Promise<void>;
   /** minutes: pause after that long; endOfChapter: pause at the chapter end; neither: cancel. */
   setSleepTimer(args: { minutes?: number | null; endOfChapter: boolean }): Promise<void>;
@@ -2115,6 +2132,7 @@ export const COMMANDS = {
   resume: "resume",
   stop: "stop",
   setSpeed: "set_speed",
+  setBookSpeed: "set_book_speed",
   setVolume: "set_volume",
   setSleepTimer: "set_sleep_timer",
   skipChapter: "skip_chapter",

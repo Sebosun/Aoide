@@ -125,6 +125,7 @@ pub fn run() {
             commands::playback::resume,
             commands::playback::stop,
             commands::playback::set_speed,
+            commands::playback::set_book_speed,
             commands::playback::set_volume,
             commands::speech::engine_status,
             commands::speech::speech_problems,

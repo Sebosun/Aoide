@@ -143,6 +143,7 @@
     "sleep": null,
     "source": "speech",
     "speed": 1.0,
+    "speedScope": "usual",
     "status": "stopped",
     "volume": 1.0,
     "waitingForSync": false,

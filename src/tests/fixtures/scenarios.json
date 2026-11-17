@@ -1068,6 +1068,187 @@
     ]
   },
   {
+    "name": "a book keeps its own speed",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-0",
+          "chapter": 0,
+          "segmentId": null
+        },
+        "call": "play",
+        "error": null,
+        "event": {
+          "expect": {
+            "speed": 1.0,
+            "speedScope": "usual"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-0",
+          "on": true
+        },
+        "call": "setBookSpeed",
+        "error": null,
+        "event": {
+          "expect": {
+            "speed": 1.0,
+            "speedScope": "book"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {
+          "speed": 1.5
+        },
+        "call": "setSpeed",
+        "error": null,
+        "event": {
+          "expect": {
+            "speed": 1.5,
+            "speedScope": "book"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-0"
+        },
+        "call": "bookSettings",
+        "error": null,
+        "expect": {
+          "playbackSpeed": 1.5
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapter": 0,
+          "segmentId": null
+        },
+        "call": "play",
+        "error": null,
+        "event": {
+          "expect": {
+            "speed": 1.0,
+            "speedScope": "usual"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {
+          "speed": 1.25
+        },
+        "call": "setSpeed",
+        "error": null,
+        "event": {
+          "expect": {
+            "speed": 1.25,
+            "speedScope": "usual"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-0",
+          "chapter": 0,
+          "segmentId": null
+        },
+        "call": "play",
+        "error": null,
+        "event": {
+          "expect": {
+            "speed": 1.5,
+            "speedScope": "book"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-0",
+          "settings": {
+            "language": null,
+            "leftOut": [],
+            "mode": "listen",
+            "narration": null,
+            "params": {},
+            "playbackSpeed": null,
+            "readNotes": false,
+            "speakMissing": false,
+            "voiceId": null
+          }
+        },
+        "call": "saveBookSettings",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-0"
+        },
+        "call": "bookSettings",
+        "error": null,
+        "expect": {
+          "playbackSpeed": 1.5
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-0",
+          "on": false
+        },
+        "call": "setBookSpeed",
+        "error": null,
+        "event": {
+          "expect": {
+            "speed": 1.25,
+            "speedScope": "usual"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-0"
+        },
+        "call": "bookSettings",
+        "error": null,
+        "expect": {
+          "playbackSpeed": null
+        }
+      },
+      {
+        "args": {},
+        "call": "stop",
+        "error": null,
+        "event": {
+          "expect": {
+            "speed": 1.25,
+            "speedScope": "usual"
+          },
+          "name": "onPlayerState"
+        },
+        "expect": {}
+      }
+    ]
+  },
+  {
     "name": "a book is removed",
     "start": "",
     "steps": [

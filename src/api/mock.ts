@@ -601,6 +601,18 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const generationHandlers = new Set<(s: GenerationState) => void>();
   const libraryHandlers = new Set<() => void>();
   let state = structuredClone(fixturePlayer.stopped) as PlayerState;
+  /** The usual speed, which books without their own play at (`[player].speed`). */
+  let usualSpeed = state.speed;
+  /** A speed as the core keeps it: 0.5–3, to two decimals. */
+  const keptSpeed = (speed: number) =>
+    Number.isFinite(speed) ? Math.round(Math.min(3, Math.max(0.5, speed)) * 100) / 100 : 1;
+  /** Whether book `id` is being listened to (playing or paused). */
+  const isPlaying = (id: string) => state.bookId === id && state.status !== "stopped";
+  /** The speed book `id` plays at, as the core chooses it when the book starts. */
+  const speedOf = (id: string): Pick<PlayerState, "speed" | "speedScope"> => {
+    const own = settingsOf(id).playbackSpeed;
+    return own === null ? { speed: usualSpeed, speedScope: "usual" } : { speed: own, speedScope: "book" };
+  };
   let timer: ReturnType<typeof setInterval> | undefined;
   /** A sentence said again is made after this long in the preview. */
   const REMAKE_MS = 1_800;
@@ -1305,6 +1317,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         // it was finished).
         const resume = saved !== null && saved + 1000 < total ? saved : 0;
         const at = chapter !== null ? (parts[chapter]?.start ?? 0) : resume;
+        if (!isPlaying(id)) state = { ...state, ...speedOf(id) };
         emitPlayer(timelineState(id, at, "playing"));
         run();
         return;
@@ -1326,6 +1339,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       const source = recordings.get(id)?.narrates ? "recording" : "speech";
       emitPlayer({
         ...state,
+        ...(isPlaying(id) ? {} : speedOf(id)),
         bookId: id,
         chapter: c,
         segmentId: segment.id,
@@ -1355,11 +1369,24 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async stop() {
       halt();
-      emitPlayer({ ...state, status: "stopped", wordIndex: null });
+      // With nothing playing, the usual speed applies.
+      emitPlayer({ ...state, status: "stopped", wordIndex: null, speed: usualSpeed, speedScope: "usual" });
     },
-    async setSpeed({ speed }) {
+    /** As the core does: the playing book's own speed when it has one, else the usual one. */
+    async setSpeed({ speed: asked }) {
+      const speed = keptSpeed(asked);
+      if (state.speedScope === "book" && state.bookId)
+        settings.set(state.bookId, { ...settingsOf(state.bookId), playbackSpeed: speed });
+      else usualSpeed = speed;
       emitPlayer({ ...state, speed });
       if (state.status === "playing") run();
+    },
+    async setBookSpeed({ bookId: id, on }) {
+      getBook(id);
+      const playing = isPlaying(id);
+      const own = on ? (playing ? state.speed : usualSpeed) : null;
+      settings.set(id, { ...settingsOf(id), playbackSpeed: own });
+      if (playing) emitPlayer({ ...state, ...speedOf(id) });
     },
     async setVolume({ volume }) {
       emitPlayer({ ...state, volume: Math.min(1, Math.max(0, volume)) });
@@ -1404,8 +1431,10 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async saveBookSettings({ bookId: id, settings: next }) {
       getBook(id);
-      // The chapters left out change only through setLeftOut.
-      settings.set(id, { ...JSON.parse(JSON.stringify(next)), leftOut: settingsOf(id).leftOut });
+      // The chapters left out change only through setLeftOut, the book's speed only through
+      // setBookSpeed and setSpeed.
+      const { leftOut, playbackSpeed } = settingsOf(id);
+      settings.set(id, { ...JSON.parse(JSON.stringify(next)), leftOut, playbackSpeed });
       const recording = recordings.get(id);
       if (recording) emitSync(recording); // Whether it narrates the book may have changed.
     },

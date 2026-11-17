@@ -1626,3 +1626,47 @@ async fn a_hand_edited_usual_speed_waits_while_a_book_with_its_own_speed_plays()
     core.play(&other, Some(0), None).await.unwrap();
     assert_eq!(speed(&core), 2.0, "the usual speed, as edited");
 }
+
+#[tokio::test]
+async fn a_book_given_its_own_speed_keeps_it_and_given_it_up_plays_at_the_usual_one() {
+    use super::SpeedScope;
+    let dir = tempfile::tempdir().unwrap();
+    let engine = FakeEngine::new();
+    let (core, id, other) = two_books(dir.path(), &engine, 1.25).await;
+    let heard = |core: &Core| {
+        let state = core.player_state();
+        (state.speed, state.speed_scope)
+    };
+    core.play(&id, Some(0), None).await.unwrap();
+    assert_eq!(heard(&core), (1.25, SpeedScope::Usual));
+
+    core.set_book_speed(&id, true).unwrap();
+    assert_eq!(
+        heard(&core),
+        (1.25, SpeedScope::Book),
+        "the speed it played at"
+    );
+    assert_eq!(core.book_settings(&id).playback_speed, Some(1.25));
+    core.set_speed(1.5);
+    assert_eq!(heard(&core), (1.5, SpeedScope::Book));
+    assert_eq!(usual_speed_in_file(dir.path()), 1.25);
+
+    core.play(&other, Some(0), None).await.unwrap();
+    assert_eq!(heard(&core), (1.25, SpeedScope::Usual));
+    core.play(&id, Some(0), None).await.unwrap();
+    assert_eq!(heard(&core), (1.5, SpeedScope::Book));
+
+    core.set_book_speed(&id, false).unwrap();
+    assert_eq!(
+        heard(&core),
+        (1.25, SpeedScope::Usual),
+        "back to the usual speed"
+    );
+    assert_eq!(core.book_settings(&id).playback_speed, None);
+
+    // A book not playing takes the usual speed.
+    core.set_book_speed(&other, true).unwrap();
+    assert_eq!(core.book_settings(&other).playback_speed, Some(1.25));
+    assert_eq!(heard(&core), (1.25, SpeedScope::Usual));
+    assert!(core.set_book_speed("no-such-book", true).is_err());
+}

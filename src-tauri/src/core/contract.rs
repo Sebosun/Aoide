@@ -70,6 +70,7 @@ fn contract() -> String {
         // Playback and generation
         super::PlaybackStatus,
         super::SleepView,
+        super::SpeedScope,
         super::PlayerStateView,
         super::EngineState,
         super::engine_process::ServerState,

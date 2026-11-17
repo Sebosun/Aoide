@@ -1508,6 +1508,66 @@ async fn scenarios_for_the_ui_mock() {
     }
     scenarios.push(s.done());
 
+    let mut s = Scenario::new("a book keeps its own speed", "");
+    let heard = ["speed", "speedScope"];
+    let play = |s: &mut Scenario, id: &str, played| {
+        s.step(
+            "play",
+            json!({"bookId": id, "chapter": 0, "segmentId": null}),
+            &played,
+            &[],
+        );
+    };
+    play(&mut s, &first, core.play(&first, Some(0), None).await);
+    s.then("onPlayerState", &core.player_state(), &heard);
+    let own = |s: &mut Scenario, id: &str, on: bool| {
+        let set = core.set_book_speed(id, on);
+        s.step("setBookSpeed", json!({"bookId": id, "on": on}), &set, &[]);
+        s.then("onPlayerState", &core.player_state(), &heard);
+    };
+    let speed = |s: &mut Scenario, speed: f32| {
+        core.set_speed(speed);
+        s.step("setSpeed", json!({"speed": speed}), &Ok(()), &[]);
+        s.then("onPlayerState", &core.player_state(), &heard);
+    };
+    let settings = |s: &mut Scenario, id: &str| {
+        let settings = Ok::<_, String>(core.book_settings(id));
+        s.step(
+            "bookSettings",
+            json!({"bookId": id}),
+            &settings,
+            &["playbackSpeed"],
+        );
+    };
+    own(&mut s, &first, true);
+    speed(&mut s, 1.5);
+    settings(&mut s, &first);
+    play(&mut s, &second, core.play(&second, Some(0), None).await);
+    s.then("onPlayerState", &core.player_state(), &heard);
+    speed(&mut s, 1.25);
+    play(&mut s, &first, core.play(&first, Some(0), None).await);
+    s.then("onPlayerState", &core.player_state(), &heard);
+    // A form holding the book's settings as they were does not undo its speed.
+    let older = super::BookSettings {
+        playback_speed: None,
+        ..core.book_settings(&first)
+    };
+    s.step(
+        "saveBookSettings",
+        json!({"bookId": first, "settings": older}),
+        &core.save_book_settings(&first, older.clone()).await,
+        &[],
+    );
+    settings(&mut s, &first);
+    own(&mut s, &first, false);
+    settings(&mut s, &first);
+    core.stop();
+    s.step("stop", json!({}), &Ok(()), &[]);
+    s.then("onPlayerState", &core.player_state(), &heard);
+    scenarios.push(s.done());
+    // The scenarios after this one start at the usual speed.
+    core.set_speed(1.0);
+
     let mut s = Scenario::new("a book is removed", "");
     s.step(
         "removeBook",

@@ -183,6 +183,7 @@ mod tests {
             segment_id: None,
             word_index: None,
             speed: 1.0,
+            speed_scope: Default::default(),
             volume: 1.0,
             chapter_fraction: 0.0,
             error: None,

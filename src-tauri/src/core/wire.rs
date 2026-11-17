@@ -98,6 +98,16 @@ pub enum PlaybackStatus {
     Paused,
 }
 
+/// Which speed the player plays at: the usual one, or the playing book's own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum SpeedScope {
+    #[default]
+    Usual,
+    Book,
+}
+
 /// The speech engine's state, as the UI shows it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -122,6 +132,9 @@ pub struct PlayerStateView {
     pub segment_id: Option<String>,
     pub word_index: Option<usize>,
     pub speed: f32,
+    /// Whether `speed` is the playing book's own (changing it changes the book's) or the usual
+    /// one.
+    pub speed_scope: SpeedScope,
     /// Output gain, 0.0..=1.0.
     pub volume: f32,
     pub chapter_fraction: f64,
