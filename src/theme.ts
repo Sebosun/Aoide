@@ -1,5 +1,6 @@
 import type { Appearance, ReaderFont, Theme } from "@/api/types";
 import { applyZoom } from "@/zoom";
+import { readingFont } from "@/fonts";
 
 /** Colour tokens a theme file may override; mirrors aoide_config::TOKENS and theme.css. */
 export const TOKENS = [
@@ -70,7 +71,10 @@ export function applyAppearance(appearance: Appearance, themes: Theme[], root: H
   root.style.setProperty("--read-scale", String(stepOf(TEXT_SCALES, appearance.textSize)));
   root.style.setProperty("--read-line", String(stepOf(LINE_HEIGHTS, appearance.lineSpacing)));
   root.style.setProperty("--read-width", `${stepOf(TEXT_WIDTHS, appearance.textWidth)}px`);
-  root.style.setProperty("--read-font", READER_FONTS[appearance.readerFont] ?? READER_FONTS.serif);
+  const font = appearance.readerFont in READER_FONTS ? appearance.readerFont : "serif";
+  root.style.setProperty("--read-font", READER_FONTS[font]);
+  // Before the first book opens, so its text is laid out once, in the font it is read in.
+  void readingFont(font);
   root.style.setProperty("--read-align", appearance.justify ? "justify" : "start");
   root.style.setProperty("--read-hyphens", appearance.hyphenate ? "auto" : "manual");
   applyZoom(appearance.zoom, root);

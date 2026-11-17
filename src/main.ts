@@ -4,7 +4,6 @@ import { isTauri } from "@tauri-apps/api/core";
 import { applyPreviewParams } from "@/preview";
 import { api } from "@/api";
 import { report } from "@/log";
-import { readingFont } from "@/fonts";
 import { useNavigationStore } from "@/stores/navigation";
 import App from "@/App.vue";
 import "@/styles/fonts.css";
@@ -22,6 +21,4 @@ const uncaught = (error: unknown) => {
 app.config.errorHandler = uncaught;
 window.addEventListener("unhandledrejection", (event) => uncaught(event.reason));
 app.mount("#app");
-// Before the first book opens, so its text is laid out once, in the font it is read in.
-void readingFont();
 if (!isTauri()) void applyPreviewParams();
