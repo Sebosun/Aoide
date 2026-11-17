@@ -134,6 +134,7 @@ dependencies = [
  "aoide-discovery",
  "aoide-document",
  "aoide-epub",
+ "aoide-fb2",
  "aoide-feeds",
  "aoide-fetch",
  "aoide-generation",
@@ -299,6 +300,17 @@ dependencies = [
  "percent-encoding",
  "roxmltree",
  "scraper",
+ "thiserror 2.0.21",
+ "zip 2.6.1",
+]
+
+[[package]]
+name = "aoide-fb2"
+version = "0.1.0"
+dependencies = [
+ "aoide-document",
+ "base64 0.22.1",
+ "roxmltree",
  "thiserror 2.0.21",
  "zip 2.6.1",
 ]

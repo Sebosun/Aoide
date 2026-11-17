@@ -63,6 +63,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 aoide-plaintext = { path = "../crates/plaintext" }
+aoide-fb2 = { path = "../crates/fb2" }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.5"

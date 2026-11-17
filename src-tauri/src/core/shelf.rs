@@ -1471,6 +1471,31 @@ mod tests {
     }
 
     #[test]
+    fn a_fictionbook_is_imported_with_its_series() {
+        let dir = tempfile::tempdir().unwrap();
+        let shelf = shelf(dir.path());
+        let outside = dir.path().join("Lamp.fb2");
+        std::fs::write(
+            &outside,
+            r##"<FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0"><description><title-info><genre>sea</genre><author><first-name>Mara</first-name><last-name>Quill</last-name></author><book-title>The Lamp Room</book-title><sequence name="Harbour Lights" number="2"/></title-info></description><body><section><title><p>One</p></title><p>The keeper climbed the stair.</p></section></body></FictionBook>"##,
+        )
+        .unwrap();
+        let results = shelf.import_files(vec![outside.to_string_lossy().into_owned()]);
+        let id = results[0].book_id.clone().expect("imported");
+        let books = shelf.list(&Host).unwrap();
+        let book = books.iter().find(|b| b.id == id).unwrap();
+        assert_eq!(book.title, "The Lamp Room");
+        assert_eq!(book.authors, ["Mara Quill"]);
+        assert_eq!(
+            book.series.as_ref().map(|s| s.name.as_str()),
+            Some("Harbour Lights")
+        );
+        assert!(shelf.load(&id, &Host).unwrap().chapters[0]
+            .text
+            .contains("climbed the stair"));
+    }
+
+    #[test]
     fn a_kindle_book_is_refused_with_a_way_to_read_it() {
         let dir = tempfile::tempdir().unwrap();
         let shelf = shelf(dir.path());

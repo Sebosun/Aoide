@@ -281,7 +281,8 @@ pub fn parse_document_named(bytes: &[u8], name: Option<&str>) -> Result<ParsedBo
             }
             Ok(document)
         }
-        Format::Docx | Format::Fb2 => Err("this format is not read yet".into()),
+        Format::Fb2 => aoide_fb2::parse_fb2(bytes).map_err(|e| e.to_string()),
+        Format::Docx => Err("this format is not read yet".into()),
         Format::Kindle => Err(KINDLE.into()),
     }
 }
