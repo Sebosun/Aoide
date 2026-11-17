@@ -277,3 +277,22 @@ it("fetches the open book's highlights again with its chapters, so they follow t
   expect(reader.highlights.map((h) => [h.start, h.end])).toEqual([[words.start, words.end]]);
   wrapper.unmount();
 });
+
+it("keeps the lines of a highlight's note when it is edited under Notes", async () => {
+  const wrapper = await openReader("book-0");
+  const reader = useReaderStore();
+  const words = span(sentence("0:2:0"), 0, 2);
+  await reader.addHighlight(0, words.start, words.end);
+  await reader.noteHighlight(reader.highlights[0].id, "First thought.\n\nA second one.");
+  await wrapper.get('[aria-label="Notes and details"]').trigger("click");
+  await flushPromises();
+  const sheet = wrapper.get('[role="dialog"]');
+  await sheet.get('[data-kind="highlight"] .book-notes__note').trigger("click");
+  const field = sheet.get<HTMLTextAreaElement>('[aria-label="Edit highlight note"]');
+  expect(field.element.value).toBe("First thought.\n\nA second one.");
+  field.element.value = "First thought.\n\nA second one, longer.";
+  await field.trigger("change");
+  await flushPromises();
+  expect(reader.highlights[0].note).toBe("First thought.\n\nA second one, longer.");
+  wrapper.unmount();
+});

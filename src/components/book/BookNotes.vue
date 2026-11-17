@@ -66,7 +66,7 @@ const entries = computed<Entry[]>(() => {
 });
 
 async function saveNote(entry: Entry, event: Event) {
-  const next = (event.target as HTMLInputElement).value.trim();
+  const next = (event.target as HTMLInputElement | HTMLTextAreaElement).value.trim();
   editing.value = null;
   if (next === entry.mark.note) return;
   try {
@@ -222,8 +222,19 @@ async function exportNotes() {
         <span class="book-notes__quote">{{ entry.mark.text }}</span>
       </button>
       <div class="book-notes__row">
+        <!-- A highlight's note may have paragraphs (written in its card, or joined): a text field
+             would drop its line breaks. -->
+        <textarea
+          v-if="editing === entry.key && entry.kind === 'highlight'"
+          :value="entry.mark.note"
+          rows="3"
+          aria-label="Edit highlight note"
+          placeholder="Add a note"
+          @change="saveNote(entry, $event)"
+          @keydown.esc="editing = null"
+        />
         <input
-          v-if="editing === entry.key"
+          v-else-if="editing === entry.key"
           :value="entry.mark.note"
           type="text"
           :aria-label="`Edit ${entry.kind} note`"
@@ -340,10 +351,15 @@ async function exportNotes() {
   align-items: center;
   padding: 0 var(--space-2) var(--space-2);
 }
-.book-notes__row input {
+.book-notes__row input,
+.book-notes__row textarea {
   flex: 1;
   font-size: 12px;
   padding: var(--space-3) var(--space-4);
+}
+.book-notes__row textarea {
+  resize: vertical;
+  font-family: inherit;
 }
 .book-notes__note {
   flex: 1;
