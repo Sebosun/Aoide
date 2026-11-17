@@ -102,6 +102,8 @@ export async function applyPreviewParams(search = location.search) {
     await library.createCollection("Short stories");
     await library.setBookCollections("book-0", [night]);
     await library.setBookCollections("book-1", [night]);
+    // The preview's article too, when it is saved (`article=ready`).
+    if (library.books.some((b) => b.id === "book-6")) await library.setBookCollections("book-6", [night]);
     if (query.get("shelves") === "open") library.filter = `collection:${night}`;
   }
   const pair = query.get("pair");

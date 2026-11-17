@@ -28,6 +28,10 @@ onMounted(() => {
 });
 /** Opened from Feeds to subscribe: the link is a feed, or a site that names one. */
 const subscribing = navigation.addMode === "subscribe";
+/** The collections what is added here goes on, chosen as chips. */
+const into = ref<number[]>([]);
+const toggleInto = (id: number) =>
+  (into.value = into.value.includes(id) ? into.value.filter((c) => c !== id) : [...into.value, id]);
 /** The feeds a site names, to pick one when it names several. */
 const choices = ref<DiscoveredFeed[]>([]);
 /** Fills the field from the clipboard. Where the window may not read it, the field takes the
@@ -53,7 +57,7 @@ async function submitLink() {
   saving.value = true;
   try {
     if (subscribing) await subscribe(valid);
-    else await articles.add(valid);
+    else await articles.add(valid, into.value);
   } catch (e) {
     linkError.value = String(e).replace(/^Error: /, "");
   } finally {
@@ -85,7 +89,12 @@ async function chooseBooks() {
   if (!paths?.length) return;
   close();
   navigation.view = "library";
+  const collections = into.value;
   await library.importFiles(paths);
+  await library.addToCollections(
+    library.imports.flatMap((r) => (r.bookId && !r.error ? [r.bookId] : [])),
+    collections,
+  );
 }
 /** An audiobook (files or a folder) is paired with a book or added on its own, as when dropped. */
 async function chooseAudio(folder: boolean) {
@@ -117,6 +126,25 @@ function rescan() {
         <UiButton size="lg" icon class="add-dialog__close" aria-label="Close" @click="close">
           <X :size="18" aria-hidden="true" />
         </UiButton>
+      </div>
+      <div
+        v-if="!subscribing && library.collections.length"
+        class="add-dialog__into"
+        role="group"
+        aria-label="Collections to add to"
+      >
+        <span class="add-dialog__into-label">Into</span>
+        <button
+          v-for="collection in library.collections"
+          :key="collection.id"
+          type="button"
+          class="add-dialog__chip"
+          :class="{ 'add-dialog__chip--on': into.includes(collection.id) }"
+          :aria-pressed="into.includes(collection.id)"
+          @click="toggleInto(collection.id)"
+        >
+          {{ collection.name }}
+        </button>
       </div>
       <form class="add-dialog__section" novalidate @submit.prevent="submitLink">
         <label for="add-link" class="add-dialog__label">{{
@@ -240,6 +268,35 @@ function rescan() {
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.01em;
+}
+.add-dialog__into {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.add-dialog__into-label {
+  margin-right: var(--space-2);
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+.add-dialog__chip {
+  height: var(--control-sm);
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--wash);
+  color: var(--dim);
+  font-size: 13px;
+  font-weight: 500;
+}
+.add-dialog__chip:hover:not(.add-dialog__chip--on) {
+  color: var(--ink);
+}
+.add-dialog__chip--on {
+  background: var(--ink);
+  color: var(--ground);
+  font-weight: 600;
 }
 .add-dialog__section {
   display: flex;

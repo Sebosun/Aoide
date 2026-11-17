@@ -838,6 +838,18 @@ it("heads an article with its site, reading time and original, and outlines its 
   wrapper.unmount();
 });
 
+it("shows an article's collections in its header, and opens the picker there", async () => {
+  const wrapper = await openArticle("ready");
+  const night = await mock.createCollection({ name: "Night reading" });
+  await mock.setBookCollections({ bookId: "book-6", ids: [night] });
+  await flushPromises();
+  const head = wrapper.get('[aria-label="About this article"]');
+  expect(head.findAll('[aria-label="Collections"] li').map((c) => c.text())).toEqual(["Night reading"]);
+  await head.get('[aria-label="Add to collection"]').trigger("click");
+  expect(useNavigationStore().collectionsFor).toBe("book-6");
+  wrapper.unmount();
+});
+
 it("says what an article that needs you is missing, and fetches it again", async () => {
   for (const [stage, heading] of [
     ["needsyou-signin", "The site asked for a sign-in"],

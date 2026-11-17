@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { BookmarkCheck, BookmarkPlus, ExternalLink } from "@lucide/vue";
+import { BookmarkCheck, BookmarkPlus, ExternalLink, FolderPlus } from "@lucide/vue";
 import type { ArticleView } from "@/api/types";
 import { formatDuration, readingMs } from "@/estimate";
 import FeedOffer from "@/components/article/FeedOffer.vue";
 import { siteOf } from "@/articles";
+import { useLibraryStore } from "@/stores/library";
+import { useNavigationStore } from "@/stores/navigation";
 
 /** The top of an article in the reader: its site, date and reading time, a way to the
- *  original page, then its title and byline. One opened from a feed offers Save to library,
- *  and says it is in the library once saved. */
+ *  original page, then its title and byline, and the collections it is on (with a way to add
+ *  it to one). One opened from a feed offers Save to library, and says it is in the library
+ *  once saved. */
 const props = defineProps<{ article: ArticleView; title: string; authors: string[]; words: number; wpm: number }>();
 const emit = defineEmits<{ original: []; save: [] }>();
 const fromFeed = ref(!props.article.inLibrary);
@@ -29,6 +32,12 @@ const published = computed(() =>
 );
 const byline = computed(() => props.article.byline ?? (props.authors.join(", ") || null));
 const readTime = computed(() => `${formatDuration(readingMs(props.words, props.wpm))} read`);
+const library = useLibraryStore(),
+  navigation = useNavigationStore();
+const collections = computed(() => {
+  const on = library.books.find((b) => b.id === props.article.id)?.collections ?? [];
+  return library.collections.filter((c) => on.includes(c.id));
+});
 </script>
 
 <template>
@@ -49,6 +58,23 @@ const readTime = computed(() => `${formatDuration(readingMs(props.words, props.w
     </div>
     <h1 class="article-header__title">{{ title }}</h1>
     <p v-if="byline" class="article-header__byline">{{ byline }}</p>
+    <div v-if="article.inLibrary" class="article-header__shelves">
+      <ul v-if="collections.length" class="article-header__collections" aria-label="Collections">
+        <li v-for="collection in collections" :key="collection.id" class="article-header__collection">
+          {{ collection.name }}
+        </li>
+      </ul>
+      <button
+        type="button"
+        class="article-header__collect"
+        aria-label="Add to collection"
+        aria-haspopup="dialog"
+        title="Add to collection (C)"
+        @click="navigation.pickCollections(article.id)"
+      >
+        <FolderPlus :size="13" aria-hidden="true" />{{ collections.length ? "" : "Add to collection" }}
+      </button>
+    </div>
     <FeedOffer class="article-header__offer" :article="article" />
   </header>
 </template>
@@ -114,5 +140,32 @@ const readTime = computed(() => `${formatDuration(readingMs(props.words, props.w
   margin: 0;
   font-size: 15px;
   color: var(--dim);
+}
+.article-header__shelves {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+.article-header__collections {
+  display: contents;
+  list-style: none;
+}
+.article-header__collection,
+.article-header__collect {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 26px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-pill);
+  background: var(--wash);
+  color: var(--dim);
+  font-size: 12px;
+  font-weight: 600;
+}
+.article-header__collect:hover {
+  color: var(--ink);
 }
 </style>

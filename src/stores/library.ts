@@ -242,6 +242,15 @@ export const useLibraryStore = defineStore("library", () => {
     await api.setBookCollections({ bookId, ids });
     await refresh();
   }
+  /** Puts each of `items` on `collections` too, keeping the collections it is on. */
+  async function addToCollections(items: string[], collections: number[]) {
+    if (!collections.length) return;
+    for (const id of items) {
+      const was = books.value.find((b) => b.id === id)?.collections ?? [];
+      await api.setBookCollections({ bookId: id, ids: [...new Set([...was, ...collections])] });
+    }
+    await refresh();
+  }
   async function perform(action: () => Promise<unknown>) {
     error.value = "";
     try {
@@ -324,6 +333,7 @@ export const useLibraryStore = defineStore("library", () => {
     renameCollection,
     deleteCollection,
     setBookCollections,
+    addToCollections,
     tagFilter,
     tagCounts,
     tagState,

@@ -279,6 +279,26 @@ it("saves a link from the Add dialog: the card shows the fetch, then the article
   wrapper.unmount();
 });
 
+it("saves a link into the collections chosen as chips in the Add dialog", async () => {
+  await mock.createCollection({ name: "Night reading" });
+  const long = await mock.createCollection({ name: "Long reads" });
+  const shelve = vi.spyOn(mock, "setBookCollections");
+  const wrapper = mount(App, { attachTo: document.body });
+  await flushPromises();
+  await nav(wrapper, "Add").trigger("click");
+  await flushPromises();
+  const chips = dialog(wrapper).get('[role="group"][aria-label="Collections to add to"]');
+  expect(chips.findAll("button").map((b) => b.text())).toEqual(["Long reads", "Night reading"]);
+  const chip = chips.findAll("button").find((b) => b.text() === "Long reads")!;
+  await chip.trigger("click");
+  expect(chip.attributes("aria-pressed")).toBe("true");
+  await linkField(wrapper).setValue("https://quay.example/lights");
+  await dialog(wrapper).get("form").trigger("submit");
+  await flushPromises();
+  expect(shelve).toHaveBeenCalledWith({ bookId: "book-6", ids: [long] });
+  wrapper.unmount();
+});
+
 it("shows why a link is not one and saves nothing", async () => {
   const save = vi.spyOn(mock, "saveArticle");
   const wrapper = mount(App, { attachTo: document.body });

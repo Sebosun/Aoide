@@ -48,14 +48,17 @@ export const useArticlesStore = defineStore("articles", () => {
   }
   /** A link given to Add: a feed is subscribed and Feeds opens on it; anything else is saved
    *  as an article and the library opens to show it being fetched. */
-  async function add(link: string) {
+  /** Saves `link` as an article (on `collections` too), or subscribes to it when it is a feed. */
+  async function add(link: string, collections: number[] = []) {
     await start();
     const added = await api.addLink({ url: link });
     if (added.kind === "saved") {
       const navigation = useNavigationStore();
       navigation.closeAdd();
       navigation.view = "library";
-      await useLibraryStore().refresh();
+      const library = useLibraryStore();
+      await library.refresh();
+      await library.addToCollections([added.value], collections);
     } else await showFeed(added.value);
   }
   /** Feeds, on the feed `feed`. */
