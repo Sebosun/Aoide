@@ -7,6 +7,7 @@
 pub mod codec;
 pub mod output;
 mod player;
+pub mod trim;
 
 pub use player::{Entry, PlayerCore, Position, Status};
 
