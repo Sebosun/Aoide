@@ -783,11 +783,11 @@ it("bookmarks a moment of an audiobook and plays from it", async () => {
   await wrapper.get('[aria-label="Bookmark this moment"]').trigger("click");
   await flushPromises();
   expect(useUiStore().toasts.map((t) => t.text)).toContain("Bookmarked");
-  await wrapper.get('[aria-label="Bookmarks and details"]').trigger("click");
+  await wrapper.get('[aria-label="Notes and details"]').trigger("click");
   await flushPromises();
   const sheet = wrapper.get('[role="dialog"]');
-  expect(sheet.findAll('[role="tab"]').map((t) => t.text())).toEqual(["Bookmarks", "Details"]);
-  const mark = sheet.get(".book-bookmarks__play");
+  expect(sheet.findAll('[role="tab"]').map((t) => t.text())).toEqual(["Notes", "Details"]);
+  const mark = sheet.get(".book-notes__play");
   expect(mark.text()).toContain("Part 2 · 0:00");
   expect(mark.text()).toContain("Part Two");
 

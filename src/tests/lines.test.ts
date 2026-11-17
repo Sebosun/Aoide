@@ -111,7 +111,7 @@ it("has the full transport, and switches back to the page", async () => {
   expect(transport.find('[aria-label="Sleep timer"][aria-haspopup="listbox"]').exists()).toBe(true);
   expect(transport.find('button[aria-label="Volume"]').exists()).toBe(true);
   expect(transport.find('[role="slider"]').exists()).toBe(true);
-  await wrapper.get('[aria-label="Bookmarks and details"]').trigger("click");
+  await wrapper.get('[aria-label="Notes and details"]').trigger("click");
   await flushPromises();
   expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
   await wrapper.get('[role="dialog"]').trigger("keydown", { key: "Escape" });

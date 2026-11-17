@@ -176,17 +176,17 @@ it("adds, annotates, plays and deletes bookmarks", async () => {
   await useReaderStore().open("book-0");
   const play = vi.spyOn(mock, "play");
   const wrapper = mount(BookToolsSheet);
-  await wrapper.get('[role="tab"][aria-controls="book-tools-bookmarks"]').trigger("click");
+  await wrapper.get('[role="tab"][aria-controls="book-tools-notes"]').trigger("click");
   await wrapper.get('[aria-label="Bookmark note"]').setValue("Lovely line");
-  await wrapper.get(".book-bookmarks__add").trigger("submit");
+  await wrapper.get(".book-notes__add").trigger("submit");
   await flushPromises();
-  expect(wrapper.findAll(".book-bookmarks__item")).toHaveLength(1);
+  expect(wrapper.findAll(".book-notes__item")).toHaveLength(1);
   expect(wrapper.text()).toContain("Lovely line");
-  await wrapper.get(".book-bookmarks__play").trigger("click");
+  await wrapper.get(".book-notes__play").trigger("click");
   expect(play).toHaveBeenCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
   await wrapper.get('[aria-label="Delete bookmark"]').trigger("click");
   await flushPromises();
-  expect(wrapper.findAll(".book-bookmarks__item")).toHaveLength(0);
+  expect(wrapper.findAll(".book-notes__item")).toHaveLength(0);
   wrapper.unmount();
 });
 

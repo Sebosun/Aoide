@@ -7,7 +7,7 @@ import { useRecordingsStore } from "@/stores/recordings";
 
 /** Browser preview only: `?view=home|library|feeds|activity|item|reader|find|audiobooks&book=book-0&play=1500&theme=dark&mode=lines&zoom=1.25` opens a
  *  screen in a known state (used for screenshots). `play` plays for that many ms, then pauses;
- *  `tools=voice` opens book tools on that tab; `settings=engine` opens settings on that tab; `click=<selector>|<selector>` clicks those
+ *  `tools=notes|search|details` opens book tools on that tab; `settings=engine` opens settings on that tab; `click=<selector>|<selector>` clicks those
  *  elements in turn once the screen is up (to show an open menu or dialog). `zoom=1.25` sets the
  *  interface size and `delay=800` slows every request (see api/mock and api/index).
  *  `prepare=book-1,book-0` queues those books for whole-book preparation, in that order.
@@ -99,11 +99,8 @@ export async function applyPreviewParams(search = location.search) {
   if (view === "item") navigation.openItem(book);
   else navigation.view = view;
   const tools = query.get("tools");
-  if (tools)
-    setTimeout(() => {
-      document.querySelector<HTMLElement>('[aria-label="Player"] [aria-label="Book tools"]')?.click();
-      setTimeout(() => document.querySelector<HTMLElement>(`#book-tools-tab-${tools}`)?.click(), 100);
-    }, 300);
+  if (tools === "notes" || tools === "search" || tools === "details")
+    setTimeout(() => useNavigationStore().openTools(tools), 300);
   const select = query.get("select");
   if (select) setTimeout(() => selectWord(select), 500);
   const clicks = query.get("click")?.split("|").filter(Boolean) ?? [];

@@ -207,3 +207,61 @@ it("opens a card on a highlight that is clicked, to write its note, copy it or r
   expect(card()).toBeNull();
   wrapper.unmount();
 });
+
+it("lists highlights and bookmarks in Notes in reading order, with a filter for each, and copies or exports them", async () => {
+  const writeText = vi.fn(async () => {});
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  const wrapper = await openReader("book-0");
+  const reader = useReaderStore();
+  const second = sentence("0:2:0");
+  await reader.addHighlight(0, span(second, 0, 2).start, span(second, 0, 2).end);
+  await mock.addBookmark({ bookId: "book-0", note: "", segmentId: "0:1:0" });
+  await wrapper.get('[aria-label="Notes and details"]').trigger("click");
+  await flushPromises();
+  const sheet = wrapper.get('[role="dialog"]');
+  const items = () => sheet.findAll(".book-notes__item").map((i) => i.attributes("data-kind"));
+  expect(items()).toEqual(["bookmark", "highlight"]);
+  expect(sheet.get('[data-kind="highlight"]').text()).toContain("Tonight a paper");
+  await sheet.get('[aria-label="Show highlights"]').trigger("click");
+  expect(items()).toEqual(["bookmark"]);
+  await sheet.get('[aria-label="Show highlights"]').trigger("click");
+  await sheet.get('[aria-label="Show bookmarks"]').trigger("click");
+  expect(items()).toEqual(["highlight"]);
+
+  // Its note is written here too.
+  await sheet.get('[data-kind="highlight"] .book-notes__note').trigger("click");
+  const field = sheet.get<HTMLInputElement>('[aria-label="Edit highlight note"]');
+  field.element.value = "A boat";
+  await field.trigger("change");
+  await flushPromises();
+  expect(reader.highlights[0].note).toBe("A boat");
+
+  await sheet.get(".book-notes__copy").trigger("click");
+  await flushPromises();
+  expect(writeText).toHaveBeenCalledWith(expect.stringContaining("> Tonight a paper"));
+  const choose = vi.spyOn(mock, "chooseNotesTarget"),
+    write = vi.spyOn(mock, "exportNotes");
+  await sheet.get(".book-notes__export").trigger("click");
+  await flushPromises();
+  expect(choose).toHaveBeenCalledWith({ fileName: "The Lantern Keeper.md" });
+  expect(write).toHaveBeenCalledWith({ bookId: "book-0", path: "~/The Lantern Keeper.md" });
+  expect(useUiStore().toasts.map((t) => t.text)).toContain("Notes exported");
+
+  await sheet.get('[data-kind="highlight"] [aria-label="Delete highlight"]').trigger("click");
+  await flushPromises();
+  expect(reader.highlights).toEqual([]);
+  wrapper.unmount();
+});
+
+it("exports every book's notes into a chosen folder from Settings › Library", async () => {
+  const { default: LibrarySettings } = await import("@/components/settings/LibrarySettings.vue");
+  await mock.addBookmark({ bookId: "book-0", note: "", segmentId: "0:1:0" });
+  const wrapper = mount(LibrarySettings);
+  await flushPromises();
+  const write = vi.spyOn(mock, "exportAllNotes");
+  await wrapper.get(".library-settings__notes").trigger("click");
+  await flushPromises();
+  expect(write).toHaveBeenCalledWith({ folder: "~/Notes" });
+  expect(wrapper.text()).toContain("Wrote the notes of 1 book into ~/Notes.");
+  wrapper.unmount();
+});

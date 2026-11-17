@@ -130,8 +130,8 @@ const { isArticle } = useOpenArticle();
           size="lg"
           icon
           class="reader__round"
-          aria-label="Bookmarks and details"
-          title="Bookmarks and details"
+          aria-label="Notes and details"
+          title="Notes and details"
           aria-haspopup="dialog"
           :aria-expanded="Boolean(navigation.tools)"
           @click="openTools(undefined)"

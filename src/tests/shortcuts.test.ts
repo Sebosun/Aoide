@@ -147,7 +147,7 @@ it("opens and closes Settings with Ctrl comma, and lists the shortcuts under Abo
 it("leaves the reader with Escape, unless Escape is closing something over it", async () => {
   const wrapper = await app();
   await reading(wrapper);
-  await wrapper.get('[aria-label="Bookmarks and details"]').trigger("click");
+  await wrapper.get('[aria-label="Notes and details"]').trigger("click");
   await flushPromises();
   expect(wrapper.find('[role="dialog"][aria-label="Book tools"]').exists()).toBe(true);
   press("Escape");

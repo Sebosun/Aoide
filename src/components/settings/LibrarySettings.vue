@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref } from "vue";
-import { FolderSearch, Library, Sparkles } from "@lucide/vue";
+import { FileDown, FolderSearch, Library, Sparkles } from "@lucide/vue";
 import { api } from "@/api";
 import type { TaggingSettings } from "@/api/types";
 import SettingsSection from "@/components/settings/SettingsSection.vue";
@@ -38,6 +38,21 @@ async function tagUntagged() {
     tagging_.value = false;
   }
 }
+const exported = ref("");
+/** Writes every book's highlights and bookmarks into a chosen folder, a Markdown file each. */
+async function exportAllNotes() {
+  exported.value = "";
+  try {
+    const folder = await api.chooseNotesFolder();
+    if (!folder) return;
+    const books = await api.exportAllNotes({ folder });
+    exported.value = books
+      ? `Wrote the notes of ${books} ${books === 1 ? "book" : "books"} into ${folder}.`
+      : "No book has highlights or bookmarks yet.";
+  } catch (e) {
+    exported.value = String(e);
+  }
+}
 function findBooks() {
   navigation.closeSettings();
   navigation.view = "find";
@@ -58,6 +73,18 @@ function findBooks() {
           <FolderSearch :size="15" /> Find books on this computer…
         </UiButton>
       </div>
+    </SettingsSection>
+    <SettingsSection title="Notes">
+      <SettingsNote
+        >Your highlights and bookmarks, with their notes, as one Markdown file per book. A book's own are under Notes in
+        its book tools.</SettingsNote
+      >
+      <div>
+        <UiButton size="sm" class="library-settings__button library-settings__notes" @click="exportAllNotes">
+          <FileDown :size="15" /> Export all notes…
+        </UiButton>
+      </div>
+      <SettingsNote v-if="exported" role="status">{{ exported }}</SettingsNote>
     </SettingsSection>
     <SettingsSection title="Book details">
       <label v-if="settings" class="library-settings__check"

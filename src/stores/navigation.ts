@@ -4,7 +4,7 @@ import { ref, watch } from "vue";
 /** The screens. "reader" is the reader, which takes the whole window; "item" is one item's page
  *  (`bookId`); "find" and "audiobooks" find books and audiobooks on this computer. */
 export type View = "home" | "library" | "feeds" | "activity" | "item" | "reader" | "find" | "audiobooks";
-export type ToolsTab = "bookmarks" | "search" | "details";
+export type ToolsTab = "notes" | "search" | "details";
 export type SettingsTab =
   "appearance" | "engine" | "recordings" | "library" | "feeds" | "sites" | "highlighting" | "storage" | "about";
 /** The names the sidebar and the reader's back button give each screen. */
@@ -70,7 +70,7 @@ export const useNavigationStore = defineStore("navigation", () => {
     findRequest = ref(0),
     findQuery = ref("");
   let finds = 0;
-  function openTools(tab: ToolsTab = "bookmarks") {
+  function openTools(tab: ToolsTab = "notes") {
     findRequest.value = 0;
     tools.value = tab;
   }

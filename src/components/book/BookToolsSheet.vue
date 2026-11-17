@@ -1,20 +1,20 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { nextTick, ref, watch } from "vue";
-import { Bookmark, Info, Search, X } from "@lucide/vue";
+import { Info, NotebookPen, Search, X } from "@lucide/vue";
 import BookSearch from "@/components/book/BookSearch.vue";
-import BookBookmarks from "@/components/book/BookBookmarks.vue";
+import BookNotes from "@/components/book/BookNotes.vue";
 import BookInfo from "@/components/book/BookInfo.vue";
 import UiDialog from "@/components/ui/UiDialog.vue";
 import { useReaderStore } from "@/stores/reader";
 import { useNavigationStore, type ToolsTab } from "@/stores/navigation";
 
 export type { ToolsTab };
-/** Book tools as a modal bottom sheet: Bookmarks, Search (a picked result closes the sheet) and
+/** Book tools as a modal bottom sheet: Notes (highlights and bookmarks), Search (a picked result closes the sheet) and
  *  Details (with extraction notes). Narration is a dialog of its own. Escape or the backdrop
  *  closes it; focus returns to the opener, or to the reader's tools button when WebKit had not
  *  focused it. */
-const props = withDefaults(defineProps<{ initialTab?: ToolsTab }>(), { initialTab: "bookmarks" });
+const props = withDefaults(defineProps<{ initialTab?: ToolsTab }>(), { initialTab: "notes" });
 const emit = defineEmits<{ close: [] }>();
 const reader = useReaderStore(),
   navigation = useNavigationStore();
@@ -34,13 +34,13 @@ watch(
   },
 );
 const allTabs = [
-  { id: "bookmarks", label: "Bookmarks", icon: Bookmark },
+  { id: "notes", label: "Notes", icon: NotebookPen },
   { id: "search", label: "Search", icon: Search },
   { id: "details", label: "Details", icon: Info },
 ] as const;
 /** An audiobook on its own has no text to search and no voice to choose. */
-const tabs = reader.shape === "listen" ? allTabs.filter((t) => t.id === "bookmarks" || t.id === "details") : allTabs;
-if (!tabs.some((t) => t.id === tab.value)) tab.value = "bookmarks";
+const tabs = reader.shape === "listen" ? allTabs.filter((t) => t.id === "notes" || t.id === "details") : allTabs;
+if (!tabs.some((t) => t.id === tab.value)) tab.value = "notes";
 async function focusTab() {
   await nextTick();
   tabList.value?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus();
@@ -61,7 +61,7 @@ function moveTab(delta: number) {
     label="Book tools"
     variant="sheet"
     :initial-focus="initialFocus"
-    return-focus='.reader__actions [aria-label="Bookmarks and details"]'
+    return-focus='.reader__actions [aria-label="Notes and details"]'
     @close="emit('close')"
   >
     <div class="book-tools">
@@ -104,7 +104,7 @@ function moveTab(delta: number) {
         role="tabpanel"
         :aria-labelledby="`book-tools-tab-${tab}`"
       >
-        <BookBookmarks v-if="tab === 'bookmarks'" :key="`b:${reader.book.id}`" :book-id="reader.book.id" />
+        <BookNotes v-if="tab === 'notes'" :key="`n:${reader.book.id}`" :book-id="reader.book.id" />
         <BookSearch
           v-else-if="tab === 'search'"
           :key="`s:${reader.book.id}`"

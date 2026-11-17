@@ -42,22 +42,22 @@ it("keeps every book tool at the top: the player at the foot only plays", async 
   expect(dock.find('[aria-label="Add bookmark"]').exists()).toBe(false);
   expect(dock.find('[aria-label="Book tools"]').exists()).toBe(false);
   const header = wrapper.get(".reader__actions");
-  for (const label of ["Search this book", "Narration", "Bookmark this place", "Bookmarks and details"])
+  for (const label of ["Search this book", "Narration", "Bookmark this place", "Notes and details"])
     expect(header.find(`[aria-label="${label}"]`).exists(), label).toBe(true);
   wrapper.unmount();
 });
 
 it("opens book tools as a modal bottom sheet with three tabs, and Escape returns to its button", async () => {
   const wrapper = await reader();
-  const button = wrapper.get('[aria-label="Bookmarks and details"]');
+  const button = wrapper.get('[aria-label="Notes and details"]');
   await button.trigger("click");
   await flushPromises();
   const sheet = wrapper.get('[role="dialog"]');
   expect(sheet.attributes("aria-modal")).toBe("true");
   expect(sheet.attributes("aria-label")).toBe("Book tools");
-  expect(sheet.findAll('[role="tab"]').map((t) => t.text())).toEqual(["Bookmarks", "Search", "Details"]);
+  expect(sheet.findAll('[role="tab"]').map((t) => t.text())).toEqual(["Notes", "Search", "Details"]);
   const selected = sheet.get('[role="tab"][aria-selected="true"]');
-  expect(selected.text()).toBe("Bookmarks");
+  expect(selected.text()).toBe("Notes");
   expect(document.activeElement).toBe(selected.element);
 
   await sheet.trigger("keydown", { key: "Escape" });
@@ -69,7 +69,7 @@ it("opens book tools as a modal bottom sheet with three tabs, and Escape returns
 
 it("moves between tabs with the arrow keys and closes from the backdrop", async () => {
   const wrapper = await reader();
-  await wrapper.get('[aria-label="Bookmarks and details"]').trigger("click");
+  await wrapper.get('[aria-label="Notes and details"]').trigger("click");
   await flushPromises();
   await wrapper.get('[role="tab"][aria-selected="true"]').trigger("keydown", { key: "ArrowRight" });
   expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe("Search");
