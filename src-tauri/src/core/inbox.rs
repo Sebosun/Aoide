@@ -563,6 +563,17 @@ fn identity(dir: &Path) -> Option<()> {
     dir.is_dir().then_some(())
 }
 
+/// A book file the inbox takes: one that is a book by nature (EPUB, PDF, FB2). Text, Markdown,
+/// HTML and Word files in a downloads folder are mostly not books, so only a choice adds them.
+fn is_inbox_book(path: &Path) -> bool {
+    use crate::book::Format;
+    let format = path
+        .file_name()
+        .and_then(|n| Format::of_name(&n.to_string_lossy()));
+    aoide_library::is_book_file(path)
+        && matches!(format, Some(Format::Epub | Format::Pdf | Format::Fb2))
+}
+
 /// The book files directly in `dir` (hidden ones left out), each as it is now.
 fn listed(dir: &Path) -> std::io::Result<Vec<(PathBuf, Stamp)>> {
     let mut files = Vec::new();
@@ -571,7 +582,7 @@ fn listed(dir: &Path) -> std::io::Result<Vec<(PathBuf, Stamp)>> {
         let hidden = path
             .file_name()
             .is_some_and(|name| name.to_string_lossy().starts_with('.'));
-        let takes = aoide_library::is_book_file(&path) || super::articles::is_email_file(&path);
+        let takes = is_inbox_book(&path) || super::articles::is_email_file(&path);
         if hidden || !takes {
             continue;
         }
@@ -731,6 +742,18 @@ mod tests {
         world.settle(start + Duration::from_secs(10));
         assert_eq!(world.files("Books"), ["Lights (1).epub"]);
         assert_eq!(world.added().len(), 1);
+    }
+
+    #[test]
+    fn only_files_that_are_books_by_nature_are_taken_from_the_inbox() {
+        let world = world();
+        // A saved page, notes and a letter are mostly not books when they are downloaded.
+        for name in ["receipt.html", "todo.txt", "README.md", "letter.docx"] {
+            std::fs::write(world.downloads().join(name), "Some words.").unwrap();
+        }
+        world.settle(Instant::now());
+        assert!(world.files("Books").is_empty());
+        assert!(world.added().is_empty());
     }
 
     #[test]

@@ -109,7 +109,7 @@ pub async fn choose_books(app: tauri::AppHandle) -> Option<Vec<String>> {
         dialog
             .set_title("Choose books to add")
             .add_filter(
-                "Books and saved emails (EPUB, PDF, EML)",
+                "Books and saved emails (EPUB, PDF, DOCX, FB2, TXT, Markdown, HTML, EML)",
                 &[aoide_library::BOOK_EXTENSIONS.as_slice(), &["eml"]].concat(),
             )
             .pick_files(move |files| done(files.map(|f| f.iter().map(|p| p.to_string()).collect())))

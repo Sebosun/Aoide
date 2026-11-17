@@ -120,7 +120,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `library.scan` | info, warn, error | `books`, `new`, `read`, `with_series` (books whose series was read this scan), `took_ms`, `outcome`, `error` | `core.rs` `rescan` |
 | `tags.classify` | info / warn | `book`, `tags` (how many came back), `error`, `took_ms`, `outcome` | `core/tagging.rs` |
 | `tags.classify_all` | info | `tagged`, `missed` (items given nothing or that failed), `took_ms`, `outcome` | `core/tagging.rs` |
-| `library.import` | info, warn | `ok`, `failed`; per failure `file`, `error` | `core.rs` `import_files` |
+| `library.import` | info, warn | `ok`, `failed`; per failure `file`, `format` (by its name: `Epub`, `Pdf`, `Docx`, `Fb2`, `Text`, `Markdown`, `Html`, `Kindle`, or none), `error` | `core.rs` `import_files` |
 | `library.watch` | warn | `error` | `core.rs`, the library folder watcher |
 | `inbox.imported` | info | `book`, `file` (name only) | `core/inbox.rs` `take`, a book file in the inbox folder copied into the library; the window is told what one look added (`inbox://added`) |
 | `inbox.skipped` | info | `file` (name only), `why` (`in_library`: its content is there already, `removed`: the user removed that book or saved email, `unreadable` (or not an email), `failed`: it could not be added), `error` | `core/inbox.rs` `take`; a file passed over is not looked at again until it changes |

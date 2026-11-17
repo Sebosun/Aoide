@@ -577,15 +577,22 @@ pub fn content_hash(bytes: &[u8]) -> BookId {
 }
 
 /// The file extensions of books (compared ignoring case).
-pub const BOOK_EXTENSIONS: [&str; 2] = ["epub", "pdf"];
+pub const BOOK_EXTENSIONS: [&str; 10] = [
+    "epub", "pdf", "docx", "fb2", "fb2.zip", "txt", "md", "markdown", "html", "htm",
+];
 
-/// Whether `path` names a book file (an EPUB or a PDF), by its extension.
+/// Whether `path` names a book file, by its extension (one of [`BOOK_EXTENSIONS`]).
 pub fn is_book_file(path: &Path) -> bool {
-    path.extension()
-        .is_some_and(|ext| BOOK_EXTENSIONS.iter().any(|b| ext.eq_ignore_ascii_case(b)))
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    BOOK_EXTENSIONS
+        .iter()
+        .any(|ext| name.len() > ext.len() + 1 && name.ends_with(&format!(".{ext}")))
 }
 
-/// The books (EPUBs and PDFs) under `dir` (hidden files and folders left out), by path, each with the id its
+/// The book files (see [`is_book_file`]) under `dir` (hidden files and folders left out), by path, each with the id its
 /// content hashes to. A file `known` from an earlier scan, with the same size and modification
 /// time, keeps the id it had there without being read again.
 pub fn scan_folder(dir: &Path, known: &[ScannedFile]) -> Result<Vec<ScannedFile>> {

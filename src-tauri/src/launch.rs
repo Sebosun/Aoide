@@ -202,7 +202,7 @@ mod tests {
             "--install-desktop-file",
             "-quay.epub",
             "Song.mp3",
-            "Notes.txt",
+            "Notes.odt",
         ] {
             std::fs::write(dir.path().join(name), b"x").unwrap();
         }
@@ -212,7 +212,7 @@ mod tests {
                 "--install-desktop-file",
                 "-quay.epub",
                 "Song.mp3",
-                "Notes.txt",
+                "Notes.odt",
                 "Folder.epub",
                 "Gone.epub",
                 "file:///nowhere/Gone.epub",

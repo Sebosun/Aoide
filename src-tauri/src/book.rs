@@ -172,14 +172,124 @@ pub struct ExcludedView {
     pub reason: String,
 }
 
-/// An EPUB or a PDF (told apart by its content), parsed.
-pub fn parse_document(bytes: &[u8]) -> Result<ParsedBook, String> {
-    if aoide_pdf::is_pdf(bytes) {
-        aoide_pdf::parse_pdf(bytes).map_err(|e| e.to_string())
-    } else {
-        aoide_epub::parse_epub(bytes, &aoide_epub::ParseOptions::default())
-            .map_err(|e| e.to_string())
+/// The kinds of book file Aoide reads, and Kindle books, which it recognises to refuse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Format {
+    Epub,
+    Pdf,
+    Docx,
+    Fb2,
+    Text,
+    Markdown,
+    Html,
+    /// MOBI or AZW3: no dependable reader, and most carry DRM.
+    Kindle,
+}
+
+/// What a Kindle book is refused with.
+pub const KINDLE: &str = "This is a Kindle book (MOBI or AZW3), which Aoide cannot read. Convert it to EPUB with Calibre, then add the EPUB.";
+
+impl Format {
+    /// Whether a file of this format may hold no text at all (a scanned PDF): one that cannot
+    /// be read is passed over by the library scan instead of listed with its error.
+    pub fn may_hold_no_text(self) -> bool {
+        self == Format::Pdf
     }
+
+    /// The format a file's name says, for files that cannot be told by content.
+    pub fn of_name(name: &str) -> Option<Format> {
+        let name = name.to_ascii_lowercase();
+        let ends = |suffix: &str| name.ends_with(suffix);
+        Some(if ends(".epub") {
+            Format::Epub
+        } else if ends(".pdf") {
+            Format::Pdf
+        } else if ends(".docx") {
+            Format::Docx
+        } else if ends(".fb2") || ends(".fb2.zip") {
+            Format::Fb2
+        } else if ends(".txt") {
+            Format::Text
+        } else if ends(".md") || ends(".markdown") {
+            Format::Markdown
+        } else if ends(".html") || ends(".htm") || ends(".xhtml") {
+            Format::Html
+        } else if ends(".mobi") || ends(".azw") || ends(".azw3") {
+            Format::Kindle
+        } else {
+            return None;
+        })
+    }
+}
+
+/// A file's format: by its content first (a PDF's header, an EPUB's or a DOCX's zip, FB2's
+/// XML, a Kindle book's mark), then by its name; an EPUB when neither says.
+pub fn format_of(bytes: &[u8], name: Option<&str>) -> Format {
+    if aoide_pdf::is_pdf(bytes) {
+        return Format::Pdf;
+    }
+    if bytes.get(60..68).is_some_and(|mark| mark == b"BOOKMOBI") {
+        return Format::Kindle;
+    }
+    if bytes.starts_with(b"PK\x03\x04") {
+        if let Ok(zip) = zip::ZipArchive::new(std::io::Cursor::new(bytes)) {
+            let names: Vec<&str> = zip.file_names().collect();
+            if names.contains(&"word/document.xml") {
+                return Format::Docx;
+            }
+            if names.contains(&"mimetype") || names.iter().any(|n| n.ends_with(".opf")) {
+                return Format::Epub;
+            }
+            if names
+                .iter()
+                .any(|n| n.to_ascii_lowercase().ends_with(".fb2"))
+            {
+                return Format::Fb2;
+            }
+        }
+    }
+    let head = String::from_utf8_lossy(&bytes[..bytes.len().min(1024)]);
+    if head.contains("<FictionBook") {
+        return Format::Fb2;
+    }
+    name.and_then(Format::of_name).unwrap_or(Format::Epub)
+}
+
+/// A book file of any format Aoide reads (told apart by its content, then by `name`), parsed.
+pub fn parse_document_named(bytes: &[u8], name: Option<&str>) -> Result<ParsedBook, String> {
+    match format_of(bytes, name) {
+        Format::Pdf => aoide_pdf::parse_pdf(bytes).map_err(|e| e.to_string()),
+        Format::Epub => aoide_epub::parse_epub(bytes, &aoide_epub::ParseOptions::default())
+            .map_err(|e| e.to_string()),
+        Format::Text => aoide_plaintext::parse_text(bytes).map_err(|e| e.to_string()),
+        Format::Markdown => aoide_plaintext::parse_markdown(bytes).map_err(|e| e.to_string()),
+        Format::Html => {
+            // A saved page, read as an article is but kept as a book.
+            let html = String::from_utf8_lossy(bytes);
+            let address = url::Url::parse("file:///book.html").expect("a valid address");
+            let options = aoide_article::ExtractOptions::default();
+            let extracted = aoide_article::extract(&html, &address, &options);
+            let mut document = extracted.document;
+            if document.chapters.iter().all(|c| c.text.trim().is_empty()) {
+                return Err("no readable text was found in this page".into());
+            }
+            for chapter in &mut document.chapters {
+                // Pictures of a saved page are not fetched.
+                chapter
+                    .inserts
+                    .retain(|i| !matches!(i.kind, aoide_document::InsertKind::Picture { .. }));
+            }
+            Ok(document)
+        }
+        Format::Docx | Format::Fb2 => Err("this format is not read yet".into()),
+        Format::Kindle => Err(KINDLE.into()),
+    }
+}
+
+/// [`parse_document_named`] by content alone.
+#[cfg(test)]
+pub fn parse_document(bytes: &[u8]) -> Result<ParsedBook, String> {
+    parse_document_named(bytes, None)
 }
 
 /// How a book's text is laid out for listening, beyond the text itself.
@@ -241,8 +351,23 @@ pub enum CodeSpeech {
 
 impl BookModel {
     /// An EPUB's or a PDF's text (told apart by its content).
+    #[cfg(test)]
     pub fn parse(id: &str, bytes: &[u8], layout: &Layout) -> Result<Self, String> {
         Ok(Self::from_parsed(id, parse_document(bytes)?, layout))
+    }
+
+    /// [`BookModel::parse`] of a file named `name`, for formats told by their name.
+    pub fn parse_named(
+        id: &str,
+        bytes: &[u8],
+        name: &str,
+        layout: &Layout,
+    ) -> Result<Self, String> {
+        Ok(Self::from_parsed(
+            id,
+            parse_document_named(bytes, Some(name))?,
+            layout,
+        ))
     }
 
     pub fn from_parsed(id: &str, parsed: ParsedBook, layout: &Layout) -> Self {

@@ -228,8 +228,9 @@ impl Shelf {
                 }
                 existing => {
                     let described = self.describe(&file.path, &file.id);
-                    // A PDF that cannot be read (a scan has no text) is passed over, not listed.
-                    if described.0.error.is_some() && is_pdf_file(&file.path) {
+                    // A file that may hold no text (a scanned PDF) is passed over, not listed,
+                    // when it cannot be read.
+                    if described.0.error.is_some() && may_hold_no_text(&file.path) {
                         continue;
                     }
                     if existing.is_none() {
@@ -314,7 +315,7 @@ impl Shelf {
         let fallback_title = path.file_stem().map(|s| s.to_string_lossy().into_owned());
         let parsed = std::fs::read(path)
             .map_err(|e| e.to_string())
-            .and_then(|bytes| crate::book::parse_document(&bytes))
+            .and_then(|bytes| crate::book::parse_document_named(&bytes, file_name(path).as_deref()))
             .and_then(|book: aoide_epub::ParsedBook| {
                 // Parsing can succeed with nothing to read (every section empty or left out).
                 if book.chapters.iter().any(|c| !c.text.trim().is_empty()) {
@@ -388,8 +389,17 @@ impl Shelf {
             .map(|path| {
                 let source = PathBuf::from(&path);
                 let outcome = (|| -> Result<String, String> {
+                    let name = file_name(&source);
+                    if name.as_deref().and_then(crate::book::Format::of_name)
+                        == Some(crate::book::Format::Kindle)
+                    {
+                        return Err(crate::book::KINDLE.into());
+                    }
                     if !aoide_library::is_book_file(&source) {
-                        return Err("not an .epub or .pdf file".into());
+                        return Err(format!(
+                            "not a book file Aoide reads (.{})",
+                            aoide_library::BOOK_EXTENSIONS.join(", .")
+                        ));
                     }
                     let bytes = std::fs::read(&source).map_err(|e| e.to_string())?;
                     // A PDF with no text to read (a scan) is not taken in at all.
@@ -463,12 +473,13 @@ impl Shelf {
             event = "library.import",
             ok = results.len() - failed,
             failed,
-            "Added EPUB files"
+            "Added book files"
         );
         for result in results.iter().filter(|r| r.error.is_some()) {
             tracing::warn!(
                 event = "library.import",
                 file = %crate::logging::file(Path::new(&result.path)),
+                format = ?file_name(Path::new(&result.path)).as_deref().and_then(crate::book::Format::of_name),
                 outcome = "failed",
                 error = result.error.as_deref().unwrap_or_default(),
                 "Could not add an EPUB file"
@@ -664,7 +675,8 @@ impl Shelf {
             BookModel::from_parsed(id, document, &host.layout(id))
         } else {
             let bytes = std::fs::read(&record.path).map_err(|e| e.to_string())?;
-            BookModel::parse(id, &bytes, &host.layout(id))?
+            let name = file_name(&record.path).unwrap_or_default();
+            BookModel::parse_named(id, &bytes, &name, &host.layout(id))?
         };
         // Its title and authors as the library shows them: corrected by hand, else the file's
         // (a PDF with none goes by its file name everywhere).
@@ -1251,9 +1263,16 @@ impl super::Core {
     }
 }
 
-fn is_pdf_file(path: &Path) -> bool {
-    path.extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
+fn file_name(path: &Path) -> Option<String> {
+    path.file_name().map(|n| n.to_string_lossy().into_owned())
+}
+
+/// Whether the file's format may hold no text at all (see [`crate::book::Format`]).
+fn may_hold_no_text(path: &Path) -> bool {
+    file_name(path)
+        .as_deref()
+        .and_then(crate::book::Format::of_name)
+        .is_some_and(crate::book::Format::may_hold_no_text)
 }
 
 /// A book's subjects and series, from one read of an EPUB's package (or a PDF's keywords,
@@ -1262,15 +1281,25 @@ fn package_of(path: &Path) -> (Vec<String>, Option<aoide_epub::Series>) {
     let Ok(bytes) = std::fs::read(path) else {
         return Default::default();
     };
-    if aoide_pdf::is_pdf(&bytes) {
-        let subjects = aoide_pdf::read_pdf_metadata(&bytes)
-            .map(|meta| meta.subjects)
-            .unwrap_or_default();
-        return (subjects, None);
+    use crate::book::Format;
+    match crate::book::format_of(&bytes, file_name(path).as_deref()) {
+        Format::Pdf => {
+            let subjects = aoide_pdf::read_pdf_metadata(&bytes)
+                .map(|meta| meta.subjects)
+                .unwrap_or_default();
+            (subjects, None)
+        }
+        Format::Epub => aoide_epub::read_metadata(&bytes, &aoide_epub::ParseOptions::default())
+            .map(|meta| (meta.subjects, meta.series))
+            .unwrap_or_default(),
+        // Read whole: only small formats say these.
+        Format::Fb2 | Format::Docx => {
+            crate::book::parse_document_named(&bytes, file_name(path).as_deref())
+                .map(|book| (book.subjects, book.series))
+                .unwrap_or_default()
+        }
+        _ => Default::default(),
     }
-    aoide_epub::read_metadata(&bytes, &aoide_epub::ParseOptions::default())
-        .map(|meta| (meta.subjects, meta.series))
-        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -1387,6 +1416,81 @@ mod tests {
         assert!(book.chapters[0].text.contains("The ferry left at dawn."));
         // A scan has no text to read: not listed.
         assert!(!books.iter().any(|b| b.title == "Scanned"));
+    }
+
+    #[test]
+    fn text_markdown_and_html_files_are_imported_and_read_like_books() {
+        let dir = tempfile::tempdir().unwrap();
+        let shelf = shelf(dir.path());
+        let files = [
+            (
+                "Lamp.txt",
+                "CHAPTER I\n\nThe keeper climbed the stair.\n\nCHAPTER II\n\nMorning came.\n",
+            ),
+            (
+                "Essay.md",
+                "---\ntitle: On Lamps\nauthor: Mara Quill\n---\n\n# On Lamps\n\nTrim the *wick* often.\n",
+            ),
+            (
+                "Page.html",
+                "<html><head><title>The Quay</title></head><body><article><h1>The Quay</h1><p>The ferry left at dawn and the gulls followed it out past the breakwater, calling.</p><p>By noon the quay was quiet again, the nets drying on the wall in the sun.</p></article></body></html>",
+            ),
+        ];
+        let paths: Vec<String> = files
+            .iter()
+            .map(|(name, text)| {
+                let path = dir.path().join(name);
+                std::fs::write(&path, text).unwrap();
+                path.to_string_lossy().into_owned()
+            })
+            .collect();
+        let results = shelf.import_files(paths);
+        assert!(results.iter().all(|r| r.error.is_none()), "{results:?}");
+        shelf.rescan().unwrap();
+        let books = shelf.list(&Host).unwrap();
+        let titles: std::collections::BTreeSet<&str> =
+            books.iter().map(|b| b.title.as_str()).collect();
+        assert_eq!(titles, ["Lamp", "On Lamps", "The Quay"].into());
+        let read = |title: &str| {
+            let id = &books.iter().find(|b| b.title == title).unwrap().id;
+            shelf.load(id, &Host).unwrap()
+        };
+        let lamp = read("Lamp");
+        assert_eq!(lamp.chapters.len(), 2);
+        assert!(lamp.chapters[0]
+            .text
+            .contains("The keeper climbed the stair."));
+        assert!(read("On Lamps").chapters[0]
+            .text
+            .contains("Trim the wick often."));
+        assert!(read("The Quay").chapters[0]
+            .text
+            .contains("The ferry left at dawn"));
+        let essay = books.iter().find(|b| b.title == "On Lamps").unwrap();
+        assert_eq!(essay.authors, ["Mara Quill"]);
+    }
+
+    #[test]
+    fn a_kindle_book_is_refused_with_a_way_to_read_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let shelf = shelf(dir.path());
+        let outside = dir.path().join("Lamp.azw3");
+        let mut bytes = vec![0u8; 80];
+        bytes[60..68].copy_from_slice(b"BOOKMOBI");
+        std::fs::write(&outside, bytes).unwrap();
+        let results = shelf.import_files(vec![outside.to_string_lossy().into_owned()]);
+        assert_eq!(results[0].book_id, None);
+        assert!(
+            results[0].error.as_deref().unwrap().contains("Calibre"),
+            "{results:?}"
+        );
+        let other = dir.path().join("Notes.odt");
+        std::fs::write(&other, b"x").unwrap();
+        let results = shelf.import_files(vec![other.to_string_lossy().into_owned()]);
+        assert!(
+            results[0].error.as_deref().unwrap().contains(".txt"),
+            "{results:?}"
+        );
     }
 
     #[test]

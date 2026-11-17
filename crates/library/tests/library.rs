@@ -283,7 +283,7 @@ fn scan_finds_epubs_recursively_skipping_hidden_and_other_files() {
     std::fs::create_dir_all(root.join(".hidden")).unwrap();
     std::fs::write(root.join("b.epub"), b"bbb").unwrap();
     std::fs::write(root.join("sub/A.EPUB"), b"abc").unwrap();
-    std::fs::write(root.join("notes.txt"), b"x").unwrap();
+    std::fs::write(root.join("notes.odt"), b"x").unwrap();
     std::fs::write(root.join(".hidden/c.epub"), b"c").unwrap();
     std::fs::write(root.join(".d.epub"), b"d").unwrap();
 

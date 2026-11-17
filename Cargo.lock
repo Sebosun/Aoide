@@ -142,6 +142,7 @@ dependencies = [
  "aoide-metadata",
  "aoide-openai-speech",
  "aoide-pdf",
+ "aoide-plaintext",
  "aoide-recording",
  "aoide-sync",
  "aoide-text",
