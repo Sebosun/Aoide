@@ -554,7 +554,11 @@ impl Playback {
             let mut playing = lock(&self.playing);
             match playing.as_mut()? {
                 Playing::Entries(session) => {
-                    let moved = session.ticked.replace(playhead) != Some(playhead);
+                    let before = session.ticked.replace(playhead);
+                    let moved = before != Some(playhead);
+                    if let Some(before) = before {
+                        log_skipped_left_out(&session.target, before, playhead);
+                    }
                     let pieces = session.feed(playhead);
                     let book = session.target.book.id.clone();
                     let clips: Vec<Alignable> = match session.recording().cloned() {
@@ -901,6 +905,26 @@ fn timeline_state(
     }
 }
 
+/// Logs playback passing over chapters left out on its way from entry `from` to `to`.
+fn log_skipped_left_out(target: &Target, from: usize, to: usize) {
+    if !target.narration.passed_left_out(from, to) {
+        return;
+    }
+    let chapter = |index: usize| {
+        target
+            .book
+            .locate(index)
+            .map_or(target.book.chapters.len(), |(c, _)| c)
+    };
+    tracing::info!(
+        event = "playback.skipped_left_out",
+        book = crate::logging::book(&target.book.id),
+        from = chapter(from),
+        to = chapter(to),
+        "Passed over chapters left out of the narration"
+    );
+}
+
 fn status_of(status: Status) -> PlaybackStatus {
     match status {
         Status::Stopped | Status::Finished => PlaybackStatus::Stopped,
@@ -1025,7 +1049,8 @@ impl super::Core {
         }
     }
 
-    /// Plays from the start of the chapter `delta` chapters away from the current one.
+    /// Plays from the start of the chapter `delta` chapters away from the current one,
+    /// counting only those narrated.
     pub async fn skip_chapter(&self, delta: i64) -> Result<(), String> {
         if let Some(timeline) = self.playback.timeline() {
             return self.skip_part(&timeline, delta);
@@ -1034,8 +1059,14 @@ impl super::Core {
         let (chapter, _) = book
             .locate(self.playback.position().index)
             .unwrap_or((0, 0));
-        let last = book.chapters.len().saturating_sub(1) as i64;
-        let target = (chapter as i64 + delta).clamp(0, last) as usize;
+        let narrated = |c: usize| {
+            let first = book.chapters[c].first_entry;
+            !self
+                .playback
+                .with_narration(|_, n| n.is_left_out(first))
+                .unwrap_or(false)
+        };
+        let target = super::leaving_out::skip(chapter, delta, book.chapters.len(), narrated);
         self.play(&book.id, Some(target), None).await
     }
 

@@ -662,7 +662,7 @@ impl Core {
 
     /// The book's recording as a playback target: its clips (see
     /// [`super::recordings::Recordings::playable`]), and, when `settings` ask for it, what it
-    /// lacks said by the speech engine.
+    /// lacks said by the speech engine; the chapters `settings` leave out are passed over.
     pub(super) fn build_recording_target(
         &self,
         book: Arc<BookModel>,
@@ -686,7 +686,9 @@ impl Core {
                     .flatten()
             },
         );
-        Ok(Target { book, narration })
+        let mut target = Target { book, narration };
+        super::leaving_out::leave_out(&mut target, &settings.left_out);
+        Ok(target)
     }
 }
 

@@ -575,13 +575,16 @@ impl Core {
             .ok()
     }
 
-    /// `book` read by the speech engine.
+    /// `book` read by the speech engine, passing over the chapters it leaves out.
     fn speech_target(&self, book: Arc<BookModel>) -> Result<Target, String> {
         let plan = self.speech_plan(&book)?;
-        Ok(Target {
+        let left_out = self.book_settings(&book.id).left_out;
+        let mut target = Target {
             narration: narration::NarrationPlan::speech(&book, plan),
             book,
-        })
+        };
+        leaving_out::leave_out(&mut target, &left_out);
+        Ok(target)
     }
 
     /// How every book's text is laid out changed (its pauses): each is read again when next

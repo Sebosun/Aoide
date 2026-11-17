@@ -334,6 +334,50 @@ impl NarrationPlan {
         Some(total)
     }
 
+    /// The entries in `ranges` (chapters left out of the narration) are passed over.
+    pub fn leave_out(&mut self, ranges: &[Range<usize>]) {
+        for range in ranges {
+            let end = range.end.min(self.entries.len());
+            for entry in &mut self.entries[range.start.min(end)..end] {
+                if !matches!(entry.fate, Fate::LeftOut(_)) {
+                    entry.fate = Fate::LeftOut(Box::new(entry.fate.clone()));
+                }
+            }
+        }
+    }
+
+    /// Playback was sent into `range` (a chapter): its left-out entries play after all.
+    /// Returns the entries that changed.
+    pub fn admit(&mut self, range: Range<usize>) -> Vec<usize> {
+        let mut admitted = Vec::new();
+        let end = range.end.min(self.entries.len());
+        for (index, entry) in self.entries[range.start.min(end)..end]
+            .iter_mut()
+            .enumerate()
+        {
+            if matches!(entry.fate, Fate::LeftOut(_)) {
+                entry.fate = next(entry.fate.clone(), Event::Admitted);
+                admitted.push(range.start + index);
+            }
+        }
+        admitted
+    }
+
+    pub fn is_left_out(&self, index: usize) -> bool {
+        matches!(self.fate(index), Some(Fate::LeftOut(_)))
+    }
+
+    /// Whether the playhead going from `from` to `to` passed over left-out entries rather
+    /// than jumping: something between them is left out and nothing between them plays.
+    pub fn passed_left_out(&self, from: usize, to: usize) -> bool {
+        if to <= from + 1 {
+            return false;
+        }
+        let between = || self.within(from + 1..to).map(|(_, e)| &e.fate);
+        between().any(|f| matches!(f, Fate::LeftOut(_)))
+            && between().all(|f| matches!(f, Fate::LeftOut(_) | Fate::Silent | Fate::Unrecorded))
+    }
+
     /// The speech with cache key `key` is made, `duration_ms` long.
     pub fn segment_made(&mut self, key: &str, duration_ms: u32) {
         for entry in self.entries.iter_mut().filter(|e| e.key == key) {
@@ -661,6 +705,34 @@ mod tests {
             next(Fate::AwaitingSync, Event::Resynced(Fate::Unrecorded)),
             Fate::Unrecorded
         );
+    }
+
+    #[test]
+    fn a_chapter_left_out_plays_nothing_and_counts_for_nothing_until_admitted() {
+        let book = book();
+        let mut n = NarrationPlan::speech(&book, speech_plan(&book, None, &[0, 1, 2, 3]));
+        let full = n.playing_ms(0..4).unwrap();
+        n.leave_out(&[2..4]);
+        assert_eq!(speakable(&n, &book), [true, true, false, false]);
+        assert!(n.player_entries(&book)[2..]
+            .iter()
+            .all(|e| e.pause_after_ms == 0));
+        assert_eq!(n.made_speech(0..4).len(), 2, "its made speech is not given");
+        assert!(n.speech_items()[2..].iter().all(|i| !i.speakable));
+        assert_eq!(n.playing_ms(2..4), Some(0));
+        assert!(
+            n.passed_left_out(1, 4),
+            "from the chapter before to the end"
+        );
+        assert!(
+            !n.passed_left_out(0, 4),
+            "entry 1 would have played: a jump"
+        );
+        assert!(n.is_left_out(3) && !n.is_left_out(1));
+
+        assert_eq!(n.admit(2..4), [2, 3]);
+        assert_eq!(n.playing_ms(0..4), Some(full));
+        assert!(n.admit(2..4).is_empty());
     }
 
     #[test]

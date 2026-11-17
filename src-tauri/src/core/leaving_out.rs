@@ -8,7 +8,58 @@
 //! This is not the parser's excluded sections (`ExcludedView`): that is extraction, this is a
 //! choice about what is heard.
 
+use std::ops::Range;
+
 use crate::book::{BookModel, ChapterSummary};
+
+/// The entries of `book`'s chapters in `chapters`.
+pub(super) fn entries(book: &BookModel, chapters: &[usize]) -> Vec<Range<usize>> {
+    chapters
+        .iter()
+        .filter_map(|c| book.chapters.get(*c))
+        .map(|c| c.first_entry..c.first_entry + c.segments.len())
+        .collect()
+}
+
+/// The entries of the chapter entry `index` is in.
+pub(super) fn chapter_of(book: &BookModel, index: usize) -> Option<Range<usize>> {
+    let (chapter, _) = book.locate(index)?;
+    entries(book, &[chapter]).pop()
+}
+
+/// The chapter `delta` narrated chapters away from `from`, of `count`: as far as there are
+/// narrated chapters that way, and `from` itself when there are none.
+pub(super) fn skip(
+    from: usize,
+    delta: i64,
+    count: usize,
+    narrated: impl Fn(usize) -> bool,
+) -> usize {
+    let mut target = from;
+    let mut remaining = delta.unsigned_abs();
+    let mut chapter = from;
+    while remaining > 0 {
+        chapter = match (delta > 0).then(|| chapter + 1) {
+            Some(after) if after < count => after,
+            Some(_) => break,
+            None => match chapter.checked_sub(1) {
+                Some(before) => before,
+                None => break,
+            },
+        };
+        if narrated(chapter) {
+            target = chapter;
+            remaining -= 1;
+        }
+    }
+    target
+}
+
+/// `target` passes over the chapters in `left_out`.
+pub(super) fn leave_out(target: &mut super::Target, left_out: &[usize]) {
+    let ranges = entries(&target.book, left_out);
+    target.narration.leave_out(&ranges);
+}
 
 /// The chapters of `book` in `chosen` that it has, in order, each once.
 pub(super) fn within(book: &BookModel, chosen: &[usize]) -> Vec<usize> {
@@ -80,7 +131,8 @@ mod tests {
     use aoide_tts::EngineStatus;
 
     use super::super::engine_tests::{start_holding, Scripted};
-    use super::super::tests::epub_of_chapters;
+    use super::super::tests::{epub_of_chapters, until};
+    use super::super::{Core, ReadState};
 
     /// A book with front and back matter around two chapters.
     pub(in crate::core) fn book_with_matter() -> Vec<u8> {
@@ -96,6 +148,79 @@ mod tests {
             ),
             ("Notes", "Quay: a stone landing where boats tie up."),
         ])
+    }
+
+    /// Core with the book with matter, its id and its engine.
+    async fn started(
+        root: &std::path::Path,
+    ) -> (std::sync::Arc<Core>, String, std::sync::Arc<Scripted>) {
+        let engine = Scripted::new("main", EngineStatus::Ready(None), &["A.wav"], false);
+        let (core, _events, id) =
+            start_holding(root, &[&engine], "voiceId = \"A.wav\"", &book_with_matter()).await;
+        (core, id, engine)
+    }
+
+    /// Whether the engine was asked for anything of chapter `chapter`'s text.
+    fn asked_for(core: &Core, id: &str, engine: &Scripted, chapter: usize) -> bool {
+        let book = core.load_book(id).unwrap();
+        let model = &book.chapters[chapter];
+        let texts = engine.texts();
+        model
+            .segments
+            .iter()
+            .filter(|s| !s.speech.is_empty())
+            .any(|s| texts.iter().any(|t| t.contains(&s.speech)))
+    }
+
+    #[tokio::test]
+    async fn playback_reaching_a_chapter_left_out_carries_on_after_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let (core, id, engine) = started(dir.path()).await;
+        core.set_left_out(&id, vec![2]).await.unwrap();
+
+        core.play(&id, Some(1), None).await.unwrap();
+        until("playback to reach the notes", || {
+            core.player_state().chapter == 3
+        })
+        .await;
+        assert!(!asked_for(&core, &id, &engine, 2), "{:?}", engine.texts());
+        assert!(asked_for(&core, &id, &engine, 3));
+        core.stop();
+    }
+
+    #[tokio::test]
+    async fn the_last_chapter_left_out_ends_the_book_where_it_begins() {
+        let dir = tempfile::tempdir().unwrap();
+        let (core, id, engine) = started(dir.path()).await;
+        core.set_left_out(&id, vec![3]).await.unwrap();
+
+        core.play(&id, Some(2), None).await.unwrap();
+        until("the book to be finished", || {
+            core.list_books().unwrap()[0].read_state == ReadState::Finished
+        })
+        .await;
+        assert!(!asked_for(&core, &id, &engine, 3), "{:?}", engine.texts());
+        core.stop();
+    }
+
+    #[tokio::test]
+    async fn skipping_chapters_steps_over_those_left_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let (core, id, _engine) = started(dir.path()).await;
+        core.set_left_out(&id, vec![0, 2, 3]).await.unwrap();
+
+        core.play(&id, Some(1), None).await.unwrap();
+        core.pause();
+        core.skip_chapter(1).await.unwrap();
+        assert_eq!(core.player_state().chapter, 1, "nothing narrated after it");
+        core.skip_chapter(-1).await.unwrap();
+        assert_eq!(core.player_state().chapter, 1, "nothing narrated before it");
+        core.set_left_out(&id, vec![2]).await.unwrap();
+        core.skip_chapter(1).await.unwrap();
+        assert_eq!(core.player_state().chapter, 3);
+        core.skip_chapter(-1).await.unwrap();
+        assert_eq!(core.player_state().chapter, 1);
+        core.stop();
     }
 
     fn marks(core: &super::super::Core, id: &str) -> Vec<(bool, bool)> {
