@@ -206,6 +206,7 @@ const PLAYER_KEYS: { keys: string; key: string; init?: KeyboardEventInit; call: 
   { keys: "Shift ↑", key: "ArrowUp", init: { shiftKey: true }, call: "setVolume", with: { volume: 1 } },
   { keys: "M", key: "m", call: "setVolume", with: { volume: 0 } },
   { keys: "B", key: "b", call: "addBookmark", with: { bookId: "book-0", note: "" } },
+  { keys: "H", key: "h", call: "highlightSpoken", with: { bookId: "book-0" } },
 ];
 
 async function pausedOnABook() {

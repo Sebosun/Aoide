@@ -38,7 +38,8 @@ const volumeLabel = (volume: number) => (volume > 0 ? `Volume ${Math.round(volum
  *    sentences (and move by word in a text field, as usual).
  *  - [ and ] step the speed by 0.1×, \\ puts it back to 1×; Shift ↑ / ↓ step the volume by 10%
  *    (↑ and ↓ alone keep scrolling); M mutes. Each says the new value in a toast.
- *  - B bookmarks the playing (or open) book's place; T opens the player's sleep timer menu.
+ *  - B bookmarks the playing (or open) book's place; H highlights the sentence just spoken (in
+ *    the first second of a sentence, the one before it); T opens the player's sleep timer menu.
  *  - Escape leaves the reader for the screen it was opened from, when nothing is open over it.
  *  - The menu key (or Shift F10) is the reader's text menu's (ReaderSelection), which also has
  *    Shift ← / → and ↑ / ↓ while text is selected or a sentence was reached with the keyboard.
@@ -112,6 +113,10 @@ export function useShortcuts() {
     bookmark() {
       if (!controls.bookId.value) return false;
       void controls.bookmark();
+    },
+    highlight() {
+      if (!controls.player.state.bookId) return false;
+      void controls.highlightSpoken();
     },
     sleep() {
       if (!controls.bookId.value) return false;

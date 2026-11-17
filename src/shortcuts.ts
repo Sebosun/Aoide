@@ -12,6 +12,7 @@ export type ShortcutId =
   | "volume"
   | "mute"
   | "bookmark"
+  | "highlight"
   | "sleep"
   | "find"
   | "add"
@@ -88,6 +89,7 @@ export const SHORTCUTS: Shortcut[] = [
   },
   { id: "mute", label: "Mute or unmute", keys: [{ key: "m" }] },
   { id: "bookmark", label: "Bookmark here", keys: [{ key: "b" }] },
+  { id: "highlight", label: "Highlight the sentence just spoken", keys: [{ key: "h" }] },
   { id: "sleep", label: "Sleep timer", keys: [{ key: "t" }] },
   { id: "find", label: "Search the open book, or the library", keys: [{ key: "f", ctrl: true }], typing: true },
   { id: "add", label: "Add books or audiobooks", keys: [{ key: "n", ctrl: true }], typing: true },

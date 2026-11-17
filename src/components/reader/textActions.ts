@@ -1,5 +1,5 @@
 import type { Component } from "vue";
-import { Bookmark, Copy, Headphones, RotateCcw, Search, SpellCheck } from "@lucide/vue";
+import { Bookmark, Copy, Headphones, Highlighter, RotateCcw, Search, SpellCheck } from "@lucide/vue";
 import { api } from "@/api";
 import { fewWords, type TextRange } from "@/components/reader/selection";
 import { useNavigationStore } from "@/stores/navigation";
@@ -68,6 +68,22 @@ export function useTextActions(): TextAction[] {
           ui.toast("Copied", "info", "copy");
         } catch (e) {
           ui.toast(`Could not copy: ${e}`, "error");
+        }
+      },
+    },
+    {
+      id: "highlight",
+      label: "Highlight",
+      icon: Highlighter,
+      applies: ["selection"],
+      run: async (target) => {
+        if (target.kind !== "selection") return;
+        const { range } = target;
+        try {
+          await reader.addHighlight(range.chapter, range.start, range.end);
+          ui.toast("Highlighted", "info", "highlight");
+        } catch (e) {
+          ui.toast(String(e), "error");
         }
       },
     },

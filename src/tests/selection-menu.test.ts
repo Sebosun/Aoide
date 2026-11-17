@@ -84,14 +84,15 @@ const settle = async (ms: number) => {
 const menu = () => document.querySelector<HTMLElement>('[role="menu"][aria-label="Selected text"]');
 const entries = () => [...menu()!.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent?.trim());
 
-it("offers Copy, Search the book and Listen from here when words are selected", async () => {
+it("offers Copy, Highlight, Search the book and Listen from here when words are selected", async () => {
   await openReader();
   expect(menu()).toBeNull();
   await drag(["0:1:0", "carried a lantern"], ["0:1:0", "end of the pier."]);
-  expect(entries()).toEqual(["Copy", "Search the book", "Listen from here"]);
+  expect(entries()).toEqual(["Copy", "Highlight", "Search the book", "Listen from here"]);
   await drag(["0:1:0", "lantern"]);
   expect(entries(), "a word or a few can be said differently").toEqual([
     "Copy",
+    "Highlight",
     "Search the book",
     "Listen from here",
     "Say this differently…",
@@ -316,7 +317,7 @@ it("starts a selection with Shift and an arrow on a sentence reached with the ke
   await flushPromises();
   expect(document.activeElement?.textContent?.trim()).toBe("Copy");
   press("ArrowDown");
-  expect(document.activeElement?.textContent?.trim()).toBe("Search the book");
+  expect(document.activeElement?.textContent?.trim()).toBe("Highlight");
   press("Escape");
   await flushPromises();
   expect(menu()).toBeNull();

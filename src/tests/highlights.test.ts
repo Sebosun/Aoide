@@ -10,6 +10,10 @@ import { usePlayerStore } from "@/stores/player";
 import { useLibraryStore } from "@/stores/library";
 import { usePreferencesStore } from "@/stores/preferences";
 import { sentenceMarks, pieces } from "@/components/reader/highlights";
+import { useTextActions } from "@/components/reader/textActions";
+import { usePlayerControls } from "@/composables/usePlayerControls";
+import { useUiStore } from "@/stores/ui";
+import ToastStack from "@/components/ui/ToastStack.vue";
 import type { ChapterView, HighlightView, SegmentView } from "@/api/types";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
@@ -125,5 +129,48 @@ it("shows a highlight made on the page in Lines, in the spoken sentence and thos
   ).toBe("Every evening,");
   const after = wrapper.get('.reader-lines__line[data-segment-id="0:2:0"]');
   expect(after.get("mark").text()).toBe("Tonight a");
+  wrapper.unmount();
+});
+
+it("highlights selected words from the text menu, joined with a highlight they touch", async () => {
+  const wrapper = await openReader();
+  const reader = useReaderStore();
+  const target = reader.chapter!.blocks.flatMap((b) => b.segments).find((s) => s.speakable && s.words.length > 3)!;
+  const highlight = useTextActions().find((a) => a.id === "highlight")!;
+  expect(highlight.applies).toEqual(["selection"]);
+  const { start, end } = span(target, 0, 1);
+  await highlight.run({
+    kind: "selection",
+    range: { chapter: 0, start, end, text: target.words.slice(0, 2).join(" "), firstSegmentId: target.id },
+  });
+  expect(reader.highlights.map((h) => h.text)).toEqual([target.words.slice(0, 2).join(" ")]);
+  expect(useUiStore().toasts.map((t) => t.text)).toContain("Highlighted");
+  // The rest of the sentence from the second word, joined with the words it overlaps.
+  const rest = span(target, 1, target.words.length - 1);
+  await highlight.run({
+    kind: "selection",
+    range: { chapter: 0, ...rest, text: target.words.slice(1).join(" "), firstSegmentId: target.id },
+  });
+  expect(reader.highlights.map((h) => h.text)).toEqual([target.words.join(" ")]);
+  wrapper.unmount();
+});
+
+it("highlights the sentence just spoken, and Undo in its toast takes it away", async () => {
+  const wrapper = await openReader("book-0");
+  const toasts = mount(ToastStack);
+  const reader = useReaderStore();
+  await mock.play({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
+  await mock.pause();
+  await flushPromises();
+  await usePlayerControls().highlightSpoken();
+  await flushPromises();
+  expect(reader.highlights.map((h) => h.text)).toEqual([sentence("0:1:0").words.join(" ")]);
+  const toast = toasts.get(".toasts__item");
+  expect(toast.text()).toContain("Highlighted");
+  await toast.get("button.toasts__action").trigger("click");
+  await flushPromises();
+  expect(reader.highlights).toEqual([]);
+  expect(toasts.find(".toasts__item").exists()).toBe(false);
+  toasts.unmount();
   wrapper.unmount();
 });

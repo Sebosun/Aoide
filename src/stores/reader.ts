@@ -29,6 +29,10 @@ export const useReaderStore = defineStore("reader", () => {
     const list = await api.highlights({ bookId: id });
     if (book.value?.id === id) highlights.value = list;
   }
+  /** Book `id`'s highlights, when it is the open book. */
+  function showHighlights(id: string, list: HighlightView[]) {
+    if (book.value?.id === id) highlights.value = list;
+  }
   /** Highlights characters `start..end` of a chapter of the open book. */
   async function addHighlight(chapter: number, start: number, end: number) {
     const id = book.value?.id;
@@ -149,6 +153,7 @@ export const useReaderStore = defineStore("reader", () => {
     refreshBook,
     highlights,
     loadHighlights,
+    showHighlights,
     addHighlight,
     noteHighlight,
     removeHighlight,

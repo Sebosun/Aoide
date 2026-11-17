@@ -116,6 +116,36 @@ export function usePlayerControls() {
       ui.toast(String(e), "error");
     }
   }
+  /** Highlights the sentence just spoken in the playing book (the core decides which), with
+   *  Undo in the toast when removing it undoes only this. */
+  async function highlightSpoken() {
+    const id = player.state.bookId;
+    if (!id) return;
+    const ui = useUiStore();
+    try {
+      const added = await api.highlightSpoken({ bookId: id });
+      reader.showHighlights(id, added.highlights);
+      ui.toast(
+        "Highlighted",
+        "info",
+        "highlight",
+        added.canUndo
+          ? {
+              label: "Undo",
+              run: async () => {
+                try {
+                  reader.showHighlights(id, await api.deleteHighlight({ id: added.id }));
+                } catch (e) {
+                  ui.toast(String(e), "error");
+                }
+              },
+            }
+          : undefined,
+      );
+    } catch (e) {
+      ui.toast(String(e), "error");
+    }
+  }
   /** The book's recording is playing, not a speech engine. */
   const recording = computed(() => Boolean(player.state.bookId) && player.state.source === "recording");
   /** The speech engine, when it cannot speak right now (not when it is ready or busy speaking). */
@@ -208,6 +238,7 @@ export function usePlayerControls() {
     setSleep,
     sleepLabel,
     bookmark,
+    highlightSpoken,
     status,
     engineStatus,
     detail,

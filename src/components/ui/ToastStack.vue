@@ -9,6 +9,17 @@ const ui = useUiStore();
     <TransitionGroup name="toasts__item">
       <p v-for="toast in ui.toasts" :key="toast.id" class="toasts__item" :class="`toasts__item--${toast.tone}`">
         <span>{{ toast.text }}</span>
+        <button
+          v-if="toast.action"
+          type="button"
+          class="toasts__action"
+          @click="
+            ui.dismiss(toast.id);
+            toast.action.run();
+          "
+        >
+          {{ toast.action.label }}
+        </button>
         <button type="button" class="toasts__close" aria-label="Dismiss" @click="ui.dismiss(toast.id)">
           <X :size="14" />
         </button>
@@ -46,6 +57,17 @@ const ui = useUiStore();
 .toasts__item--error {
   background: var(--accent);
   color: var(--on-accent);
+}
+.toasts__action {
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.toasts__action:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
 }
 .toasts__close {
   display: grid;

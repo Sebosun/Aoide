@@ -20,6 +20,12 @@ export interface Toast {
   text: string;
   tone: "info" | "error";
   key?: string;
+  /** A button in the toast (Undo), which also dismisses it. */
+  action?: ToastAction;
+}
+export interface ToastAction {
+  label: string;
+  run: () => void | Promise<void>;
 }
 interface Pending extends ConfirmOptions {
   id: number;
@@ -65,16 +71,18 @@ export const useUiStore = defineStore("ui", () => {
     timers.delete(id);
     toasts.value = toasts.value.filter((t) => t.id !== id);
   }
-  function toast(text: string, tone: Toast["tone"] = "info", key?: string) {
+  /** Shows `text` for a few seconds; a toast with the same `key` is replaced. With an `action`
+   *  (Undo) it stays longer, to leave time to reach its button. */
+  function toast(text: string, tone: Toast["tone"] = "info", key?: string, action?: ToastAction) {
     const shown = key ? toasts.value.find((t) => t.key === key) : undefined;
     const id = shown?.id ?? ++next;
     toasts.value = shown
-      ? toasts.value.map((t) => (t.id === id ? { ...t, text, tone } : t))
-      : [...toasts.value.slice(-2), { id, text, tone, key }];
+      ? toasts.value.map((t) => (t.id === id ? { ...t, text, tone, action } : t))
+      : [...toasts.value.slice(-2), { id, text, tone, key, action }];
     clearTimeout(timers.get(id));
     timers.set(
       id,
-      setTimeout(() => dismiss(id), tone === "error" ? 6000 : 3000),
+      setTimeout(() => dismiss(id), tone === "error" || action ? 6000 : 3000),
     );
   }
   return { pending, confirm, answer, asking, prompt, reply, toasts, toast, dismiss };
