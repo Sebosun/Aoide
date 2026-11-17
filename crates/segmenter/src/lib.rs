@@ -7,8 +7,10 @@
 use std::ops::Range;
 
 pub use aoide_epub::{Block, BlockKind};
+pub use matter::front_and_back_matter;
 pub use pronounce::{pronounce, Rule, Spoken};
 
+mod matter;
 mod pronounce;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
