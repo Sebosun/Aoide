@@ -12,6 +12,7 @@
   ],
   "language": "en",
   "leadImage": "https://cdn.vox-cdn.com/thumbor/drivgX7R6Ch6WYFWEHgrgiFhCZ8=/0x0:2040x1360/1400x788/filters:focal(1046x614:1047x615)/cdn.vox-cdn.com/uploads/chorus_asset/file/24709755/DSC00889.jpg",
+  "pictures": 1,
   "published": {
     "atMs": 1686171266829,
     "text": "2023-06-07T20:54:26.829Z"
@@ -19,8 +20,6 @@
   "siteName": "The Verge",
   "tables": [],
   "title": "Apple’s Vision Pro is the Retina display moment for headsets",
-  "warnings": [
-    "LeftOut { what: Figure, count: 1 }"
-  ],
+  "warnings": [],
   "wordCount": 749
 }

@@ -1,11 +1,12 @@
 //! The main content's HTML as blocks: headings, paragraphs, list items and preformatted text,
 //! in reading order. Inline markup is flattened to its text. A data table is kept beside the
-//! text (an insert); images, figures, layout tables, embeds and forms are left out and counted. The walk keeps its own stack, so nesting depth costs
+//! text (an insert), and so is a picture on the web (its address, description and caption);
+//! other images and figures, layout tables, embeds and forms are left out and counted. The walk keeps its own stack, so nesting depth costs
 //! memory, not call depth.
 
 use std::collections::BTreeMap;
 
-use aoide_document::{Block, BlockKind, Insert, InsertKind, LeftOut, Warning};
+use aoide_document::{Block, BlockKind, Caption, Insert, InsertKind, LeftOut, Warning};
 use ego_tree::NodeRef;
 use scraper::{Html, Node};
 
@@ -111,7 +112,7 @@ impl Builder<'_> {
     }
 }
 
-pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
+pub(crate) fn from_html(html: &str, page: &url::Url, options: &ExtractOptions) -> Body {
     let fragment = Html::parse_fragment(html);
     let mut builder = Builder {
         options,
@@ -161,6 +162,22 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
                     kind,
                 }),
                 None => *builder.left_out.entry(LeftOut::Table).or_default() += 1,
+            }
+            continue;
+        }
+        if matches!(name, "img" | "picture" | "figure") {
+            // One inside a line (a formula, an emoji) is part of the line: left out, as the
+            // line must not be cut.
+            let between_lines = builder.running.trim().is_empty();
+            match picture(node, page).filter(|_| between_lines) {
+                Some(kind) => {
+                    builder.flush();
+                    builder.inserts.push(Insert {
+                        before_block: builder.blocks.len(),
+                        kind,
+                    });
+                }
+                None => *builder.left_out.entry(left_out(name).unwrap()).or_default() += 1,
             }
             continue;
         }
@@ -221,6 +238,45 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
         warnings,
         inserts: builder.inserts,
     }
+}
+
+/// A picture (`img`, or the first in a `picture` or `figure`) with an address on the web: the
+/// address resolved against the page's, its description, and a figure's caption.
+fn picture(node: NodeRef<'_, Node>, page: &url::Url) -> Option<InsertKind> {
+    let element = scraper::ElementRef::wrap(node)?;
+    let img = if element.value().name() == "img" {
+        element
+    } else {
+        element
+            .descendants()
+            .filter_map(scraper::ElementRef::wrap)
+            .find(|e| e.value().name() == "img")?
+    };
+    let src = ["src", "data-src"]
+        .iter()
+        .filter_map(|name| img.value().attr(name))
+        .map(str::trim)
+        .find(|src| !src.is_empty() && !src.starts_with("data:"))?;
+    let address = page.join(src).ok()?;
+    if !matches!(address.scheme(), "http" | "https") {
+        return None;
+    }
+    let caption = (element.value().name() == "figure")
+        .then(|| {
+            element
+                .descendants()
+                .filter_map(scraper::ElementRef::wrap)
+                .find(|e| e.value().name() == "figcaption")
+        })
+        .flatten()
+        .map(|c| collapse(&c.text().collect::<String>()))
+        .filter(|c| !c.is_empty())
+        .map(Caption::Text);
+    Some(InsertKind::Picture {
+        resource: address.into(),
+        alt: collapse(img.value().attr("alt").unwrap_or("")),
+        caption,
+    })
 }
 
 /// A table that is a grid of cells (two rows and two columns at least): its rows' cell texts,

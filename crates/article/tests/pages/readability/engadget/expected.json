@@ -12,6 +12,7 @@
   ],
   "language": "en-US",
   "leadImage": "https://o.aolcdn.com/images/dims?thumbnail=640%2C480&amp;quality=80&amp;image_uri=https%3A%2F%2Fo.aolcdn.com%2Fimages%2Fdims%3Fcrop%3D1600%252C943%252C0%252C0%26quality%3D85%26format%3Djpg%26resize%3D1600%252C943%26image_uri%3Dhttp%253A%252F%252Fo.aolcdn.com%252Fhss%252Fstorage%252Fmidas%252Fd457f269d1400106a402302a310de800%252F205826071%252FXbox%252BOne%252BX%252Breview%252Bgallery%252B1.jpg%26client%3Da1acac3e1b3290917d92%26signature%3D9fa7b29452763464190c6edff6822489df516d1b&amp;client=cbc79c14efcebee57402&amp;signature=d93f3537fca242c8851867bc9d49d057e6d382c5",
+  "pictures": 10,
   "published": {
     "atMs": 1509678060000,
     "text": "2017-11-03 03:01:00.000000"
@@ -20,8 +21,6 @@
   "tables": [],
   "title": "Xbox One X review: A console that keeps up with gaming PCs",
   "warnings": [
-    "LeftOut { what: Image, count: 5 }",
-    "LeftOut { what: Figure, count: 5 }",
     "LeftOut { what: Embed, count: 1 }"
   ],
   "wordCount": 1855

@@ -211,7 +211,22 @@ pub(super) trait ArticlesHost: Send + Sync {
     ) -> Pending<'a, Result<Snapshot, String>>;
     /// A fetch from the background lane ended (an import's progress may have moved on).
     fn background_fetched(&self) {}
+    /// Whether a saved article's pictures are fetched with it.
+    fn keeps_pictures(&self) -> bool {
+        false
+    }
+    /// Keeps a fetched picture of article `id`: its size once kept, `None` if it was not.
+    fn keep_picture(&self, _id: &str, _resource: &str, _bytes: &[u8]) -> Option<u64> {
+        None
+    }
+    /// Whether article `id` already has its picture at `resource`.
+    fn has_picture(&self, _id: &str, _resource: &str) -> bool {
+        false
+    }
 }
+
+/// The most pictures fetched for one article.
+const MOST_PICTURES: usize = 40;
 
 pub(super) struct Articles {
     library: Arc<Mutex<Library>>,
@@ -825,7 +840,7 @@ impl Articles {
                     took_ms = started.elapsed().as_millis() as u64,
                     "Fetched an article"
                 );
-                self.settle(id, &row, fetching, &path, best, old, failures)
+                self.settle(id, &row, fetching, &path, best, old, failures, host)
                     .await
             }
             Err(error) => (
@@ -909,6 +924,7 @@ impl Articles {
         best: Option<(Snapshot, Extracted)>,
         old: Option<Extracted>,
         failures: Vec<String>,
+        host: &dyn ArticlesHost,
     ) -> (Stage, Option<String>, bool) {
         let failed = (!failures.is_empty()).then(|| failures.join(" "));
         let Some((snapshot, fresh)) = best else {
@@ -933,6 +949,9 @@ impl Articles {
             Ok(()) => {
                 if let Some(lead) = &fresh.meta.lead_image {
                     self.keep_cover(id, lead).await;
+                }
+                if host.keeps_pictures() {
+                    self.keep_pictures(id, &fresh.document, host).await;
                 }
                 // Once the whole article is got, earlier routes' failures do not matter.
                 let failed = failed.filter(|_| fresh.completeness != Completeness::Complete);
@@ -959,6 +978,49 @@ impl Articles {
         snapshot.final_url = url.clone();
         snapshot.via = Via::Archive;
         Ok(snapshot)
+    }
+
+    /// Fetches the pictures of article `id`'s text it does not have yet (through the same
+    /// fetcher, so the same reach and size rules), at most [`MOST_PICTURES`].
+    async fn keep_pictures(&self, id: &str, document: &ParsedBook, host: &dyn ArticlesHost) {
+        let addresses: Vec<&str> = document
+            .chapters
+            .iter()
+            .flat_map(|c| &c.inserts)
+            .filter_map(|insert| match &insert.kind {
+                aoide_document::InsertKind::Picture { resource, .. } => Some(resource.as_str()),
+                _ => None,
+            })
+            .filter(|resource| !host.has_picture(id, resource))
+            .collect();
+        if addresses.is_empty() {
+            return;
+        }
+        let (mut fetched, mut skipped, mut bytes) = (0, 0, 0);
+        for (n, address) in addresses.iter().enumerate() {
+            let kept = match Url::parse(address) {
+                Ok(url) if n < MOST_PICTURES => match self.fetcher.image(&url).await {
+                    Ok(image) => host.keep_picture(id, address, &image.bytes),
+                    Err(_) => None,
+                },
+                _ => None,
+            };
+            match kept {
+                Some(size) => {
+                    fetched += 1;
+                    bytes += size;
+                }
+                None => skipped += 1,
+            }
+        }
+        tracing::info!(
+            event = "article.pictures",
+            book = crate::logging::book(id),
+            fetched,
+            skipped,
+            bytes,
+            "Fetched an article's pictures"
+        );
     }
 
     /// Downloads the page's lead image as article `id`'s cover. A failure leaves the cover
@@ -1156,6 +1218,22 @@ fn read(html: &str, url: &Url, via: Option<&str>) -> Extracted {
 impl ArticlesHost for super::Core {
     fn background_fetched(&self) {
         self.link_import_settled();
+    }
+
+    fn keeps_pictures(&self) -> bool {
+        self.app_settings().keep_article_pictures
+    }
+
+    fn keep_picture(&self, id: &str, resource: &str, bytes: &[u8]) -> Option<u64> {
+        let kept = self.pictures.keep(id, resource, bytes);
+        if let Err(error) = &kept {
+            tracing::info!(event = "article.pictures", book = crate::logging::book(id), outcome = "failed", %error, "Could not keep an article's picture");
+        }
+        kept.ok().flatten()
+    }
+
+    fn has_picture(&self, id: &str, resource: &str) -> bool {
+        self.pictures.stored(id, resource).is_some()
     }
 
     /// The one way the window is told an article changed: the library, and the article's view

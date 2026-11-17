@@ -251,6 +251,19 @@ async function chooseInbox() {
         >Otherwise a finished article offers <b>Archive</b> for a few seconds. Archived items leave Home and the
         library's lists and wait under Archive; nothing of them is deleted.</SettingsNote
       >
+      <label v-if="settings" class="library-settings__check"
+        ><input
+          :checked="settings.keepArticlePictures"
+          type="checkbox"
+          aria-label="Keep an article's pictures"
+          @change="save({ keepArticlePictures: ($event.target as HTMLInputElement).checked })"
+        />
+        Keep an article's pictures</label
+      >
+      <SettingsNote
+        >Its pictures are fetched when an article is saved, so they show in the reader. That asks more of the site and
+        of the places its pictures are kept, so it is off unless you turn it on.</SettingsNote
+      >
     </SettingsSection>
     <SettingsSection title="Listening">
       <label v-if="settings" class="library-settings__check"

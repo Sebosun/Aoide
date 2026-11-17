@@ -20,14 +20,13 @@
   ],
   "language": null,
   "leadImage": "https://2.bp.blogspot.com/-chCZZinlUTg/WEcxvJo9gdI/AAAAAAAADnk/3ND_BspqN6Y2j5xxkLFW3RyS2Ig0NHZpQCLcB/w1200-h630-p-k-nu/ipsum-opsum.gif",
+  "pictures": 2,
   "published": null,
   "siteName": null,
   "tables": [
     "before block 17: 7 rows (0 heading) of 4 cells"
   ],
   "title": "Saving Data: Reducing the size of App Updates by 65%",
-  "warnings": [
-    "LeftOut { what: Image, count: 2 }"
-  ],
+  "warnings": [],
   "wordCount": 905
 }

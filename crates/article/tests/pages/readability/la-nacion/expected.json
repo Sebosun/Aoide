@@ -7,12 +7,11 @@
   "feeds": [],
   "language": null,
   "leadImage": "http://bucket.glanacion.com/anexos/fotos/77/2585177.jpg",
+  "pictures": 1,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "Una solución no violenta para la cuestión mapuche",
-  "warnings": [
-    "LeftOut { what: Figure, count: 1 }"
-  ],
+  "warnings": [],
   "wordCount": 1157
 }

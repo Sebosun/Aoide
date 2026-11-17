@@ -132,6 +132,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     searchText: true,
     shortenSilences: false,
     describe: { pictures: "caption", tables: "announce", code: "read" },
+    keepArticlePictures: false,
   });
   wrapper.unmount();
 });

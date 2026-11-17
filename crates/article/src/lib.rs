@@ -107,7 +107,7 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
         let found = readable(html, url, options);
         let page = scraper::Html::parse_document(html);
         (
-            blocks::from_html(&found.content, options),
+            blocks::from_html(&found.content, url, options),
             meta::read(&page, url, found.title, found.byline),
             completeness::Signs::of(&page),
             meta::feeds(&page, url),

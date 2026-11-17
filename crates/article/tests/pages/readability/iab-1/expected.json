@@ -12,6 +12,7 @@
   ],
   "language": "en-US",
   "leadImage": "http://www.iab.com/wp-content/uploads/2015/10/getting-lean-with-digital-ad-ux-300x250.jpg",
+  "pictures": 2,
   "published": {
     "atMs": 1444896026000,
     "text": "2015-10-15T08:00:26+00:00"
@@ -19,9 +20,6 @@
   "siteName": "IAB",
   "tables": [],
   "title": "Getting LEAN with Digital Ad UX",
-  "warnings": [
-    "LeftOut { what: Image, count: 1 }",
-    "LeftOut { what: Figure, count: 1 }"
-  ],
+  "warnings": [],
   "wordCount": 937
 }

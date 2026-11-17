@@ -7,12 +7,11 @@
   "feeds": [],
   "language": "en-US",
   "leadImage": "https://mozorg.cdn.mozilla.net/media/img/firefox/developer/page-image.03bbe7da3199.png",
+  "pictures": 8,
   "published": null,
   "siteName": "Mozilla",
   "tables": [],
   "title": "Welcome to Firefox Developer Edition",
-  "warnings": [
-    "LeftOut { what: Image, count: 8 }"
-  ],
+  "warnings": [],
   "wordCount": 281
 }

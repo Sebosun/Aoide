@@ -7,13 +7,11 @@
   "feeds": [],
   "language": null,
   "leadImage": null,
+  "pictures": 8,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "Readability Test",
-  "warnings": [
-    "LeftOut { what: Image, count: 4 }",
-    "LeftOut { what: Figure, count: 4 }"
-  ],
+  "warnings": [],
   "wordCount": 192
 }

@@ -7,12 +7,11 @@
   "feeds": [],
   "language": "en",
   "leadImage": "https://static01.nyt.com/images/2017/01/14/world/13SUDAN-1/13SUDAN-1-facebookJumbo.jpg",
+  "pictures": 1,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "United States to Lift Sudan Sanctions",
-  "warnings": [
-    "LeftOut { what: Figure, count: 1 }"
-  ],
+  "warnings": [],
   "wordCount": 750
 }

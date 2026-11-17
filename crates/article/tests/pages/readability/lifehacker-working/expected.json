@@ -12,12 +12,11 @@
   ],
   "language": "en-US",
   "leadImage": "http://i.kinja-img.com/gawker-media/image/upload/s--hqqO9fze--/n1s6c2m6kc07iqdyllj6.jpg",
+  "pictures": 9,
   "published": null,
   "siteName": "Lifehacker",
   "tables": [],
   "title": "How to Program Your Mind to Stop Buying Crap You Don’t Need",
-  "warnings": [
-    "LeftOut { what: Image, count: 9 }"
-  ],
+  "warnings": [],
   "wordCount": 2742
 }

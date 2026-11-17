@@ -7,12 +7,11 @@
   "feeds": [],
   "language": "es",
   "leadImage": "https://cdn1.cnet.com/img/JumVcu1ZSLtPP8ui0UWaSlgi5RU=/670x503/2017/12/01/b36ce794-e0b8-495c-a198-184923a8f4e9/twitter-lite.jpg",
+  "pictures": 2,
   "published": null,
   "siteName": "CNET en Español",
   "tables": [],
   "title": "Twitter Lite se estrena en México, Venezuela y otros nueve países",
-  "warnings": [
-    "LeftOut { what: Figure, count: 2 }"
-  ],
+  "warnings": [],
   "wordCount": 244
 }

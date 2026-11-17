@@ -12,6 +12,7 @@
   ],
   "language": "en",
   "leadImage": "https://img.atlasobscura.com/OEucPy3pcH9bHEfBRUULlpmXIlbyr_fWB91trfww4JI/rs:fill:780:520:1/g:ce/q:81/sm:1/scp:1/ar:1/aHR0cHM6Ly9hdGxh/cy1kZXYuczMuYW1h/em9uYXdzLmNvbS91/cGxvYWRzL2Fzc2V0/cy8wMzc0MWMyZGYx/MWJmNTFjOTdfSU1H/XzI3MDB2MS5qcGc.jpg",
+  "pictures": 6,
   "published": {
     "atMs": 1436536380000,
     "text": "2015-07-10T09:53:00-04:00"
@@ -19,8 +20,6 @@
   "siteName": "Atlas Obscura",
   "tables": [],
   "title": "The Deck of Cards That Made Tarot A Global Phenomenon",
-  "warnings": [
-    "LeftOut { what: Image, count: 6 }"
-  ],
+  "warnings": [],
   "wordCount": 2518
 }

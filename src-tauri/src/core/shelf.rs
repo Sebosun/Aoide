@@ -904,8 +904,38 @@ impl ShelfHost for super::Core {
         self.plays_recording(id, settings)
     }
 
+    /// Its pictures not kept (not asked for, or not got) are said to be left out, as before.
     fn article_document(&self, id: &str) -> Result<aoide_document::ParsedBook, String> {
-        self.articles.document(id)
+        use aoide_document::{InsertKind, LeftOut, Warning};
+        let mut document = self.articles.document(id)?;
+        let mut missing = 0;
+        for chapter in &mut document.chapters {
+            chapter.inserts.retain(|insert| match &insert.kind {
+                InsertKind::Picture { resource, .. } => {
+                    let kept = self.pictures.stored(id, resource).is_some();
+                    missing += usize::from(!kept);
+                    kept
+                }
+                InsertKind::Table { .. } => true,
+            });
+        }
+        if missing > 0 {
+            let counted = document.warnings.iter_mut().find_map(|w| match w {
+                Warning::LeftOut {
+                    what: LeftOut::Image,
+                    count,
+                } => Some(count),
+                _ => None,
+            });
+            match counted {
+                Some(count) => *count += missing,
+                None => document.warnings.push(Warning::LeftOut {
+                    what: LeftOut::Image,
+                    count: missing,
+                }),
+            }
+        }
+        Ok(document)
     }
 
     fn article_of(&self, id: &str) -> Option<super::ArticleSummary> {
@@ -1107,6 +1137,16 @@ impl super::Core {
             return Vec::new();
         }
         let record = lock(&self.library).book(&BookId(id.into())).ok().flatten();
+        // An article's pictures are fetched when it is saved, not now.
+        if record
+            .as_ref()
+            .is_some_and(|r| r.kind == aoide_library::ItemKind::Article)
+        {
+            return resources
+                .iter()
+                .map(|resource| self.pictures.stored(id, resource))
+                .collect();
+        }
         let source = record.filter(|r| r.kind == aoide_library::ItemKind::Book);
         let bytes = std::sync::OnceLock::new();
         let read = |resource: &str| -> Result<Vec<u8>, String> {

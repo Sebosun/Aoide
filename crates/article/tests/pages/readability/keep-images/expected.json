@@ -7,6 +7,7 @@
   "feeds": [],
   "language": null,
   "leadImage": "https://d262ilb51hltx0.cloudfront.net/max/800/1*sLDnS1UWEFIS33uLMxq3cw.jpeg",
+  "pictures": 16,
   "published": {
     "atMs": 1427461675096,
     "text": "2015-03-27T13:07:55.096Z"
@@ -14,8 +15,6 @@
   "siteName": "Medium",
   "tables": [],
   "title": "Inside the Deep Web Drug Lab",
-  "warnings": [
-    "LeftOut { what: Figure, count: 16 }"
-  ],
+  "warnings": [],
   "wordCount": 3191
 }

@@ -845,9 +845,14 @@ shortenSilences: boolean,
 /**
  * What narration says for pictures, tables and code.
  */
-describe: Describe, };
+describe: Describe, 
+/**
+ * Fetch a saved article's pictures with it (more requests to the site and the places
+ * its pictures are kept).
+ */
+keepArticlePictures: boolean, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, backup?: BackupSettings, searchText?: boolean, shortenSilences?: boolean, describe?: Describe, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, backup?: BackupSettings, searchText?: boolean, shortenSilences?: boolean, describe?: Describe, keepArticlePictures?: boolean, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**

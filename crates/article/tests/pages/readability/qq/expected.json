@@ -7,12 +7,13 @@
   "feeds": [],
   "language": null,
   "leadImage": null,
+  "pictures": 1,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "DeepMind新电脑已可利用记忆自学 人工智能迈上新台阶_科技_腾讯网",
   "warnings": [
-    "LeftOut { what: Image, count: 2 }"
+    "LeftOut { what: Image, count: 1 }"
   ],
   "wordCount": 562
 }

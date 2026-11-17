@@ -7,6 +7,7 @@
   "feeds": [],
   "language": "en",
   "leadImage": null,
+  "pictures": 6,
   "published": null,
   "siteName": null,
   "tables": [
@@ -14,7 +15,6 @@
   ],
   "title": "Mozilla",
   "warnings": [
-    "LeftOut { what: Image, count: 6 }",
     "LeftOut { what: Table, count: 1 }"
   ],
   "wordCount": 4209

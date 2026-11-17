@@ -7,12 +7,11 @@
   "feeds": [],
   "language": "en-US",
   "leadImage": "https://s.yimg.com/bt/api/res/1.2/qZaM9MLUOrxLg4IfXt_Niw--/YXBwaWQ9eW5ld3NfbGVnbztxPTc1O3c9NjAw/http://media.zenfs.com/en-US/video/video.abcnewsplus.com/559ecdbafdb839129816b5c79a996975.cf.png",
+  "pictures": 1,
   "published": null,
   "siteName": "Yahoo",
   "tables": [],
   "title": "Veteran Wraps Baby in American Flag, Photo Sparks Controversy",
-  "warnings": [
-    "LeftOut { what: Figure, count: 1 }"
-  ],
+  "warnings": [],
   "wordCount": 493
 }

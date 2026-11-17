@@ -7,12 +7,13 @@
   "feeds": [],
   "language": null,
   "leadImage": null,
+  "pictures": 3,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "宇航员在太空中喝酒会怎么样？后果很严重 _探索者 _光明网",
   "warnings": [
-    "LeftOut { what: Image, count: 4 }"
+    "LeftOut { what: Image, count: 1 }"
   ],
   "wordCount": 2890
 }

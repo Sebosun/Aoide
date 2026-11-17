@@ -79,6 +79,24 @@ impl Pictures {
         files
     }
 
+    /// The file kept for book `id`'s picture at `resource`, if one is.
+    pub fn stored(&self, id: &str, resource: &str) -> Option<PathBuf> {
+        let name = file_name(resource);
+        std::fs::read_dir(self.folder(id))
+            .ok()?
+            .flatten()
+            .map(|entry| entry.path())
+            .find(|path| path.file_stem().is_some_and(|stem| stem == name.as_str()))
+    }
+
+    /// Keeps `bytes` as book `id`'s picture at `resource` (an article's, fetched); its size, or
+    /// `None` when it is decoration or not a picture.
+    pub fn keep(&self, id: &str, resource: &str, bytes: &[u8]) -> Result<Option<u64>, String> {
+        let file = store(bytes, resource, &self.folder(id))?;
+        lock(&self.settled).insert((id.to_owned(), resource.to_owned()), file.clone());
+        Ok(file.map(|f| std::fs::metadata(f).map_or(0, |m| m.len())))
+    }
+
     /// Book `id` was removed, or its file changed: its pictures go.
     pub fn forget(&self, id: &str) {
         lock(&self.settled).retain(|(book, _), _| book != id);
@@ -93,10 +111,15 @@ impl Pictures {
 
 /// `source` (the picture at `resource`) written into `folder`, scaled down if huge; `None` when
 /// it is decoration.
-fn store(source: &[u8], resource: &str, folder: &Path) -> Result<Option<PathBuf>, String> {
+/// A picture's file name, without its extension: from where it is, so the same picture is one
+/// file.
+fn file_name(resource: &str) -> String {
     use sha2::{Digest, Sha256};
-    let name = format!("{:x}", Sha256::digest(resource.as_bytes()));
-    let name = &name[..16];
+    format!("{:x}", Sha256::digest(resource.as_bytes()))[..16].to_owned()
+}
+
+fn store(source: &[u8], resource: &str, folder: &Path) -> Result<Option<PathBuf>, String> {
+    let name = &file_name(resource);
     let svg = Path::new(resource)
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("svg"));

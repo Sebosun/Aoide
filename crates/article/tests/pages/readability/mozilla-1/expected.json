@@ -7,12 +7,11 @@
   "feeds": [],
   "language": "en-US",
   "leadImage": "https://mozorg.cdn.mozilla.net/media/img/firefox/template/page-image.af8027a425de.png",
+  "pictures": 6,
   "published": null,
   "siteName": "Mozilla",
   "tables": [],
   "title": "Firefox — Customize and make it your own — The most flexible browser on the Web",
-  "warnings": [
-    "LeftOut { what: Image, count: 6 }"
-  ],
+  "warnings": [],
   "wordCount": 197
 }

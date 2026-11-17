@@ -7,12 +7,11 @@
   "feeds": [],
   "language": null,
   "leadImage": "http://ll-media.tmz.com/2015/02/26/0225-lupita-nyongo-getty-01-1200x630.jpg",
+  "pictures": 3,
   "published": null,
   "siteName": "http://www.tmz.com",
   "tables": [],
   "title": "Lupita Nyong'o's $150K Pearl Oscar Dress -- STOLEN!!!",
-  "warnings": [
-    "LeftOut { what: Image, count: 3 }"
-  ],
+  "warnings": [],
   "wordCount": 152
 }

@@ -7,13 +7,11 @@
   "feeds": [],
   "language": "en",
   "leadImage": "https://static01.nyt.com/images/2019/02/21/nyregion/21winterutilities1/00winterutilities1-facebookJumbo.jpg",
+  "pictures": 8,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "Manhole Fires and Burst Pipes: How Winter Wreaks Havoc on What’s Underneath N.Y.C.",
-  "warnings": [
-    "LeftOut { what: Image, count: 1 }",
-    "LeftOut { what: Figure, count: 7 }"
-  ],
+  "warnings": [],
   "wordCount": 1394
 }

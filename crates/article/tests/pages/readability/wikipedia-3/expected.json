@@ -12,6 +12,7 @@
   ],
   "language": "en",
   "leadImage": null,
+  "pictures": 13,
   "published": {
     "atMs": 1046469068000,
     "text": "2003-02-28T21:51:08Z"
@@ -20,7 +21,7 @@
   "tables": [],
   "title": "Hermitian matrix",
   "warnings": [
-    "LeftOut { what: Image, count: 61 }",
+    "LeftOut { what: Image, count: 48 }",
     "LeftOut { what: Table, count: 1 }"
   ],
   "wordCount": 1283

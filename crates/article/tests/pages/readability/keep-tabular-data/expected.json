@@ -12,14 +12,13 @@
   ],
   "language": null,
   "leadImage": "http://www.factorio.com/static/img/factorio-wheel.png",
+  "pictures": 13,
   "published": null,
   "siteName": "Factorio.com",
   "tables": [
     "before block 15: 24 rows (0 heading) of 9 cells"
   ],
   "title": "Friday Facts #282 - 0.17 in sight",
-  "warnings": [
-    "LeftOut { what: Image, count: 13 }"
-  ],
+  "warnings": [],
   "wordCount": 2367
 }

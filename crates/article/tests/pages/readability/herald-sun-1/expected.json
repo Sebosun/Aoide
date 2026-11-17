@@ -7,12 +7,11 @@
   "feeds": [],
   "language": "en-au",
   "leadImage": "http://api.news.com.au/content/1.0/heraldsun/images/1227261885862?format=jpg&group=iphone&size=medium",
+  "pictures": 1,
   "published": null,
   "siteName": "HeraldSun",
   "tables": [],
   "title": "Angry media won’t buckle over new surveillance laws",
-  "warnings": [
-    "LeftOut { what: Image, count: 1 }"
-  ],
+  "warnings": [],
   "wordCount": 795
 }

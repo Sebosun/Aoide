@@ -47,6 +47,49 @@ fn the_article_body_becomes_one_chapter_of_blocks_without_the_page_around_it() {
     }
     assert_eq!(
         document.warnings,
+        [],
+        "its pictures are kept beside the text"
+    );
+}
+
+#[test]
+fn pictures_are_kept_beside_the_text_with_their_address_and_caption() {
+    use aoide_document::{Caption, InsertKind};
+    let extracted = extract(&page("plain.html"), &url(), &ExtractOptions::default());
+    let chapter = &extracted.document.chapters[0];
+    let pictures: Vec<(&str, &str, Option<&Caption>)> = chapter
+        .inserts
+        .iter()
+        .filter_map(|i| match &i.kind {
+            InsertKind::Picture {
+                resource,
+                alt,
+                caption,
+            } => Some((resource.as_str(), alt.as_str(), caption.as_ref())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        pictures,
+        [
+            ("https://garden.example/img/hive.jpg", "A small hive", None),
+            (
+                "https://garden.example/img/corner.jpg",
+                "A sheltered corner",
+                Some(&Caption::Text(
+                    "The sheltered corner on Corvin Street.".into()
+                ))
+            ),
+        ]
+    );
+    // One with no address on the web is left out, as before.
+    let html = "<html><body><article><h1>Odd</h1><p>A first paragraph that is long enough to be the article body here.</p>\
+        <img src=\"data:image/png;base64,AAAA\" alt=\"x\"><figure><figcaption>Only words.</figcaption></figure>\
+        <p>A last paragraph that is long enough to be part of the article body too.</p></article></body></html>";
+    let extracted = extract(html, &url(), &ExtractOptions::default());
+    assert!(extracted.document.chapters[0].inserts.is_empty());
+    assert_eq!(
+        extracted.document.warnings,
         [
             Warning::LeftOut {
                 what: aoide_document::LeftOut::Image,
@@ -70,9 +113,14 @@ fn a_data_table_is_kept_beside_the_text_and_a_layout_table_left_out() {
         .iter()
         .position(|b| b.text == "Keeping records")
         .unwrap();
+    let tables: Vec<&Insert> = chapter
+        .inserts
+        .iter()
+        .filter(|i| matches!(i.kind, InsertKind::Table { .. }))
+        .collect();
     assert_eq!(
-        chapter.inserts,
-        [Insert {
+        tables,
+        [&Insert {
             before_block: at,
             kind: InsertKind::Table {
                 rows: vec![
@@ -92,7 +140,12 @@ fn a_data_table_is_kept_beside_the_text_and_a_layout_table_left_out() {
         <p>A last paragraph that is long enough to be part of the article body too.</p></article></body></html>";
     let extracted = extract(nested, &url(), &ExtractOptions::default());
     let chapter = &extracted.document.chapters[0];
-    let tables: Vec<&InsertKind> = chapter.inserts.iter().map(|i| &i.kind).collect();
+    let tables: Vec<&InsertKind> = chapter
+        .inserts
+        .iter()
+        .map(|i| &i.kind)
+        .filter(|k| matches!(k, InsertKind::Table { .. }))
+        .collect();
     assert_eq!(
         tables,
         [&InsertKind::Table {

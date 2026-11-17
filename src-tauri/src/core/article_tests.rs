@@ -778,3 +778,61 @@ async fn an_email_with_a_web_copy_is_kept_under_its_address_and_a_non_email_is_r
     assert_eq!(results[1].error.as_deref(), Some("not an email"));
     assert_eq!(pages.asks(), 0);
 }
+
+/// [`LIGHTS`] with a picture of the lamps between its paragraphs.
+fn illustrated() -> String {
+    LIGHTS.replace(
+        "<h2>Why by hand</h2>",
+        r#"<figure><img src="/lamps.png" alt="The lamps at dusk"><figcaption>The quay at dusk.</figcaption></figure><h2>Why by hand</h2>"#,
+    )
+}
+
+#[tokio::test]
+async fn an_articles_pictures_are_kept_only_when_asked_for() {
+    use crate::book::InsertView;
+    let png = super::pictures::tests::png(200, 120);
+    let pages = Pages::with(&[(LIGHTS_URL, &illustrated())]);
+    pages.image("https://quay.example/lamps.png", "image/png", &png);
+
+    // Off, as it starts: nothing is fetched, and the picture is said to be left out.
+    let (_dir, core, id) = saved(&pages).await;
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    assert!(core.chapter(&id, 0).unwrap().inserts.is_empty());
+    let warnings = core.open_book(&id).unwrap().warnings;
+    assert!(warnings.iter().any(|w| w.contains("image")), "{warnings:?}");
+
+    // On: a saved article's pictures are fetched beside it.
+    core.update_app_settings(super::AppSettingsPatch {
+        keep_article_pictures: Some(true),
+        ..Default::default()
+    })
+    .unwrap();
+    let other = "https://quay.example/harbour";
+    pages.set(other, Ok(illustrated()));
+    let second = core.save_article(other).unwrap();
+    assert_eq!(settled(&core, &second).await, Stage::Ready);
+    until("the picture is kept", || {
+        core.chapter(&second, 0)
+            .is_ok_and(|view| !view.inserts.is_empty())
+    })
+    .await;
+    let view = core.chapter(&second, 0).unwrap();
+    let InsertView::Picture {
+        path, alt, caption, ..
+    } = &view.inserts[0]
+    else {
+        panic!("{:?}", view.inserts)
+    };
+    assert_eq!(
+        (alt.as_str(), caption.as_deref()),
+        ("The lamps at dusk", Some("The quay at dusk."))
+    );
+    assert_eq!(std::fs::read(path).unwrap(), png);
+    let warnings = core.open_book(&second).unwrap().warnings;
+    assert!(
+        !warnings.iter().any(|w| w.contains("image")),
+        "{warnings:?}"
+    );
+    core.remove_book(&second).unwrap();
+    assert!(!std::path::Path::new(path).exists());
+}

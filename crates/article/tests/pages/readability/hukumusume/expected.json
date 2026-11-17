@@ -7,6 +7,7 @@
   "feeds": [],
   "language": null,
   "leadImage": null,
+  "pictures": 2,
   "published": null,
   "siteName": null,
   "tables": [
@@ -14,7 +15,7 @@
   ],
   "title": "欲張りなイヌ ＜福娘童話集 きょうのイソップ童話＞",
   "warnings": [
-    "LeftOut { what: Image, count: 3 }",
+    "LeftOut { what: Image, count: 1 }",
     "LeftOut { what: Table, count: 6 }"
   ],
   "wordCount": 336

@@ -7,12 +7,11 @@
   "feeds": [],
   "language": null,
   "leadImage": null,
+  "pictures": 3,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "海外留学生看两会：出国前后关注点大不同_教育频道_中国青年网",
-  "warnings": [
-    "LeftOut { what: Image, count: 3 }"
-  ],
+  "warnings": [],
   "wordCount": 2257
 }

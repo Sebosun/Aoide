@@ -24,6 +24,7 @@
   ],
   "language": "en-US",
   "leadImage": "https://i0.wp.com/wptavern.com/wp-content/uploads/2016/07/stack-overflow.png?fit=1200%2C470&ssl=1",
+  "pictures": 3,
   "published": {
     "atMs": 1489101362000,
     "text": "2017-03-09T23:16:02+00:00"
@@ -31,8 +32,6 @@
   "siteName": "WordPress Tavern",
   "tables": [],
   "title": "Stack Overflow Jobs Data Shows ReactJS Skills in High Demand, WordPress Market Oversaturated with Developers",
-  "warnings": [
-    "LeftOut { what: Image, count: 3 }"
-  ],
+  "warnings": [],
   "wordCount": 577
 }

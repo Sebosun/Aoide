@@ -58,6 +58,9 @@ pub struct AppSettings {
     pub shorten_silences: bool,
     /// What narration says for pictures, tables and code.
     pub describe: crate::book::Describe,
+    /// Fetch a saved article's pictures with it (more requests to the site and the places
+    /// its pictures are kept).
+    pub keep_article_pictures: bool,
 }
 
 /// The silences narration leaves, in milliseconds (each within [`PAUSE_MS`]). The largest that
@@ -161,6 +164,8 @@ pub struct AppSettingsPatch {
     pub shorten_silences: Option<bool>,
     #[cfg_attr(test, ts(optional))]
     pub describe: Option<crate::book::Describe>,
+    #[cfg_attr(test, ts(optional))]
+    pub keep_article_pictures: Option<bool>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -207,6 +212,10 @@ impl AppSettingsPatch {
         set(&mut settings.search_text, self.search_text);
         set(&mut settings.shorten_silences, self.shorten_silences);
         set(&mut settings.describe, self.describe);
+        set(
+            &mut settings.keep_article_pictures,
+            self.keep_article_pictures,
+        );
         settings
     }
 }
@@ -239,6 +248,7 @@ impl From<AppSettings> for AppSettingsPatch {
             search_text,
             shorten_silences,
             describe,
+            keep_article_pictures,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -265,6 +275,7 @@ impl From<AppSettings> for AppSettingsPatch {
             search_text: Some(search_text),
             shorten_silences: Some(shorten_silences),
             describe: Some(describe),
+            keep_article_pictures: Some(keep_article_pictures),
         }
     }
 }
@@ -322,6 +333,7 @@ impl Default for AppSettings {
             search_text: true,
             shorten_silences: false,
             describe: Default::default(),
+            keep_article_pictures: false,
         }
     }
 }

@@ -7,12 +7,12 @@
   "feeds": [],
   "language": null,
   "leadImage": null,
+  "pictures": 1,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "linux video",
   "warnings": [
-    "LeftOut { what: Image, count: 1 }",
     "LeftOut { what: Table, count: 1 }"
   ],
   "wordCount": 1169

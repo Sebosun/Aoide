@@ -7,6 +7,7 @@
   "feeds": [],
   "language": "en-GB",
   "leadImage": "https://static.independent.co.uk/s3fs-public/thumbnails/image/2015/12/06/10/bed-hotel-room.jpg",
+  "pictures": 6,
   "published": {
     "atMs": 1442505463000,
     "text": "2015-09-17T16:57:43+01:00"
@@ -15,7 +16,6 @@
   "tables": [],
   "title": "The seven secrets that hotel owners don't want you to know",
   "warnings": [
-    "LeftOut { what: Image, count: 6 }",
     "LeftOut { what: Embed, count: 1 }"
   ],
   "wordCount": 751

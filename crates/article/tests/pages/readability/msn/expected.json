@@ -7,12 +7,12 @@
   "feeds": [],
   "language": "en-US",
   "leadImage": "http://img-s-msn-com.akamaized.net/tenant/amp/entityid/AAkk5fh.img",
+  "pictures": 1,
   "published": null,
   "siteName": "MSN",
   "tables": [],
   "title": "Nintendo's first iPhone game will launch in December for $10",
   "warnings": [
-    "LeftOut { what: Image, count: 1 }",
     "LeftOut { what: Embed, count: 1 }"
   ],
   "wordCount": 277

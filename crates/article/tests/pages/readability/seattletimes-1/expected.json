@@ -20,6 +20,7 @@
   ],
   "language": "en-US",
   "leadImage": "https://static.seattletimes.com/wp-content/uploads/2019/04/120028-1200x630.jpg",
+  "pictures": 1,
   "published": {
     "atMs": 1556431267000,
     "text": "2019-04-28 06:01:07"
@@ -27,8 +28,6 @@
   "siteName": "The Seattle Times",
   "tables": [],
   "title": "Alaskan halibut, caught by a century-old Seattle boat, provides a glimpse of Amazon’s strategy with Whole Foods",
-  "warnings": [
-    "LeftOut { what: Figure, count: 1 }"
-  ],
+  "warnings": [],
   "wordCount": 2052
 }

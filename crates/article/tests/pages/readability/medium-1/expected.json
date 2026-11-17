@@ -7,6 +7,7 @@
   "feeds": [],
   "language": null,
   "leadImage": "https://d262ilb51hltx0.cloudfront.net/max/800/1*oBWUXtszDsiv_-Qq2bFLTQ.png",
+  "pictures": 7,
   "published": {
     "atMs": 1426609660294,
     "text": "2015-03-17T16:27:40.294Z"
@@ -14,8 +15,6 @@
   "siteName": "Medium",
   "tables": [],
   "title": "The Open Journalism Project: Better Student Journalism",
-  "warnings": [
-    "LeftOut { what: Figure, count: 7 }"
-  ],
+  "warnings": [],
   "wordCount": 2562
 }

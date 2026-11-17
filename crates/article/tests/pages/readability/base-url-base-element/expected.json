@@ -7,12 +7,11 @@
   "feeds": [],
   "language": null,
   "leadImage": null,
+  "pictures": 5,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "Base URL with base test",
-  "warnings": [
-    "LeftOut { what: Image, count: 5 }"
-  ],
+  "warnings": [],
   "wordCount": 139
 }

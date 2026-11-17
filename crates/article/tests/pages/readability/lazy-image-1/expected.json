@@ -7,6 +7,7 @@
   "feeds": [],
   "language": "en",
   "leadImage": "https://miro.medium.com/max/1200/1*EO-pr4RolgcAOj_Uk1rpDA.png",
+  "pictures": 9,
   "published": {
     "atMs": 1571419414816,
     "text": "2019-10-18T17:23:34.816Z"
@@ -15,8 +16,7 @@
   "tables": [],
   "title": "Node.js and CPU profiling on production (in real-time without downtime)",
   "warnings": [
-    "LeftOut { what: Image, count: 1 }",
-    "LeftOut { what: Figure, count: 13 }"
+    "LeftOut { what: Figure, count: 5 }"
   ],
   "wordCount": 1546
 }

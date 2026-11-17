@@ -16,6 +16,7 @@
   ],
   "language": "en-US",
   "leadImage": "https://vignette.wikia.nocookie.net/1fb5ee36-d9ae-4125-96d9-f52eb403f1c9/thumbnail-down/width/1280/height/720",
+  "pictures": 2,
   "published": {
     "atMs": 1487899093000,
     "text": "2017-02-23T17:18:13-08:00"
@@ -24,7 +25,7 @@
   "tables": [],
   "title": "'Star Wars' Original Cuts Might Get Released for 40th Anniversary",
   "warnings": [
-    "LeftOut { what: Image, count: 3 }"
+    "LeftOut { what: Image, count: 1 }"
   ],
   "wordCount": 608
 }

@@ -12,6 +12,7 @@
   ],
   "language": "en",
   "leadImage": "https://hakibenita.com/images/00-sql-anomaly-detection-400.png",
+  "pictures": 12,
   "published": {
     "atMs": 1600646400000,
     "text": "2020-09-21"
@@ -19,8 +20,6 @@
   "siteName": "Haki Benita",
   "tables": [],
   "title": "Simple Anomaly Detection Using Plain SQL",
-  "warnings": [
-    "LeftOut { what: Figure, count: 12 }"
-  ],
+  "warnings": [],
   "wordCount": 5199
 }

@@ -7,12 +7,11 @@
   "feeds": [],
   "language": null,
   "leadImage": "http://img.washingtonpost.com/rw/2010-2019/WashingtonPost/2015/03/18/Foreign/Images/Nic6429927.jpg",
+  "pictures": 1,
   "published": null,
   "siteName": "Washington Post",
   "tables": [],
   "title": "Attack stokes instability fears in North Africa",
-  "warnings": [
-    "LeftOut { what: Image, count: 1 }"
-  ],
+  "warnings": [],
   "wordCount": 1232
 }

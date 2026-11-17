@@ -20,12 +20,13 @@
   ],
   "language": "en-US",
   "leadImage": null,
+  "pictures": 3,
   "published": null,
   "siteName": "Firefox Nightly News",
   "tables": [],
   "title": "These Weeks in Firefox: Issue 85",
   "warnings": [
-    "LeftOut { what: Image, count: 5 }"
+    "LeftOut { what: Image, count: 2 }"
   ],
   "wordCount": 1436
 }

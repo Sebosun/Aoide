@@ -7,12 +7,11 @@
   "feeds": [],
   "language": "en",
   "leadImage": "https://static01.nyt.com/images/2018/09/15/business/15DEBTS01/15DEBTS01-facebookJumbo.jpg",
+  "pictures": 1,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "As Debt Rises, the Government Will Soon Spend More on Interest Than on the Military",
-  "warnings": [
-    "LeftOut { what: Figure, count: 1 }"
-  ],
+  "warnings": [],
   "wordCount": 1627
 }

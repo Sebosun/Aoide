@@ -12,12 +12,11 @@
   ],
   "language": "es",
   "leadImage": "https://static01.nyt.com/newsgraphics/images/icons/defaultPromoCrop.png",
+  "pictures": 22,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "The New York Times en Español",
-  "warnings": [
-    "LeftOut { what: Figure, count: 22 }"
-  ],
+  "warnings": [],
   "wordCount": 268
 }

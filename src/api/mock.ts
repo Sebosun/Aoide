@@ -377,6 +377,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     searchText: true,
     shortenSilences: false,
     describe: { pictures: "caption", tables: "announce", code: "read" },
+    keepArticlePictures: false,
   };
   /** The inbox as the core shows it: watched once chosen; `?inbox=unavailable` chooses one that is gone. */
   if (new URLSearchParams(search).get("inbox") === "unavailable") appSettings.inbox = "/media/reader/Stick/Books";

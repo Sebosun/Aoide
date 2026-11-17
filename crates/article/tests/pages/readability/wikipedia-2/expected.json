@@ -7,6 +7,7 @@
   "feeds": [],
   "language": "en",
   "leadImage": "https://upload.wikimedia.org/wikipedia/commons/3/3e/Flag_of_New_Zealand.svg",
+  "pictures": 32,
   "published": {
     "atMs": 1004320754000,
     "text": "2001-10-29T01:59:14Z"
@@ -19,8 +20,6 @@
     "before block 105: 12 rows (2 heading) of 10 cells"
   ],
   "title": "New Zealand",
-  "warnings": [
-    "LeftOut { what: Image, count: 32 }"
-  ],
+  "warnings": [],
   "wordCount": 17214
 }

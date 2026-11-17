@@ -7,12 +7,11 @@
   "feeds": [],
   "language": null,
   "leadImage": null,
+  "pictures": 2,
   "published": null,
   "siteName": null,
   "tables": [],
   "title": "Lazy Load with Alt includes jpg/png/webp extensions",
-  "warnings": [
-    "LeftOut { what: Image, count: 2 }"
-  ],
+  "warnings": [],
   "wordCount": 6
 }
