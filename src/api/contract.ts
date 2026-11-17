@@ -1321,6 +1321,7 @@ export type CoreEvents = {
   "article://state": ArticleView,
   "feeds://changed": null,
   "queue://changed": null,
+  "window://fullscreen": boolean,
   "signin://state": SignInView,
   "browser://download": BrowserDownloadView,
 };
@@ -1343,6 +1344,11 @@ export type Commands = {
   /** Appearance, themes and config problems from ~/.config/aoide. */
   "preferences": { args: Record<string, never>; result: Preferences };
   "save_appearance": { args: { appearance: Appearance }; result: void };
+  /**
+   * Makes the window fill the screen, or windowed again. The window then says it changed
+   * (`window://fullscreen`), as it does when the window manager's own shortcut changes it.
+   */
+  "set_fullscreen": { args: { on: boolean }; result: void };
   /**
    * Saves a link as an article (or finds it saved) and queues its fetch; returns its id. An invalid
    * link is refused. "article://state" reports the fetch.
@@ -1723,6 +1729,11 @@ export interface CommandApi {
   preferences(): Promise<Preferences>;
   saveAppearance(args: { appearance: Appearance }): Promise<void>;
   /**
+   * Makes the window fill the screen, or windowed again. The window then says it changed
+   * (`window://fullscreen`), as it does when the window manager's own shortcut changes it.
+   */
+  setFullscreen(args: { on: boolean }): Promise<void>;
+  /**
    * Saves a link as an article (or finds it saved) and queues its fetch; returns its id. An invalid
    * link is refused. "article://state" reports the fetch.
    */
@@ -2093,6 +2104,7 @@ export const COMMANDS = {
   updateAppSettings: "update_app_settings",
   preferences: "preferences",
   saveAppearance: "save_appearance",
+  setFullscreen: "set_fullscreen",
   saveArticle: "save_article",
   refetchArticle: "refetch_article",
   article: "article",

@@ -167,4 +167,6 @@ export interface AoideApi extends Omit<CommandApi, "listBooks" | "scanForBooks" 
   onFinished(handler: (item: FinishedItem) => void): Promise<() => void>;
   /** Items were added to the queue, moved in it or taken off it (one that starts leaves it). */
   onQueueChanged(handler: () => void): Promise<() => void>;
+  /** The window now fills the screen, or no longer does (F11, Esc or the window manager). */
+  onFullscreen(handler: (on: boolean) => void): Promise<() => void>;
 }

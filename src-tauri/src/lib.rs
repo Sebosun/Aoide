@@ -88,6 +88,7 @@ pub fn run() {
         .setup(|app| {
             let core = start(app)?;
             app.manage(core);
+            watch_fullscreen(app.handle());
             exit_on_signals(app.handle().clone());
             let argv: Vec<String> = std::env::args_os()
                 .map(|arg| arg.to_string_lossy().into_owned())
@@ -104,6 +105,7 @@ pub fn run() {
             commands::app::app_info,
             commands::app::take_open_requests,
             commands::app::inbox_status,
+            commands::app::set_fullscreen,
             commands::library::list_books,
             commands::library::home,
             commands::library::add_audiobook,
@@ -318,6 +320,47 @@ pub(crate) fn show_window(app: &AppHandle) {
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+/// Tells the core whenever the window goes fullscreen or back, whoever asked: F11, Esc, or the
+/// window manager's own shortcut. On Linux the GTK window's state says so, because Tauri's
+/// `is_fullscreen` there only repeats what Aoide last asked for; elsewhere it is read after
+/// each resize.
+fn watch_fullscreen(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let app = app.clone();
+    let tell = move |on: bool| {
+        if let Some(core) = app.try_state::<Arc<Core>>() {
+            core.window_fullscreen(on);
+        }
+    };
+    #[cfg(target_os = "linux")]
+    {
+        use gtk::gdk::WindowState;
+        use gtk::prelude::*;
+        let Ok(gtk_window) = window.gtk_window() else {
+            return;
+        };
+        gtk_window.connect_window_state_event(move |_, event| {
+            if event.changed_mask().contains(WindowState::FULLSCREEN) {
+                tell(event.new_window_state().contains(WindowState::FULLSCREEN));
+            }
+            gtk::glib::Propagation::Proceed
+        });
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let watched = window.clone();
+        window.on_window_event(move |event| {
+            if let tauri::WindowEvent::Resized(_) = event {
+                if let Ok(on) = watched.is_fullscreen() {
+                    tell(on);
+                }
+            }
+        });
     }
 }
 

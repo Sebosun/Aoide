@@ -281,6 +281,7 @@ fn contract() -> String {
         ),
         (CoreEvent::FEEDS_CHANGED, "null".to_owned()),
         (CoreEvent::QUEUE_CHANGED, "null".to_owned()),
+        (CoreEvent::FULLSCREEN, name::<bool>(&config)),
         (
             CoreEvent::SIGN_IN_STATE,
             name::<super::signin::SignInView>(&config),

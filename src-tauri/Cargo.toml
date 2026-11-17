@@ -88,6 +88,9 @@ rustix = { version = "1.1.6", features = ["process"] }
 # Media keys: MPRIS served directly on Linux, souvlaki elsewhere.
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = "5"
+# The window's own state: fullscreen, whoever made it so (Tauri's `is_fullscreen` there repeats
+# what was last asked for).
+gtk = "0.18"
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
 souvlaki = "0.8.3"

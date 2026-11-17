@@ -147,6 +147,7 @@ dependencies = [
  "aoide-transcribe",
  "aoide-tts",
  "chrono",
+ "gtk",
  "image",
  "notify",
  "quote",

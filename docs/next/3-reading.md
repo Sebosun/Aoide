@@ -793,7 +793,8 @@ seconds without the pointer moving and return when it moves.
   `core:default` and webview zoom only.
 - Nothing in `src-tauri/src` listens to window events (no `on_window_event`), and Tauri 2 has
   no fullscreen-changed event: a change made by the window manager shows as a resize, after
-  which `is_fullscreen()` tells.
+  which `is_fullscreen()` tells, except on Linux: there tao answers `is_fullscreen()` with what
+  was last asked for, so a change the window manager makes is not seen (checked in tao 0.37).
 - The contract skips `WebviewWindow` parameters (`core/contract.rs:316`), so a command can take
   the window.
 - Esc: `plain()` in `src/composables/useShortcuts.ts` leaves the reader when nothing in
@@ -804,9 +805,11 @@ seconds without the pointer moving and return when it moves.
 
 - Fullscreen through a Rust command (`set_fullscreen(window: WebviewWindow, on: bool)`),
   which keeps the capability list small and is covered by the contract. The window reports its
-  state back so Esc and the window manager's own shortcut stay in step: `lib.rs` reads
-  `is_fullscreen()` on `WindowEvent::Resized` and, when it changed, emits
-  `CoreEvent::Fullscreen(bool)` through the core's emitter, so the contract types it.
+  state back so Esc and the window manager's own shortcut stay in step: `lib.rs`
+  (`watch_fullscreen`) listens to the GTK window's `window-state-event` on Linux, and reads
+  `is_fullscreen()` on `WindowEvent::Resized` elsewhere; `core/fullscreen.rs` emits
+  `CoreEvent::Fullscreen(bool)` (`window://fullscreen`) when it changed, so the contract types
+  it.
 - Esc leaves fullscreen first, then the reader (`plain()` gets one more step before
   `leaveReader`).
 - Quiet controls are interface only: a `reader--idle` class after 3 s without pointer or key

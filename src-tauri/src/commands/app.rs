@@ -53,3 +53,19 @@ pub async fn save_appearance(
     let core = Arc::clone(&core);
     blocking(move || core.save_appearance(appearance)).await
 }
+
+/// Makes the window fill the screen, or windowed again. The window then says it changed
+/// (`window://fullscreen`), as it does when the window manager's own shortcut changes it.
+#[tauri::command]
+pub fn set_fullscreen(window: tauri::WebviewWindow, on: bool) -> Result<(), CoreError> {
+    window.set_fullscreen(on).map_err(|error| {
+        tracing::warn!(
+            event = "window.set_fullscreen",
+            on,
+            outcome = "failed",
+            %error,
+            "The window cannot change to or from fullscreen"
+        );
+        CoreError::from(error.to_string())
+    })
+}

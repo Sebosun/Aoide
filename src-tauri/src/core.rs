@@ -38,6 +38,7 @@ mod error;
 mod facets;
 mod feeds;
 mod fetching;
+mod fullscreen;
 pub use articles::{ArticleSource, ArticleSummary, ArticleView};
 pub use browsing::BrowserStatusView;
 #[cfg(any(test, debug_assertions))]
@@ -223,6 +224,8 @@ pub struct Core {
     tagging: tagging::Tagging,
     /// What plays next.
     queue: queue::Queue,
+    /// Whether the window fills the screen.
+    fullscreen: fullscreen::Fullscreen,
     /// The sleep timer, the media keys and the player state last sent.
     controls: controls::Controls,
     /// Exact word timings being asked for.
@@ -415,6 +418,7 @@ impl Core {
             speech_problems: Default::default(),
             tagging: Default::default(),
             queue,
+            fullscreen: Default::default(),
             controls: Default::default(),
             aligner,
             settings: config::Settings::new(config),

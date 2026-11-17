@@ -82,6 +82,8 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `app.migrate` | info | | `lib.rs` `migrate_from_folio` |
 | `app.log` | warn | `error` | `logging.rs`, the file cannot be written |
 | `app.emit` | error | `name`, `error` | `core.rs`, an event the window did not get |
+| `window.fullscreen` | info | `from`, `to` (`true`: fullscreen) | `core/fullscreen.rs` `Fullscreen::seen`, the window went fullscreen or back (F11, Esc or the window manager's own shortcut) |
+| `window.set_fullscreen` | warn | `on`, `outcome` (`failed`), `error` | `commands/app.rs` `set_fullscreen`, the window could not be asked to change |
 | `app.poisoned` | error | `error` (reported) | `core.rs` `lock`, the first lock a panic poisoned |
 | `config.saved` | info | `section`, `changed` (setting names) | `core/config.rs` `Settings::update_app`, a change from the Settings window |
 | `config.edited` | info | `section` (`app`), `changed` (setting names) | `core/config.rs` `Settings::apply_edits`, a hand edit to `settings.toml` that passed the checks |

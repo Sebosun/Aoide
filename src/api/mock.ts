@@ -1083,6 +1083,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       set.delete(handler);
     };
   };
+  /** The window, which says when it goes fullscreen or back (as lib.rs `watch_fullscreen`). */
+  let fullscreen = false;
+  const fullscreenHandlers = new Set<(on: boolean) => void>();
   const finishedHandlers = new Set<(item: FinishedItem) => void>();
   /** Finishes item `b`, as the core does (core/reading.rs `after_finishing`): an article in the
    *  library just finished is archived when the setting says so, else offered for the archive. */
@@ -1213,6 +1216,12 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       queueChanged();
     },
     onQueueChanged: (h) => subscribe(queueHandlers, h),
+    async setFullscreen({ on }) {
+      if (on === fullscreen) return;
+      fullscreen = on;
+      fullscreenHandlers.forEach((h) => h(on));
+    },
+    onFullscreen: (h) => subscribe(fullscreenHandlers, h),
     async home() {
       return homeOverride ? structuredClone(homeOverride) : homeOf(await api.listBooks());
     },

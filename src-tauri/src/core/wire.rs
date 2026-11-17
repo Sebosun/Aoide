@@ -308,6 +308,8 @@ pub enum CoreEvent {
     Finished(super::reading::FinishedItem),
     /// Items were added to the queue, moved in it or taken off it.
     QueueChanged,
+    /// The window now fills the screen, or no longer does.
+    Fullscreen(bool),
 }
 
 impl CoreEvent {
@@ -335,6 +337,7 @@ impl CoreEvent {
     pub const INBOX_STATE: &'static str = "inbox://state";
     pub const FINISHED: &'static str = "item://finished";
     pub const QUEUE_CHANGED: &'static str = "queue://changed";
+    pub const FULLSCREEN: &'static str = "window://fullscreen";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -362,6 +365,7 @@ impl CoreEvent {
             Self::InboxState(_) => Self::INBOX_STATE,
             Self::Finished(_) => Self::FINISHED,
             Self::QueueChanged => Self::QUEUE_CHANGED,
+            Self::Fullscreen(_) => Self::FULLSCREEN,
         }
     }
 
@@ -390,6 +394,7 @@ impl CoreEvent {
             Self::InboxAdded(p) => serde_json::to_value(p),
             Self::InboxState(p) => serde_json::to_value(p),
             Self::Finished(p) => serde_json::to_value(p),
+            Self::Fullscreen(p) => serde_json::to_value(p),
         }
     }
 }

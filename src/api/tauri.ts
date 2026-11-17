@@ -103,4 +103,5 @@ export const tauriApi: AoideApi = {
   onInboxState: (h) => on("inbox://state", h),
   onFinished: (h) => on("item://finished", h),
   onQueueChanged: (h) => on("queue://changed", () => h()),
+  onFullscreen: (h) => on("window://fullscreen", h),
 };
