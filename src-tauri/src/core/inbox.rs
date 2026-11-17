@@ -6,7 +6,7 @@
 // Started by the core in a later step.
 #![cfg_attr(not(test), allow(dead_code))]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
@@ -21,6 +21,8 @@ pub(super) trait InboxHost {
     fn import(&self, path: &Path) -> Result<InboxBook, String>;
     /// Whether book `id` is in the library with its file present.
     fn in_library(&self, id: &str) -> bool;
+    /// The books the user removed: their files are not added again from the inbox.
+    fn removed(&self) -> HashSet<String>;
 }
 
 /// A book the inbox added to the library: what the window tells.
@@ -229,6 +231,11 @@ fn take(path: &Path, host: &dyn InboxHost) -> Option<InboxBook> {
         skipped("in_library", "");
         return None;
     }
+    // Importing takes a book off the removed list: removing it is what the user asked for.
+    if host.removed().contains(&id) {
+        skipped("removed", "");
+        return None;
+    }
     match host.import(path) {
         Ok(book) => {
             tracing::info!(event = "inbox.imported", book = crate::logging::book(&book.id), %file, "Added a book from the inbox");
@@ -295,6 +302,10 @@ mod tests {
         fn in_library(&self, _id: &str) -> bool {
             false
         }
+
+        fn removed(&self) -> HashSet<String> {
+            HashSet::new()
+        }
     }
 
     impl InboxHost for Shelf {
@@ -308,6 +319,10 @@ mod tests {
                 id,
                 title: title.and_then(|record| record.title).unwrap_or_default(),
             })
+        }
+
+        fn removed(&self) -> HashSet<String> {
+            self.ignored()
         }
 
         fn in_library(&self, id: &str) -> bool {
@@ -412,6 +427,25 @@ mod tests {
 
         assert_eq!(world.files("Books"), ["Kept.epub"]);
         assert!(world.added().is_empty());
+    }
+
+    #[test]
+    fn a_book_removed_from_the_library_is_not_added_again_from_the_inbox() {
+        let world = world();
+        std::fs::write(world.downloads().join("Lights.epub"), epub()).unwrap();
+        world.settle(Instant::now());
+        let id = world.added()[0][0]["id"].as_str().unwrap().to_owned();
+
+        world.shelf.remove(&id).unwrap();
+        // Aoide starts again: the inbox has not seen the file yet.
+        let restarted = Inbox::new(world.events.clone());
+        let start = Instant::now();
+        restarted.pass_at(&world.downloads(), start, &world.shelf);
+        restarted.pass_at(&world.downloads(), start + SETTLE, &world.shelf);
+
+        assert!(!world.shelf.in_library(&id));
+        assert!(world.shelf.ignored().contains(&id), "still removed");
+        assert_eq!(world.added().len(), 1);
     }
 
     impl Imports {
