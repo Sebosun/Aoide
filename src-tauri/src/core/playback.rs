@@ -485,6 +485,18 @@ impl Playback {
         *lock(&self.paused_at) = None;
         let (offset, released, listening) = match lock(&self.playing).as_mut() {
             Some(Playing::Entries(session)) => {
+                // Sent into a chapter left out, it is played.
+                let admitted = super::leaving_out::admit(&mut session.target, index);
+                if !admitted.is_empty() {
+                    let entries = session
+                        .target
+                        .narration
+                        .player_entries(&session.target.book);
+                    let mut player = lock(&self.player);
+                    for index in admitted {
+                        player.update(index, entries[index].clone());
+                    }
+                }
                 let offset = offset_ms.unwrap_or_else(|| {
                     session
                         .recording()

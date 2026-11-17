@@ -22,9 +22,18 @@ pub(super) fn entries(book: &BookModel, chapters: &[usize]) -> Vec<Range<usize>>
 }
 
 /// The entries of the chapter entry `index` is in.
-pub(super) fn chapter_of(book: &BookModel, index: usize) -> Option<Range<usize>> {
+fn chapter_of(book: &BookModel, index: usize) -> Option<Range<usize>> {
     let (chapter, _) = book.locate(index)?;
     entries(book, &[chapter]).pop()
+}
+
+/// Playback is sent to entry `index` of `target`: its chapter plays even if it is left out.
+/// Returns the entries that play now.
+pub(super) fn admit(target: &mut super::Target, index: usize) -> Vec<usize> {
+    match chapter_of(&target.book, index) {
+        Some(chapter) => target.narration.admit(chapter),
+        None => Vec::new(),
+    }
 }
 
 /// The chapter `delta` narrated chapters away from `from`, of `count`: as far as there are
@@ -137,7 +146,7 @@ mod tests {
     /// A book with front and back matter around two chapters.
     pub(in crate::core) fn book_with_matter() -> Vec<u8> {
         epub_of_chapters(&[
-            ("Contents", "The Quay. The Lamp."),
+            ("Contents", "Two chapters and a page of notes."),
             (
                 "The Quay",
                 "Gulls argued over the nets. The tide came in slowly.",
@@ -200,6 +209,69 @@ mod tests {
         })
         .await;
         assert!(!asked_for(&core, &id, &engine, 3), "{:?}", engine.texts());
+        core.stop();
+    }
+
+    /// The spoken segments of chapter `chapter`.
+    fn spoken(core: &Core, id: &str, chapter: usize) -> Vec<String> {
+        let book = core.load_book(id).unwrap();
+        book.chapters[chapter]
+            .segments
+            .iter()
+            .filter(|s| !s.speech.is_empty())
+            .map(|s| s.id.clone())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn listening_to_a_book_with_its_front_matter_left_out_starts_at_chapter_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let (core, id, engine) = started(dir.path()).await;
+        core.set_left_out(&id, vec![0]).await.unwrap();
+
+        core.play(&id, None, None).await.unwrap();
+        until("chapter one to be said", || {
+            asked_for(&core, &id, &engine, 1)
+        })
+        .await;
+        assert!(!asked_for(&core, &id, &engine, 0), "{:?}", engine.texts());
+        core.stop();
+    }
+
+    #[tokio::test]
+    async fn a_sentence_clicked_in_a_chapter_left_out_plays_it_and_then_carries_on() {
+        let dir = tempfile::tempdir().unwrap();
+        let (core, id, engine) = started(dir.path()).await;
+        core.set_left_out(&id, vec![0, 2]).await.unwrap();
+
+        let contents = spoken(&core, &id, 0);
+        core.play(&id, Some(0), Some(contents[1].clone()))
+            .await
+            .unwrap();
+        assert_eq!(core.player_state().segment_id, Some(contents[1].clone()));
+        until("the contents to be said", || {
+            asked_for(&core, &id, &engine, 0)
+        })
+        .await;
+        until("playback to reach the notes", || {
+            core.player_state().chapter == 3
+        })
+        .await;
+        assert!(
+            !asked_for(&core, &id, &engine, 2),
+            "the lamp is still left out"
+        );
+
+        // In the same session: sent into the lamp, it is said.
+        let lamp = spoken(&core, &id, 2);
+        core.play(&id, Some(2), Some(lamp[0].clone()))
+            .await
+            .unwrap();
+        until("the lamp to be said", || asked_for(&core, &id, &engine, 2)).await;
+        until("playback to reach the notes again", || {
+            core.player_state().chapter == 3
+        })
+        .await;
         core.stop();
     }
 

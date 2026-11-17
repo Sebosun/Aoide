@@ -133,6 +133,28 @@ fn unspeakable_entries_need_no_audio() {
 }
 
 #[test]
+fn an_entry_changed_in_place_keeps_its_audio_and_plays_as_it_now_is() {
+    let mut player = PlayerCore::new(RATE);
+    let passed_over = |id: &str| Entry {
+        id: id.into(),
+        speakable: false,
+        pause_after_ms: 0,
+    };
+    player.load(vec![passed_over("a"), entry("b", 0)], 0);
+    player.provide(1, &constant(0.5, 2));
+    player.update(0, entry("a", 1));
+    player.update(9, entry("nowhere", 0));
+    player.play();
+    assert_eq!(
+        player.position().status,
+        Status::Buffering,
+        "it waits for its audio now"
+    );
+    player.provide(0, &constant(0.25, 2));
+    assert_eq!(render(&mut player, 5), vec![0.25, 0.25, 0.0, 0.5, 0.5]);
+}
+
+#[test]
 fn pause_holds_position_and_outputs_silence() {
     let mut player = PlayerCore::new(RATE);
     player.load(vec![entry("a", 0)], 0);

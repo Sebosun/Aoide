@@ -516,6 +516,9 @@ impl Core {
             self.follow_through(self.playback.seek(index, None))?;
             return self.follow_through(self.playback.play());
         }
+        // A place asked for or saved is played even in a chapter left out; with none, the book
+        // starts at its first chapter narrated.
+        let mut explicit = start.is_some();
         // From the saved place, a little earlier the longer ago it was saved.
         let mut away = None;
         let start = start
@@ -527,11 +530,16 @@ impl Core {
                 away = self
                     .steps_back()
                     .then(|| resuming::Away::since(progress.updated_at, now_ms()));
-                book.index_at(progress.chapter as usize, progress.char_offset as usize)
+                let saved = book.index_at(progress.chapter as usize, progress.char_offset as usize);
+                explicit = saved.is_some();
+                saved
             })
             .or_else(|| book.chapter_start(0))
             .ok_or("the book has no readable text")?;
-        let target = self.narration_target(book).await?;
+        let mut target = self.narration_target(book).await?;
+        if explicit {
+            leaving_out::admit(&mut target, start);
+        }
         let start = away
             .and_then(|away| playback::step_back_in(&target, start, away, "saved"))
             .unwrap_or(start);
@@ -604,10 +612,12 @@ impl Core {
                 .and_then(|segment| book.index_of(&segment.id))
                 .or_else(|| book.chapter_start(0))
                 .ok_or("the book has no readable text")?;
-            let target = match self.recorded_target(&book, &settings, recording) {
+            let mut target = match self.recorded_target(&book, &settings, recording) {
                 Some(target) => target,
                 None => self.speech_target(book)?,
             };
+            // Playing on where it was, even in a chapter left out.
+            leaving_out::admit(&mut target, index);
             let playing = self.playback.is_playing();
             let paused_since = self.playback.paused_since();
             drop(self.playback.stop());

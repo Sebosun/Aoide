@@ -96,6 +96,14 @@ impl PlayerCore {
         self.reset_stretch();
     }
 
+    /// Changes how entry `index` plays (whether it is spoken, its pause), keeping any audio it
+    /// has. Ignored for unknown indexes.
+    pub fn update(&mut self, index: usize, entry: Entry) {
+        if let Some(slot) = self.slots.get_mut(index) {
+            slot.entry = entry;
+        }
+    }
+
     /// Supplies audio for an entry (resampled to the output rate). Ignored for unknown indexes.
     pub fn provide(&mut self, index: usize, pcm: &Pcm) {
         let rate = self.output_rate;
