@@ -122,6 +122,8 @@ npm run tauri build -- --no-bundle
 
 The app is now at `target/release/aoide`. Run it from there, or copy it somewhere on your `PATH`.
 
+To open EPUBs and PDFs with Aoide from the file manager (**Open with → Aoide**), and to let `aoide:` links reach it, run `target/release/aoide --install-desktop-file` once. It writes `~/.local/share/applications/aoide.desktop`, which starts that copy of Aoide, and its icon. Run it again if you move the program.
+
 <details>
 <summary>Faster audiobook syncing on a graphics card</summary>
 

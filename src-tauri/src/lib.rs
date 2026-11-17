@@ -1,6 +1,7 @@
 mod book;
 mod commands;
 mod core;
+mod desktop_file;
 mod launch;
 mod logging;
 mod media;
@@ -15,6 +16,63 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 use crate::core::{Core, Paths};
+
+/// `aoide --install-desktop-file`, the only argument: Aoide is added to the desktop's
+/// applications (see [`desktop_file`]). Returns the exit code.
+pub fn install_desktop_file_if_asked(args: &[std::ffi::OsString]) -> Option<i32> {
+    if args.len() != 2 || args[1] != desktop_file::FLAG {
+        return None;
+    }
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    let data_home = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .unwrap_or_else(|| home.join(".local/share"));
+    logging::init(&data_home.join(IDENTIFIER).join("logs"));
+    let installed = std::env::current_exe()
+        .map_err(|e| e.to_string())
+        .and_then(|exe| {
+            let mut run = |tool: &str, args: &[&str]| {
+                std::process::Command::new(tool)
+                    .args(args)
+                    .status()
+                    .map_err(|e| e.to_string())
+                    .and_then(|status| {
+                        status
+                            .success()
+                            .then_some(())
+                            .ok_or_else(|| format!("it ended with {status}"))
+                    })
+            };
+            desktop_file::install(&exe, &data_home, &mut run)
+        });
+    let code = match installed {
+        Ok(installed) => {
+            println!("Wrote {}", installed.desktop_file.display());
+            println!("Wrote {}", installed.icon.display());
+            for (tool, error) in &installed.tools_failed {
+                println!("Could not run {tool}: {error}");
+            }
+            if installed.tools_failed.is_empty() {
+                println!("Aoide is now offered under \"Open with\" for EPUBs and PDFs, and opens aoide: links.");
+            } else {
+                println!("The files are in place; the desktop may offer Aoide only after you log in again.");
+            }
+            0
+        }
+        Err(error) => {
+            eprintln!("Could not add Aoide to the applications: {error}");
+            1
+        }
+    };
+    logging::flush();
+    Some(code)
+}
+
+/// The app's identifier (`tauri.conf.json`), which names its data folder.
+const IDENTIFIER: &str = "com.aoide.audiobooks";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

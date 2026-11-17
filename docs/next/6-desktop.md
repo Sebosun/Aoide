@@ -89,8 +89,8 @@ copy gets it through the single-instance callback, and `requests` already parses
 (`MimeType=x-scheme-handler/aoide;application/epub+zip;application/pdf;`) exists only once
 Aoide is installed (6.5). For a build from source, `aoide --install-desktop-file` writes
 `~/.local/share/applications/aoide.desktop` with `Exec=<current_exe> %U`, copies the icon
-(`include_bytes!` of `src-tauri/icons/icon.png`) to
-`~/.local/share/icons/hicolor/512x512/apps/aoide.png`, and runs `update-desktop-database` and
+(`include_bytes!` of `src-tauri/icons/icon.png`, the only icon, 32×32) to
+`~/.local/share/icons/hicolor/32x32/apps/aoide.png` (`$XDG_DATA_HOME` when set), and runs `update-desktop-database` and
 `xdg-mime default aoide.desktop x-scheme-handler/aoide` (each logged; a missing tool is
 reported, not fatal). The README documents it. A flag on the binary rather than a script,
 because the binary knows its own path.
@@ -99,7 +99,8 @@ because the binary knows its own path.
 the event sink):
 
 - `OpenFile`: first look the content hash up in the library (`Library::book`). A book that is
-  already there (and not an error record) is opened without copying anything; this check is
+  already there with its file present (not an error record; a missing one is imported, which
+  gives it its file back) is opened without copying anything; this check is
   new, `import_files` alone would copy it again under the new name. Otherwise
   `Shelf::import_files(vec![path])` on a blocking thread, and its `book_id` is opened. A failed
   import shows as a problem (`CoreEvent::Problem`), the same as a failed drop. With several
@@ -112,7 +113,7 @@ the event sink):
   it has not delivered, and a new command `take_open_requests() -> Vec<String>` (called once
   from `App.vue` `onMounted`, after the listener is attached) returns and clears them and marks
   the window ready; from then on `OpenItem` is emitted directly. So a cold start with a file
-  still opens it. The mock answers `[]`.
+  still opens it; the window opens the latest one held. The mock answers `[]`.
 
 **Capabilities.** None: the single-instance plugin has no JavaScript side, and the new event
 and command go through the existing `core:default` and the generated contract.
