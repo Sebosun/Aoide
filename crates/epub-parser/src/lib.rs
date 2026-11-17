@@ -29,6 +29,16 @@ pub fn read_metadata(bytes: &[u8], options: &ParseOptions) -> Result<BookMetadat
     })
 }
 
+/// The bytes of the file at `path` inside the book (a picture's resource), within the same
+/// budgets as parsing.
+pub fn read_resource(
+    bytes: &[u8],
+    path: &str,
+    options: &ParseOptions,
+) -> Result<Vec<u8>, ParseError> {
+    archive::Archive::open(bytes, options)?.read_bytes(path)
+}
+
 /// Parse a complete EPUB archive without writing files or making network calls.
 /// Ambiguous content is preserved; inferred chapters and exclusions are inspectable.
 pub fn parse_epub(bytes: &[u8], options: &ParseOptions) -> Result<ParsedBook, ParseError> {

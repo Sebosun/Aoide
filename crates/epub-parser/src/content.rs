@@ -15,6 +15,18 @@ pub(crate) struct Content {
     refs: HashMap<usize, (String, String)>,
     /// Empty tokens that mark a scene break (see [`is_scene_break`]).
     breaks: HashSet<usize>,
+    /// Empty tokens where a picture stands: its `src` (as written), `alt`, and its figure.
+    pictures: HashMap<usize, (String, String, Option<usize>)>,
+    /// Where each figure's caption begins (a token), by figure.
+    captions: HashMap<usize, usize>,
+}
+
+/// A stretch of a document laid out: its blocks, and what stands at places in them.
+pub(crate) struct Laid {
+    pub blocks: Vec<Block>,
+    pub refs: Vec<(NoteRef, String)>,
+    /// Pictures: the block they stand before, `src` as written, `alt`, the caption's block.
+    pub pictures: Vec<(usize, String, String, Option<usize>)>,
 }
 
 pub(crate) struct Section {
@@ -54,24 +66,25 @@ impl Content {
 
     /// Visible lines between token offsets; a line's kind comes from its first visible token.
     pub fn blocks(&self, start: usize, end: usize) -> Vec<Block> {
-        self.blocks_and_refs(start, end).0
+        self.lay_out(start, end).blocks
     }
 
-    pub fn blocks_and_refs(
-        &self,
-        start: usize,
-        end: usize,
-    ) -> (Vec<Block>, Vec<(NoteRef, String)>) {
+    pub fn lay_out(&self, start: usize, end: usize) -> Laid {
+        let mut pictures = Vec::new();
+        // The block each caption begins in, by figure.
+        let mut caption_blocks: HashMap<usize, usize> = HashMap::new();
         let mut blocks = Vec::new();
         let mut refs = Vec::new();
         let mut pending = Vec::new();
         let mut line = String::new();
         let mut kind = None;
         let mut after_break = false;
-        let mut finish = |line: &mut String,
-                          kind: &mut Option<BlockKind>,
-                          pending: &mut Vec<(usize, String, String)>,
-                          after_break: &mut bool| {
+        let finish = |blocks: &mut Vec<Block>,
+                      refs: &mut Vec<(NoteRef, String)>,
+                      line: &mut String,
+                      kind: &mut Option<BlockKind>,
+                      pending: &mut Vec<(usize, String, String)>,
+                      after_break: &mut bool| {
             let text = line.split_whitespace().collect::<Vec<_>>().join(" ");
             if let (false, Some(kind)) = (text.is_empty(), kind.take()) {
                 for (offset, label, href) in pending.drain(..) {
@@ -97,13 +110,35 @@ impl Content {
         for index in start..end {
             let token = &self.tokens[index];
             if token == "\n" {
-                finish(&mut line, &mut kind, &mut pending, &mut after_break);
+                finish(
+                    &mut blocks,
+                    &mut refs,
+                    &mut line,
+                    &mut kind,
+                    &mut pending,
+                    &mut after_break,
+                );
                 continue;
             }
             if self.breaks.contains(&index) {
                 // A break counts between lines, not inside one that has begun.
                 after_break |= line.trim().is_empty();
                 continue;
+            }
+            if let Some((src, alt, figure)) = self.pictures.get(&index) {
+                // Inside a line that has begun, it stands after the line, which is not cut.
+                let before = blocks.len() + usize::from(!line.trim().is_empty());
+                pictures.push((before, src.clone(), alt.clone(), *figure));
+                continue;
+            }
+            if let Some(figure) = self
+                .captions
+                .iter()
+                .find(|(_, &at)| at == index)
+                .map(|(f, _)| *f)
+            {
+                // The line being built is the next block.
+                caption_blocks.insert(figure, blocks.len());
             }
             if let Some((label, href)) = self.refs.get(&index) {
                 let prefix = line.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -116,8 +151,28 @@ impl Content {
             }
             line.push_str(token);
         }
-        finish(&mut line, &mut kind, &mut pending, &mut after_break);
-        (blocks, refs)
+        finish(
+            &mut blocks,
+            &mut refs,
+            &mut line,
+            &mut kind,
+            &mut pending,
+            &mut after_break,
+        );
+        let count = blocks.len();
+        Laid {
+            pictures: pictures
+                .into_iter()
+                .map(|(before, src, alt, figure)| {
+                    let caption = figure
+                        .and_then(|f| caption_blocks.get(&f).copied())
+                        .filter(|&b| b < count);
+                    (before.min(count), src, alt, caption)
+                })
+                .collect(),
+            blocks,
+            refs,
+        }
     }
 }
 
@@ -155,7 +210,12 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
         notes: Vec::new(),
         refs: HashMap::new(),
         breaks: HashSet::new(),
+        pictures: HashMap::new(),
+        captions: HashMap::new(),
     };
+    // Figures open around the element being read, innermost last; and how many there were.
+    let mut figures: Vec<(ego_tree::NodeId, usize)> = Vec::new();
+    let mut figure_count = 0;
     let mut suppressed = 0;
     let mut heading_start = None;
     let mut sections = HashMap::new();
@@ -221,6 +281,32 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
                     } else if matches!(element.name(), "td" | "th") {
                         content.push(" ", &stack);
                     }
+                    if element.name() == "figure" {
+                        figures.push((node.id(), figure_count));
+                        figure_count += 1;
+                    }
+                    if element.name() == "figcaption" {
+                        let has_text = current.text().any(|t| !t.trim().is_empty());
+                        if let Some((_, figure)) = figures.last().filter(|_| has_text) {
+                            content
+                                .captions
+                                .entry(*figure)
+                                .or_insert(content.tokens.len());
+                        }
+                    }
+                    if let Some(src) = picture_source(element) {
+                        let alt = element
+                            .attr("alt")
+                            .unwrap_or("")
+                            .split_whitespace()
+                            .collect::<Vec<_>>()
+                            .join(" ");
+                        let figure = figures.last().map(|(_, f)| *f);
+                        content
+                            .pictures
+                            .insert(content.tokens.len(), (src.to_owned(), alt, figure));
+                        content.push("", &stack);
+                    }
                     if is_scene_break(current) {
                         // A marker, not a line break: one inside running text splits nothing.
                         content.breaks.insert(content.tokens.len());
@@ -242,6 +328,9 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
                         suppressed -= 1;
                     }
                     continue;
+                }
+                if figures.last().is_some_and(|(id, _)| *id == node.id()) {
+                    figures.pop();
                 }
                 if let Some(index) = sections.remove(&node.id()) {
                     content.sections[index].end = content.tokens.len();
@@ -475,6 +564,23 @@ fn heading_level(name: &str) -> Option<u8> {
         "h6" => Some(6),
         _ => None,
     }
+}
+
+/// The `src` of a picture to show: `<img>` or SVG's `<image>`, unless marked as decoration.
+fn picture_source(element: &scraper::node::Element) -> Option<&str> {
+    let src = match element.name() {
+        "img" => element.attr("src"),
+        // `xlink:href` is in the xlink namespace, which `attr` does not look in.
+        "image" => element
+            .attrs
+            .iter()
+            .find(|(name, _)| &*name.local == "href")
+            .map(|(_, value)| &**value),
+        _ => None,
+    }?;
+    let decoration =
+        element.attr("role") == Some("presentation") || element.attr("aria-hidden") == Some("true");
+    (!decoration && !src.trim().is_empty()).then_some(src.trim())
 }
 
 fn hidden(element: &scraper::node::Element) -> bool {

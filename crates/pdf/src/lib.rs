@@ -559,6 +559,7 @@ fn chapters(
                 .join("\n\n"),
             blocks: own,
             note_refs: Vec::new(),
+            inserts: Vec::new(),
             sources: vec![SourceLocation {
                 path: format!("page-{}", start + 1),
                 fragment: None,

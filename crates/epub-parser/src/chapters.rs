@@ -4,7 +4,8 @@ use crate::{
     content::{self, Content},
     navigation::Entry,
     package::Package,
-    Block, Chapter, ExclusionReason, Note, NoteRef, ParseError, SourceLocation, Warning,
+    Caption, Chapter, ExclusionReason, Insert, InsertKind, Note, NoteRef, ParseError,
+    SourceLocation, Warning,
 };
 
 pub(crate) struct ReadingSection {
@@ -67,8 +68,25 @@ pub(crate) fn extract(
             &package.guide,
             &mut extraction.warnings,
         );
+        let pictures = |laid: &content::Laid| -> Vec<Insert> {
+            laid.pictures
+                .iter()
+                .filter_map(|(before, src, alt, caption)| {
+                    let resource = crate::location::resolve(path, src).ok()?.path;
+                    (package.cover_path.as_deref() != Some(resource.as_str())).then(|| Insert {
+                        before_block: *before,
+                        kind: InsertKind::Picture {
+                            resource,
+                            alt: alt.clone(),
+                            caption: caption.map(Caption::Block),
+                        },
+                    })
+                })
+                .collect()
+        };
         if boundaries.starts.is_empty() {
-            let (blocks, refs) = content.blocks_and_refs(0, content.tokens.len());
+            let laid = content.lay_out(0, content.tokens.len());
+            let inserts = pictures(&laid);
             let reason = content.reason(0, content.tokens.len());
             if !navigation.is_empty()
                 && extraction
@@ -76,7 +94,7 @@ pub(crate) fn extract(
                     .last()
                     .is_some_and(|s| s.reason == reason)
             {
-                append(extraction.sections.last_mut().unwrap(), path, blocks, refs);
+                append(extraction.sections.last_mut().unwrap(), path, laid, inserts);
                 continue;
             }
             boundaries.starts.push((0, content.title.clone()));
@@ -87,6 +105,7 @@ pub(crate) fn extract(
             &content,
             &mut boundaries,
             !navigation.is_empty(),
+            &pictures,
         );
         for (index, (offset, title)) in boundaries.starts.iter().enumerate() {
             let end = boundaries
@@ -97,14 +116,17 @@ pub(crate) fn extract(
                 .iter()
                 .find(|e| e.path == *path && e.depth == 0 && e.offset(&content) == Some(*offset))
                 .and_then(|e| e.fragment.clone());
-            let (blocks, refs) = content.blocks_and_refs(*offset, end);
-            let (note_refs, targets) = references(path, refs);
+            let laid = content.lay_out(*offset, end);
+            let inserts = pictures(&laid);
+            let (note_refs, targets) = references(path, laid.refs);
+            let blocks = laid.blocks;
             extraction.sections.push(ReadingSection {
                 chapter: Chapter {
                     title: title.clone(),
                     text: content::join_blocks(&blocks),
                     blocks,
                     note_refs,
+                    inserts,
                     sources: vec![SourceLocation {
                         path: path.clone(),
                         fragment,
@@ -148,17 +170,19 @@ fn preserve_prefix(
     content: &Content,
     boundaries: &mut Boundaries,
     has_navigation: bool,
+    pictures: &dyn Fn(&content::Laid) -> Vec<Insert>,
 ) {
     let Some((offset, _)) = boundaries.starts.first() else {
         return;
     };
-    let (blocks, refs) = content.blocks_and_refs(0, *offset);
-    if blocks.is_empty() {
+    let laid = content.lay_out(0, *offset);
+    if laid.blocks.is_empty() {
         return;
     }
     if has_navigation && content.reason(0, *offset).is_none() {
         if let Some(previous) = sections.last_mut().filter(|s| s.reason.is_none()) {
-            append(previous, path, blocks, refs);
+            let inserts = pictures(&laid);
+            append(previous, path, laid, inserts);
             return;
         }
     }
@@ -171,19 +195,27 @@ fn references(path: &str, refs: Vec<(NoteRef, String)>) -> (Vec<NoteRef>, Vec<(S
         .unzip()
 }
 
-fn append(
-    section: &mut ReadingSection,
-    path: &str,
-    blocks: Vec<Block>,
-    refs: Vec<(NoteRef, String)>,
-) {
+fn append(section: &mut ReadingSection, path: &str, laid: content::Laid, inserts: Vec<Insert>) {
+    let content::Laid { blocks, refs, .. } = laid;
     if blocks.is_empty() {
         return;
     }
+    let shift = section.chapter.blocks.len();
     let (mut refs, targets) = references(path, refs);
     for reference in &mut refs {
-        reference.block += section.chapter.blocks.len();
+        reference.block += shift;
     }
+    section
+        .chapter
+        .inserts
+        .extend(inserts.into_iter().map(|mut insert| {
+            insert.before_block += shift;
+            let InsertKind::Picture { caption, .. } = &mut insert.kind;
+            if let Some(Caption::Block(block)) = caption {
+                *block += shift;
+            }
+            insert
+        }));
     section.chapter.note_refs.extend(refs);
     section.targets.extend(targets);
     section.chapter.blocks.extend(blocks);

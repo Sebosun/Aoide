@@ -574,6 +574,7 @@ pub(crate) mod tests {
                 .join("\n\n"),
             blocks,
             note_refs: vec![],
+            inserts: Vec::new(),
             sources: vec![SourceLocation {
                 path: "a.xhtml".into(),
                 fragment: None,

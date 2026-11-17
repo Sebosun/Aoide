@@ -121,6 +121,36 @@ pub struct Chapter {
     /// Note reference markers removed from `blocks`, in reading order.
     pub note_refs: Vec<NoteRef>,
     pub sources: Vec<SourceLocation>,
+    /// Pictures and tables shown between blocks, outside the text (no offset moves for
+    /// them), in reading order.
+    pub inserts: Vec<Insert>,
+}
+
+/// Something shown between a chapter's blocks that takes no part of its text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Insert {
+    /// It stands before this block (`blocks.len()`: after the last).
+    pub before_block: usize,
+    pub kind: InsertKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InsertKind {
+    Picture {
+        /// Where the picture is: an archive path for an EPUB, an address for an article.
+        resource: String,
+        /// Its description (`alt`), empty when it has none.
+        alt: String,
+        caption: Option<Caption>,
+    },
+}
+
+/// A picture's caption: a block of the text (an EPUB's `figcaption`, read as a paragraph), or
+/// text of its own (an article's).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Caption {
+    Block(usize),
+    Text(String),
 }
 
 /// The package's declared cover image.

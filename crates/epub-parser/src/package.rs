@@ -13,6 +13,8 @@ pub(crate) struct Package {
     pub subjects: Vec<String>,
     pub series: Option<crate::Series>,
     pub cover: Option<crate::Cover>,
+    /// The cover's archive path: a picture there is not shown again in the text.
+    pub cover_path: Option<String>,
     pub spine: Vec<String>,
     pub navigation: Option<Navigation>,
     pub guide: Vec<Entry>,
@@ -54,7 +56,9 @@ pub(crate) fn read(archive: &mut Archive<'_>) -> Result<Package, ParseError> {
             .collect()
     };
     let metadata = |name| all(name).into_iter().next();
-    let cover = cover_path(&doc, &path)?
+    let declared_cover = cover_path(&doc, &path)?;
+    let cover_path = declared_cover.as_ref().map(|(href, _)| href.clone());
+    let cover = declared_cover
         .and_then(|(href, media_type)| {
             archive.contains(&href).then(|| {
                 archive
@@ -123,6 +127,7 @@ pub(crate) fn read(archive: &mut Archive<'_>) -> Result<Package, ParseError> {
         subjects: all("subject"),
         series: series(&doc),
         cover,
+        cover_path,
         spine,
         navigation,
         guide,

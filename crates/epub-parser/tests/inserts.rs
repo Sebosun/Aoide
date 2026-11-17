@@ -1,7 +1,7 @@
 //! Pictures, tables and code: what they add to a chapter, and that its text stays as it was.
 mod support;
 
-use aoide_epub::{parse_epub, BlockKind, ParseOptions};
+use aoide_epub::{parse_epub, read_resource, BlockKind, Caption, Insert, InsertKind, ParseOptions};
 
 /// A chapter with a picture, a figure with its caption, a table with a caption, and code.
 pub const ILLUSTRATED: &str = r#"<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>
@@ -55,4 +55,95 @@ fn the_display_text_is_what_it_was() {
         texts.join("\n\n"),
         "the text is the blocks joined"
     );
+}
+
+fn picture(resource: &str, alt: &str, caption: Option<Caption>) -> InsertKind {
+    InsertKind::Picture {
+        resource: resource.into(),
+        alt: alt.into(),
+        caption,
+    }
+}
+
+fn inserts(body: &str) -> Vec<Insert> {
+    let book = parse_epub(&support::single(body), &ParseOptions::default()).unwrap();
+    book.chapters.into_iter().next().unwrap().inserts
+}
+
+#[test]
+fn pictures_stand_between_blocks_with_the_paragraph_that_captions_them() {
+    let book = parse_epub(&illustrated(), &ParseOptions::default()).unwrap();
+    assert_eq!(
+        book.chapters[0].inserts,
+        [
+            Insert {
+                before_block: 2,
+                kind: picture("OPS/images/stair.png", "A spiral stair", None),
+            },
+            Insert {
+                before_block: 3,
+                kind: picture(
+                    "OPS/images/lamp.png",
+                    "The great lamp",
+                    Some(Caption::Block(3))
+                ),
+            },
+        ]
+    );
+}
+
+#[test]
+fn a_picture_first_or_last_or_inside_a_line() {
+    let found = inserts(
+        r#"<img src="a.png" alt=""/><p>One <img src="b.png" alt="b"/> two.</p><p>Three.</p><svg><image xlink:href="c.jpg"/></svg>"#,
+    );
+    let at: Vec<(usize, &str)> = found
+        .iter()
+        .map(|i| match &i.kind {
+            InsertKind::Picture { resource, .. } => (i.before_block, resource.as_str()),
+        })
+        .collect();
+    // Inside a line: after it, so the line is not cut.
+    assert_eq!(at, [(0, "OPS/a.png"), (1, "OPS/b.png"), (2, "OPS/c.jpg")]);
+}
+
+#[test]
+fn the_cover_decoration_and_pictures_from_elsewhere_are_left_out() {
+    let bytes = support::epub(
+        r#"<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/><item id="cover" href="cover.jpg" media-type="image/jpeg" properties="cover-image"/>"#,
+        r#"<itemref idref="chapter"/>"#,
+        &[
+            (
+                "OPS/chapter.xhtml",
+                r#"<img src="cover.jpg"/><p>Text.</p><img src="rule.png" role="presentation"/><img src="https://example.com/x.png"/><img src="data:image/png;base64,AAAA"/><img src="kept.png"/>"#,
+            ),
+            ("OPS/cover.jpg", "jpeg"),
+        ],
+    );
+    let book = parse_epub(&bytes, &ParseOptions::default()).unwrap();
+    assert_eq!(
+        book.chapters[0].inserts,
+        [Insert {
+            before_block: 1,
+            kind: picture("OPS/kept.png", "", None)
+        }]
+    );
+}
+
+#[test]
+fn a_resource_is_read_from_the_book() {
+    let bytes = support::epub(
+        r#"<item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>"#,
+        r#"<itemref idref="chapter"/>"#,
+        &[
+            ("OPS/chapter.xhtml", "<p>Text.</p>"),
+            ("OPS/images/a.png", "png bytes"),
+        ],
+    );
+    let options = ParseOptions::default();
+    assert_eq!(
+        read_resource(&bytes, "OPS/images/a.png", &options).unwrap(),
+        b"png bytes"
+    );
+    assert!(read_resource(&bytes, "OPS/images/missing.png", &options).is_err());
 }
