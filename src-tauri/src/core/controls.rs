@@ -345,12 +345,17 @@ impl Controls {
         *lock(&self.media) = media;
     }
 
-    /// Moves the sleep timer on by `event` (see [`next`]); says what the player is to do.
-    pub fn sleep(&self, event: SleepEvent) -> Option<SleepAction> {
+    /// Moves the sleep timer on by `event` (see [`next`]), and has `apply` do what the player
+    /// is to do before another event can move it on: a fade a tick asked for cannot land after
+    /// the pause that restored full gain. `apply` must not move the timer itself.
+    pub fn sleep(&self, event: SleepEvent, apply: impl FnOnce(SleepAction)) -> Option<SleepAction> {
         let mut sleep = lock(&self.sleep);
         let before = *sleep;
         let (after, action) = next(before, event);
         *sleep = after;
+        if let Some(action) = action {
+            apply(action);
+        }
         drop(sleep);
         log_sleep(before, event, after);
         action
@@ -485,24 +490,24 @@ impl super::Core {
 
     /// Moves the sleep timer on by `event`, and has the player do what it asks.
     pub(super) fn sleep(&self, event: SleepEvent) {
-        let action = self.controls.sleep(event);
-        match action {
-            None => {}
-            Some(SleepAction::Fade(gain)) => self.playback.set_fade(gain),
-            Some(SleepAction::PauseAtEntryEnd) => {
-                // An audiobook alone has no sentences: it pauses now.
-                if !self.playback.pause_at_entry_end() {
-                    self.pause();
-                }
-            }
-            Some(SleepAction::PauseAtChapterEnd(chapter)) => {
+        let mut pause_now = false;
+        let action = self.controls.sleep(event, |action| match action {
+            SleepAction::Fade(gain) => self.playback.set_fade(gain),
+            // An audiobook alone has no sentences: it pauses now (below, as the listener's
+            // pause, which rings the timer).
+            SleepAction::PauseAtEntryEnd => pause_now = !self.playback.pause_at_entry_end(),
+            SleepAction::PauseAtChapterEnd(chapter) => {
                 self.playback.pause_at_chapter_end(chapter);
             }
-            Some(SleepAction::Pause) => {
-                self.pause();
+            SleepAction::Pause => {
+                // The timer has rung, so this pause need not tell it.
+                let _ = self.follow_through(self.playback.pause());
                 self.playback.restore_gain();
             }
-            Some(SleepAction::RestoreGain) => self.playback.restore_gain(),
+            SleepAction::RestoreGain => self.playback.restore_gain(),
+        });
+        if pause_now {
+            self.pause();
         }
         if matches!(event, SleepEvent::Set { .. } | SleepEvent::Cancelled) || action.is_some() {
             self.playback.stir();
@@ -802,7 +807,8 @@ mod tests {
     fn the_view_shows_what_is_left_of_a_timer_until_it_rings() {
         let controls = Controls::default();
         let now = Instant::now();
-        controls.sleep(SleepEvent::Set {
+        let sleep = |event| controls.sleep(event, |_| {});
+        sleep(SleepEvent::Set {
             minutes: Some(5),
             end_of_chapter: false,
             chapter: Some(0),
@@ -814,7 +820,7 @@ mod tests {
             .remaining_ms
             .is_some_and(|ms| ms > 290_000 && ms <= 300_000));
 
-        let action = controls.sleep(SleepEvent::Set {
+        let action = sleep(SleepEvent::Set {
             minutes: None,
             end_of_chapter: true,
             chapter: Some(2),
@@ -828,16 +834,56 @@ mod tests {
             chapter,
             playing: true,
         };
-        assert_eq!(controls.sleep(tick(2)), None);
-        assert_eq!(controls.sleep(tick(3)), Some(SleepAction::Pause));
-        assert_eq!(controls.sleep(tick(4)), None, "it rings once");
+        assert_eq!(sleep(tick(2)), None);
+        assert_eq!(sleep(tick(3)), Some(SleepAction::Pause));
+        assert_eq!(sleep(tick(4)), None, "it rings once");
         assert_eq!(controls.sleep_view(), None);
 
-        controls.sleep(SleepEvent::Played { now, chapter: 4 });
+        sleep(SleepEvent::Played { now, chapter: 4 });
         let view = controls.sleep_view().expect("started again");
         assert_eq!(
             (view.remaining_ms, view.end_of_chapter, view.extended),
             (None, true, true)
+        );
+    }
+
+    #[test]
+    fn what_the_timer_asks_is_done_before_another_event_moves_it_on() {
+        // A fade asked for by the tick cannot land after the pause that restored full gain.
+        let controls = std::sync::Arc::new(Controls::default());
+        let now = Instant::now();
+        controls.sleep(
+            SleepEvent::Set {
+                minutes: Some(1),
+                end_of_chapter: false,
+                chapter: Some(0),
+                now: now - Duration::from_secs(50),
+            },
+            |_| {},
+        );
+        let done = std::sync::Arc::new(Mutex::new(Vec::new()));
+        let (started, wait) = channel();
+        let ticking = {
+            let (controls, done) = (controls.clone(), done.clone());
+            std::thread::spawn(move || {
+                let tick = SleepEvent::Tick {
+                    now,
+                    chapter: 0,
+                    playing: true,
+                };
+                controls.sleep(tick, |action| {
+                    started.send(()).unwrap();
+                    std::thread::sleep(Duration::from_millis(50));
+                    lock(&done).push(action);
+                });
+            })
+        };
+        wait.recv().unwrap();
+        controls.sleep(SleepEvent::Paused(now), |action| lock(&done).push(action));
+        ticking.join().unwrap();
+        assert_eq!(
+            *lock(&done),
+            [SleepAction::Fade(0.6), SleepAction::RestoreGain]
         );
     }
 
