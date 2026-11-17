@@ -2306,7 +2306,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async markAllRead({ feedId = null, folder = null } = {}) {
       const inFolder = (id: number) => folder === null || feeds.find((f) => f.id === id)?.folder === folder;
-      for (const entry of entries) if ((feedId === null || entry.feedId === feedId) && inFolder(entry.feedId)) entry.read = true;
+      for (const entry of entries)
+        if ((feedId === null || entry.feedId === feedId) && inFolder(entry.feedId)) entry.read = true;
       feedsChanged();
     },
     /** As the core does: a blank name is no folder. */

@@ -6,6 +6,7 @@ import App from "@/App.vue";
 import { useNavigationStore } from "@/stores/navigation";
 import { useReaderStore } from "@/stores/reader";
 import { useFeedsStore } from "@/stores/feeds";
+import { pickMenuItem } from "@/tests/helpers";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("@/api", () => ({
@@ -20,6 +21,7 @@ const start = (search = "") => {
 };
 beforeEach(() => {
   setActivePinia(createPinia());
+  localStorage.clear();
   start();
 });
 afterEach(() => {
@@ -57,10 +59,11 @@ it("shows the unread count beside Feeds and lists subscriptions and entries by d
   expect(subscriptions(wrapper)).toEqual([
     "All new 5",
     "Saved for later",
-    "Field Notes 1",
+    "Sea 2",
     "Harbour Letters",
-    "Small Cities 2",
     "Tidewatch 2",
+    "Field Notes 1",
+    "Small Cities 2",
   ]);
   expect(wrapper.findAll(".feeds__day").map((d) => d.text())[0]).toBe("Today");
   expect(titles(wrapper).slice(0, 3)).toEqual([
@@ -355,4 +358,125 @@ it("marks an entry whose article needs the user", async () => {
   await night().get(".feed-entry__save").trigger("click");
   await flushPromises();
   expect(night().get(".feed-entry__note--needs").text()).toBe("Needs you · sign in to get the rest");
+});
+
+const folderRow = (wrapper: ReturnType<typeof mount>, name: string) =>
+  wrapper.findAll(".feeds__row--folder").find((r) => r.find(".feeds__name").text() === name)!;
+
+it("lists a folder's feeds under it and reads the folder as one stream", async () => {
+  const wrapper = await openFeeds();
+  const sea = folderRow(wrapper, "Sea");
+  await sea.get(".feeds__source").trigger("click");
+  await flushPromises();
+  expect(titles(wrapper)).toEqual([
+    "The ferry that runs on the tide table",
+    "How lighthouses kept their own time",
+    "Charts drawn by the harbour pilots",
+    "Letters from the breakwater",
+  ]);
+  await wrapper
+    .findAll("button")
+    .find((b) => b.text() === "Mark all read")!
+    .trigger("click");
+  await flushPromises();
+  expect(subscriptions(wrapper)).toEqual([
+    "All new 3",
+    "Saved for later",
+    "Sea",
+    "Harbour Letters",
+    "Tidewatch",
+    "Field Notes 1",
+    "Small Cities 2",
+  ]);
+});
+
+it("folds a folder away and remembers it", async () => {
+  let wrapper = await openFeeds();
+  const toggle = () => folderRow(wrapper, "Sea").get('[aria-label="Show or hide Sea"]');
+  expect(toggle().attributes("aria-expanded")).toBe("true");
+  await toggle().trigger("click");
+  expect(toggle().attributes("aria-expanded")).toBe("false");
+  expect(subscriptions(wrapper)).not.toContain("Tidewatch 2");
+  wrapper.unmount();
+  setActivePinia(createPinia());
+  wrapper = await openFeeds();
+  expect(toggle().attributes("aria-expanded")).toBe("false");
+  await toggle().trigger("click");
+  expect(subscriptions(wrapper)).toContain("Tidewatch 2");
+});
+
+it("moves a feed to a folder from its menu, to a new one by name, and out again", async () => {
+  const move = vi.spyOn(mock, "setFeedFolder");
+  const wrapper = await openFeeds();
+  const row = (name: string) =>
+    document.body.querySelector<HTMLElement>(`[role="menu"] [role="menuitemcheckbox"][aria-label="${name}"]`)!;
+  await wrapper.get('[aria-label="More for Field Notes"]').trigger("click");
+  await flushPromises();
+  expect(row("No folder").getAttribute("aria-checked")).toBe("true");
+  row("Sea").click();
+  await flushPromises();
+  expect(move).toHaveBeenLastCalledWith({ feedId: 3, folder: "Sea" });
+  expect(subscriptions(wrapper).slice(2, 6)).toEqual(["Sea 3", "Field Notes 1", "Harbour Letters", "Tidewatch 2"]);
+
+  await wrapper.get('[aria-label="More for Small Cities"]').trigger("click");
+  await flushPromises();
+  await pickMenuItem("New folder…");
+  const dialog = wrapper.get('[role="dialog"]');
+  await dialog.get("input").setValue("Towns");
+  await dialog.get("form").trigger("submit");
+  await flushPromises();
+  expect(move).toHaveBeenLastCalledWith({ feedId: 2, folder: "Towns" });
+  expect(folderRow(wrapper, "Towns").text()).toContain("2");
+
+  await wrapper.get('[aria-label="More for Small Cities"]').trigger("click");
+  await flushPromises();
+  row("No folder").click();
+  await flushPromises();
+  expect(move).toHaveBeenLastCalledWith({ feedId: 2, folder: null });
+  expect(wrapper.findAll(".feeds__row--folder").map((r) => r.find(".feeds__name").text())).toEqual(["Sea"]);
+});
+
+it("renames a folder from its menu, and the chosen folder follows", async () => {
+  const wrapper = await openFeeds();
+  await folderRow(wrapper, "Sea").get(".feeds__source").trigger("click");
+  await flushPromises();
+  await wrapper.get('[aria-label="More for folder Sea"]').trigger("click");
+  await flushPromises();
+  await pickMenuItem("Rename…");
+  const dialog = wrapper.get('[role="dialog"]');
+  expect((dialog.get("input").element as HTMLInputElement).value).toBe("Sea");
+  await dialog.get("input").setValue("Coast");
+  await dialog.get("form").trigger("submit");
+  await flushPromises();
+  expect(folderRow(wrapper, "Coast").get(".feeds__source").attributes("aria-current")).toBe("true");
+  expect(titles(wrapper)).toHaveLength(4);
+});
+
+it("moves a feed into a folder when it is dropped on it", async () => {
+  const move = vi.spyOn(mock, "setFeedFolder");
+  const wrapper = await openFeeds();
+  const data = new Map<string, string>();
+  const transfer = {
+    get types() {
+      return [...data.keys()];
+    },
+    setData: (type: string, value: string) => data.set(type, value),
+    getData: (type: string) => data.get(type) ?? "",
+    effectAllowed: "",
+    dropEffect: "",
+  };
+  const drag = (target: Element, type: string) => {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "dataTransfer", { value: transfer });
+    target.dispatchEvent(event);
+    return event;
+  };
+  const fieldNotes = wrapper.findAll(".feeds__row").find((r) => r.text().startsWith("Field Notes"))!;
+  expect(fieldNotes.attributes("draggable")).toBe("true");
+  expect(drag(fieldNotes.element, "dragstart").defaultPrevented).toBe(false);
+  const sea = folderRow(wrapper, "Sea");
+  expect(drag(sea.element, "dragover").defaultPrevented, "a folder takes the drop").toBe(true);
+  drag(sea.element, "drop");
+  await flushPromises();
+  expect(move).toHaveBeenCalledWith({ feedId: 3, folder: "Sea" });
 });

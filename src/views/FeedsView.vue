@@ -2,12 +2,23 @@
 import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Copy, Ellipsis, ExternalLink, Plus, TriangleAlert, Trash2 } from "@lucide/vue";
+import {
+  ChevronRight,
+  Copy,
+  Ellipsis,
+  ExternalLink,
+  FolderPlus,
+  Pencil,
+  Plus,
+  TriangleAlert,
+  Trash2,
+} from "@lucide/vue";
 import type { EntryView, FeedView } from "@/api/types";
 import FeedEntry from "@/components/feeds/FeedEntry.vue";
 import UiMenu from "@/components/ui/UiMenu.vue";
 import type { MenuEntry } from "@/components/ui/types";
 import { api } from "@/api";
+import { FEED_DRAG } from "@/drag";
 import { age, dayName, localDay } from "@/days";
 import { useFeedsStore, type FeedsSource } from "@/stores/feeds";
 import { useLibraryStore } from "@/stores/library";
@@ -25,9 +36,7 @@ const summary = computed(() => {
   const news = feeds.unread ? `${feeds.unread} new` : "Nothing new";
   return feeds.checkedAt ? `${news} · checked ${age(feeds.checkedAt)}` : news;
 });
-const isCurrent = (source: FeedsSource) =>
-  feeds.source.kind === source.kind &&
-  (source.kind !== "feed" || (feeds.source.kind === "feed" && feeds.source.id === source.id));
+const isCurrent = (source: FeedsSource) => JSON.stringify(feeds.source) === JSON.stringify(source);
 const failingSince = (feed: FeedView) =>
   feed.stage.kind === "failing" ? `Not reachable since ${dayName(feed.stage.sinceMs)}` : "";
 const feedName = (feed: FeedView) => feed.title ?? new URL(feed.url).hostname;
@@ -50,6 +59,97 @@ async function copyAddress(feed: FeedView) {
     ui.toast(`Could not copy: ${String(e)}`, "error");
   }
 }
+/** The folders, by name, each with its feeds; then the feeds in none. */
+const folders = computed(() => {
+  const byName = new Map<string, FeedView[]>();
+  for (const feed of feeds.feeds) if (feed.folder) byName.set(feed.folder, [...(byName.get(feed.folder) ?? []), feed]);
+  return [...byName]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([name, list]) => ({ name, feeds: list, unread: list.reduce((sum, f) => sum + f.unread, 0) }));
+});
+/** The list's rows: each folder, with its feeds under it unless folded; then the other feeds. */
+type Row =
+  | { kind: "folder"; key: string; name: string; unread: number; open: boolean }
+  | { kind: "feed"; key: string; feed: FeedView; nested: boolean };
+const rows = computed<Row[]>(() => [
+  ...folders.value.flatMap(({ name, feeds: list, unread }): Row[] => {
+    const open = !folded.value.includes(name);
+    const folder: Row = { kind: "folder", key: `folder:${name}`, name, unread, open };
+    return [
+      folder,
+      ...(open ? list.map((feed): Row => ({ kind: "feed", key: `feed:${feed.id}`, feed, nested: true })) : []),
+    ];
+  }),
+  ...feeds.feeds
+    .filter((f) => !f.folder)
+    .map((feed): Row => ({ kind: "feed", key: `feed:${feed.id}`, feed, nested: false })),
+]);
+
+/** Folders folded away, remembered on this computer. */
+const FOLDED = "aoide.feeds.folded";
+const folded = ref<string[]>(remembered());
+function remembered(): string[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(FOLDED) ?? "[]");
+    return Array.isArray(value) ? value.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+function fold(name: string) {
+  folded.value = folded.value.includes(name) ? folded.value.filter((n) => n !== name) : [...folded.value, name];
+  try {
+    localStorage.setItem(FOLDED, JSON.stringify(folded.value));
+  } catch {
+    // Not remembered; it still folds.
+  }
+}
+
+async function newFolder(feed: FeedView) {
+  const name = await ui.prompt({
+    title: "New folder",
+    label: "Folder name",
+    confirmLabel: "Move",
+    placeholder: "News",
+  });
+  if (name) await feeds.setFolder(feed.id, name);
+}
+async function renameFolder(name: string) {
+  const to = await ui.prompt({ title: "Rename folder", label: "Folder name", value: name, confirmLabel: "Rename" });
+  if (!to || to === name) return;
+  if (folded.value.includes(name)) {
+    fold(name);
+    if (!folded.value.includes(to)) fold(to);
+  }
+  await feeds.renameFolder(name, to);
+}
+const folderActions = (name: string): MenuEntry[] => [
+  { id: "rename", label: "Rename…", icon: Pencil, action: () => void renameFolder(name) },
+];
+
+/** The feed being dragged onto a folder, and the folder it is over ("" for none). */
+const dropOn = ref<string | null>(null);
+function dragFeed(event: DragEvent, feed: FeedView) {
+  if (!event.dataTransfer) return;
+  event.dataTransfer.setData(FEED_DRAG, String(feed.id));
+  event.dataTransfer.effectAllowed = "move";
+}
+function dragOver(event: DragEvent, folder: string) {
+  if (!Array.from(event.dataTransfer?.types ?? []).includes(FEED_DRAG)) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  dropOn.value = folder;
+}
+function drop(event: DragEvent, folder: string | null) {
+  dropOn.value = null;
+  const id = Number(event.dataTransfer?.getData(FEED_DRAG));
+  if (!id) return;
+  event.preventDefault();
+  // The window would otherwise take it for a link or files.
+  event.stopPropagation();
+  if (feeds.feeds.find((f) => f.id === id)?.folder !== folder) void feeds.setFolder(id, folder);
+}
+
 const actions = (feed: FeedView): MenuEntry[] => [
   {
     id: "site",
@@ -68,6 +168,16 @@ const actions = (feed: FeedView): MenuEntry[] => [
     checked: feed.collectionId === c.id,
     action: () => void feeds.setCollection(feed.id, c.id),
   })),
+  { kind: "separator" },
+  { kind: "heading", label: "Move to folder" },
+  ...[null, ...folders.value.map((f) => f.name)].map((name) => ({
+    id: `folder:${name ?? ""}`,
+    label: name ?? "No folder",
+    ariaLabel: name ?? "No folder",
+    checked: (feed.folder ?? null) === name,
+    action: () => void feeds.setFolder(feed.id, name),
+  })),
+  { id: "new-folder", label: "New folder…", icon: FolderPlus, action: () => void newFolder(feed) },
   { kind: "separator" },
   {
     id: "unsubscribe",
@@ -182,43 +292,110 @@ onBeforeUnmount(() => watcher?.disconnect());
         >
           <span class="feeds__line"><span class="feeds__name">Saved for later</span></span>
         </button>
-        <h2 class="feeds__heading">Subscriptions</h2>
-        <div v-for="feed in feeds.feeds" :key="feed.id" class="feeds__row">
-          <button
-            type="button"
-            class="feeds__source"
-            :class="{ 'feeds__source--quiet': !feed.unread }"
-            :aria-current="isCurrent({ kind: 'feed', id: feed.id })"
-            :title="feed.error ?? feed.url"
-            @click="feeds.choose({ kind: 'feed', id: feed.id })"
-          >
-            <span class="feeds__line">
-              <span class="feeds__name">{{ feedName(feed) }}</span><span v-if="feed.unread" class="feeds__count">{{
-                feed.unread
-              }}</span>
-            </span>
-            <span v-if="failingSince(feed)" class="feeds__failing"
-              ><TriangleAlert :size="13" aria-hidden="true" />{{ failingSince(feed) }}</span
-            >
-          </button>
-          <UiMenu
-            v-slot="{ toggle, trigger }"
-            class="feeds__more-menu"
-            :label="`Actions for ${feedName(feed)}`"
-            :items="actions(feed)"
-            align="end"
+        <h2
+          class="feeds__heading"
+          :class="{ 'feeds__heading--drop': dropOn === '' }"
+          @dragover="dragOver($event, '')"
+          @dragleave="dropOn = null"
+          @drop="drop($event, null)"
+        >
+          Subscriptions
+        </h2>
+        <template v-for="row in rows" :key="row.key">
+          <div
+            v-if="row.kind === 'folder'"
+            class="feeds__row feeds__row--folder"
+            :class="{ 'feeds__row--drop': dropOn === row.name }"
+            @dragover="dragOver($event, row.name)"
+            @dragleave="dropOn = null"
+            @drop="drop($event, row.name)"
           >
             <button
               type="button"
-              class="feeds__icon"
-              :aria-label="`More for ${feedName(feed)}`"
-              v-bind="trigger"
-              @click="toggle"
+              class="feeds__fold"
+              :class="{ 'feeds__fold--open': row.open }"
+              :aria-label="`Show or hide ${row.name}`"
+              :aria-expanded="row.open"
+              @click="fold(row.name)"
             >
-              <Ellipsis :size="15" aria-hidden="true" />
+              <ChevronRight :size="15" aria-hidden="true" />
             </button>
-          </UiMenu>
-        </div>
+            <button
+              type="button"
+              class="feeds__source"
+              :class="{ 'feeds__source--quiet': !row.unread }"
+              :aria-current="isCurrent({ kind: 'folder', name: row.name })"
+              @click="feeds.choose({ kind: 'folder', name: row.name })"
+            >
+              <span class="feeds__line">
+                <span class="feeds__name">{{ row.name }}</span><span v-if="row.unread" class="feeds__count">{{
+                  row.unread
+                }}</span>
+              </span>
+            </button>
+            <UiMenu
+              v-slot="{ toggle, trigger }"
+              class="feeds__more-menu"
+              :label="`Actions for folder ${row.name}`"
+              :items="folderActions(row.name)"
+              align="end"
+            >
+              <button
+                type="button"
+                class="feeds__icon"
+                :aria-label="`More for folder ${row.name}`"
+                v-bind="trigger"
+                @click="toggle"
+              >
+                <Ellipsis :size="15" aria-hidden="true" />
+              </button>
+            </UiMenu>
+          </div>
+          <div
+            v-else
+            class="feeds__row"
+            :class="{ 'feeds__row--nested': row.nested }"
+            draggable="true"
+            @dragstart="dragFeed($event, row.feed)"
+          >
+            <button
+              type="button"
+              class="feeds__source"
+              :class="{ 'feeds__source--quiet': !row.feed.unread }"
+              :aria-current="isCurrent({ kind: 'feed', id: row.feed.id })"
+              :title="row.feed.error ?? row.feed.url"
+              @click="feeds.choose({ kind: 'feed', id: row.feed.id })"
+            >
+              <span class="feeds__line">
+                <span class="feeds__name">{{ feedName(row.feed) }}</span><span
+                  v-if="row.feed.unread"
+                  class="feeds__count"
+                  >{{ row.feed.unread }}</span
+                >
+              </span>
+              <span v-if="failingSince(row.feed)" class="feeds__failing"
+                ><TriangleAlert :size="13" aria-hidden="true" />{{ failingSince(row.feed) }}</span
+              >
+            </button>
+            <UiMenu
+              v-slot="{ toggle, trigger }"
+              class="feeds__more-menu"
+              :label="`Actions for ${feedName(row.feed)}`"
+              :items="actions(row.feed)"
+              align="end"
+            >
+              <button
+                type="button"
+                class="feeds__icon"
+                :aria-label="`More for ${feedName(row.feed)}`"
+                v-bind="trigger"
+                @click="toggle"
+              >
+                <Ellipsis :size="15" aria-hidden="true" />
+              </button>
+            </UiMenu>
+          </div>
+        </template>
       </section>
 
       <section class="feeds__entries" aria-label="Entries">
@@ -316,6 +493,40 @@ onBeforeUnmount(() => watcher?.disconnect());
 .feeds__row .feeds__source {
   flex: 1;
   min-width: 0;
+}
+.feeds__row--nested {
+  padding-left: var(--space-12);
+}
+.feeds__row--drop .feeds__source,
+.feeds__heading--drop {
+  color: var(--ink);
+  background: var(--glass);
+  box-shadow: inset 0 0 0 2px var(--accent);
+  border-radius: var(--radius-md);
+}
+.feeds__fold {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  color: var(--dim);
+}
+.feeds__fold:hover {
+  color: var(--ink);
+  background: var(--glass);
+}
+.feeds__fold svg {
+  transition: transform 0.15s ease;
+}
+.feeds__fold--open svg {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .feeds__fold svg {
+    transition: none;
+  }
 }
 .feeds__source {
   min-height: 44px;

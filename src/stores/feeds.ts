@@ -7,8 +7,10 @@ import { useLibraryStore } from "@/stores/library";
 import { useReaderStore } from "@/stores/reader";
 import { useQueueStore } from "@/stores/queue";
 
-/** What the Feeds screen lists: every feed's entries, the saved ones, or one feed's. */
-export type FeedsSource = { kind: "all" } | { kind: "saved" } | { kind: "feed"; id: number };
+/** What the Feeds screen lists: every feed's entries, the saved ones, one feed's, or the
+ *  entries of the feeds in a folder. */
+export type FeedsSource =
+  { kind: "all" } | { kind: "saved" } | { kind: "feed"; id: number } | { kind: "folder"; name: string };
 /** Entries asked for at a time. */
 export const ENTRY_PAGE = 50;
 
@@ -39,6 +41,7 @@ export const useFeedsStore = defineStore("feeds", () => {
     const from = source.value;
     return api.feedEntries({
       feedId: from.kind === "feed" ? from.id : null,
+      folder: from.kind === "folder" ? from.name : null,
       filter: from.kind === "saved" ? "saved" : "all",
       before,
       limit,
@@ -55,6 +58,9 @@ export const useFeedsStore = defineStore("feeds", () => {
       entries.value = list;
       more.value = list.length === shown;
       loaded.value = true;
+      // A folder exists while a feed is in it.
+      const from = source.value;
+      if (from.kind === "folder" && !views.some((f) => f.folder === from.name)) await choose({ kind: "all" });
     } catch (e) {
       error.value = String(e);
     }
@@ -129,9 +135,14 @@ export const useFeedsStore = defineStore("feeds", () => {
       await useQueueStore().addEntry(entry.id, place);
     });
   const checkNow = () => run(() => api.checkFeeds());
-  /** Marks the listed feed's entries read (every feed's, unless one is chosen). */
+  /** Marks the listed entries read: of the chosen feed or folder, else of every feed. */
   const markAllRead = () =>
-    run(() => api.markAllRead({ feedId: source.value.kind === "feed" ? source.value.id : null }));
+    run(() =>
+      api.markAllRead({
+        feedId: source.value.kind === "feed" ? source.value.id : null,
+        folder: source.value.kind === "folder" ? source.value.name : null,
+      }),
+    );
   const unsubscribe = (id: number) =>
     run(async () => {
       await api.unsubscribe({ feedId: id });
@@ -140,6 +151,15 @@ export const useFeedsStore = defineStore("feeds", () => {
   /** Chooses the collection feed `id`'s entries go on when saved (`null`: none). */
   const setCollection = (id: number, collection: number | null) =>
     run(() => api.setFeedCollection({ feedId: id, collectionId: collection }));
+  /** Puts feed `id` in `folder` (`null`: in none). */
+  const setFolder = (id: number, folder: string | null) => run(() => api.setFeedFolder({ feedId: id, folder }));
+  /** Renames a folder; when it is the one listed, the list follows it. */
+  const renameFolder = (from: string, to: string) =>
+    run(async () => {
+      await api.renameFeedFolder({ from, to });
+      const name = to.trim();
+      if (source.value.kind === "folder" && source.value.name === from) await choose({ kind: "folder", name });
+    });
   /** Imports a subscription list the user picks; null when they pick none. */
   async function importList() {
     const path = await api.chooseOpml();
@@ -179,6 +199,8 @@ export const useFeedsStore = defineStore("feeds", () => {
     markAllRead,
     unsubscribe,
     setCollection,
+    setFolder,
+    renameFolder,
     importList,
     exportList,
     dispose,

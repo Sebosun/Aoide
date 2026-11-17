@@ -34,7 +34,7 @@ import { isAudioPath } from "@/recording";
 import { asLink } from "@/articles";
 import { useShortcuts } from "@/composables/useShortcuts";
 import { useFrameLog } from "@/composables/useFrameLog";
-import { ITEM_DRAG } from "@/drag";
+import { FEED_DRAG, ITEM_DRAG } from "@/drag";
 
 const library = useLibraryStore(),
   player = usePlayerStore(),
@@ -140,10 +140,12 @@ onUnmounted(() => {
     useArticlesStore().dispose();
   });
 });
-/** Nothing in the window is dragged out of it (covers, links), but for library cards, which
- *  carry an item to the sidebar's collections. */
+/** Nothing in the window is dragged out of it (covers, links), but for what carries one of
+ *  Aoide's own drag types: library cards to the sidebar's collections, feeds to their folders. */
+const OWN_DRAGS = [ITEM_DRAG, FEED_DRAG];
 function dragStart(event: DragEvent) {
-  if (!Array.from(event.dataTransfer?.types ?? []).includes(ITEM_DRAG)) event.preventDefault();
+  const types = Array.from(event.dataTransfer?.types ?? []);
+  if (!OWN_DRAGS.some((type) => types.includes(type))) event.preventDefault();
 }
 // The browser path: only drags that carry files count, and nested enter/leave pairs are
 // counted so moving over child elements does not flicker or strand the overlay.
