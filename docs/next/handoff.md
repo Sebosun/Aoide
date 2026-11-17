@@ -9,9 +9,9 @@ Delete this file when the remaining work is done.
 
 Built, independently reviewed (all checks green) and pushed, through `a91e619`:
 6.4, 1.1, 1.4, 2.1, 2.2, 2.7, 6.2, 1.2, 1.3, 3.3, 3.1, 3.2, 6.1, 5.2, 4.7, 4.3, 2.3, 2.4, 2.5,
-3.7; 5.3, 5.5, 4.1 and 4.2 built here, not pushed or reviewed. Each plan section has a `**Built:** 2026-11-17 (<first>..<last>)` line.
+3.7; 5.3, 5.5, 4.1, 4.2 and 6.3 built here, not pushed or reviewed. Each plan section has a `**Built:** 2026-11-17 (<first>..<last>)` line.
 
-**Not started**, in the order planned: 6.3, 4.8, 5.1, 3.5, 2.6,
+**Not started**, in the order planned: 4.8, 5.1, 3.5, 2.6,
 1.5, 3.6, 4.5 (every format the section lists).
 
 ## How the work was run
@@ -43,6 +43,9 @@ a review that is not green. Its rules worth keeping by hand too:
 - 6.2: clicking a desktop notification.
 - 3.3: compare `ui.frames` scrolling with Justify and Hyphenate on.
 - 3.7: F11, F, Esc and the window manager's fullscreen shortcut on Wayland and X11.
+- 6.3: close the window while preparing (the question, Keep working, the tray's menu, Quit when
+  done quitting at the end); GNOME without the AppIndicator extension minimises; GNOME's media
+  controls raise the window; a system without libappindicator starts and closes.
 
 ## Open decisions for the user
 

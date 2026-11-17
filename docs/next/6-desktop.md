@@ -284,6 +284,7 @@ someone asks. Shown in Settings › Library, in a **Notifications** section of i
 ## 6.3 Keep working in the background
 
 **Size:** M
+**Built:** 2026-11-17 (3e8df96..2c7510e)
 
 ### Outcome
 
@@ -398,6 +399,29 @@ field and `From` arm), in Settings › Library beside **Carry on preparing**.
 ### Settled
 
 - Start at login, hidden: not planned (plan's default).
+
+### As built
+
+- The rule, the component (`Presences`, host trait `PresenceHost`) and `Core::working()` are all
+  in `core/presence.rs`. Two events were added to the plan's: `CloseAnswered { keep }` (the
+  question's answer) and closing from the background quits, so a minimised window (no tray)
+  can always be closed. `Reopened` from the window coming to the front by other means is
+  `Core::window_raised`. Work ending in the background alone does not quit; only Quit when
+  done does. Reopening cancels Quit when done.
+- The window's side is `src-tauri/src/background.rs`: `act` does what the core says,
+  `watch_window` handles `CloseRequested` (always `prevent_close`; quitting is `app.exit(0)`) and
+  `Focused`, and the event wrapper (`watched`) pokes a thread after the events listed in
+  `may_end_work`, which refreshes the tray and runs `check_work`. Bursts count once (400 ms).
+- `CloseBehaviour` has four choices in Settings › Library › *Closing the window*: Ask each
+  time, Keep working in the background, Always stay in the background, Quit. A remembered
+  answer becomes Keep working (or Quit).
+- `show_window` reports `Reopened`, so a notification click, a second launch and the tray's
+  Open Aoide all go through the rule. MPRIS `Raise` calls a hook the shell sets
+  (`Core::on_raise`), since the media controls start inside the core.
+- `Working` is not sent to the window: the question says "preparing, syncing or playing"
+  without naming the job. The discovery import gained its flag (`Discovery::importing`).
+- The tray check is opt-in testable on a desktop: `AOIDE_TRAY_CHECK=1 cargo test -p aoide
+  tray_check -- --nocapture` (here: `Shown`; with no session bus, `NoWatcher`).
 
 ---
 
