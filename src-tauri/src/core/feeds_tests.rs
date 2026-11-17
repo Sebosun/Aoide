@@ -684,6 +684,27 @@ mod through_core {
     }
 
     #[tokio::test]
+    async fn deleting_a_feeds_collection_tells_feeds_it_has_none() {
+        let pages = Pages::with(&[]);
+        pages.feed(HARBOUR, &feed(), "v1");
+        let dir = tempfile::tempdir().unwrap();
+        library_folder(dir.path(), "");
+        let (core, events) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+        core.subscribe(HARBOUR).await.unwrap();
+        let id = core.feeds().unwrap()[0].id;
+        let harbour = core.create_collection("Harbour").unwrap();
+        core.set_feed_collection(id, Some(harbour)).unwrap();
+        let told = events.count(crate::core::CoreEvent::FEEDS_CHANGED);
+
+        core.delete_collection(harbour).unwrap();
+        assert_eq!(core.feeds().unwrap()[0].collection_id, None);
+        assert_eq!(
+            events.count(crate::core::CoreEvent::FEEDS_CHANGED),
+            told + 1
+        );
+    }
+
+    #[tokio::test]
     async fn a_page_sent_from_the_browser_that_a_feed_lists_is_new_to_the_library_until_undone() {
         let pages = Pages::with(&[]);
         let (_dir, core) = subscribed(&pages).await;

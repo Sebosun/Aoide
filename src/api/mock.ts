@@ -1137,6 +1137,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         b.collections = b.collections.filter((c) => c !== id);
       });
       changed();
+      // As the core does: a feed whose entries went on it is left with none.
+      if (feeds.some((f) => f.collectionId === id)) {
+        feeds = feeds.map((f) => (f.collectionId === id ? { ...f, collectionId: null } : f));
+        feedsChanged();
+      }
     },
     /** Like the core (library/tags.rs): every tag on some item, by name, with its count. */
     async tags() {

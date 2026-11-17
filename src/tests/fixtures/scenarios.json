@@ -1520,6 +1520,22 @@
         "expect": {
           "[id=6].inLibrary": false
         }
+      },
+      {
+        "args": {
+          "id": 1
+        },
+        "call": "deleteCollection",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[id=3].collectionId": null
+        }
       }
     ]
   },

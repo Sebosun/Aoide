@@ -143,6 +143,19 @@ it("saves a feed's entries into the collection chosen in its menu", async () => 
   expect(choose).toHaveBeenLastCalledWith({ feedId: 3, collectionId: null });
 });
 
+it("leaves a feed with no collection once its collection is deleted", async () => {
+  const harbour = await mock.createCollection({ name: "Harbour" });
+  await mock.setFeedCollection({ feedId: 3, collectionId: harbour });
+  const wrapper = await openFeeds();
+  await mock.deleteCollection({ id: harbour });
+  await flushPromises();
+  await wrapper.get('[aria-label="More for Field Notes"]').trigger("click");
+  await flushPromises();
+  const row = document.body.querySelector('[role="menu"] [role="menuitemcheckbox"][aria-label="No collection"]')!;
+  expect(row.getAttribute("aria-checked")).toBe("true");
+  expect((await mock.feeds()).find((f) => f.id === 3)!.collectionId).toBeNull();
+});
+
 it("says since when a feed is not reachable", async () => {
   const wrapper = await openFeeds();
   const harbour = wrapper.findAll(".feeds__source").find((s) => s.text().startsWith("Harbour Letters"))!;

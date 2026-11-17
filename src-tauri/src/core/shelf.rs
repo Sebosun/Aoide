@@ -846,9 +846,16 @@ impl super::Core {
         Ok(())
     }
 
+    /// Deletes collection `id`; a feed whose entries were saved into it is left with none.
     pub fn delete_collection(&self, id: i64) -> Result<(), String> {
+        let feeds_use_it = self
+            .feeds()
+            .is_ok_and(|feeds| feeds.iter().any(|f| f.collection_id == Some(id)));
         self.shelf.shelve(|library| library.delete_collection(id))?;
         self.emit(CoreEvent::LibraryChanged);
+        if feeds_use_it {
+            self.emit(CoreEvent::FeedsChanged);
+        }
         Ok(())
     }
 

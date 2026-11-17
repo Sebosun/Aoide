@@ -1769,6 +1769,14 @@ async fn scenarios_for_the_ui_mock() {
         &all,
         &["[id=6].inLibrary"],
     );
+    // Its feed's collection deleted, the feed is left with none.
+    s.step(
+        "deleteCollection",
+        json!({"id": harbour}),
+        &core.delete_collection(harbour),
+        &[],
+    );
+    s.step("feeds", json!({}), &core.feeds(), &[&collection]);
     scenarios.push(s.done());
 
     // ---- the preview's web, from the feeds as the mock starts
