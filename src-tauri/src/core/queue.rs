@@ -130,6 +130,9 @@ pub(super) trait QueueHost: Sync {
     fn play<'a>(&'a self, id: &'a str) -> Pending<'a, Result<(), String>>;
     /// Whether item `id` can be listened to now.
     fn can_listen(&self, id: &str) -> Result<(), WhyNot>;
+    /// Item `id`, started from the queue, played to its end: a feed's article has its entry
+    /// marked read and is archived.
+    fn queued_item_finished(&self, id: &str);
 }
 
 /// The queue: its order in the library, and the hand-over.
@@ -139,6 +142,8 @@ pub(super) struct Queue {
     /// The item nearly over, and the item up next after it, as last told (see
     /// [`Queue::look_ahead`]).
     ahead: Mutex<Option<(String, Option<String>)>>,
+    /// The item that left the queue as it started, while it is the one playing.
+    started: Mutex<Option<String>>,
 }
 
 impl Queue {
@@ -147,6 +152,7 @@ impl Queue {
             library,
             stage: Mutex::new(Stage::Idle),
             ahead: Mutex::new(None),
+            started: Mutex::new(None),
         }
     }
 
@@ -235,7 +241,25 @@ impl Queue {
 
     /// Item `id` started playing: it leaves the queue. True when it was queued.
     pub fn started(&self, id: &str) -> bool {
-        self.remove(id).unwrap_or(false)
+        let removed = self.remove(id).unwrap_or(false);
+        let mut started = lock(&self.started);
+        if removed {
+            *started = Some(id.to_owned());
+        } else if started.as_deref() != Some(id) {
+            *started = None;
+        }
+        removed
+    }
+
+    /// Item `id` played to its end: when it started from the queue, the host is told.
+    pub fn played_out(&self, host: &impl QueueHost, id: &str) {
+        let from_queue = {
+            let mut started = lock(&self.started);
+            (started.as_deref() == Some(id)) && started.take().is_some()
+        };
+        if from_queue {
+            host.queued_item_finished(id);
+        }
     }
 
     /// Tells the hand-over of `event`; returns what to do.
@@ -329,6 +353,24 @@ impl QueueHost for super::Core {
         }
         Ok(())
     }
+
+    fn queued_item_finished(&self, id: &str) {
+        let entry = lock(&self.library).entry_for_book(&BookId(id.into()));
+        let Ok(Some(entry)) = entry else {
+            return;
+        };
+        if let Err(error) = self.mark_entry_read(entry.id, true) {
+            self.report("queue.finished", "Could not mark the entry read", error);
+        }
+        match self
+            .shelf
+            .archive(id, true, super::shelf::ArchivedBy::Finished)
+        {
+            Ok(true) => self.emit(super::CoreEvent::LibraryChanged),
+            Ok(false) => {}
+            Err(error) => self.report("queue.finished", "Could not archive the article", error),
+        }
+    }
 }
 
 impl super::Core {
@@ -340,6 +382,17 @@ impl super::Core {
             QueuePlace::Last => usize::MAX,
         };
         self.queue.put(id, at)
+    }
+
+    /// Puts feed entry `entry` in the queue, next or last, and returns its item (made on the
+    /// feed shelf when there is none). The entry is not marked read: that waits until the item
+    /// has played to its end.
+    #[allow(dead_code)] // Asked for from the window.
+    pub fn queue_add_entry(&self, entry: i64, place: QueuePlace) -> Result<String, String> {
+        let item = self.entry_item(entry)?;
+        self.emit(super::CoreEvent::FeedsChanged);
+        self.queue_add(&item, place)?;
+        Ok(item)
     }
 
     /// The queue, each item with why it cannot be listened to now, if it cannot.
@@ -389,6 +442,9 @@ impl super::Core {
             self.plan(PlanEvent::UpNext(target));
         }
         let now = Instant::now();
+        if let Some(id) = &ended {
+            self.queue.played_out(&**self, id);
+        }
         // With the sleep timer set for the end of the chapter, the listener sleeps there.
         let sleeping = || self.controls.sleep_view().is_some_and(|s| s.end_of_chapter);
         if let Some(id) = ended.filter(|_| !sleeping()) {
@@ -512,6 +568,7 @@ mod component_tests {
     struct Host {
         played: Mutex<Vec<String>>,
         cannot: Vec<(&'static str, WhyNot)>,
+        finished: Mutex<Vec<String>>,
     }
 
     impl QueueHost for Host {
@@ -525,6 +582,10 @@ mod component_tests {
                 Some((_, why)) => Err(*why),
                 None => Ok(()),
             }
+        }
+
+        fn queued_item_finished(&self, id: &str) {
+            lock(&self.finished).push(id.into());
         }
     }
 
@@ -643,5 +704,21 @@ mod component_tests {
         assert_eq!(queue.look_ahead(&host, Some("c"), minutes(9)), Some(None));
         assert_eq!(queue.up_next(), None);
         assert_eq!(queue.look_ahead(&host, None, None), None);
+    }
+
+    #[test]
+    fn only_an_item_started_from_the_queue_is_told_when_it_plays_to_its_end() {
+        let queue = queue(&["b"]);
+        let host = Host::default();
+        queue.started("a");
+        queue.played_out(&host, "a");
+        assert!(lock(&host.finished).is_empty());
+
+        queue.started("b");
+        // Played again from elsewhere in it, it is still the item from the queue.
+        queue.started("b");
+        queue.played_out(&host, "b");
+        queue.played_out(&host, "b");
+        assert_eq!(*lock(&host.finished), ["b"], "told once");
     }
 }

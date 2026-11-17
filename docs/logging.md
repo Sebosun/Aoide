@@ -119,7 +119,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `feed.subscribe` | info | `feed` (its id), `outcome` | `core/feeds.rs` `subscribe_feed` |
 | `feed.unsubscribe` | info | `feed`, `orphans` (items only its entries opened, deleted with it) | `core/feeds.rs` `unsubscribe` |
 | `feed.check` | info | `feed`, `outcome` (`ok`, `not_modified`, `failed`), `took_ms` | `core/feeds.rs` `check`: one per feed checked |
-| `item.archived` | info | `book`, `on` (archived, or taken out), `from` (`user`; `finished`: the setting archived an article just finished) | `core/shelf.rs` `Shelf::archive`, only when it changed |
+| `item.archived` | info | `book`, `on` (archived, or taken out), `from` (`user`; `finished`: the setting archived an article just finished, or a feed's article started from the queue played to its end) | `core/shelf.rs` `Shelf::archive`, only when it changed |
 | `item.shelf` | info | `book`, `from`, `to` (`library`, `feed`) | `core/feeds.rs` `move_shelf`: an entry saved, or removed from the library while its feed lists it |
 | `feed.import` | info | `added`, `skipped` (feeds) | `core/feeds.rs` `import` (OPML) |
 | `feed.export` | info | `feeds` | `core/feeds.rs` `export` (OPML) |
@@ -230,6 +230,7 @@ from it:
 | Event | What failed | Where |
 |---|---|---|
 | `launch.open` | adding a book file opened from the file manager or the command line (the message names the file), or saving a page sent from the browser; one that fails while the window starts is told when it listens | `core/launching.rs` `Launching::act`, `take_open_requests` |
+| `queue.finished` | marking read, or archiving, a feed's article that played to its end from the queue | `core/queue.rs` `queued_item_finished` |
 | `progress.save` | saving the listening position | `core.rs` `save_progress` |
 | `library.save` | saving the books left out, when a book was opened, or a book's own playback speed | `core.rs`, `core/playback.rs` `Core::set_speed` |
 | `listening.save` | saving listening time | `core/listening.rs` |

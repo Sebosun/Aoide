@@ -1162,7 +1162,7 @@ impl super::Core {
     }
 
     /// The item entry `id` opens as, made on the feed shelf when there is none.
-    fn entry_item(&self, id: i64) -> Result<String, String> {
+    pub(super) fn entry_item(&self, id: i64) -> Result<String, String> {
         let entry = self.feeds.entry(id)?;
         if let Some(book) = &entry.book_id {
             if self.articles.exists(&book.0) {

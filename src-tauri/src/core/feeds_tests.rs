@@ -874,4 +874,42 @@ mod through_core {
             assert_eq!(next_shelf(from, event), to, "{from:?} + {event:?}");
         }
     }
+
+    #[tokio::test]
+    async fn a_queued_entry_stays_unread_until_it_plays_to_its_end_then_is_read_and_archived() {
+        use super::super::queue::QueuePlace;
+        let pages = Pages::with(&[]);
+        let (_dir, core) = subscribed(&pages).await;
+        let ferry = entry(&core, "The night ferry");
+        let id = core.queue_add_entry(ferry.id, QueuePlace::Last).unwrap();
+        let queued = entry(&core, "The night ferry");
+        assert!(!queued.read, "queued is not read");
+        assert_eq!(queued.book_id.as_deref(), Some(id.as_str()));
+        assert_eq!(core.queue().unwrap().items[0].book_id, id);
+
+        // Next at the end of the book playing hands over to it; played from its last sentence,
+        // it ends.
+        let book = core.list_books().unwrap()[0].id.clone();
+        core.play(&book, Some(1), None).await.unwrap();
+        core.skip_chapter(1).await.unwrap();
+        let article = core.playback.book().unwrap();
+        assert_eq!(article.id, id);
+        let last = article
+            .segment(article.total_entries() - 1)
+            .unwrap()
+            .id
+            .clone();
+        core.play(&id, None, Some(last)).await.unwrap();
+        let archived = || {
+            core.library
+                .lock()
+                .unwrap()
+                .book(&aoide_library::BookId(id.clone()))
+                .unwrap()
+                .is_some_and(|b| b.archived_at.is_some())
+        };
+        until("the article to be archived", archived).await;
+        assert!(entry(&core, "The night ferry").read);
+        core.stop();
+    }
 }

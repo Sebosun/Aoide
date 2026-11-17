@@ -467,8 +467,8 @@ enum Event { ItemEnded(BookId), Tick(Instant), UserPlayed, UserStopped, Changed 
   item it started, for the feed rule below.
 - Items that cannot be listened to (an article still being fetched or failed, a missing file,
   no voice) are passed over and stay queued, marked with why.
-- Host trait: `play(book_id)`, `can_listen(book_id) -> Result<(), Why>`,
-  `finished_from_feed(book_id)`.
+- Host trait: `play(book_id)`, `can_listen(book_id) -> Result<(), WhyNot>`,
+  `queued_item_finished(book_id)` (the host looks for the item's feed entry).
 - **A queued feed article that finishes playing** has its entry marked read and is archived
   (`archive(book_id, true)` with `from = finished`, from 4.3). Until 4.3 is built, only the
   read mark.
