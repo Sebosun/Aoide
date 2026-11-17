@@ -119,7 +119,7 @@ pub(super) fn drop_covers(dir: &Path, id: &str) {
 /// shrunk here, with a filter made for it, is not.
 pub(super) const THUMBNAIL_WIDTH: u32 = 480;
 /// The folder beside the covers that holds their thumbnails, named after the cover's file.
-const THUMBNAILS: &str = "thumbs";
+pub(super) const THUMBNAILS: &str = "thumbs";
 
 /// The file the window shows `cover` from: its thumbnail, made when the cover is wider than
 /// [`THUMBNAIL_WIDTH`] and made again when the cover is newer; else the cover itself (a small

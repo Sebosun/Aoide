@@ -251,11 +251,16 @@ impl Core {
     }
 
     /// Stored details over the EPUB's own metadata.
+    /// Item `id`'s details: corrected by hand, else looked up, else the file's.
     pub fn book_details(&self, id: &str) -> Result<BookDetails, String> {
-        if self.item_kind(id) == Some(aoide_library::ItemKind::Audiobook) {
-            return self.metadata.details(id, None);
-        }
-        self.metadata.details(id, Some(&*self.load_book(id)?))
+        let mut details = if self.item_kind(id) == Some(aoide_library::ItemKind::Audiobook) {
+            self.metadata.details(id, None)?
+        } else {
+            self.metadata.details(id, Some(&*self.load_book(id)?))?
+        };
+        let edit = super::details::edit_of(&lock(&self.library), &BookId(id.into()));
+        details.published = edit.published(details.published);
+        Ok(details)
     }
 }
 

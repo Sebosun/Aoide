@@ -36,7 +36,8 @@
     "recording": null,
     "article": null,
     "archived": false,
-    "queued": false
+    "queued": false,
+    "edited": []
   },
   {
     "id": "book-1",
@@ -70,7 +71,8 @@
     "recording": null,
     "article": null,
     "archived": false,
-    "queued": false
+    "queued": false,
+    "edited": []
   },
   {
     "id": "book-2",
@@ -103,7 +105,8 @@
     "recording": null,
     "article": null,
     "archived": false,
-    "queued": false
+    "queued": false,
+    "edited": []
   },
   {
     "id": "book-3",
@@ -135,7 +138,8 @@
     "recording": null,
     "article": null,
     "archived": false,
-    "queued": false
+    "queued": false,
+    "edited": []
   },
   {
     "id": "book-4",
@@ -164,6 +168,7 @@
     "recording": null,
     "article": null,
     "archived": false,
-    "queued": false
+    "queued": false,
+    "edited": []
   }
 ]

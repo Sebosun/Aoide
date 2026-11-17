@@ -133,6 +133,8 @@ pub(super) struct Encoder {
     pub(super) library: Arc<Mutex<Library>>,
     library_dir: PathBuf,
     audio_dir: PathBuf,
+    /// Where an item's own cover is (see `details`).
+    pub(super) covers_dir: PathBuf,
     events: Arc<dyn Events>,
 }
 
@@ -166,6 +168,7 @@ impl Exports {
                 library,
                 library_dir: paths.library_dir.clone(),
                 audio_dir: paths.audio_dir.clone(),
+                covers_dir: paths.covers_dir.clone(),
                 events,
             }),
             exporting: Mutex::new(None),
@@ -436,18 +439,16 @@ impl Encoder {
             ),
         )
         .map_err(|e| e.to_string())?;
-        let cover = lock(&self.library)
-            .book(&BookId(id.into()))
-            .ok()
-            .flatten()
-            .and_then(|r| r.cover_path)
-            .filter(|p| {
-                p.exists()
-                    && matches!(
-                        p.extension().and_then(|e| e.to_str()),
-                        Some("jpg" | "jpeg" | "png")
-                    )
-            });
+        let cover =
+            super::details::shown(&lock(&self.library), &BookId(id.into()), &self.covers_dir)
+                .and_then(|r| r.cover_path)
+                .filter(|p| {
+                    p.exists()
+                        && matches!(
+                            p.extension().and_then(|e| e.to_str()),
+                            Some("jpg" | "jpeg" | "png")
+                        )
+                });
 
         let mut command = ffmpeg_command(&metadata_path, cover.as_deref(), &partial);
         let mut child = command

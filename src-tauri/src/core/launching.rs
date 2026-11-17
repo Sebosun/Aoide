@@ -446,10 +446,8 @@ impl LaunchHost for super::Core {
         let id = aoide_article::canonical_id(url);
         let new_to_library = self.feeds.shelf_of(&id) != Some(super::feeds::ItemShelf::Library);
         let id = self.save_article(url.as_str())?;
-        let title = lock(&self.library)
-            .book(&BookId(id.clone()))
-            .ok()
-            .flatten()
+        let title = self
+            .shown_record(&id)
             .and_then(|record| record.title)
             .unwrap_or_else(|| url.host_str().unwrap_or_default().to_owned());
         Ok(SavedLink {

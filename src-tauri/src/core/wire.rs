@@ -57,6 +57,8 @@ pub struct BookSummary {
     pub archived: bool,
     /// It is in the queue, to listen to next.
     pub queued: bool,
+    /// The details the user corrected by hand; the rest are the file's.
+    pub edited: Vec<super::details::DetailField>,
 }
 
 #[derive(Debug, Clone, Serialize)]

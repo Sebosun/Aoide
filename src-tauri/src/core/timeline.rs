@@ -254,10 +254,7 @@ pub(super) fn step_back_on(
 impl Core {
     /// Audiobook `id` laid out for the player.
     pub(super) fn timeline_of(&self, id: &str) -> Result<Timeline, String> {
-        let record = lock(&self.library)
-            .book(&BookId(id.into()))
-            .map_err(|e| e.to_string())?
-            .ok_or("book not found")?;
+        let record = self.shown_record(id).ok_or("book not found")?;
         let source = self.recordings.timeline_source(id)?;
         if source.total_ms == 0 {
             return Err("The recording has no audio to play.".into());
@@ -364,10 +361,7 @@ impl Core {
     /// The item view of audiobook `id`: its parts as chapters; a file that is gone as a
     /// warning.
     pub(super) fn audiobook_overview(&self, id: &str) -> Result<super::BookView, String> {
-        let record = lock(&self.library)
-            .book(&BookId(id.into()))
-            .map_err(|e| e.to_string())?
-            .ok_or("book not found")?;
+        let record = self.shown_record(id).ok_or("book not found")?;
         let (chapters, warnings) = match self.timeline_of(id) {
             Ok(timeline) => (
                 timeline

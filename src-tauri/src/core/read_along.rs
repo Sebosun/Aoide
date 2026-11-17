@@ -373,12 +373,10 @@ impl super::export::Encoder {
                 }
             })
             .collect();
-        let cover_path = lock(&self.library)
-            .book(&BookId(id.into()))
-            .ok()
-            .flatten()
-            .and_then(|r| r.cover_path)
-            .filter(|p| p.exists());
+        let cover_path =
+            super::details::shown(&lock(&self.library), &BookId(id.into()), &self.covers_dir)
+                .and_then(|r| r.cover_path)
+                .filter(|p| p.exists());
         let cover = cover_path.as_ref().and_then(|path| {
             let extension = path.extension()?.to_str()?.to_ascii_lowercase();
             let media_type = match extension.as_str() {

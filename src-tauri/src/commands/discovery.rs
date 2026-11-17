@@ -117,6 +117,18 @@ pub async fn choose_books(app: tauri::AppHandle) -> Option<Vec<String>> {
     .await
 }
 
+/// The system's file chooser for a picture to use as a cover; null when cancelled.
+#[tauri::command]
+pub async fn choose_image(app: tauri::AppHandle) -> Option<String> {
+    pick(&app, |dialog, done| {
+        dialog
+            .set_title("Choose a cover picture")
+            .add_filter("Pictures", &["jpg", "jpeg", "png", "webp", "gif", "bmp"])
+            .pick_file(move |file| done(file.map(|p| p.to_string())))
+    })
+    .await
+}
+
 /// The system's folder chooser, titled `title` (what the folder is for); null when cancelled.
 #[tauri::command]
 pub async fn choose_folder(app: tauri::AppHandle, title: String) -> Option<String> {

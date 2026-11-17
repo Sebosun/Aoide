@@ -515,10 +515,7 @@ impl InboxHost for super::Core {
         let id = result
             .book_id
             .ok_or_else(|| result.error.unwrap_or_else(|| "it was not added".into()))?;
-        let record = lock(&self.library)
-            .book(&aoide_library::BookId(id.clone()))
-            .ok()
-            .flatten();
+        let record = self.shown_record(&id);
         let title = record
             .and_then(|record| record.title)
             .unwrap_or_else(|| crate::logging::file(path).into_owned());

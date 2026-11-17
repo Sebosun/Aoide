@@ -201,6 +201,17 @@ pub async fn lookup_metadata(
     Ok(core.lookup_metadata(&book_id, refresh).await?)
 }
 
+/// Corrects an item's title, authors, cover (an image's path) or publication date by hand;
+/// `null` sets a field back to the file's. The file is not changed.
+#[tauri::command]
+pub fn edit_details(
+    core: CoreState<'_>,
+    book_id: String,
+    patch: crate::core::DetailsPatch,
+) -> Result<(), CoreError> {
+    Ok(core.edit_details(&book_id, patch)?)
+}
+
 /// Stores the picked match's details (and cover when the book has none).
 #[tauri::command]
 pub async fn apply_metadata(

@@ -374,9 +374,8 @@ impl super::Core {
 
     /// Item `id` has just been finished: archives it, or asks the window to offer that.
     fn finished(&self, id: &str) {
-        let record = match lock(&self.library).book(&BookId(id.into())) {
-            Ok(Some(record)) => record,
-            _ => return,
+        let Some(record) = self.shown_record(id) else {
+            return;
         };
         let setting = self.app_settings().archive_finished_articles;
         let in_library = record.shelf == "library";

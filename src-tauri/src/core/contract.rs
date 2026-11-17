@@ -135,6 +135,8 @@ fn contract() -> String {
         super::fetching::Reason,
         super::fetching::Stage,
         super::articles::ArticleSource,
+        super::details::DetailsPatch,
+        super::details::DetailField,
         super::feeds::DiscoveredFeed,
         super::articles::ArticleView,
         super::articles::ArticleSummary,

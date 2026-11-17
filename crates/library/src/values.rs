@@ -52,6 +52,8 @@ pub enum BookKey {
     /// Where on its recording the listener was, kept from the audiobook it was merged from
     /// until the sync reaches it (milliseconds). Removed with the book.
     PendingPlace,
+    /// The details the user corrected by hand (title, authors, cover…). Outlives the book.
+    Details,
 }
 
 /// Stands for the book's id in a value's name, to find every book's.
@@ -72,6 +74,7 @@ impl BookKey {
             BookKey::ProgressFraction => Place::Settings(format!("progress.fraction.{}", id.0)),
             BookKey::Prepared => Place::Book("prepared"),
             BookKey::PendingPlace => Place::Book(PENDING_PLACE),
+            BookKey::Details => Place::Settings(format!("book.{}.details", id.0)),
         }
     }
 }

@@ -1673,6 +1673,111 @@
     ]
   },
   {
+    "name": "details are corrected by hand and set back",
+    "start": "",
+    "steps": [
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].authors": [
+            "Ellis Reed"
+          ],
+          "[id=book-1].edited": [],
+          "[id=book-1].title": "A Map of Quiet Places"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "patch": {
+            "authors": [
+              "Ada Brightwater",
+              " "
+            ],
+            "published": "1998",
+            "title": "  A Map of Quiet Harbours "
+          }
+        },
+        "call": "editDetails",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].authors": [
+            "Ada Brightwater"
+          ],
+          "[id=book-1].edited": [
+            "title",
+            "authors",
+            "published"
+          ],
+          "[id=book-1].title": "A Map of Quiet Harbours"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "bookDetails",
+        "error": null,
+        "expect": {
+          "published": "1998"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "patch": {
+            "published": "",
+            "title": null
+          }
+        },
+        "call": "editDetails",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-1].authors": [
+            "Ada Brightwater"
+          ],
+          "[id=book-1].edited": [
+            "authors"
+          ],
+          "[id=book-1].title": "A Map of Quiet Places"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "bookDetails",
+        "error": null,
+        "expect": {
+          "published": null
+        }
+      },
+      {
+        "args": {
+          "bookId": "no-such-book",
+          "patch": {}
+        },
+        "call": "editDetails",
+        "error": "No such item.",
+        "expect": {}
+      }
+    ]
+  },
+  {
     "name": "entries are read, saved and a feed left",
     "start": "",
     "steps": [

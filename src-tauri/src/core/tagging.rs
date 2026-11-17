@@ -179,9 +179,8 @@ impl Tagging {
 
 impl TaggingHost for Core {
     fn item_for_tagging(&self, id: &str) -> Result<aoide_classifier::Item, String> {
-        let record = lock(&self.library)
-            .book(&BookId(id.into()))
-            .map_err(|e| e.to_string())?
+        let record = self
+            .shown_record(id)
             .ok_or_else(|| format!("no item {id}"))?;
         let description = self.book_details(id).ok().and_then(|d| d.description);
         // Without a description, the start of its text (an audiobook has none to give).

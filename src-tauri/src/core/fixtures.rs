@@ -1864,6 +1864,47 @@ async fn scenarios_for_the_ui_mock() {
     scenarios.push(s.done());
     let library_renames = renames_with_audiobook;
 
+    let mut s = Scenario::new("details are corrected by hand and set back", "");
+    let book = |field: &str| format!("[id={second}].{field}");
+    let (title, authors, edited) = (book("title"), book("authors"), book("edited"));
+    let shown = [title.as_str(), authors.as_str(), edited.as_str()];
+    s.step("listBooks", json!({}), &core.list_books(), &shown);
+    let patch = json!({"title": "  A Map of Quiet Harbours ", "authors": ["Ada Brightwater", " "], "published": "1998"});
+    s.step(
+        "editDetails",
+        json!({"bookId": second, "patch": patch}),
+        &core.edit_details(&second, serde_json::from_value(patch.clone()).unwrap()),
+        &[],
+    );
+    s.step("listBooks", json!({}), &core.list_books(), &shown);
+    s.step(
+        "bookDetails",
+        json!({"bookId": second}),
+        &core.book_details(&second),
+        &["published"],
+    );
+    let back = json!({"title": null, "published": ""});
+    s.step(
+        "editDetails",
+        json!({"bookId": second, "patch": back}),
+        &core.edit_details(&second, serde_json::from_value(back.clone()).unwrap()),
+        &[],
+    );
+    s.step("listBooks", json!({}), &core.list_books(), &shown);
+    s.step(
+        "bookDetails",
+        json!({"bookId": second}),
+        &core.book_details(&second),
+        &["published"],
+    );
+    s.step(
+        "editDetails",
+        json!({"bookId": "no-such-book", "patch": {}}),
+        &core.edit_details("no-such-book", Default::default()),
+        &[],
+    );
+    scenarios.push(s.done());
+
     // ---- on the feeds, as the mock starts
     let (core, _feeds_dir, _, _) = feeds_core().await;
     let mut s = Scenario::new("entries are read, saved and a feed left", "");

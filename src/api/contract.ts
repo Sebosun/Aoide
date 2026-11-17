@@ -82,7 +82,11 @@ archived: boolean,
 /**
  * It is in the queue, to listen to next.
  */
-queued: boolean, };
+queued: boolean, 
+/**
+ * The details the user corrected by hand; the rest are the file's.
+ */
+edited: Array<DetailField>, };
 
 export type HomeView = { 
 /**
@@ -883,6 +887,10 @@ export type FetchStage = { "kind": "queued" } | { "kind": "fetching" } | { "kind
 
 export type ArticleSource = "http" | "archive" | "feed" | "browser" | "email";
 
+export type DetailsPatch = { title?: string | null, authors?: Array<string> | null, cover?: string | null, published?: string | null, };
+
+export type DetailField = "title" | "authors" | "cover" | "published";
+
 export type DiscoveredFeed = { url: string, title: string | null, subscribed: boolean, };
 
 export type ArticleView = { id: string, 
@@ -1444,6 +1452,8 @@ export type Commands = {
    * cancelled.
    */
   "choose_books": { args: Record<string, never>; result: string[] | null };
+  /** The system's file chooser for a picture to use as a cover; null when cancelled. */
+  "choose_image": { args: Record<string, never>; result: string | null };
   /** The system's folder chooser, titled `title` (what the folder is for); null when cancelled. */
   "choose_folder": { args: { title: string }; result: string | null };
   /** The system's file chooser for audiobook files (or a folder); null when cancelled. */
@@ -1544,6 +1554,11 @@ export type Commands = {
    * refresh asks Open Library again.
    */
   "lookup_metadata": { args: { bookId: string; refresh: boolean }; result: MetadataMatch[] };
+  /**
+   * Corrects an item's title, authors, cover (an image's path) or publication date by hand;
+   * `null` sets a field back to the file's. The file is not changed.
+   */
+  "edit_details": { args: { bookId: string; patch: DetailsPatch }; result: void };
   /** Stores the picked match's details (and cover when the book has none). */
   "apply_metadata": { args: { bookId: string; candidate: MetadataMatch }; result: BookDetails };
   /** Writes an M4B audiobook (generating missing audio first); resolves with the output path. */
@@ -1838,6 +1853,8 @@ export interface CommandApi {
    * cancelled.
    */
   chooseBooks(): Promise<string[] | null>;
+  /** The system's file chooser for a picture to use as a cover; null when cancelled. */
+  chooseImage(): Promise<string | null>;
   /** The system's folder chooser, titled `title` (what the folder is for); null when cancelled. */
   chooseFolder(args: { title: string }): Promise<string | null>;
   /** The system's file chooser for audiobook files (or a folder); null when cancelled. */
@@ -1938,6 +1955,11 @@ export interface CommandApi {
    * refresh asks Open Library again.
    */
   lookupMetadata(args: { bookId: string; refresh: boolean }): Promise<MetadataMatch[]>;
+  /**
+   * Corrects an item's title, authors, cover (an image's path) or publication date by hand;
+   * `null` sets a field back to the file's. The file is not changed.
+   */
+  editDetails(args: { bookId: string; patch: DetailsPatch }): Promise<void>;
   /** Stores the picked match's details (and cover when the book has none). */
   applyMetadata(args: { bookId: string; candidate: MetadataMatch }): Promise<BookDetails>;
   /** Writes an M4B audiobook (generating missing audio first); resolves with the output path. */
@@ -2166,6 +2188,7 @@ export const COMMANDS = {
   fetchDiscoveredDetails: "fetch_discovered_details",
   importDiscovered: "import_discovered",
   chooseBooks: "choose_books",
+  chooseImage: "choose_image",
   chooseFolder: "choose_folder",
   chooseAudio: "choose_audio",
   feeds: "feeds",
@@ -2213,6 +2236,7 @@ export const COMMANDS = {
   searchBook: "search_book",
   bookDetails: "book_details",
   lookupMetadata: "lookup_metadata",
+  editDetails: "edit_details",
   applyMetadata: "apply_metadata",
   exportBook: "export_book",
   exportReadAlong: "export_read_along",

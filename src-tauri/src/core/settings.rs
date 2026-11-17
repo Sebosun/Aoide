@@ -144,7 +144,7 @@ pub struct AppSettingsPatch {
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
-fn present<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+pub(super) fn present<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
 where
     D: serde::Deserializer<'de>,
     T: serde::Deserialize<'de>,

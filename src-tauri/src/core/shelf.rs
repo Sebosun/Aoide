@@ -68,6 +68,8 @@ struct Stored {
     /// Each recording's length.
     recorded_ms: HashMap<BookId, u64>,
     queued: HashSet<BookId>,
+    /// The details corrected by hand.
+    details: HashMap<BookId, aoide_library::Result<super::details::DetailsEdit>>,
 }
 
 impl Stored {
@@ -96,6 +98,7 @@ impl Stored {
                 .map(|row| (row.book_id, row.total_ms))
                 .collect(),
             queued: library.queue()?.into_iter().collect(),
+            details: library.book_values(BookKey::Details)?,
         })
     }
 }
@@ -504,6 +507,20 @@ impl Shelf {
         stored: &mut Stored,
         host: &dyn ShelfHost,
     ) -> BookSummary {
+        let edit = match stored.details.remove(&record.id) {
+            Some(Ok(edit)) => edit,
+            Some(Err(error)) => {
+                self.reporter.report(
+                    "book.read",
+                    "Could not read the book's corrected details",
+                    error,
+                );
+                super::details::DetailsEdit::default()
+            }
+            None => super::details::DetailsEdit::default(),
+        };
+        let edited = edit.edited();
+        let record = super::details::apply(record, &edit, &self.covers_dir);
         let id = &record.id;
         let audio_bytes = stored.audio_bytes.get(id).copied().unwrap_or(0);
         let settings = match stored.settings.remove(id) {
@@ -575,6 +592,7 @@ impl Shelf {
             last_opened_at: record.last_opened_at,
             archived: record.archived_at.is_some(),
             queued,
+            edited,
         }
     }
 
@@ -595,13 +613,25 @@ impl Shelf {
             BookStatus::Missing => return Err("the book file is missing".into()),
             BookStatus::Error(message) => return Err(message),
         }
-        let book = if record.kind == aoide_library::ItemKind::Article {
+        let mut book = if record.kind == aoide_library::ItemKind::Article {
             let document = host.article_document(id)?;
-            Arc::new(BookModel::from_parsed(id, document, &host.layout(id)))
+            BookModel::from_parsed(id, document, &host.layout(id))
         } else {
             let bytes = std::fs::read(&record.path).map_err(|e| e.to_string())?;
-            Arc::new(BookModel::parse(id, &bytes, &host.layout(id))?)
+            BookModel::parse(id, &bytes, &host.layout(id))?
         };
+        // Its title and authors as the library shows them: corrected by hand, else the file's
+        // (a PDF with none goes by its file name everywhere).
+        let shown = {
+            let library = lock(&self.library);
+            let edit = super::details::edit_of(&library, &record.id);
+            super::details::apply(record.clone(), &edit, &self.covers_dir)
+        };
+        if let Some(title) = shown.title {
+            book.title = title;
+        }
+        book.authors = shown.authors;
+        let book = Arc::new(book);
         // Its length, for reading-time estimates in lists that do not parse it.
         let words = u32::try_from(book.word_count()).unwrap_or(u32::MAX);
         if record.word_count != Some(words) {
@@ -634,12 +664,9 @@ impl Shelf {
         Ok(record.path)
     }
 
-    /// Book `id`'s cover image, if it has one.
+    /// Book `id`'s cover image, if it has one: its own when the user chose one.
     pub fn cover(&self, id: &str) -> Option<String> {
-        lock(&self.library)
-            .book(&BookId(id.into()))
-            .ok()
-            .flatten()
+        super::details::shown(&lock(&self.library), &BookId(id.into()), &self.covers_dir)
             .and_then(|r| r.cover_path)
             .map(|p| p.to_string_lossy().into_owned())
     }

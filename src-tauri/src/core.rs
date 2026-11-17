@@ -27,6 +27,7 @@ mod browsing;
 mod config;
 mod controls;
 pub use config::PreferencesView;
+mod details;
 mod discovery;
 mod engine;
 mod engine_process;
@@ -43,6 +44,7 @@ pub use articles::{ArticleSource, ArticleSummary, ArticleView};
 pub use browsing::BrowserStatusView;
 #[cfg(any(test, debug_assertions))]
 pub use browsing::BrowserUse;
+pub use details::DetailsPatch;
 pub use facets::HomeView;
 pub use feeds::{
     AddedLink, EntryFilter, EntryQuery, EntryView, FeedView, OpmlImport, SubscribeResult,

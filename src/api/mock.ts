@@ -57,7 +57,7 @@ import type {
   HomeView,
 } from "@/api/types";
 import type * as Wire from "@/api/contract";
-import type { QueueView, WhyNot } from "@/api/contract";
+import type { DetailField, QueueView, WhyNot } from "@/api/contract";
 import fixtureLibrary from "@/tests/fixtures/library.json";
 import fixtureViews from "@/tests/fixtures/book-views.json";
 import fixturePlayer from "@/tests/fixtures/player.json";
@@ -596,6 +596,15 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   );
   const emitMatches = () => matchHandlers.forEach((h) => h(structuredClone(audiobookMatches)));
   const details = new Map<string, BookDetails>();
+  /** As the core does (core/details.rs): a field corrected by hand shows over the file's,
+   *  which is kept so that `null` sets it back. */
+  const fileDetails = new Map<string, { title: string; authors: string[]; coverUrl: string | null }>();
+  const edits = new Map<string, { published?: string }>();
+  /** A picture chosen as a cover: the preview cannot read the file, so it shows a plain one. */
+  const ownCover = (path: string) =>
+    `data:image/svg+xml,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="210" height="300"><rect width="210" height="300" fill="#3d5a80"/><text x="16" y="280" fill="#fff" font-family="sans-serif" font-size="14">${path.split("/").pop()}</text></svg>`,
+    )}`;
   const exportHandlers = new Set<(p: ExportProgress) => void>();
   const playerHandlers = new Set<(s: PlayerState) => void>();
   const engineHandlers = new Set<(s: EngineStatusView) => void>();
@@ -1980,7 +1989,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async bookDetails({ bookId: id }) {
       getBook(id);
-      return structuredClone(
+      const stored = structuredClone(
         details.get(id) ?? {
           description: "An original story used in the browser preview.",
           publisher: null,
@@ -1990,6 +1999,38 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
           openLibraryKey: null,
         },
       );
+      return { ...stored, published: edits.get(id)?.published ?? stored.published };
+    },
+    async editDetails({ bookId: id, patch }) {
+      const book = books.find((b) => b.id === id);
+      if (!book) throw refused("No such item.");
+      if (!fileDetails.has(id))
+        fileDetails.set(id, { title: book.title, authors: [...book.authors], coverUrl: book.coverUrl });
+      const file = fileDetails.get(id)!;
+      const edited = new Set(book.edited);
+      const mark = (field: DetailField, on: boolean) => (on ? edited.add(field) : edited.delete(field));
+      const blank = (text: string | null | undefined) => text?.trim() || null;
+      if (patch.title !== undefined) {
+        const title = blank(patch.title);
+        book.title = title ?? file.title;
+        mark("title", title !== null);
+      }
+      if (patch.authors !== undefined) {
+        const authors = patch.authors?.map((a) => a.trim()).filter(Boolean) ?? null;
+        book.authors = authors ?? [...file.authors];
+        mark("authors", authors !== null);
+      }
+      if (patch.published !== undefined) {
+        const published = blank(patch.published);
+        edits.set(id, { ...edits.get(id), published: published ?? undefined });
+        mark("published", published !== null);
+      }
+      if (patch.cover !== undefined) {
+        book.coverUrl = patch.cover ? ownCover(patch.cover) : file.coverUrl;
+        mark("cover", Boolean(patch.cover));
+      }
+      book.edited = (["title", "authors", "cover", "published"] as const).filter((f) => edited.has(f));
+      changed();
     },
     async lookupMetadata({ bookId: id, refresh: _refresh }): Promise<MetadataMatch[]> {
       const book = getBook(id);
@@ -2545,6 +2586,9 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async chooseBooks() {
       return ["~/Downloads/the-lantern-keeper.epub"];
+    },
+    async chooseImage() {
+      return "~/Pictures/cover.png";
     },
     async chooseFolder() {
       return "~/Audiobooks";

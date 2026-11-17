@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use aoide_library::{BookId, Bookmark, ItemKind};
+use aoide_library::{Bookmark, ItemKind};
 
 use super::highlights::HighlightView;
 use super::{lock, Core};
@@ -148,9 +148,8 @@ pub(super) fn markdown(notes: &Notes) -> String {
 
 /// Book `id`'s notes and what is in them: (Markdown, highlights, bookmarks).
 fn notes_of(core: &Core, id: &str) -> Result<(String, usize, usize), String> {
-    let record = lock(&core.library)
-        .book(&BookId(id.into()))
-        .map_err(|e| e.to_string())?
+    let record = core
+        .shown_record(id)
         .ok_or("that book is not in the library")?;
     let bookmarks = core.bookmarks(id)?;
     let (chapters, highlights) = if record.kind == ItemKind::Audiobook {

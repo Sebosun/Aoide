@@ -190,6 +190,7 @@ mod tests {
             article: None,
             archived: false,
             queued: false,
+            edited: Vec::new(),
         }
     }
 

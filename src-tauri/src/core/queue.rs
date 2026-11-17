@@ -295,11 +295,11 @@ impl Queue {
     }
 
     fn title(&self, id: &str) -> String {
-        lock(&self.library)
-            .book(&BookId(id.into()))
-            .ok()
-            .flatten()
-            .and_then(|record| record.title)
+        let library = lock(&self.library);
+        let id = BookId(id.into());
+        let edit = super::details::edit_of(&library, &id);
+        edit.title
+            .or_else(|| library.book(&id).ok().flatten()?.title)
             .unwrap_or_else(|| "Untitled".into())
     }
 
