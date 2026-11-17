@@ -323,6 +323,193 @@
     ]
   },
   {
+    "name": "a word is said another way in the sentences that have it, and only there",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-1",
+          "matchCase": false,
+          "spoken": "wren",
+          "written": "Ren"
+        },
+        "call": "pronunciationAffected",
+        "error": null,
+        "expect": {
+          "cached": 0,
+          "sentences": 4
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "matchCase": true,
+          "spoken": "wren",
+          "written": "ren"
+        },
+        "call": "pronunciationAffected",
+        "error": null,
+        "expect": {
+          "cached": 0,
+          "sentences": 0
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "matchCase": false,
+          "spoken": "seat",
+          "written": "bench"
+        },
+        "call": "pronunciationAffected",
+        "error": null,
+        "expect": {
+          "cached": 0,
+          "sentences": 2
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "matchCase": false,
+          "spoken": "zep",
+          "written": "zeppelin"
+        },
+        "call": "pronunciationAffected",
+        "error": null,
+        "expect": {
+          "cached": 0,
+          "sentences": 0
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "matchCase": false,
+          "spoken": "wren",
+          "written": "  "
+        },
+        "call": "pronunciationAffected",
+        "error": "say which word is written",
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "matchCase": false,
+          "spoken": " … ",
+          "written": "Ren"
+        },
+        "call": "pronunciationAffected",
+        "error": "say how the word is said",
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "matchCase": false,
+          "spoken": "wren",
+          "written": " Ren "
+        },
+        "call": "savePronunciation",
+        "error": null,
+        "expect": {
+          "bookId": "book-1",
+          "matchCase": false,
+          "spoken": "wren",
+          "written": "Ren"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "matchCase": false,
+          "spoken": "  ",
+          "written": "Ren"
+        },
+        "call": "savePronunciation",
+        "error": "say how the word is said",
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "pronunciations",
+        "error": null,
+        "expect": {
+          "0.spoken": "wren",
+          "0.written": "Ren",
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "matchCase": false,
+          "spoken": "wren",
+          "written": "Ren"
+        },
+        "call": "pronunciationAffected",
+        "error": null,
+        "expect": {
+          "sentences": 0
+        }
+      },
+      {
+        "args": {
+          "bookId": null,
+          "matchCase": true,
+          "spoken": "seat",
+          "written": "bench"
+        },
+        "call": "savePronunciation",
+        "error": null,
+        "expect": {
+          "bookId": null,
+          "matchCase": true
+        }
+      },
+      {
+        "args": {
+          "bookId": null
+        },
+        "call": "pronunciations",
+        "error": null,
+        "expect": {
+          "0.written": "bench",
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "id": 1
+        },
+        "call": "deletePronunciation",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "id": 1
+        },
+        "call": "deletePronunciation",
+        "error": "no such pronunciation",
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "pronunciations",
+        "error": null,
+        "expect": {
+          "length": 0
+        }
+      }
+    ]
+  },
+  {
     "name": "collections are named once and hold books",
     "start": "",
     "steps": [

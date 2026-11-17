@@ -217,11 +217,16 @@ request, so they follow without more work. A paired recording is not affected.
 **Timings.** Only the aligner hears the difference: give `align_speech` the words of the
 *spoken* text and fold its result with `word_of` before it is stored, so it is again one timing
 per word of `Segment::words`. Fitting to pauses works on the written words and stays as it is.
-If an adapter ever returns its own timings, they are folded the same way.
+If an adapter ever returns its own timings, they are folded the same way (`Spoken::fold`).
+As built: `pronounce` runs on the segment's written words joined by spaces (so `word_of`
+points straight into `Segment::words`), with the rules the aligner asks for through
+`AlignHost::rules` when it aligns.
 
 **Component.** `core/pronunciation.rs` (model: `core/bookmarks.rs`): list, add, change, remove,
 and "what does this change": `affected(book_id) -> AffectedView { sentences, cached }`, so the
-interface can say "12 sentences will be made again" before saving.
+interface can say "12 sentences will be made again" before saving. As built, the count is for a
+rule not saved yet (`changes(book, Edit)` compares the book said with the lists as they are and
+as they would be), so it is asked with the words on screen.
 
 **After a change.** The plan of the book being listened to is rebuilt, the way saving a book's
 voice settings does it (`core/shelf.rs`: `restart_session`, then
@@ -233,12 +238,17 @@ the rest.
 **IPC.** `pronunciations(book_id: Option) -> Vec<PronunciationView>`,
 `save_pronunciation(book_id: Option, written, spoken, match_case) -> PronunciationView`,
 `delete_pronunciation(id)`, `preview_pronunciation(book_id, spoken)` (through the existing
-`preview_voice` path, with the book's voice).
+`preview_voice` path, with the book's voice). As built, the view is the library's
+`Pronunciation`, and `pronunciation_affected(book_id, written, spoken, match_case) ->
+AffectedView` is the count above. For the list for all books, the books looked at are the one
+being listened to and the prepared ones; queued books are planned again anyway.
 
 **Interface.** Book tools › Voice gets a **Pronunciation** list: written, spoken, a play button
 to hear the spoken form, remove. Settings › Speech engine gets the same list for all books. In
 the reader, selecting a word offers **Say this differently…** (3.1), which opens a small dialog
-with the word filled in and a **Hear it** button.
+with the word filled in and a **Hear it** button. As built (3.1 is not built yet), the offer is a
+button in the reader's top bar while up to four words of the chapter text are selected; 3.1 can
+move it into its menu.
 
 ### Slices
 

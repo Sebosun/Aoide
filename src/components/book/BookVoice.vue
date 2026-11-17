@@ -8,6 +8,7 @@ import ParamControl from "@/components/ParamControl.vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import { voiceOptions } from "@/components/ui/voiceOptions";
 import VoicePreview from "@/components/settings/VoicePreview.vue";
+import PronunciationList from "@/components/settings/PronunciationList.vue";
 import { useLibraryStore } from "@/stores/library";
 import { useReaderStore } from "@/stores/reader";
 import { useUiStore } from "@/stores/ui";
@@ -186,6 +187,15 @@ async function prepareAction(action: PrepareAction) {
     </div>
   </form>
 
+  <section class="book-voice__words">
+    <h3 class="book-voice__heading">Pronunciation</h3>
+    <p class="book-voice__hint">
+      How to say a word of this book: “Hermione” as “her-MY-oh-nee”. The page keeps its spelling; only the sentences
+      with the word are made again. This list wins over the one for all books in Settings › Speech engine.
+    </p>
+    <PronunciationList :book-id="bookId" />
+  </section>
+
   <section class="book-voice__audio">
     <h3 class="book-voice__heading">Audio</h3>
     <p class="book-voice__hint">
@@ -249,15 +259,20 @@ async function prepareAction(action: PrepareAction) {
 
 <style scoped>
 .book-voice__form,
+.book-voice__words,
 .book-voice__audio {
   display: grid;
   gap: var(--space-6);
 }
+.book-voice__words,
 .book-voice__audio {
   margin-top: var(--space-14);
   padding-top: var(--space-11);
   border-top: 1px solid var(--line);
   justify-items: start;
+}
+.book-voice__words {
+  justify-items: stretch;
 }
 .book-voice__audio progress {
   width: 100%;

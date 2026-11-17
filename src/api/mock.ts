@@ -607,6 +607,23 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const emitPlayer = (next: PlayerState) => sendPlayer(withTimes(next));
   const emitGeneration = (next: GenerationState) => generationHandlers.forEach((h) => h({ ...next }));
   const changed = () => libraryHandlers.forEach((h) => h());
+  /** As the core after a pronunciation list changed: a prepared book that has the word is
+   *  prepared no longer, and in the book listened to the first sentence with it is made again. */
+  const remake = (list: string | null, rule: Pronunciation) => {
+    for (const b of books) {
+      if ((list ?? b.id) !== b.id || b.prepare?.state !== "done") continue;
+      if (sentencesSaying(b.id, rule.written, rule.matchCase).length) b.prepare = null;
+    }
+    changed();
+    const id = state.bookId;
+    if (!id || (list ?? id) !== id) return;
+    const first = sentencesSaying(id, rule.written, rule.matchCase)[0];
+    if (!first) return;
+    clearTimeout(remaking);
+    const generation = { ...(structuredClone(fixtureGenerationPlaying) as GenerationState), bookId: id };
+    emitGeneration({ ...generation, generatingSegmentId: first.segmentId });
+    remaking = setTimeout(() => emitGeneration(generation), REMAKE_MS);
+  };
   /** Saved articles, like the app (core/articles.rs): the preview's article (`article.json`,
    *  book-6) with an explicit fetch stage. `?article=ready|fetching|needsyou-signin|
    *  needsyou-cutshort|needsyou-check|failed` saves it in that stage. */
@@ -1534,12 +1551,14 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         };
         pronunciations.push(entry);
       }
+      remake(book, entry);
       return structuredClone(entry);
     },
     async deletePronunciation({ id }) {
       const at = pronunciations.findIndex((p) => p.id === id);
       if (at < 0) throw refused("no such pronunciation");
-      pronunciations.splice(at, 1);
+      const [entry] = pronunciations.splice(at, 1);
+      remake(entry.bookId, entry);
     },
     async previewPronunciation({ spoken }) {
       if (!listWords(spoken)) throw refused("say how the word is said");

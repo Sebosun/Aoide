@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref, watch } from "vue";
-import { AudioLines, RefreshCw } from "@lucide/vue";
+import { AudioLines, RefreshCw, SpellCheck } from "@lucide/vue";
 import { api } from "@/api";
 import type { EngineDescriptor, EngineProfile, ParamValue, Voice } from "@/api/types";
 import ParamControl from "@/components/ParamControl.vue";
@@ -14,6 +14,7 @@ import SettingsActions from "@/components/settings/SettingsActions.vue";
 import VoicePreview from "@/components/settings/VoicePreview.vue";
 import SpeechProblems from "@/components/settings/SpeechProblems.vue";
 import NarrationPauses from "@/components/settings/NarrationPauses.vue";
+import PronunciationList from "@/components/settings/PronunciationList.vue";
 import { usePlayerStore } from "@/stores/player";
 
 /** The speech engine profile. Edits stay a draft (which Preview speaks with) until saved. */
@@ -307,6 +308,13 @@ async function save() {
     <SettingsActions label="Save engine" :busy="saving" :message="message" :error="error" />
   </form>
   <NarrationPauses class="engine-settings__apart" />
+  <SettingsSection title="Pronunciation" :icon="SpellCheck" class="engine-settings__apart">
+    <SettingsNote
+      >How to say a word in every book: “SQL” as “sequel”. The page keeps the book's spelling; only the sentences with
+      the word are made again. A book's own list, under its Narration, wins over this one.</SettingsNote
+    >
+    <PronunciationList :book-id="null" />
+  </SettingsSection>
   <SpeechProblems class="engine-settings__apart" />
 </template>
 

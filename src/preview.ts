@@ -20,11 +20,19 @@ import { useRecordingsStore } from "@/stores/recordings";
  *  core made it; `settings=engine` shows it in Settings);
  *  `browser=off|missing|ready` sets the browser for articles (off, on with none found, on with
  *  one found; `settings=sites` shows it); `signin=waiting|fetching` opens a sign-in on the
- *  preview's article; `shortcuts=1` shows the list of keyboard shortcuts (the ? key) */
+ *  preview's article; `shortcuts=1` shows the list of keyboard shortcuts (the ? key);
+ *  `pronounce=1` fills the pronunciation lists (book-1's and the one for all books), and
+ *  `select=Ren` selects that word in the chapter text once the screen is up (before any `click`). */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
   const view = query.get("view") as View | null,
     settings = query.get("settings") as SettingsTab | null;
+  // Before any screen opens, so its lists show them.
+  if (query.has("pronounce")) {
+    await api.savePronunciation({ bookId: "book-1", written: "Ren", spoken: "wren", matchCase: false });
+    await api.savePronunciation({ bookId: null, written: "SQL", spoken: "sequel", matchCase: true });
+    await api.savePronunciation({ bookId: null, written: "Dr. Xu", spoken: "doctor shoe", matchCase: false });
+  }
   if (settings) useNavigationStore().openSettings(settings);
   if (query.has("shortcuts")) useNavigationStore().openShortcuts();
   for (const id of query.get("prepare")?.split(",").filter(Boolean) ?? []) await api.prepareBook({ bookId: id });
@@ -68,8 +76,27 @@ export async function applyPreviewParams(search = location.search) {
       document.querySelector<HTMLElement>('[aria-label="Player"] [aria-label="Book tools"]')?.click();
       setTimeout(() => document.querySelector<HTMLElement>(`#book-tools-tab-${tools}`)?.click(), 100);
     }, 300);
+  const select = query.get("select");
+  if (select) setTimeout(() => selectWord(select), 500);
   const clicks = query.get("click")?.split("|").filter(Boolean) ?? [];
   clicks.forEach((selector, i) =>
     setTimeout(() => document.querySelector<HTMLElement>(selector)?.click(), 600 + i * 300),
   );
+}
+
+/** Selects the first `word` in the chapter text, as a reader would by dragging over it. */
+function selectWord(word: string) {
+  const text = document.querySelector(".chapter-text");
+  if (!text) return;
+  const walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const at = node.textContent?.indexOf(word) ?? -1;
+    if (at < 0) continue;
+    const range = document.createRange();
+    range.setStart(node, at);
+    range.setEnd(node, at + word.length);
+    document.getSelection()?.removeAllRanges();
+    document.getSelection()?.addRange(range);
+    return;
+  }
 }

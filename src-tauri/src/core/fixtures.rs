@@ -1106,6 +1106,93 @@ async fn scenarios_for_the_ui_mock() {
     core.stop();
     scenarios.push(s.done());
 
+    let mut s = Scenario::new(
+        "a word is said another way in the sentences that have it, and only there",
+        "",
+    );
+    let ask = |written: &str, spoken: &str, match_case: bool| {
+        (
+            json!({"bookId": second, "written": written, "spoken": spoken, "matchCase": match_case}),
+            core.pronunciation_affected(&second, written, spoken, match_case),
+        )
+    };
+    for (written, spoken, match_case) in [
+        ("Ren", "wren", false),
+        ("ren", "wren", true),
+        ("bench", "seat", false),
+        ("zeppelin", "zep", false),
+        ("  ", "wren", false),
+        ("Ren", " … ", false),
+    ] {
+        let (args, affected) = ask(written, spoken, match_case);
+        s.step(
+            "pronunciationAffected",
+            args,
+            &affected,
+            &["sentences", "cached"],
+        );
+    }
+    let entry = |written: &str, spoken: &str| json!({"bookId": second, "written": written, "spoken": spoken, "matchCase": false});
+    let saved = core
+        .save_pronunciation(Some(&second), " Ren ", "wren", false)
+        .await;
+    s.step(
+        "savePronunciation",
+        entry(" Ren ", "wren"),
+        &saved,
+        &["written", "spoken", "matchCase", "bookId"],
+    );
+    let ren = saved.unwrap().id;
+    s.step(
+        "savePronunciation",
+        entry("Ren", "  "),
+        &core
+            .save_pronunciation(Some(&second), "Ren", "  ", false)
+            .await,
+        &[],
+    );
+    s.step(
+        "pronunciations",
+        json!({"bookId": second}),
+        &core.pronunciations(Some(&second)),
+        &["length", "0.written", "0.spoken"],
+    );
+    // Saved as it is, it changes nothing more.
+    let (args, affected) = ask("Ren", "wren", false);
+    s.step("pronunciationAffected", args, &affected, &["sentences"]);
+    let all = core.save_pronunciation(None, "bench", "seat", true).await;
+    s.step(
+        "savePronunciation",
+        json!({"bookId": null, "written": "bench", "spoken": "seat", "matchCase": true}),
+        &all,
+        &["bookId", "matchCase"],
+    );
+    s.step(
+        "pronunciations",
+        json!({"bookId": null}),
+        &core.pronunciations(None),
+        &["length", "0.written"],
+    );
+    s.step(
+        "deletePronunciation",
+        json!({"id": ren}),
+        &core.delete_pronunciation(ren).await,
+        &[],
+    );
+    s.step(
+        "deletePronunciation",
+        json!({"id": ren}),
+        &core.delete_pronunciation(ren).await,
+        &[],
+    );
+    s.step(
+        "pronunciations",
+        json!({"bookId": second}),
+        &core.pronunciations(Some(&second)),
+        &["length"],
+    );
+    scenarios.push(s.done());
+
     let mut s = Scenario::new("collections are named once and hold books", "");
     let made = core.create_collection("Harbour");
     s.step("createCollection", json!({"name": "Harbour"}), &made, &[""]);
