@@ -22,6 +22,25 @@ export const useReaderStore = defineStore("reader", () => {
   /** The open book's highlights in reading order. They change while a chapter is open, so they
    *  travel beside the chapters (which are replaced whole), not in them. */
   const highlights = ref<HighlightView[]>([]);
+  /** Words a search of the library's text found, marked in the open book until another opens:
+   *  characters `start..end` of a chapter. */
+  const found = ref<{ bookId: string; chapter: number; start: number; end: number; segmentId: string } | null>(null);
+  /** The found words as a highlight the page draws (id -1: no card opens on it). */
+  const shownHighlights = computed<HighlightView[]>(() => {
+    const f = found.value;
+    if (!f || f.bookId !== book.value?.id) return highlights.value;
+    const mark: HighlightView = {
+      id: -1,
+      chapter: f.chapter,
+      chapterTitle: "",
+      start: f.start,
+      end: f.end,
+      text: "",
+      note: "",
+      detached: false,
+    };
+    return [...highlights.value, mark];
+  });
   /** The open book's highlights, fetched again. */
   async function loadHighlights() {
     const id = book.value?.id;
@@ -93,8 +112,25 @@ export const useReaderStore = defineStore("reader", () => {
       error.value = String(e);
     }
   }
+  /** Opens book `id` at a passage a search found, at its sentence with the words marked,
+   *  without playing. */
+  async function openAt(id: string, hit: { chapter: number; segmentId: string; found: number[] }) {
+    if (book.value?.id !== id || useNavigationStore().view !== "reader") await open(id);
+    if (book.value?.id !== id) return;
+    place.value = { chapter: hit.chapter, segmentId: hit.segmentId };
+    await loadChapter(hit.chapter);
+    found.value = {
+      bookId: id,
+      chapter: hit.chapter,
+      start: hit.found[0],
+      end: hit.found[1],
+      segmentId: hit.segmentId,
+    };
+    useNavigationStore().view = "reader";
+  }
   async function open(id: string) {
     const request = ++openRequest;
+    found.value = null;
     loading.value = true;
     error.value = "";
     beginShowing("open");
@@ -152,6 +188,9 @@ export const useReaderStore = defineStore("reader", () => {
     error,
     loading,
     open,
+    openAt,
+    found,
+    shownHighlights,
     chapterText,
     loadChapter,
     startChapter,

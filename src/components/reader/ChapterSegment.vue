@@ -164,6 +164,11 @@ const wordAt = computed(() => {
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
 }
+/* The words a search of the library found. */
+.chapter-segment__mark[data-highlight-id="-1"] {
+  background: none;
+  box-shadow: inset 0 -0.18em 0 var(--accent);
+}
 /* Drawn word by word while spoken: square ends, so the pieces meet. */
 .chapter-segment--current .chapter-segment__mark {
   border-radius: 0;

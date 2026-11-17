@@ -7,6 +7,7 @@ import { BookOpen, Search, Trash2, TriangleAlert } from "@lucide/vue";
 import UiSelect from "@/components/ui/UiSelect.vue";
 import UiSkeleton from "@/components/ui/UiSkeleton.vue";
 import BookCard from "@/components/library/BookCard.vue";
+import TextSearch from "@/components/library/TextSearch.vue";
 import { useLibraryStore, type BuiltInFilter } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { useReaderStore } from "@/stores/reader";
@@ -111,7 +112,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
             v-model="library.query"
             type="search"
             aria-label="Search library"
-            placeholder="Title or author"
+            placeholder="Title, author or words inside"
         /></label>
         <UiSelect
           class="library__sort"
@@ -174,6 +175,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
         @remove="library.remove(book.id)"
       />
     </ul>
+    <TextSearch v-if="library.books.length" />
   </section>
 </template>
 

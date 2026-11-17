@@ -17,6 +17,7 @@ export type ShortcutId =
   | "collection"
   | "fullscreen"
   | "find"
+  | "findAll"
   | "add"
   | "settings"
   | "zoomIn"
@@ -96,6 +97,12 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "collection", label: "Add the open item to a collection", keys: [{ key: "c" }] },
   { id: "fullscreen", label: "Fill the screen, or back to a window", keys: [{ key: "F11" }, { key: "f" }] },
   { id: "find", label: "Search the open book, or the library", keys: [{ key: "f", ctrl: true }], typing: true },
+  {
+    id: "findAll",
+    label: "Search the whole library, its text too",
+    keys: [{ key: "f", ctrl: true, shift: true }],
+    typing: true,
+  },
   { id: "add", label: "Add books or audiobooks", keys: [{ key: "n", ctrl: true }], typing: true },
   { id: "settings", label: "Settings", keys: [{ key: ",", ctrl: true }], typing: true },
   { id: "zoomIn", label: "Larger interface", keys: [{ key: "+", ctrl: true, also: ["="] }], typing: true },

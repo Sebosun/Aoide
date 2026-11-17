@@ -142,6 +142,22 @@ async function chooseInbox() {
       </div>
       <SettingsNote v-if="exported" role="status">{{ exported }}</SettingsNote>
     </SettingsSection>
+    <SettingsSection title="Search">
+      <label v-if="settings" class="library-settings__check"
+        ><input
+          :checked="settings.searchText"
+          type="checkbox"
+          aria-label="Search inside books"
+          @change="save({ searchText: ($event.target as HTMLInputElement).checked })"
+        />
+        Search inside books and articles</label
+      >
+      <SettingsNote
+        >The library's search also finds passages in the text. Aoide keeps an index of the text for it, about as large
+        as the text itself (Storage shows how much); it is built in the background, never while speech is being made.
+        Turning this off deletes it.</SettingsNote
+      >
+    </SettingsSection>
     <SettingsSection title="Book details">
       <label v-if="settings" class="library-settings__check"
         ><input

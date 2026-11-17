@@ -100,6 +100,20 @@ watch(
   },
   { flush: "post" },
 );
+// A passage a search found: its sentence is brought to the middle of the screen, after the
+// chapter is drawn (and after a new chapter's move to its top).
+watch(
+  () => [reader.found, reader.chapter] as const,
+  async ([found, chapter]) => {
+    if (!found || chapter?.index !== found.chapter || found.bookId !== reader.book?.id) return;
+    await nextTick();
+    const element = [...(scroller.value?.querySelectorAll<HTMLElement>("[data-segment-id]") ?? [])].find(
+      (e) => e.dataset.segmentId === found.segmentId,
+    );
+    element?.scrollIntoView?.({ block: "center" });
+  },
+  { flush: "post" },
+);
 watch(
   () => [player.state.segmentId, player.state.status, reader.chapter],
   async () => {
@@ -179,7 +193,7 @@ const next = computed(() => {
           :current-word="onPage ? player.state.wordIndex : null"
           :margin-notes="wide"
           :playable="along"
-          :highlights="reader.highlights"
+          :highlights="reader.shownHighlights"
           @play="play"
         >
           <!-- Slots are always given (what they show decides): a slot given only sometimes makes

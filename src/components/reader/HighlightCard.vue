@@ -26,6 +26,8 @@ function onClick(event: MouseEvent) {
   const mark = (event.target as Element | null)?.closest?.("mark[data-highlight-id]");
   const selection = document.getSelection();
   if (!mark || event.button !== 0 || (selection && !selection.isCollapsed)) return;
+  // The words a search found: not a highlight.
+  if (Number(mark.getAttribute("data-highlight-id")) < 0) return;
   event.stopPropagation();
   event.preventDefault();
   anchor.value = mark;

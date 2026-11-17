@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted } from "vue";
+import { nextTick, onMounted, onUnmounted } from "vue";
 import { api } from "@/api";
 import { useNavigationStore } from "@/stores/navigation";
 import { useReaderStore } from "@/stores/reader";
@@ -150,6 +150,12 @@ export function useShortcuts() {
       if (navigation.view === "reader" && (!dialog || dialog === "Book tools")) navigation.findInBook();
       else if (navigation.view === "library" && !dialog && field) field.focus();
       else return false;
+    },
+    findAll() {
+      if (dialogOpen()) return false;
+      navigation.view = "library";
+      // The field is there once the library is drawn.
+      void nextTick(() => document.querySelector<HTMLElement>('[aria-label="Search library"]')?.focus());
     },
     add() {
       if (dialogOpen()) return false;
