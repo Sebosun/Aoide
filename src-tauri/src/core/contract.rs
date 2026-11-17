@@ -66,6 +66,7 @@ fn contract() -> String {
         crate::book::ChapterSummary,
         crate::book::ChapterView,
         crate::book::InsertView,
+        crate::book::TableView,
         crate::book::ExcludedView,
         crate::book::SearchHit,
         super::BookView,

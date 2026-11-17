@@ -65,6 +65,7 @@ it("marks a highlight in the sentences it covers, words and the spaces between t
     title: "",
     notNarrated: null,
     inserts: [],
+  tables: [],
     blocks: [{ kind: "paragraph", level: null, segments: [segment] }],
   } as ChapterView;
   const highlight = (id: number, start: number, end: number): HighlightView => ({

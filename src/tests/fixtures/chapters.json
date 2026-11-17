@@ -193,7 +193,8 @@
         }
       ],
       "notNarrated": null,
-      "inserts": []
+      "inserts": [],
+      "tables": []
     },
     {
       "index": 1,
@@ -345,7 +346,8 @@
         }
       ],
       "notNarrated": null,
-      "inserts": []
+      "inserts": [],
+      "tables": []
     }
   ],
   [
@@ -498,7 +500,8 @@
         }
       ],
       "notNarrated": null,
-      "inserts": []
+      "inserts": [],
+      "tables": []
     },
     {
       "index": 1,
@@ -664,7 +667,8 @@
         }
       ],
       "notNarrated": null,
-      "inserts": []
+      "inserts": [],
+      "tables": []
     },
     {
       "index": 2,
@@ -798,7 +802,8 @@
         }
       ],
       "notNarrated": null,
-      "inserts": []
+      "inserts": [],
+      "tables": []
     },
     {
       "index": 3,
@@ -876,7 +881,8 @@
         }
       ],
       "notNarrated": null,
-      "inserts": []
+      "inserts": [],
+      "tables": []
     }
   ],
   [
@@ -950,7 +956,8 @@
         }
       ],
       "notNarrated": null,
-      "inserts": []
+      "inserts": [],
+      "tables": []
     }
   ],
   [
@@ -1024,7 +1031,8 @@
         }
       ],
       "notNarrated": null,
-      "inserts": []
+      "inserts": [],
+      "tables": []
     }
   ]
 ]

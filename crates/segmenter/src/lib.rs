@@ -78,6 +78,17 @@ pub struct WordEstimate {
 
 /// Splits a chapter's blocks into speakable segments, in reading order.
 pub fn segment_chapter(chapter: u32, blocks: &[Block], options: &SegmentOptions) -> Vec<Segment> {
+    segment_chapter_with_cuts(chapter, blocks, &[], options)
+}
+
+/// [`segment_chapter`], where no segment runs across a cut: `(block, offset)`, a character
+/// offset in that block's text (where a table's cell begins).
+pub fn segment_chapter_with_cuts(
+    chapter: u32,
+    blocks: &[Block],
+    cuts: &[(usize, usize)],
+    options: &SegmentOptions,
+) -> Vec<Segment> {
     let offsets = block_offsets(blocks);
     let mut segments = Vec::new();
     for (index, block) in blocks.iter().enumerate() {
@@ -87,7 +98,15 @@ pub fn segment_chapter(chapter: u32, blocks: &[Block], options: &SegmentOptions)
         } else {
             Vec::new()
         };
-        let units: Vec<(Range<usize>, Role)> = sentences(&chars)
+        let mut at: Vec<usize> = cuts
+            .iter()
+            .filter(|(block, _)| *block == index)
+            .map(|(_, offset)| *offset)
+            .collect();
+        at.sort_unstable();
+        // Which stretch between cuts a piece starting at `start` is in.
+        let stretch = |start: usize| at.iter().filter(|&&cut| cut <= start).count();
+        let units: Vec<(Range<usize>, Role, usize)> = sentences(&chars)
             .into_iter()
             .flat_map(|sentence| split_long(&chars, sentence, options.max_chars))
             .flat_map(|unit| {
@@ -96,6 +115,15 @@ pub fn segment_chapter(chapter: u32, blocks: &[Block], options: &SegmentOptions)
                 } else {
                     dialogue::pieces(&chars, unit, &spans)
                 }
+            })
+            .flat_map(|(unit, role)| {
+                cut(&chars, unit, &at)
+                    .into_iter()
+                    .map(move |piece| (piece, role))
+            })
+            .map(|(piece, role)| {
+                let n = stretch(piece.start);
+                (piece, role, n)
             })
             .collect();
         let heading = matches!(block.kind, BlockKind::Heading { .. });
@@ -489,19 +517,44 @@ fn split_long(chars: &[char], sentence: Range<usize>, max: usize) -> Vec<Range<u
     pieces
 }
 
-/// Groups consecutive units of one role when either side is shorter than `min_chars` and the
-/// result fits.
+/// `unit` cut at the offsets `at` (sorted), each piece without the whitespace at its ends.
+fn cut(chars: &[char], unit: Range<usize>, at: &[usize]) -> Vec<Range<usize>> {
+    let mut edges = vec![unit.start];
+    edges.extend(
+        at.iter()
+            .copied()
+            .filter(|&c| c > unit.start && c < unit.end),
+    );
+    edges.push(unit.end);
+    edges
+        .windows(2)
+        .filter_map(|pair| {
+            let (mut start, mut end) = (pair[0], pair[1]);
+            while start < end && chars[start].is_whitespace() {
+                start += 1;
+            }
+            while end > start && chars[end - 1].is_whitespace() {
+                end -= 1;
+            }
+            (start < end).then_some(start..end)
+        })
+        .collect()
+}
+
+/// Groups consecutive units of one role, between the same cuts, when either side is shorter
+/// than `min_chars` and the result fits.
 fn group(
-    units: &[(Range<usize>, Role)],
+    units: &[(Range<usize>, Role, usize)],
     options: &SegmentOptions,
 ) -> Vec<(Vec<Range<usize>>, Role)> {
-    let mut groups: Vec<(Vec<Range<usize>>, Role)> = Vec::new();
-    for (unit, role) in units {
-        if let Some((current, current_role)) = groups.last_mut() {
+    let mut groups: Vec<(Vec<Range<usize>>, Role, usize)> = Vec::new();
+    for (unit, role, stretch) in units {
+        if let Some((current, current_role, current_stretch)) = groups.last_mut() {
             let start = current[0].start;
             let current_len = current[current.len() - 1].end - start;
             let fits = unit.end - start <= options.max_chars;
             if *current_role == *role
+                && *current_stretch == *stretch
                 && fits
                 && (current_len < options.min_chars || unit.len() < options.min_chars)
             {
@@ -509,9 +562,12 @@ fn group(
                 continue;
             }
         }
-        groups.push((vec![unit.clone()], *role));
+        groups.push((vec![unit.clone()], *role, *stretch));
     }
     groups
+        .into_iter()
+        .map(|(units, role, _)| (units, role))
+        .collect()
 }
 
 fn words(chars: &[char], range: &Range<usize>) -> Vec<Range<usize>> {

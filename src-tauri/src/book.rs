@@ -1,7 +1,9 @@
 //! A parsed, segmented book and the views the UI receives.
 
 use aoide_epub::{BlockKind, ParsedBook, Warning};
-use aoide_text::{estimate_word_timings, segment_at, segment_chapter, Segment, SegmentOptions};
+use aoide_text::{
+    estimate_word_timings, segment_at, segment_chapter_with_cuts, Segment, SegmentOptions,
+};
 use serde::Serialize;
 
 pub struct ChapterModel {
@@ -16,6 +18,10 @@ pub struct ChapterModel {
     pub first_entry: usize,
     /// Pictures shown between blocks, outside the text.
     pub inserts: Vec<aoide_document::Insert>,
+    /// Tables whose rows are blocks of the text.
+    pub tables: Vec<aoide_document::TableShape>,
+    /// Where each block starts in `text`, in characters.
+    pub block_starts: Vec<usize>,
 }
 
 pub struct BookModel {
@@ -101,6 +107,23 @@ pub struct ChapterView {
     pub not_narrated: Option<Vec<String>>,
     /// Pictures between the blocks, in order; block numbers index `blocks`.
     pub inserts: Vec<InsertView>,
+    /// Tables whose rows are `blocks`, drawn as tables.
+    pub tables: Vec<TableView>,
+}
+
+/// A table in the text: rows `first_block..first_block + rows` of `blocks`, each sentence in
+/// the cell its first word is in.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct TableView {
+    pub first_block: usize,
+    pub rows: usize,
+    pub header_rows: usize,
+    /// The block that is its caption.
+    pub caption_block: Option<usize>,
+    /// Each row's cells, as `[start, end)` in the chapter's text (as words' `starts`).
+    pub cells: Vec<Vec<[usize; 2]>>,
 }
 
 /// Something drawn between a chapter's blocks.
@@ -167,7 +190,20 @@ impl BookModel {
             .iter()
             .enumerate()
             .map(|(index, chapter)| {
-                let segments = segment_chapter(index as u32, &chapter.blocks, options);
+                // A table's cells are drawn apart, so no sentence runs across two.
+                let cuts: Vec<(usize, usize)> = chapter
+                    .tables
+                    .iter()
+                    .flat_map(|table| table.rows.clone().zip(&table.cells))
+                    .flat_map(|(block, cells)| {
+                        cells
+                            .iter()
+                            .filter(|cell| cell.start > 0)
+                            .map(move |cell| (block, cell.start))
+                    })
+                    .collect();
+                let segments =
+                    segment_chapter_with_cuts(index as u32, &chapter.blocks, &cuts, options);
                 let offsets = aoide_text::block_offsets(&chapter.blocks);
                 let mut notes = vec![Vec::new(); segments.len()];
                 for note_ref in &chapter.note_refs {
@@ -210,6 +246,8 @@ impl BookModel {
                     first_entry,
                     segments,
                     inserts: chapter.inserts.clone(),
+                    tables: chapter.tables.clone(),
+                    block_starts: offsets,
                 };
                 first_entry += model.segments.len();
                 model
@@ -377,7 +415,58 @@ impl BookModel {
             blocks,
             not_narrated: None,
             inserts: Vec::new(),
+            tables: self.table_views(index),
         })
+    }
+
+    /// Which of chapter `index`'s blocks its view shows (those with segments).
+    fn shown_blocks(model: &ChapterModel) -> Vec<bool> {
+        let mut shown = vec![false; model.block_kinds.len()];
+        for segment in &model.segments {
+            if let Some(block) = shown.get_mut(segment.block) {
+                *block = true;
+            }
+        }
+        shown
+    }
+
+    fn table_views(&self, index: usize) -> Vec<TableView> {
+        let Some(model) = self.chapters.get(index) else {
+            return Vec::new();
+        };
+        let shown = Self::shown_blocks(model);
+        let in_view = |block: usize| {
+            shown[..block.min(shown.len())]
+                .iter()
+                .filter(|s| **s)
+                .count()
+        };
+        model
+            .tables
+            .iter()
+            .filter(|table| table.rows.clone().all(|b| shown.get(b) == Some(&true)))
+            .map(|table| TableView {
+                first_block: in_view(table.rows.start),
+                rows: table.rows.len(),
+                header_rows: table.header_rows,
+                caption_block: table
+                    .caption_block
+                    .filter(|b| shown.get(*b) == Some(&true))
+                    .map(in_view),
+                cells: table
+                    .rows
+                    .clone()
+                    .zip(&table.cells)
+                    .map(|(block, cells)| {
+                        let base = model.block_starts.get(block).copied().unwrap_or(0);
+                        cells
+                            .iter()
+                            .map(|cell| [base + cell.start, base + cell.end])
+                            .collect()
+                    })
+                    .collect(),
+            })
+            .collect()
     }
 
     /// Chapter `index`'s pictures, as its view draws them: `file_of` gives each resource's file
@@ -390,12 +479,7 @@ impl BookModel {
         let Some(model) = self.chapters.get(index) else {
             return Vec::new();
         };
-        let mut shown = vec![false; model.block_kinds.len()];
-        for segment in &model.segments {
-            if let Some(block) = shown.get_mut(segment.block) {
-                *block = true;
-            }
-        }
+        let shown = Self::shown_blocks(model);
         // A block number in the view: how many shown blocks come before it.
         let in_view = |block: usize| {
             shown[..block.min(shown.len())]
@@ -972,6 +1056,89 @@ pub(crate) mod tests {
         BookModel::from_parsed("bk", parsed, &notes_read())
     }
 
+    /// A chapter with a captioned table of a heading row and two rows.
+    fn tabled() -> BookModel {
+        let mut parsed_chapter = chapter(
+            "Lamps",
+            vec![
+                block(BlockKind::Heading { level: 1 }, "Lamps"),
+                block(BlockKind::Paragraph, "Lamps lit each year"),
+                block(BlockKind::Paragraph, "Year Lamps"),
+                block(BlockKind::Paragraph, "1901 12"),
+                block(BlockKind::Paragraph, "1902 14 and a half"),
+                block(BlockKind::Paragraph, "After the table."),
+            ],
+        );
+        parsed_chapter.tables = vec![aoide_document::TableShape {
+            rows: 2..5,
+            caption_block: Some(1),
+            header_rows: 1,
+            cells: vec![vec![0..4, 5..10], vec![0..4, 5..7], vec![0..4, 5..18]],
+        }];
+        let mut parsed = empty_parsed();
+        parsed.chapters = vec![parsed_chapter];
+        BookModel::from_parsed("bk", parsed, &Layout::default())
+    }
+
+    fn empty_parsed() -> ParsedBook {
+        ParsedBook {
+            title: None,
+            authors: vec![],
+            language: None,
+            publisher: None,
+            description: None,
+            identifiers: vec![],
+            isbn: None,
+            subjects: Vec::new(),
+            series: None,
+            cover: None,
+            notes: vec![],
+            chapters: vec![],
+            warnings: vec![],
+            excluded: vec![],
+        }
+    }
+
+    #[test]
+    fn a_table_is_cut_at_its_cells_and_drawn_as_a_table() {
+        let model = tabled();
+        let displays: Vec<&str> = model.chapters[0]
+            .segments
+            .iter()
+            .map(|s| s.display.as_str())
+            .collect();
+        assert_eq!(
+            displays,
+            [
+                "Lamps",
+                "Lamps lit each year",
+                "Year",
+                "Lamps",
+                "1901",
+                "12",
+                "1902",
+                "14 and a half",
+                "After the table."
+            ]
+        );
+        let view = model.chapter_view(0).unwrap();
+        // "Lamps\n\nLamps lit each year\n\n" is 28 characters; the rows follow.
+        assert_eq!(
+            view.tables,
+            [TableView {
+                first_block: 2,
+                rows: 3,
+                header_rows: 1,
+                caption_block: Some(1),
+                cells: vec![
+                    vec![[28, 32], [33, 38]],
+                    vec![[40, 44], [45, 47]],
+                    vec![[49, 53], [54, 67]]
+                ],
+            }]
+        );
+    }
+
     #[test]
     fn each_word_of_a_sentence_says_where_it_starts_in_the_chapter_text() {
         let mut checked = 0;
@@ -1037,3 +1204,4 @@ pub(crate) mod tests {
         assert_eq!(book.warnings.len(), 1);
     }
 }
+

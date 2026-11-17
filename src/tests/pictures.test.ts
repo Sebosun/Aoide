@@ -1,5 +1,6 @@
-/** A book's pictures on the page: between the paragraphs the core places them, their caption
- *  paragraph set as a caption, and opened large on a click. */
+/** A book's pictures and tables on the page: pictures between the paragraphs the core places
+ *  them, their caption paragraph set as a caption, and opened large on a click; a table's rows
+ *  drawn as a table, each sentence in its cell. */
 import { afterEach, expect, it } from "vitest";
 import { mount, type VueWrapper } from "@vue/test-utils";
 import type { ChapterView, SegmentView } from "@/api/types";
@@ -23,6 +24,7 @@ const chapter: ChapterView = {
     { kind: "paragraph", level: null, segments: [sentence("0:2:0", "The lamp, lit at dusk.")] },
   ],
   notNarrated: null,
+  tables: [],
   inserts: [
     {
       type: "picture",
@@ -74,4 +76,59 @@ it("opens a picture large, and closes it", async () => {
   large!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   await wrapper.vm.$nextTick();
   expect(document.body.querySelector('[role="dialog"][aria-label="Picture"]')).toBeNull();
+});
+
+it("draws a table's rows as a table, each sentence in its cell", () => {
+  const at = (id: string, text: string, start: number) => ({
+    ...sentence(id, text),
+    starts: text.split(" ").map((_, i, words) => start + words.slice(0, i).join(" ").length + (i ? 1 : 0)),
+  });
+  const tabled: ChapterView = {
+    index: 0,
+    title: "Lamps",
+    blocks: [
+      { kind: "paragraph", level: null, segments: [at("0:0:0", "Lamps lit each year", 0)] },
+      { kind: "paragraph", level: null, segments: [at("0:1:0", "Year", 21), at("0:1:1", "Lamps", 26)] },
+      { kind: "paragraph", level: null, segments: [at("0:2:0", "1902", 33), at("0:2:1", "14 and a half", 38)] },
+      { kind: "paragraph", level: null, segments: [at("0:3:0", "After the table.", 53)] },
+    ],
+    notNarrated: null,
+    inserts: [],
+    tables: [
+      {
+        firstBlock: 1,
+        rows: 2,
+        headerRows: 1,
+        captionBlock: 0,
+        cells: [
+          [
+            [21, 25],
+            [26, 31],
+          ],
+          [
+            [33, 37],
+            [38, 51],
+          ],
+        ],
+      },
+    ],
+  };
+  wrapper = mount(ChapterText, {
+    attachTo: document.body,
+    props: { chapter: tabled, currentSegment: "0:2:1", currentWord: 0, marginNotes: false },
+  });
+  const rows = wrapper.findAll("table tr").map((row) => row.findAll("th, td").map((cell) => cell.text()));
+  expect(rows).toEqual([
+    ["Year", "Lamps"],
+    ["1902", "14 and a half"],
+  ]);
+  expect(wrapper.findAll("table th")).toHaveLength(2);
+  // Its sentences are the text's: the one being spoken is marked in its cell.
+  expect(wrapper.get("table td:last-child [data-segment-id]").attributes("data-segment-id")).toBe("0:2:1");
+  expect(wrapper.find("table .chapter-segment--current").exists()).toBe(true);
+  expect(wrapper.findAll(".chapter-text__block").map((b) => b.text())).toEqual([
+    "Lamps lit each year",
+    "After the table.",
+  ]);
+  expect(wrapper.findAll(".chapter-text__block")[0].classes()).toContain("chapter-text__block--caption");
 });

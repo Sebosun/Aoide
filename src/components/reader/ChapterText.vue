@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from "vue";
-import type { BlockView, ChapterView, HighlightView, InsertView, NoteMarker, SegmentView } from "@/api/types";
+import type {
+  BlockView,
+  ChapterView,
+  HighlightView,
+  InsertView,
+  NoteMarker,
+  SegmentView,
+  TableView,
+} from "@/api/types";
 import ChapterSegment from "@/components/reader/ChapterSegment.vue";
 import { noteId, noteKey } from "@/components/reader/notes";
 import { sentenceMarks, NO_MARKS, type Mark } from "@/components/reader/highlights";
@@ -59,10 +67,33 @@ const picturesBefore = computed(() => {
   }
   return by;
 });
-/** Blocks that are a picture's caption: still the text, set as a caption. */
+/** Blocks that are a picture's or a table's caption: still the text, set as a caption. */
 const captions = computed(
-  () => new Set(props.chapter.inserts.flatMap((i) => (i.captionBlock === null ? [] : [i.captionBlock]))),
+  () =>
+    new Set(
+      [...props.chapter.inserts, ...props.chapter.tables].flatMap((i) =>
+        i.captionBlock === null ? [] : [i.captionBlock],
+      ),
+    ),
 );
+/** Tables by their first row's block; the blocks of their other rows. */
+const tableAt = computed(() => new Map(props.chapter.tables.map((table) => [table.firstBlock, table])));
+const inTable = computed(
+  () =>
+    new Set(props.chapter.tables.flatMap((t) => Array.from({ length: t.rows - 1 }, (_, r) => t.firstBlock + r + 1))),
+);
+/** A table's rows, each cell holding the sentences whose first word is in it. */
+function tableRows(table: TableView) {
+  return table.cells.map((cells, r) => {
+    const segments = props.chapter.blocks[table.firstBlock + r]?.segments ?? [];
+    return cells.map(([start, end]) =>
+      segments.filter((segment) => {
+        const at = segment.starts[0] ?? -1;
+        return at >= start && at < end;
+      }),
+    );
+  });
+}
 const pictureLabel = (insert: InsertView) => insert.alt || insert.caption || "a picture";
 /** The picture opened large, over the page. */
 const enlarged = ref<InsertView | null>(null),
@@ -112,7 +143,29 @@ const chapterMissing = computed(
         </button>
         <figcaption v-if="insert.caption" class="chapter-text__caption">{{ insert.caption }}</figcaption>
       </figure>
-      <div class="chapter-text__row">
+      <div v-if="tableAt.get(index)" class="chapter-text__table-wrap">
+        <table class="chapter-text__table">
+          <tr v-for="(cells, r) in tableRows(tableAt.get(index)!)" :key="r">
+            <component :is="r < tableAt.get(index)!.headerRows ? 'th' : 'td'" v-for="(segments, c) in cells" :key="c">
+              <ChapterSegment
+                v-for="segment in segments"
+                :key="segment.id"
+                :segment="segment"
+                :current="segment.id === currentSegment"
+                :word="segment.id === currentSegment ? currentWord : null"
+                :unnarrated="unnarrated.has(segment.id)"
+                :clickable="clickable(segment)"
+                :margin-notes="marginNotes"
+                :open-note="openNote?.startsWith(`${segment.id}:`) ? openNote : null"
+                :marks="marks.get(segment.id) ?? NO_MARKS"
+                @play="emit('play', segment.id)"
+                @marker="marker(segment, $event)"
+              />
+            </component>
+          </tr>
+        </table>
+      </div>
+      <div v-else-if="!inTable.has(index)" class="chapter-text__row">
         <component
           :is="tag(block)"
           class="chapter-text__block"
@@ -274,6 +327,27 @@ h3.chapter-text__block--heading {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+/* A table as wide as it needs, scrolled sideways in a narrow column. */
+.chapter-text__table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+.chapter-text__table {
+  border-collapse: collapse;
+  font-size: 0.86em;
+  line-height: 1.45;
+}
+.chapter-text__table th,
+.chapter-text__table td {
+  padding: var(--space-2) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  text-align: start;
+  vertical-align: top;
+}
+.chapter-text__table th {
+  color: var(--ink);
+  font-weight: 650;
 }
 .chapter-text__missing {
   margin: 0 0 var(--space-9);

@@ -261,7 +261,11 @@ notNarrated: Array<string> | null,
 /**
  * Pictures between the blocks, in order; block numbers index `blocks`.
  */
-inserts: Array<InsertView>, };
+inserts: Array<InsertView>, 
+/**
+ * Tables whose rows are `blocks`, drawn as tables.
+ */
+tables: Array<TableView>, };
 
 export type InsertView = { "type": "picture", 
 /**
@@ -284,6 +288,16 @@ captionBlock: number | null,
  * A caption of its own, outside the text.
  */
 caption: string | null, };
+
+export type TableView = { firstBlock: number, rows: number, headerRows: number, 
+/**
+ * The block that is its caption.
+ */
+captionBlock: number | null, 
+/**
+ * Each row's cells, as `[start, end)` in the chapter's text (as words' `starts`).
+ */
+cells: Array<Array<[number, number]>>, };
 
 export type ExcludedView = { title: string, reason: string, };
 

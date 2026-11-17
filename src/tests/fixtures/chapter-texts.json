@@ -214,6 +214,7 @@
       "index": 0,
       "inserts": [],
       "notNarrated": null,
+      "tables": [],
       "title": "The small light"
     },
     "text": "The small light\n\nEvery evening, Ada carried a lantern to the end of the pier. The sea collected its reflection and broke it into a hundred little stars.\n\nTonight a paper boat waited beside the steps. Inside it lay a key, warm as if someone had held it all the way across the bay."
@@ -369,6 +370,7 @@
       "index": 1,
       "inserts": [],
       "notNarrated": null,
+      "tables": [],
       "title": "Across the water"
     },
     "text": "Across the water\n\nAt dawn she borrowed the blue rowing boat. Each pull of the oars opened a quiet doorway in the water.\n\nOn the far shore, a gardener waved. He had been waiting for someone to bring back the light."
@@ -523,6 +525,7 @@
       "index": 0,
       "inserts": [],
       "notNarrated": null,
+      "tables": [],
       "title": "An ordinary discovery"
     },
     "text": "An ordinary discovery\n\nNo one had marked the bench on any map. It stood between a bakery and a clock shop, where the morning smelled of bread and rain.\n\nRen sat down and listened. Beneath the traffic, a sparrow was rehearsing a song with no ending."
@@ -692,6 +695,7 @@
       "index": 1,
       "inserts": [],
       "notNarrated": null,
+      "tables": [],
       "title": "The long way home"
     },
     "text": "The long way home\n\nRen drew a circle where the bench should be. Then came the bridge, the cool stone steps, and the lane where the wind always rested.\n\nThe map did not make the city smaller. It made room for all the things Ren had hurried past."
@@ -829,6 +833,7 @@
       "index": 2,
       "inserts": [],
       "notNarrated": null,
+      "tables": [],
       "title": "A place to begin"
     },
     "text": "A place to begin\n\nThe next morning, a stranger asked for directions. Ren folded the map and offered to walk beside her.\n\nThey took the long way. There was plenty of time."
@@ -910,6 +915,7 @@
       "index": 3,
       "inserts": [],
       "notNarrated": null,
+      "tables": [],
       "title": "About the author"
     },
     "text": "About the author\n\nEllis Reed walks a different street every morning and writes down what was quiet there."
@@ -985,6 +991,7 @@
       "index": 0,
       "inserts": [],
       "notNarrated": null,
+      "tables": [],
       "title": "The gate"
     },
     "text": "The gate\n\nThe orchard had been sold twice, and neither owner had ever seen it."
@@ -1060,6 +1067,7 @@
       "index": 0,
       "inserts": [],
       "notNarrated": null,
+      "tables": [],
       "title": "Blank pages"
     },
     "text": "Blank pages\n\nHalf the atlas was empty, and the cartographer liked it best that way."
@@ -1218,6 +1226,7 @@
       "index": 0,
       "inserts": [],
       "notNarrated": null,
+      "tables": [],
       "title": "Shapes"
     },
     "text": "Shapes\n\nThe 🌊 harbour was quiet when the boats came in. Café lights burned 𝒶ll night.\n\nfn main() {\n    println!(\"tide\");\n\n        let  x = 1;\n}\n\nA rope,  coiled twice."
