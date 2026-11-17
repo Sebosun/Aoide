@@ -5,12 +5,17 @@ const tauri = vi.hoisted(() => ({
   handlers: new Map<string, (event: { payload: unknown }) => void>(),
   /** What the core held for the window before it listened. */
   held: [] as string[],
+  /** The files the core could not open meanwhile, told when the window asks. */
+  failed: [] as string[],
   calls: [] as string[],
 }));
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(async (name: string) => {
     tauri.calls.push(name);
-    return name === "take_open_requests" ? tauri.held.splice(0) : undefined;
+    if (name !== "take_open_requests") return undefined;
+    // Asked for what it held, the core tells the files it could not open meanwhile.
+    for (const message of tauri.failed.splice(0)) tauri.handlers.get("core://problem")?.({ payload: { message } });
+    return tauri.held.splice(0);
   }),
   convertFileSrc: (p: string) => p,
   isTauri: () => true,
@@ -24,12 +29,14 @@ vi.mock("@tauri-apps/api/event", () => ({
 
 import { tauriApi } from "@/api/tauri";
 import { useNavigationStore } from "@/stores/navigation";
-import { listenForOpenItems } from "@/opening";
+import { useUiStore } from "@/stores/ui";
+import { listenForOpenItems, listenToCore } from "@/opening";
 
 beforeEach(() => {
   setActivePinia(createPinia());
   tauri.handlers.clear();
   tauri.held = [];
+  tauri.failed = [];
   tauri.calls = [];
 });
 
@@ -53,5 +60,12 @@ it("a book opened from the file manager while the window started opens once the 
   expect(tauri.calls).toEqual(["take_open_requests"]);
   expect(navigation.view).toBe("item");
   expect(navigation.bookId).toBe("book-4");
+  off();
+});
+
+it("a book that could not be opened while the window started is shown as a problem once it listens", async () => {
+  tauri.failed = ["Could not open Torn.epub: not a book"];
+  const off = await listenToCore(tauriApi);
+  expect(useUiStore().toasts.map((t) => [t.text, t.tone])).toEqual([["Could not open Torn.epub: not a book", "error"]]);
   off();
 });

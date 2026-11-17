@@ -114,7 +114,9 @@ the event sink):
   it has not delivered, and a new command `take_open_requests() -> Vec<String>` (called once
   from `App.vue` `onMounted`, after the listener is attached) returns and clears them and marks
   the window ready; from then on `OpenItem` is emitted directly. So a cold start with a file
-  still opens it; the window opens the latest one held. The mock answers `[]`.
+  still opens it; the window opens the latest one held. The mock answers `[]`. A file that
+  could not be opened meanwhile is held too and told as a problem when the window asks; the
+  window listens for problems before it asks (`listenToCore`, `src/opening.ts`).
 
 **Capabilities.** None: the single-instance plugin has no JavaScript side, and the new event
 and command go through the existing `core:default` and the generated contract.

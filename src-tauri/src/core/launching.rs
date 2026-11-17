@@ -19,16 +19,30 @@ pub(super) trait LaunchHost {
 /// Whether the window can be asked to open an item yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Window {
-    /// Starting: what it is to open is held, oldest first.
-    Waiting(Vec<String>),
-    /// Listening: items are sent as they come.
+    /// Starting: what it is to open, and the files that could not be opened, are held, oldest
+    /// first. Nothing listens yet, so a problem told now would be lost.
+    Waiting {
+        items: Vec<String>,
+        failed: Vec<Failure>,
+    },
+    /// Listening: items are sent, and failures told, as they come.
     Ready,
+}
+
+/// A book file that could not be opened: what the user is told.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Failure {
+    /// What failed ("Could not open Torn.epub").
+    doing: String,
+    error: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Event {
     /// An item is to be opened.
     Opened(String),
+    /// A book file could not be opened.
+    Failed(Failure),
     /// The window asked for what was held.
     WindowReady,
 }
@@ -39,26 +53,44 @@ enum Deliver {
     Nothing,
     /// Send this one to the window now.
     Send(String),
-    /// Hand these to the window, which asked.
-    Hand(Vec<String>),
+    /// Tell the user now.
+    Tell(Failure),
+    /// Tell these failures, and hand these items to the window, which asked.
+    Hand {
+        items: Vec<String>,
+        failed: Vec<Failure>,
+    },
 }
 
 fn next(window: Window, event: Event) -> (Window, Deliver) {
     match (window, event) {
-        (Window::Waiting(mut held), Event::Opened(id)) => {
-            held.push(id);
-            (Window::Waiting(held), Deliver::Nothing)
+        (Window::Waiting { mut items, failed }, Event::Opened(id)) => {
+            items.push(id);
+            (Window::Waiting { items, failed }, Deliver::Nothing)
         }
-        (Window::Waiting(held), Event::WindowReady) => (Window::Ready, Deliver::Hand(held)),
+        (Window::Waiting { items, mut failed }, Event::Failed(failure)) => {
+            failed.push(failure);
+            (Window::Waiting { items, failed }, Deliver::Nothing)
+        }
+        (Window::Waiting { items, failed }, Event::WindowReady) => {
+            (Window::Ready, Deliver::Hand { items, failed })
+        }
         (Window::Ready, Event::Opened(id)) => (Window::Ready, Deliver::Send(id)),
-        (Window::Ready, Event::WindowReady) => (Window::Ready, Deliver::Hand(Vec::new())),
+        (Window::Ready, Event::Failed(failure)) => (Window::Ready, Deliver::Tell(failure)),
+        (Window::Ready, Event::WindowReady) => (
+            Window::Ready,
+            Deliver::Hand {
+                items: Vec::new(),
+                failed: Vec::new(),
+            },
+        ),
     }
 }
 
 impl Window {
     fn name(&self) -> &'static str {
         match self {
-            Window::Waiting(_) => "waiting",
+            Window::Waiting { .. } => "waiting",
             Window::Ready => "ready",
         }
     }
@@ -77,7 +109,10 @@ impl Launching {
             library,
             events,
             reporter,
-            window: Mutex::new(Window::Waiting(Vec::new())),
+            window: Mutex::new(Window::Waiting {
+                items: Vec::new(),
+                failed: Vec::new(),
+            }),
         }
     }
 
@@ -120,9 +155,13 @@ impl Launching {
         }
         let result = host.import(path);
         let Some(id) = result.book_id else {
-            let error = result.error.unwrap_or_else(|| "it was not added".into());
-            self.reporter
-                .report("launch.open", &format!("Could not open {file}"), error);
+            let failure = Failure {
+                doing: format!("Could not open {file}"),
+                error: result.error.unwrap_or_else(|| "it was not added".into()),
+            };
+            if let Deliver::Tell(failure) = self.apply(Event::Failed(failure)) {
+                self.tell(failure);
+            }
             return None;
         };
         tracing::info!(event = "launch.request", kind = "file", outcome = "imported", %file, book = crate::logging::book(&id), "Opening a book just added");
@@ -137,13 +176,23 @@ impl Launching {
         (record.status == BookStatus::Present).then_some(id.0)
     }
 
-    /// The items asked to be opened before the window was ready, which it opens now; from now
-    /// on they are sent as they come.
+    /// The items asked to be opened before the window was ready, which it opens now; the files
+    /// that could not be opened meanwhile are told now. From now on both are sent as they come.
     pub fn take_open_requests(&self) -> Vec<String> {
         match self.apply(Event::WindowReady) {
-            Deliver::Hand(held) => held,
+            Deliver::Hand { items, failed } => {
+                for failure in failed {
+                    self.tell(failure);
+                }
+                items
+            }
             _ => Vec::new(),
         }
+    }
+
+    fn tell(&self, failure: Failure) {
+        self.reporter
+            .report("launch.open", &failure.doing, failure.error);
     }
 
     fn apply(&self, event: Event) -> Deliver {
@@ -363,6 +412,25 @@ mod tests {
         assert_eq!(launching.take_open_requests(), [] as [String; 0]);
     }
 
+    #[test]
+    fn a_file_that_cannot_be_added_before_the_window_is_ready_is_told_once_it_asks() {
+        let dir = tempfile::tempdir().unwrap();
+        let library = Arc::new(Mutex::new(Library::open_in_memory().unwrap()));
+        let events = Arc::new(Recorder::default());
+        let launching = Launching::new(library, events.clone(), Reporter::new(events.clone()));
+        let host = Imports(Vec::new());
+
+        launching.act(vec![Request::OpenFile(dir.path().join("Torn.epub"))], &host);
+        // Nothing listens yet: told now, it would be lost.
+        assert_eq!(events.count(CoreEvent::PROBLEM), 0);
+
+        assert_eq!(launching.take_open_requests(), [] as [String; 0]);
+        let problems = events.payloads(CoreEvent::PROBLEM);
+        assert_eq!(problems.len(), 1);
+        let message = problems[0]["message"].as_str().unwrap();
+        assert!(message.starts_with("Could not open Torn.epub"), "{message}");
+    }
+
     /// Imports each of its files as the id it gives it.
     struct Imports(Vec<(PathBuf, &'static str)>);
 
@@ -385,29 +453,54 @@ mod tests {
     fn the_window_state_moves_on_named_events() {
         use Event::*;
         use Window::*;
-        let held = |ids: &[&str]| Waiting(ids.iter().map(|id| id.to_string()).collect());
+        let failure = || Failure {
+            doing: "Could not open Torn.epub".into(),
+            error: "not a book".into(),
+        };
         let ids = |ids: &[&str]| ids.iter().map(|id| id.to_string()).collect::<Vec<_>>();
+        let held = |items: &[&str], failed: Vec<Failure>| Waiting {
+            items: ids(items),
+            failed,
+        };
         let cases = [
             (
-                held(&[]),
+                held(&[], vec![]),
                 Opened("a".into()),
-                held(&["a"]),
+                held(&["a"], vec![]),
                 Deliver::Nothing,
             ),
             (
-                held(&["a"]),
+                held(&["a"], vec![]),
+                Failed(failure()),
+                held(&["a"], vec![failure()]),
+                Deliver::Nothing,
+            ),
+            (
+                held(&["a"], vec![failure()]),
                 Opened("b".into()),
-                held(&["a", "b"]),
+                held(&["a", "b"], vec![failure()]),
                 Deliver::Nothing,
             ),
             (
-                held(&["a", "b"]),
+                held(&["a", "b"], vec![failure()]),
                 WindowReady,
                 Ready,
-                Deliver::Hand(ids(&["a", "b"])),
+                Deliver::Hand {
+                    items: ids(&["a", "b"]),
+                    failed: vec![failure()],
+                },
             ),
             (Ready, Opened("c".into()), Ready, Deliver::Send("c".into())),
-            (Ready, WindowReady, Ready, Deliver::Hand(Vec::new())),
+            (Ready, Failed(failure()), Ready, Deliver::Tell(failure())),
+            (
+                Ready,
+                WindowReady,
+                Ready,
+                Deliver::Hand {
+                    items: vec![],
+                    failed: vec![],
+                },
+            ),
         ];
         for (from, event, to, deliver) in cases {
             assert_eq!(

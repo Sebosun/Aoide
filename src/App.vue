@@ -24,8 +24,7 @@ import { useLibraryStore } from "@/stores/library";
 import { usePlayerStore } from "@/stores/player";
 import { useNavigationStore } from "@/stores/navigation";
 import { usePreferencesStore } from "@/stores/preferences";
-import { listenForProblems } from "@/problems";
-import { listenForOpenItems } from "@/opening";
+import { listenToCore } from "@/opening";
 import { api } from "@/api";
 import { useRecordingsStore } from "@/stores/recordings";
 import { useArticlesStore } from "@/stores/articles";
@@ -99,8 +98,7 @@ const settle = () => {
 };
 const native = isTauri();
 let unlisten: (() => void) | undefined,
-  unlistenProblems: (() => void) | undefined,
-  unlistenOpening: (() => void) | undefined,
+  unlistenCore: (() => void) | undefined,
   disposed = false;
 onMounted(async () => {
   void library.start();
@@ -108,13 +106,9 @@ onMounted(async () => {
   void preferences.start();
   void recordings.start();
   void signIn.init();
-  void listenForProblems(api).then((off) => {
+  void listenToCore(api).then((off) => {
     if (disposed) off();
-    else unlistenProblems = off;
-  });
-  void listenForOpenItems(api).then((off) => {
-    if (disposed) off();
-    else unlistenOpening = off;
+    else unlistenCore = off;
   });
   if (native) {
     try {
@@ -134,8 +128,7 @@ onMounted(async () => {
 onUnmounted(() => {
   disposed = true;
   unlisten?.();
-  unlistenProblems?.();
-  unlistenOpening?.();
+  unlistenCore?.();
   window.removeEventListener("blur", endDrag);
   window.removeEventListener("paste", pasted);
   void Promise.all([library.start(), player.start()]).then(() => {

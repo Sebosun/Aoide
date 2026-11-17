@@ -1,4 +1,5 @@
 import type { AoideApi } from "@/api/types";
+import { listenForProblems } from "@/problems";
 import { useNavigationStore } from "@/stores/navigation";
 
 /** Opens the item the core asks for ("item://open": a desktop notification about it was
@@ -18,4 +19,15 @@ export async function listenForOpenItems(api: AoideApi) {
     // Already logged by the API; the listener stands.
   }
   return off;
+}
+
+/** Listens for the core's problems, then for items to open: taking what the core held while
+ *  the window started also tells the books it could not open meanwhile, as problems. */
+export async function listenToCore(api: AoideApi) {
+  const offProblems = await listenForProblems(api);
+  const offOpening = await listenForOpenItems(api);
+  return () => {
+    offProblems();
+    offOpening();
+  };
 }
