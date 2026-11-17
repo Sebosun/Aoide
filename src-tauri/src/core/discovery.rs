@@ -255,11 +255,34 @@ pub(super) struct Discovery {
     private_dirs: Vec<PathBuf>,
     /// Set while a scan runs; storing `true` cancels it.
     scanning: Mutex<Option<Arc<AtomicBool>>>,
+    /// Set while found books are being copied in.
+    importing: AtomicBool,
     /// How long imports ran.
     clock: super::environment::Clock,
 }
 
+/// Marks an import as under way until dropped (however the import ends).
+struct Importing<'a>(&'a AtomicBool);
+
+impl<'a> Importing<'a> {
+    fn start(flag: &'a AtomicBool) -> Self {
+        flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        Self(flag)
+    }
+}
+
+impl Drop for Importing<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 impl Discovery {
+    /// Found books are being copied into the library.
+    pub fn importing(&self) -> bool {
+        self.importing.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
     pub fn new(
         library: Arc<Mutex<Library>>,
         paths: &Paths,
@@ -278,6 +301,7 @@ impl Discovery {
             covers_dir: paths.covers_dir.clone(),
             private_dirs,
             scanning: Mutex::new(None),
+            importing: AtomicBool::new(false),
             clock,
         }
     }
@@ -578,6 +602,7 @@ impl Discovery {
     ) -> Result<Vec<ImportResult>, String> {
         let started = self.clock.now();
         let candidates = self.candidates(host)?;
+        let _importing = Importing::start(&self.importing);
         let total = choices.len();
         let mut results = Vec::with_capacity(total);
         let mut imported = Vec::new();

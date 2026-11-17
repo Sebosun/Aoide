@@ -345,6 +345,8 @@ async fn a_launched_server_that_ends_at_once_shows_its_exit_code_not_offline() {
         core.engine_status().state == super::EngineState::Error
     })
     .await;
+    // A preparation stalled on a failed engine is not work: Quit when done does not wait on it.
+    assert_eq!(core.working().preparing, None);
 
     let status = core.engine_status();
     assert!(status.wanted);

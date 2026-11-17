@@ -292,6 +292,17 @@ impl Drop for InUse<'_> {
 }
 
 impl Browsing {
+    /// The browser is being downloaded, checked or unpacked.
+    pub fn downloading(&self) -> bool {
+        use super::browser_download::BrowserDownloadStage as Stage;
+        self.download.view().is_some_and(|v| {
+            matches!(
+                v.stage,
+                Stage::Downloading | Stage::Checking | Stage::Unpacking
+            )
+        })
+    }
+
     /// Must be called inside the async runtime.
     pub fn new(
         driver: Arc<dyn BrowserDriver>,

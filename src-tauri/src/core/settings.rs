@@ -48,6 +48,8 @@ pub struct AppSettings {
     pub inbox: Option<PathBuf>,
     /// Archive an article once it is finished; else finishing one offers to.
     pub archive_finished_articles: bool,
+    /// What closing the window while working does.
+    pub close: super::CloseBehaviour,
 }
 
 /// The silences narration leaves, in milliseconds (each within [`PAUSE_MS`]). The largest that
@@ -141,6 +143,8 @@ pub struct AppSettingsPatch {
     pub inbox: Option<Option<PathBuf>>,
     #[cfg_attr(test, ts(optional))]
     pub archive_finished_articles: Option<bool>,
+    #[cfg_attr(test, ts(optional))]
+    pub close: Option<super::CloseBehaviour>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -182,6 +186,7 @@ impl AppSettingsPatch {
             &mut settings.archive_finished_articles,
             self.archive_finished_articles,
         );
+        set(&mut settings.close, self.close);
         settings
     }
 }
@@ -209,6 +214,7 @@ impl From<AppSettings> for AppSettingsPatch {
             notices,
             inbox,
             archive_finished_articles,
+            close,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -230,6 +236,7 @@ impl From<AppSettings> for AppSettingsPatch {
             notices: Some(notices),
             inbox: Some(inbox),
             archive_finished_articles: Some(archive_finished_articles),
+            close: Some(close),
         }
     }
 }
@@ -282,6 +289,7 @@ impl Default for AppSettings {
             notices: true,
             inbox: None,
             archive_finished_articles: false,
+            close: super::CloseBehaviour::Ask,
         }
     }
 }

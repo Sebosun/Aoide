@@ -612,6 +612,22 @@ impl Recordings {
             .collect()
     }
 
+    /// How many recordings are waiting to sync or syncing, and whether a model is downloading.
+    pub(in crate::core) fn busy(&self) -> (usize, bool) {
+        let state = lock(&self.state);
+        let syncing = state
+            .live
+            .values()
+            .filter(|l| {
+                matches!(
+                    l.stage,
+                    SyncStage::Waiting | SyncStage::Transcribing | SyncStage::Matching
+                )
+            })
+            .count();
+        (syncing, !state.downloading.is_empty())
+    }
+
     pub(super) fn recording_stage(&self, id: &str) -> Option<SyncStage> {
         lock(&self.state).live.get(id).map(|l| l.stage)
     }

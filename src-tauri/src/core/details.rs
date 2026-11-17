@@ -251,7 +251,7 @@ impl super::Core {
     }
 
     /// Item `id`'s record as it is shown: corrected details applied.
-    pub(super) fn shown_record(&self, id: &str) -> Option<BookRecord> {
+    pub(crate) fn shown_record(&self, id: &str) -> Option<BookRecord> {
         shown(
             &lock(&self.library),
             &BookId(id.into()),

@@ -140,6 +140,7 @@ fn contract() -> String {
         super::details::DetailsPatch,
         super::details::DetailField,
         super::wire::SeriesView,
+        super::presence::CloseBehaviour,
         super::feeds::DiscoveredFeed,
         super::articles::ArticleView,
         super::articles::ArticleSummary,
@@ -287,6 +288,7 @@ fn contract() -> String {
         (CoreEvent::FEEDS_CHANGED, "null".to_owned()),
         (CoreEvent::QUEUE_CHANGED, "null".to_owned()),
         (CoreEvent::FULLSCREEN, name::<bool>(&config)),
+        (CoreEvent::CLOSE_ASKED, "null".to_owned()),
         (
             CoreEvent::SIGN_IN_STATE,
             name::<super::signin::SignInView>(&config),

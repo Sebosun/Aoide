@@ -278,6 +278,13 @@ impl Generation {
         preparation.view(&lock(&self.library), id)
     }
 
+    /// The book being prepared now, with its (made, total) segments.
+    pub fn preparing_now(&self) -> Option<(String, usize, usize)> {
+        lock(&self.preparation)
+            .current()
+            .map(|(id, done, total)| (id.to_owned(), done, total))
+    }
+
     /// The books queued for preparing.
     pub fn queued(&self) -> Vec<String> {
         lock(&self.preparation).queued()

@@ -326,6 +326,8 @@ pub enum CoreEvent {
     QueueChanged,
     /// The window now fills the screen, or no longer does.
     Fullscreen(bool),
+    /// The window was closed while working: it asks whether to keep working in the background.
+    CloseAsked,
 }
 
 impl CoreEvent {
@@ -354,6 +356,7 @@ impl CoreEvent {
     pub const FINISHED: &'static str = "item://finished";
     pub const QUEUE_CHANGED: &'static str = "queue://changed";
     pub const FULLSCREEN: &'static str = "window://fullscreen";
+    pub const CLOSE_ASKED: &'static str = "window://close-asked";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -382,6 +385,7 @@ impl CoreEvent {
             Self::Finished(_) => Self::FINISHED,
             Self::QueueChanged => Self::QUEUE_CHANGED,
             Self::Fullscreen(_) => Self::FULLSCREEN,
+            Self::CloseAsked => Self::CLOSE_ASKED,
         }
     }
 
@@ -402,7 +406,9 @@ impl CoreEvent {
             Self::AudiobookMatches(p) => serde_json::to_value(p),
             Self::Problem(p) => serde_json::to_value(p),
             Self::ArticleState(p) => serde_json::to_value(p),
-            Self::FeedsChanged | Self::QueueChanged => Ok(serde_json::Value::Null),
+            Self::FeedsChanged | Self::QueueChanged | Self::CloseAsked => {
+                Ok(serde_json::Value::Null)
+            }
             Self::BrowserDownload(p) => serde_json::to_value(p),
             Self::SignInState(p) => serde_json::to_value(p),
             Self::OpenItem(p) => serde_json::to_value(p),

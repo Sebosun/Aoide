@@ -80,6 +80,7 @@ mod notices;
 pub use notices::{Notice, Notifier};
 mod playback;
 mod preparation;
+mod presence;
 mod read_along;
 mod reading;
 pub use reading::{ReadState, ReadingMode, Shape};
@@ -134,6 +135,7 @@ mod tests;
 pub use error::CoreError;
 use preparation::Plan;
 pub use preparation::{PrepareView, Stage as PrepareStage};
+pub use presence::{Action as WindowAction, CloseBehaviour};
 pub use settings::{AlignerSettings, AppSettings, AppSettingsPatch, PauseSettings};
 
 use crate::book::{BookModel, ChapterSummary, ExcludedView};
@@ -156,7 +158,7 @@ static POISON_REPORTER: std::sync::OnceLock<error::Reporter> = std::sync::OnceLo
 static POISONED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Locks `mutex`, carrying on with its data when a thread panicked while holding it.
-fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+pub(crate) fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(|poisoned| recover(poisoned, &POISONED, POISON_REPORTER.get()))
@@ -228,6 +230,8 @@ pub struct Core {
     queue: queue::Queue,
     /// Whether the window fills the screen.
     fullscreen: fullscreen::Fullscreen,
+    /// In the window or in the background, and what closing the window does.
+    presence: presence::Presences,
     /// The sleep timer, the media keys and the player state last sent.
     controls: controls::Controls,
     /// Exact word timings being asked for.
@@ -421,6 +425,7 @@ impl Core {
             tagging: Default::default(),
             queue,
             fullscreen: Default::default(),
+            presence: Default::default(),
             controls: Default::default(),
             aligner,
             settings: config::Settings::new(config),

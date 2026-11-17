@@ -750,9 +750,13 @@ inbox: string | null,
 /**
  * Archive an article once it is finished; else finishing one offers to.
  */
-archiveFinishedArticles: boolean, };
+archiveFinishedArticles: boolean, 
+/**
+ * What closing the window while working does.
+ */
+close: CloseBehaviour, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -920,6 +924,8 @@ export type SeriesView = { name: string,
  * Can be fractional (2.5); `None` when the series gives no order.
  */
 position: number | null, };
+
+export type CloseBehaviour = "quit" | "keepWhileWorking" | "keepAlways" | "ask";
 
 export type DiscoveredFeed = { url: string, title: string | null, subscribed: boolean, };
 
@@ -1369,6 +1375,7 @@ export type CoreEvents = {
   "feeds://changed": null,
   "queue://changed": null,
   "window://fullscreen": boolean,
+  "window://close-asked": null,
   "signin://state": SignInView,
   "browser://download": BrowserDownloadView,
 };
@@ -1396,6 +1403,11 @@ export type Commands = {
    * (`window://fullscreen`), as it does when the window manager's own shortcut changes it.
    */
   "set_fullscreen": { args: { on: boolean }; result: void };
+  /**
+   * The answer to "Keep working in the background?" (`window://close-asked`); `remember` keeps
+   * it for next time. The window then hides, minimises or quits as the core says.
+   */
+  "choose_close": { args: { keep: boolean; remember: boolean }; result: void };
   /**
    * Saves a link as an article (or finds it saved) and queues its fetch; returns its id. An invalid
    * link is refused. "article://state" reports the fetch.
@@ -1800,6 +1812,11 @@ export interface CommandApi {
    */
   setFullscreen(args: { on: boolean }): Promise<void>;
   /**
+   * The answer to "Keep working in the background?" (`window://close-asked`); `remember` keeps
+   * it for next time. The window then hides, minimises or quits as the core says.
+   */
+  chooseClose(args: { keep: boolean; remember: boolean }): Promise<void>;
+  /**
    * Saves a link as an article (or finds it saved) and queues its fetch; returns its id. An invalid
    * link is refused. "article://state" reports the fetch.
    */
@@ -2190,6 +2207,7 @@ export const COMMANDS = {
   preferences: "preferences",
   saveAppearance: "save_appearance",
   setFullscreen: "set_fullscreen",
+  chooseClose: "choose_close",
   saveArticle: "save_article",
   refetchArticle: "refetch_article",
   article: "article",
