@@ -165,3 +165,20 @@ it("asks the model for an item's tags from its tag editor once tagging is on", a
   expect(shown).toContain("Maps");
   wrapper.unmount();
 });
+
+it("counts the tags of what the filter shows: archived items only under Archive", async () => {
+  await mock.archive({ bookId: "book-0", on: true });
+  const wrapper = await library();
+  const count = (name: string) =>
+    wrapper
+      .get('[role="group"][aria-label="Filter by tag"]')
+      .findAll("button")
+      .find((b) => b.text().startsWith(name))
+      ?.text();
+  expect(count("Fiction")).toBe("Fiction 2");
+  useLibraryStore().filter = "archive";
+  await flushPromises();
+  expect(titles(wrapper)).toEqual(["The Lantern Keeper"]);
+  expect(count("Fiction")).toBe("Fiction 1");
+  wrapper.unmount();
+});

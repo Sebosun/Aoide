@@ -83,11 +83,12 @@ export const useLibraryStore = defineStore("library", () => {
   /** What the library is showing from: the pool, through the tag filter. Counts are of these, so
    *  a collection's switch counts what it holds. */
   const scope = computed(() => pool.value.filter(tagged));
-  /** Each tag on the pool's items with how many have it, the most used first. A tag the filter
-   *  names stays listed (at no items, once nothing has it), so it can be cleared. */
+  /** Each tag on the pool's items with how many have it, the most used first: archived items
+   *  only under Archive, as the filter shows them. A tag the filter names stays listed (at no
+   *  items, once nothing has it), so it can be cleared. */
   const tagCounts = computed(() => {
     const counts = new Map<string, { name: string; books: number }>();
-    for (const book of pool.value)
+    for (const book of pool.value.filter((b) => onShelf(b, filter.value)))
       for (const tag of book.tags) {
         const key = tag.toLowerCase();
         const entry = counts.get(key) ?? { name: tag, books: 0 };
