@@ -463,6 +463,7 @@ Streaming while downloading is not in stage 1: the episode plays when the downlo
 ## 5.5 Newsletters
 
 **Size:** S
+**Built:** 2026-11-17 (34f56b5..4ea449a)
 
 ### Outcome
 
@@ -550,3 +551,15 @@ coming, the README explains how to get them as a feed.
 ### Done when
 
 - A newsletter saved from a mail client reads and narrates without its footer.
+
+### As built
+
+- `mail-parser` 0.9.4: the 0.11 line needs edition 2024 (through `hashify`).
+- The stored page is the email's HTML under a head `EmailPage::page` writes (JSON-LD, Open
+  Graph, `<meta name="author">`), so subject, sender and date are read back on every open. In
+  email mode `extract` takes the subject as the title over a heading, judges the text complete
+  unless it is empty (a short email is not a wall), and gives the content finder no base
+  address for `email:`.
+- The inbox asks its host for an item's id (`InboxHost::item_id`), so an email is matched by the
+  article it becomes; removing an article that came from an email puts it on the removed list
+  as a removed book is, and adding it by hand takes it off.

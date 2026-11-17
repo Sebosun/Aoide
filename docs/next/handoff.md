@@ -9,9 +9,9 @@ Delete this file when the remaining work is done.
 
 Built, independently reviewed (all checks green) and pushed, through `a91e619`:
 6.4, 1.1, 1.4, 2.1, 2.2, 2.7, 6.2, 1.2, 1.3, 3.3, 3.1, 3.2, 6.1, 5.2, 4.7, 4.3, 2.3, 2.4, 2.5,
-3.7, 5.3 (not pushed). Each plan section has a `**Built:** 2026-11-17 (<first>..<last>)` line.
+3.7; 5.3 and 5.5 built here, not pushed or reviewed. Each plan section has a `**Built:** 2026-11-17 (<first>..<last>)` line.
 
-**Not started**, in the order planned: 5.5, 4.1, 4.2 (needs 4.1), 6.3, 4.8, 5.1, 3.5, 2.6,
+**Not started**, in the order planned: 4.1, 4.2 (needs 4.1), 6.3, 4.8, 5.1, 3.5, 2.6,
 1.5, 3.6, 4.5 (every format the section lists).
 
 ## How the work was run
