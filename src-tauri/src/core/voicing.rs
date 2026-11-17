@@ -1,6 +1,9 @@
 //! How a book is voiced: the voice, language and engine parameters every request for it uses.
 //! Generation and the voice preview both come here, so a preview sounds like the book will.
 
+use std::sync::Arc;
+
+use aoide_text::Rule;
 use aoide_tts::{
     resolve_params, supports_language, EngineDescriptor, Params, SynthesisRequest, Voice,
 };
@@ -19,6 +22,9 @@ pub struct Voicing {
     pub params: Params,
     /// The book's own voice when the engine does not offer it (chosen with another engine).
     pub missing_voice: Option<String>,
+    /// How words are said (the book's pronunciation list, then the one for all books); none
+    /// until [`Voicing::with_rules`].
+    pub rules: Arc<[Rule]>,
 }
 
 impl Voicing {
@@ -58,12 +64,23 @@ impl Voicing {
             language,
             params,
             missing_voice,
+            rules: Arc::new([]),
         })
     }
 
-    /// The request for `text`, said for the `take`th time (0 for the first; see
-    /// [`SynthesisRequest::take`]).
+    /// The same voicing, saying words as `rules` say.
+    pub fn with_rules(self, rules: Arc<[Rule]>) -> Self {
+        Self { rules, ..self }
+    }
+
+    /// The request for `text` with the rules applied, said for the `take`th time (0 for the
+    /// first; see [`SynthesisRequest::take`]).
     pub fn request(&self, text: String, take: u32) -> SynthesisRequest {
+        let text = if self.rules.is_empty() {
+            text
+        } else {
+            aoide_text::pronounce(&text, &self.rules).text
+        };
         SynthesisRequest {
             text,
             voice_id: self.voice_id.clone(),
@@ -149,6 +166,7 @@ mod tests {
                 language: Some("pt".into()),
                 params: speed(1.5),
                 missing_voice: None,
+                rules: Arc::new([]),
             }
         );
         assert_eq!(voicing.request("Hello.".into(), 0).voice_id, "Book.wav");
@@ -173,6 +191,7 @@ mod tests {
                 language: Some("en".into()),
                 params: speed(0.8),
                 missing_voice: None,
+                rules: Arc::new([]),
             }
         );
     }

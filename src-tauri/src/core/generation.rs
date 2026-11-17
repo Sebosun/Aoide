@@ -192,8 +192,9 @@ impl Generation {
                 requests.push(None);
                 continue;
             }
-            let take = takes.take(&segment.id, &segment.speech);
-            let request = voicing.request(segment.speech.clone(), take);
+            let mut request = voicing.request(segment.speech.clone(), 0);
+            // A take belongs to what is said: a new pronunciation is a first take again.
+            request.take = takes.take(&segment.id, &request.text);
             keys.push(cache_key(&descriptor, model.as_deref(), &request));
             requests.push(Some(request));
         }
@@ -694,7 +695,10 @@ impl super::Core {
     /// The speech that reads `book`, in its voice settings.
     pub(super) fn speech_plan(&self, book: &BookModel) -> Result<Plan, String> {
         let settings = self.book_settings(&book.id);
-        let speech = self.engine.speech(&settings, book.language.as_deref())?;
+        let mut speech = self.engine.speech(&settings, book.language.as_deref())?;
+        speech.voicing = speech
+            .voicing
+            .with_rules(self.pronunciations.rules(&book.id)?);
         Ok(self.generation.speech_plan(book, speech))
     }
 
@@ -798,6 +802,52 @@ mod tests {
             asked: Mutex::new(0),
         };
         (generation, made, host)
+    }
+
+    #[tokio::test]
+    async fn a_pronunciation_changes_the_sentences_with_its_word_and_no_others() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = Scripted::new("plain", EngineStatus::Ready(None), &[], false);
+        let (generation, _made, _host) = generation(dir.path(), &engine);
+        let book =
+            BookModel::parse("book", &super::super::tests::epub(), &Default::default()).unwrap();
+        let plan = |rules: &[aoide_text::Rule]| {
+            let speech = Speech {
+                voicing: super::super::voicing::Voicing {
+                    voice_id: "A.wav".into(),
+                    language: None,
+                    params: Default::default(),
+                    missing_voice: None,
+                    rules: rules.into(),
+                },
+                descriptor: engine.descriptor().clone(),
+                model: None,
+            };
+            generation.speech_plan(&book, speech)
+        };
+        let before = plan(&[]);
+        let after = plan(&[aoide_text::Rule {
+            written: "gulls".into(),
+            spoken: "seagulls".into(),
+            match_case: false,
+        }]);
+
+        let changed: Vec<usize> = (0..before.items.len())
+            .filter(|&i| before.items[i].key != after.items[i].key)
+            .collect();
+        let with_the_word: Vec<usize> = (0..book.total_entries())
+            .filter(|&i| book.segment(i).unwrap().speech.contains("Gulls"))
+            .collect();
+        assert_eq!(changed, with_the_word);
+        assert_eq!(changed.len(), 1);
+        let said = after.requests[changed[0]].as_ref().unwrap();
+        assert!(said.text.starts_with("seagulls argued"), "{}", said.text);
+        // The page keeps the book's spelling.
+        assert!(book
+            .segment(changed[0])
+            .unwrap()
+            .display
+            .starts_with("Gulls"));
     }
 
     #[tokio::test]
