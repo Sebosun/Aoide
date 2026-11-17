@@ -504,6 +504,8 @@ and the WordNet download with its size.
 
 **Size:** M
 
+**Built:** 2026-11-17 (63baa81..be5cf10)
+
 ### Outcome
 
 Type a few words in the library's search and get the passages that contain them across every
@@ -618,6 +620,25 @@ the query).
 
 - Feed entries that were never saved are not indexed: only the library shelf (plan's default).
 - No stemming; `porter` exists for English only (plan's default).
+
+### As built
+
+- `passage_rows` has `at` (where the block starts in its chapter) and `segments` (JSON: where
+  each sentence starts in the block, with its id) beside the plan's columns. A block's text runs
+  from its first sentence to its last, as `BookModel` lays it out (notes read aloud are not in
+  it), so the chapter numbers and sentence ids are the reader's. A change to how sentences are
+  split would make old ids miss: the reader then opens at the chapter's top.
+- The hit gives `found`, the first match's character range in its chapter, and the reader
+  draws it as a highlight with id -1 (an underline; the highlight card ignores it). There is no
+  `block` in the view.
+- The job: `Stage { Off, Idle, Indexing, SteppedAside }`, with no counts; nothing shows its
+  progress. A test drives `Indexing::step` directly; the loop runs only with background tasks
+  (not in core tests). An item that cannot be parsed is passed over until the next start.
+  New items wake it on every `LibraryChanged`.
+- Search: `ROW_NUMBER`/`COUNT`/`MIN` windows over the bm25 ranks of every matching row, then
+  `snippet` and `highlight` one row at a time (MATCH with `rowid =`). At most 30 items. The
+  100 ms on 500 books was not measured here.
+- Library version 26. Ctrl+Shift+F goes to the library's search from anywhere and focuses it.
 
 ---
 
