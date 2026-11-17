@@ -58,11 +58,12 @@ const CONTINUE: usize = 3;
 const UP_NEXT: usize = 5;
 const RECENT: usize = 8;
 
-/// Home from the library's items. Items whose file could not be read are left out.
+/// Home from the library's items. Items whose file could not be read, and archived items, are
+/// left out.
 pub fn home(books: &[BookSummary]) -> HomeView {
     let usable: Vec<&BookSummary> = books
         .iter()
-        .filter(|b| !matches!(b.status, aoide_library::BookStatus::Error(_)))
+        .filter(|b| !b.archived && !matches!(b.status, aoide_library::BookStatus::Error(_)))
         .collect();
     let fraction = |b: &BookSummary| b.progress.as_ref().map(|p| p.fraction);
     let started = |b: &BookSummary| b.progress.is_some();
@@ -187,6 +188,23 @@ mod tests {
             tags: Vec::new(),
             recording: None,
             article: None,
+            archived: false,
+        }
+    }
+
+    #[test]
+    fn home_leaves_archived_items_out_of_every_list() {
+        // Each would be in one list: continued, up next, recent.
+        let cases = [
+            ("started", Some(50), Some(0.4)),
+            ("never-started", None, None),
+            ("finished", Some(99), Some(1.0)),
+        ];
+        for (id, opened, fraction) in cases {
+            let mut item = book(id, 1, opened, fraction);
+            assert_ne!(home(&[item.clone()]), HomeView::default(), "{id} is listed");
+            item.archived = true;
+            assert_eq!(home(&[item]), HomeView::default(), "{id} is archived");
         }
     }
 

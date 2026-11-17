@@ -1477,3 +1477,32 @@ async fn hearing_the_pauses_says_three_short_paragraphs_with_the_pauses_on_scree
         "hearing saves nothing"
     );
 }
+
+#[tokio::test]
+async fn an_archived_item_leaves_home_and_comes_back_when_taken_out() {
+    let dir = tempfile::tempdir().unwrap();
+    let id = library_folder(dir.path(), "");
+    let engine = FakeEngine::new();
+    let (core, events) = start(dir.path(), &engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 1)
+    })
+    .await;
+    let archived = |core: &Core| core.list_books().unwrap()[0].archived;
+    assert!(!archived(&core));
+    assert_eq!(core.home().unwrap().up_next_ids, [id.as_str()]);
+    let changes = events.count("library://changed");
+
+    core.archive(&id, true).unwrap();
+    assert!(archived(&core));
+    assert_eq!(core.home().unwrap(), super::HomeView::default());
+    assert_eq!(events.count("library://changed"), changes + 1);
+    // Archiving it again changes nothing, and says nothing.
+    core.archive(&id, true).unwrap();
+    assert_eq!(events.count("library://changed"), changes + 1);
+
+    core.archive(&id, false).unwrap();
+    assert!(!archived(&core));
+    assert_eq!(core.home().unwrap().up_next_ids, [id.as_str()]);
+    assert!(core.archive("no-such-item", true).is_err());
+}

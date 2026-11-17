@@ -1068,6 +1068,27 @@ async fn scenarios_for_the_ui_mock() {
     );
     scenarios.push(s.done());
 
+    let mut s = Scenario::new("an item is archived and taken out of the archive", "");
+    // An item the scenarios before this one leave as the preview has it.
+    let archived = format!("[id={fourth}].archived");
+    let home_lists = [
+        format!("continueIds.has={fourth}"),
+        format!("upNextIds.has={fourth}"),
+        format!("recentIds.has={fourth}"),
+    ];
+    let home_lists: Vec<&str> = home_lists.iter().map(String::as_str).collect();
+    for on in [true, true, false] {
+        s.step(
+            "archive",
+            json!({"bookId": fourth, "on": on}),
+            &core.archive(&fourth, on),
+            &[],
+        );
+        s.step("listBooks", json!({}), &books(&core), &[&archived]);
+        s.step("home", json!({}), &core.home(), &home_lists);
+    }
+    scenarios.push(s.done());
+
     let mut s = Scenario::new("a book is read or listened to", "");
     for mode in [super::ReadingMode::Listen, super::ReadingMode::Read] {
         let set = core.set_mode(&second, mode);

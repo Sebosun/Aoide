@@ -119,6 +119,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `feed.subscribe` | info | `feed` (its id), `outcome` | `core/feeds.rs` `subscribe_feed` |
 | `feed.unsubscribe` | info | `feed`, `orphans` (items only its entries opened, deleted with it) | `core/feeds.rs` `unsubscribe` |
 | `feed.check` | info | `feed`, `outcome` (`ok`, `not_modified`, `failed`), `took_ms` | `core/feeds.rs` `check`: one per feed checked |
+| `item.archived` | info | `book`, `on` (archived, or taken out), `from` (`user`) | `core/shelf.rs` `Shelf::archive`, only when it changed |
 | `item.shelf` | info | `book`, `from`, `to` (`library`, `feed`) | `core/feeds.rs` `move_shelf`: an entry saved, or removed from the library while its feed lists it |
 | `feed.import` | info | `added`, `skipped` (feeds) | `core/feeds.rs` `import` (OPML) |
 | `feed.export` | info | `feeds` | `core/feeds.rs` `export` (OPML) |

@@ -170,9 +170,10 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   /** Home for another library, set by a test; else Home is worked out from the books. */
   let homeOverride: HomeView | null = null;
   /** Home's lists from the library's items, as the core makes them (core/facets.rs `home`):
-   *  started and unfinished by last opened, never started and every other item by newest added. */
+   *  started and unfinished by last opened, never started and every other item by newest added;
+   *  archived items in none. */
   const homeOf = (items: BookSummary[]): HomeView => {
-    const usable = items.filter((b) => b.status.kind !== "error"),
+    const usable = items.filter((b) => b.status.kind !== "error" && !b.archived),
       started = (b: BookSummary) => b.progress !== null,
       ids = (list: BookSummary[], n: number) => list.slice(0, n).map((b) => b.id);
     const continueIds = ids(
@@ -1102,7 +1103,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async collections() {
       return shelves
-        .map((s) => ({ ...s, books: books.filter((b) => b.collections.includes(s.id)).length }))
+        .map((s) => ({ ...s, books: books.filter((b) => b.collections.includes(s.id) && !b.archived).length }))
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
     },
     async createCollection({ name }) {
@@ -1163,6 +1164,12 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         .filter((s) => ids.includes(s.id))
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((s) => s.id);
+      changed();
+    },
+    async archive({ bookId: id, on }) {
+      const book = getBook(id);
+      if (book.archived === on) return;
+      book.archived = on;
       changed();
     },
     async removeBook({ bookId: id }) {

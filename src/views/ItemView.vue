@@ -3,6 +3,8 @@ import UiCard from "@/components/ui/UiCard.vue";
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, ref, watch } from "vue";
 import {
+  Archive,
+  ArchiveRestore,
   AudioLines,
   BookOpen,
   CircleCheck,
@@ -165,6 +167,14 @@ const finished = computed(() => summary.value?.readState === "finished");
 const state = computed(() =>
   finished.value ? "finished" : progress.value ? `${percent.value}%` : audiobook.value ? "unplayed" : "unread",
 );
+const archived = computed(() => summary.value?.archived ?? false);
+async function archive() {
+  try {
+    await library.archive(props.bookId, !archived.value);
+  } catch (e) {
+    error.value = String(e);
+  }
+}
 async function markRead() {
   try {
     await library.markRead(props.bookId, finished.value ? "unread" : "finished");
@@ -267,7 +277,8 @@ const collectionItems = computed<MenuEntry[]>(() => {
       />
       <div class="item-page__intro">
         <span class="item-page__kind"
-          >{{ audiobook ? "Audiobook" : isArticle ? "Article" : "Book" }} · {{ state }}</span
+          >{{ audiobook ? "Audiobook" : isArticle ? "Article" : "Book" }} · {{ state
+          }}<template v-if="archived"> · archived</template></span
         >
         <template v-if="title"
           ><h1 class="item-page__title">{{ title }}</h1>
@@ -309,6 +320,10 @@ const collectionItems = computed<MenuEntry[]>(() => {
           <UiButton variant="raised" size="lg" v-if="summary" @click="markRead">
             <component :is="finished ? RotateCcw : CircleCheck" :size="17" aria-hidden="true" />
             {{ finished ? "Mark as unread" : "Mark as finished" }}
+          </UiButton>
+          <UiButton variant="raised" size="lg" v-if="summary" @click="archive">
+            <component :is="archived ? ArchiveRestore : Archive" :size="17" aria-hidden="true" />
+            {{ archived ? "Take out of the archive" : "Archive" }}
           </UiButton>
         </div>
         <template v-if="loading">

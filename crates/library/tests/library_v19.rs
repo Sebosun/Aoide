@@ -122,5 +122,5 @@ fn a_version_18_library_opens_with_no_highlights() {
         .unwrap()
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 19);
+    assert_eq!(version, 20);
 }

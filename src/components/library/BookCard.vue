@@ -3,6 +3,8 @@ import UiButton from "@/components/ui/UiButton.vue";
 import { ITEM_DRAG } from "@/drag";
 import { computed, ref } from "vue";
 import {
+  Archive,
+  ArchiveRestore,
   BookDown,
   CircleCheck,
   Download,
@@ -163,6 +165,16 @@ const items = computed<MenuEntry[]>(() => {
         icon: RotateCcw,
         action: () => act(() => library.markRead(book.id, "unread")),
       });
+    list.push(
+      book.archived
+        ? {
+            id: "unarchive",
+            label: "Take out of the archive",
+            icon: ArchiveRestore,
+            action: () => act(() => library.archive(book.id, false)),
+          }
+        : { id: "archive", label: "Archive", icon: Archive, action: () => act(() => library.archive(book.id, true)) },
+    );
     list.push({
       id: "folder",
       label: "Show in folder",

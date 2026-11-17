@@ -34,7 +34,8 @@
       "Sea Stories"
     ],
     "recording": null,
-    "article": null
+    "article": null,
+    "archived": false
   },
   {
     "id": "book-1",
@@ -66,7 +67,8 @@
       "Literary"
     ],
     "recording": null,
-    "article": null
+    "article": null,
+    "archived": false
   },
   {
     "id": "book-2",
@@ -97,7 +99,8 @@
       "Literary"
     ],
     "recording": null,
-    "article": null
+    "article": null,
+    "archived": false
   },
   {
     "id": "book-3",
@@ -127,7 +130,8 @@
       "Travel"
     ],
     "recording": null,
-    "article": null
+    "article": null,
+    "archived": false
   },
   {
     "id": "book-4",
@@ -154,6 +158,7 @@
     "collections": [],
     "tags": [],
     "recording": null,
-    "article": null
+    "article": null,
+    "archived": false
   }
 ]

@@ -9,7 +9,7 @@ export type ItemKind = "book" | "audiobook" | "article";
 
 export type Collection = { id: number, name: string, createdAt: number, 
 /**
- * Books on it.
+ * Items on it, archived ones left out (they are on it still).
  */
 books: number, };
 
@@ -73,7 +73,12 @@ recording: SyncStage | null,
 /**
  * An article's site and fetch.
  */
-article: ArticleSummary | null, };
+article: ArticleSummary | null, 
+/**
+ * It is in the archive: out of Home and the library's default views, found by search and
+ * under Archive.
+ */
+archived: boolean, };
 
 export type HomeView = { 
 /**
@@ -1447,6 +1452,8 @@ export type Commands = {
   "tag_with_model": { args: { bookId: string }; result: string[] };
   /** Asks the tagging model for the tags of every item that has none, one after another. */
   "tag_untagged_with_model": { args: Record<string, never>; result: TaggingRun };
+  /** Archives an item (`on`), or takes it out of the archive. Nothing of it is deleted. */
+  "archive": { args: { bookId: string; on: boolean }; result: void };
   /** Puts the book on exactly these collections. */
   "set_book_collections": { args: { bookId: string; ids: number[] }; result: void };
   "storage_report": { args: Record<string, never>; result: StorageReport };
@@ -1807,6 +1814,8 @@ export interface CommandApi {
   tagWithModel(args: { bookId: string }): Promise<string[]>;
   /** Asks the tagging model for the tags of every item that has none, one after another. */
   tagUntaggedWithModel(): Promise<TaggingRun>;
+  /** Archives an item (`on`), or takes it out of the archive. Nothing of it is deleted. */
+  archive(args: { bookId: string; on: boolean }): Promise<void>;
   /** Puts the book on exactly these collections. */
   setBookCollections(args: { bookId: string; ids: number[] }): Promise<void>;
   storageReport(): Promise<StorageReport>;
@@ -2069,6 +2078,7 @@ export const COMMANDS = {
   setBookTags: "set_book_tags",
   tagWithModel: "tag_with_model",
   tagUntaggedWithModel: "tag_untagged_with_model",
+  archive: "archive",
   setBookCollections: "set_book_collections",
   storageReport: "storage_report",
   cleanUnusedFiles: "clean_unused_files",

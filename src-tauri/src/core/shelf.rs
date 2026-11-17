@@ -37,6 +37,21 @@ pub(super) trait ShelfHost {
     fn article_of(&self, id: &str) -> Option<super::ArticleSummary>;
 }
 
+/// Who archived an item, or took it out of the archive, for the log.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArchivedBy {
+    /// The user, from a menu or a toast.
+    User,
+}
+
+impl ArchivedBy {
+    fn name(self) -> &'static str {
+        match self {
+            Self::User => "user",
+        }
+    }
+}
+
 /// What listing the library shows of every book, read at once rather than book by book.
 struct Stored {
     collections: HashMap<BookId, Vec<i64>>,
@@ -543,6 +558,7 @@ impl Shelf {
             audio_bytes,
             added_at: record.added_at,
             last_opened_at: record.last_opened_at,
+            archived: record.archived_at.is_some(),
         }
     }
 
@@ -692,6 +708,31 @@ impl Shelf {
         self.shelve(|library| library.tags())
     }
 
+    /// Archives item `id` (`on`), or takes it out of the archive. Nothing of it is deleted.
+    /// Returns whether that changed it.
+    pub fn archive(&self, id: &str, on: bool, by: ArchivedBy) -> Result<bool, String> {
+        let book = BookId(id.into());
+        let changed = {
+            let library = lock(&self.library);
+            if library.book(&book).map_err(|e| e.to_string())?.is_none() {
+                return Err("no such item".into());
+            }
+            library
+                .set_archived(&book, on.then(now_ms))
+                .map_err(|e| e.to_string())?
+        };
+        if changed {
+            tracing::info!(
+                event = "item.archived",
+                book = crate::logging::book(id),
+                on,
+                from = by.name(),
+                "Archive"
+            );
+        }
+        Ok(changed)
+    }
+
     /// The user's tags for an item: exactly these are shown.
     pub fn set_tags(&self, id: &str, tags: &[String]) -> Result<(), String> {
         self.shelve(|library| library.set_tags(&BookId(id.into()), tags))
@@ -817,6 +858,15 @@ impl super::Core {
     pub fn set_book_tags(&self, book_id: &str, tags: &[String]) -> Result<(), String> {
         self.shelf.set_tags(book_id, tags)?;
         self.emit(CoreEvent::LibraryChanged);
+        Ok(())
+    }
+
+    /// Archives item `id`, or takes it out of the archive: it leaves Home and the library's
+    /// default views, and nothing of it is deleted.
+    pub fn archive(&self, id: &str, on: bool) -> Result<(), String> {
+        if self.shelf.archive(id, on, ArchivedBy::User)? {
+            self.emit(CoreEvent::LibraryChanged);
+        }
         Ok(())
     }
 

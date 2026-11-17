@@ -142,6 +142,12 @@ pub async fn tag_untagged_with_model(
     Ok(core.tag_untagged_with_model().await?)
 }
 
+/// Archives an item (`on`), or takes it out of the archive. Nothing of it is deleted.
+#[tauri::command]
+pub fn archive(core: CoreState<'_>, book_id: String, on: bool) -> Result<(), CoreError> {
+    Ok(core.archive(&book_id, on)?)
+}
+
 /// Puts the book on exactly these collections.
 #[tauri::command]
 pub fn set_book_collections(

@@ -92,6 +92,8 @@ pub struct BookRecord {
     pub kind: ItemKind,
     /// `library`, or `feed` for an entry opened from a feed and not saved.
     pub shelf: String,
+    /// When it was archived; `None` while it is not.
+    pub archived_at: Option<i64>,
 }
 
 /// What a library item is.
@@ -257,6 +259,22 @@ impl Library {
             rusqlite::params![id.0, shelf],
         )?;
         Ok(())
+    }
+
+    /// Archives item `id` at `at`, or with `None` takes it out of the archive. An item archived
+    /// already keeps when it was archived. Returns whether that changed anything.
+    pub fn set_archived(&self, id: &BookId, at: Option<i64>) -> Result<bool> {
+        let changed = match at {
+            Some(at) => self.conn.execute(
+                "UPDATE books SET archived_at = ?2 WHERE id = ?1 AND archived_at IS NULL",
+                rusqlite::params![id.0, at],
+            )?,
+            None => self.conn.execute(
+                "UPDATE books SET archived_at = NULL WHERE id = ?1 AND archived_at IS NOT NULL",
+                [&id.0],
+            )?,
+        };
+        Ok(changed > 0)
     }
 
     pub fn book(&self, id: &BookId) -> Result<Option<BookRecord>> {

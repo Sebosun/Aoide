@@ -300,6 +300,9 @@ const MIGRATIONS: &[Step] = &[
                     created_at INTEGER NOT NULL
                 );
                 CREATE INDEX highlights_book ON highlights(book_id, chapter, start);"),
+    // Version 20.
+    // The archive: when an item was archived. It stays in the library, out of the default views.
+    Step::Run(|tx| add_column_if_missing(tx, "books", "archived_at", "INTEGER")),
 ];
 
 fn add_column_if_missing(
@@ -388,6 +391,7 @@ pub(super) fn read_book(row: &Row<'_>) -> Result<BookRecord> {
         word_count: row.get("word_count")?,
         kind: ItemKind::from_column(&row.get::<_, String>("kind")?)?,
         shelf: row.get("shelf")?,
+        archived_at: row.get("archived_at")?,
     })
 }
 

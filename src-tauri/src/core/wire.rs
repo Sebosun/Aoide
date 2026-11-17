@@ -52,6 +52,9 @@ pub struct BookSummary {
     pub recording: Option<syncing::Stage>,
     /// An article's site and fetch.
     pub article: Option<super::ArticleSummary>,
+    /// It is in the archive: out of Home and the library's default views, found by search and
+    /// under Archive.
+    pub archived: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

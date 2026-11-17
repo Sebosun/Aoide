@@ -1,7 +1,7 @@
 import { useNavigationStore, type SettingsTab, type View } from "@/stores/navigation";
 import { usePlayerStore } from "@/stores/player";
 import { useReaderStore } from "@/stores/reader";
-import { useLibraryStore } from "@/stores/library";
+import { useLibraryStore, type LibraryFilter } from "@/stores/library";
 import { api } from "@/api";
 import { useRecordingsStore } from "@/stores/recordings";
 import { showInboxAdded, showSavedLink } from "@/opening";
@@ -33,7 +33,8 @@ import fixtureArticle from "@/tests/fixtures/article.json";
  *  `saved=new|again` shows the toast for a page sent from the browser (new to the library, with
  *  Undo, or one the library had);
  *  `added=one|several` shows the toast for books the inbox folder added; `inbox=unavailable`
- *  chooses an inbox folder that is gone (`settings=library` shows it). */
+ *  chooses an inbox folder that is gone (`settings=library` shows it);
+ *  `archived=book-1,book-3` archives those items (`filter=archive` shows the library's Archive). */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
   const view = query.get("view") as View | null,
@@ -81,6 +82,12 @@ export async function applyPreviewParams(search = location.search) {
         .slice(0, added === "one" ? 1 : 3)
         .map((title, n) => ({ id: `book-${n}`, title })),
     );
+  for (const id of query.get("archived")?.split(",").filter(Boolean) ?? []) await api.archive({ bookId: id, on: true });
+  const filter = query.get("filter");
+  if (filter) {
+    await useLibraryStore().start();
+    useLibraryStore().filter = filter as LibraryFilter;
+  }
   if (settings) useNavigationStore().openSettings(settings);
   if (query.has("shortcuts")) useNavigationStore().openShortcuts();
   for (const id of query.get("prepare")?.split(",").filter(Boolean) ?? []) await api.prepareBook({ bookId: id });

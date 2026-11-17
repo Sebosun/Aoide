@@ -208,6 +208,93 @@
     ]
   },
   {
+    "name": "an item is archived and taken out of the archive",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-3",
+          "on": true
+        },
+        "call": "archive",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-3].archived": true
+        }
+      },
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "continueIds.has=book-3": false,
+          "recentIds.has=book-3": false,
+          "upNextIds.has=book-3": false
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-3",
+          "on": true
+        },
+        "call": "archive",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-3].archived": true
+        }
+      },
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "continueIds.has=book-3": false,
+          "recentIds.has=book-3": false,
+          "upNextIds.has=book-3": false
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-3",
+          "on": false
+        },
+        "call": "archive",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-3].archived": false
+        }
+      },
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "continueIds.has=book-3": false,
+          "recentIds.has=book-3": false,
+          "upNextIds.has=book-3": true
+        }
+      }
+    ]
+  },
+  {
     "name": "a book is read or listened to",
     "start": "",
     "steps": [

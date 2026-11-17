@@ -407,6 +407,41 @@ it("marks a book finished and unread again from its card menu", async () => {
   wrapper.unmount();
 });
 
+it("archives an item from its card menu: it leaves every filter and collection and is under Archive", async () => {
+  const archive = vi.spyOn(mock, "archive");
+  const id = await mock.createCollection({ name: "Night reading" });
+  await mock.setBookCollections({ bookId: "book-0", ids: [id] });
+  const wrapper = await library();
+  const chip = (name: string) => wrapper.get(`[role="group"][aria-label="Filter books"] [aria-label^="${name}"]`);
+  expect(chip("All").text()).toContain("4");
+  await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
+  await flushPromises();
+  await pickMenuItem("Archive");
+  expect(archive).toHaveBeenCalledWith({ bookId: "book-0", on: true });
+  expect(titles(wrapper)).not.toContain("The Lantern Keeper");
+  expect(chip("All").text()).toContain("3");
+  for (const name of ["Unread", "In progress", "Finished", "Can listen"]) {
+    await chip(name).trigger("click");
+    expect(titles(wrapper), name).not.toContain("The Lantern Keeper");
+  }
+  useLibraryStore().filter = `collection:${id}`;
+  await flushPromises();
+  expect(titles(wrapper)).toEqual([]);
+  useLibraryStore().filter = "all";
+  await flushPromises();
+
+  await chip("Archive").trigger("click");
+  expect(titles(wrapper)).toEqual(["The Lantern Keeper"]);
+  await wrapper.get('[aria-label="More for The Lantern Keeper"]').trigger("click");
+  await flushPromises();
+  await pickMenuItem("Take out of the archive");
+  expect(archive).toHaveBeenLastCalledWith({ bookId: "book-0", on: false });
+  expect(titles(wrapper)).toEqual([]);
+  await chip("All").trigger("click");
+  expect(titles(wrapper)).toContain("The Lantern Keeper");
+  wrapper.unmount();
+});
+
 it("switches between kinds once there are two, and shows an audiobook square with its audio", async () => {
   const wrapper = await library();
   expect(wrapper.find('[role="group"][aria-label="Kind"]').exists(), "books only").toBe(false);

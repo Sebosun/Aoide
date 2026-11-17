@@ -170,6 +170,23 @@ it("marks the book finished, and unread again, from its page", async () => {
   wrapper.unmount();
 });
 
+it("archives the item from its page, says so there, and takes it out again", async () => {
+  const wrapper = await app();
+  await wrapper.get('[aria-label="Open A Map of Quiet Places"]').trigger("click");
+  await flushPromises();
+  const about = page(wrapper);
+  const button = (text: string) => about.findAll("button").find((b) => b.text() === text);
+  await button("Archive")!.trigger("click");
+  await flushPromises();
+  expect((await mock.listBooks()).find((b) => b.title === "A Map of Quiet Places")!.archived).toBe(true);
+  expect(about.get(".item-page__kind").text()).toBe("Book · unread · archived");
+  await button("Take out of the archive")!.trigger("click");
+  await flushPromises();
+  expect(about.get(".item-page__kind").text()).toBe("Book · unread");
+  expect(button("Archive")).toBeDefined();
+  wrapper.unmount();
+});
+
 it("leads with Read for a book read silently and with Listen for one listened to", async () => {
   const wrapper = await app();
   await wrapper.get('[aria-label="Open A Map of Quiet Places"]').trigger("click");

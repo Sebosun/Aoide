@@ -14,7 +14,7 @@ import type {
 
 /** How a tag filters the library. */
 export type TagState = "include" | "exclude" | "off";
-export type BuiltInFilter = "all" | "unread" | "progress" | "finished" | "listen" | "preparing";
+export type BuiltInFilter = "all" | "unread" | "progress" | "finished" | "listen" | "preparing" | "archive";
 /** A built-in filter, or one collection. */
 export type LibraryFilter = BuiltInFilter | `collection:${number}`;
 /** Each filter reads one field the core sends; none works out state of its own. */
@@ -25,7 +25,10 @@ const filters: Record<BuiltInFilter, (book: BookSummary) => boolean> = {
   finished: (book) => book.readState === "finished",
   listen: (book) => book.audio !== "none",
   preparing: (book) => Boolean(book.prepare && book.prepare.state !== "done"),
+  archive: () => true,
 };
+/** Archived items are under Archive only: every other filter and collection leaves them out. */
+const onShelf = (book: BookSummary, filter: LibraryFilter) => (filter === "archive" ? book.archived : !book.archived);
 
 /** `next`, keeping each summary of `before` that did not change: a card whose book is the same
  *  object is not drawn again, so a refresh redraws only what changed. */
@@ -127,26 +130,33 @@ export const useLibraryStore = defineStore("library", () => {
   const counts = computed(
     () =>
       Object.fromEntries(
-        Object.entries(filters).map(([key, test]) => [key, scope.value.filter(test).length]),
+        Object.entries(filters).map(([key, test]) => [
+          key,
+          scope.value.filter((b) => onShelf(b, key as BuiltInFilter) && test(b)).length,
+        ]),
       ) as Record<BuiltInFilter, number>,
   );
   /** Whether an item is of `kind`. Audiobooks are those on their own and books that have one
    *  (a paired recording, however far its sync is), so a book can be both. */
   const isKind = (book: BookSummary, kind: ItemKind) =>
     kind === "audiobook" ? book.kind === "audiobook" || book.recording !== null : book.kind === kind;
-  /** How many items of each kind there are. */
+  /** How many items of each kind there are, in the archive or out of it as the filter is. */
   const kindCounts = computed(() => {
     const c: Record<ItemKind, number> = { book: 0, audiobook: 0, article: 0 };
-    for (const book of scope.value) for (const kind of Object.keys(c) as ItemKind[]) if (isKind(book, kind)) c[kind]++;
+    for (const book of scope.value.filter((b) => onShelf(b, filter.value)))
+      for (const kind of Object.keys(c) as ItemKind[]) if (isKind(book, kind)) c[kind]++;
     return c;
   });
   /** The kind switch is offered once what is shown holds two kinds. */
   const kinds = computed(() => (Object.keys(kindCounts.value) as ItemKind[]).filter((k) => kindCounts.value[k] > 0));
   const matchesFilter = (book: BookSummary) => {
     const value = filter.value;
-    return value.startsWith("collection:")
-      ? book.collections.includes(Number(value.slice(11)))
-      : filters[value as BuiltInFilter](book);
+    return (
+      onShelf(book, value) &&
+      (value.startsWith("collection:")
+        ? book.collections.includes(Number(value.slice(11)))
+        : filters[value as BuiltInFilter](book))
+    );
   };
   const visible = computed(() => {
     const q = query.value.trim().toLowerCase();
@@ -182,6 +192,11 @@ export const useLibraryStore = defineStore("library", () => {
   /** Marks a book finished, or unread (which also forgets where the user was in it). */
   async function markRead(id: string, state: "finished" | "unread") {
     await (state === "finished" ? api.markFinished({ bookId: id }) : api.markUnread({ bookId: id }));
+    await refresh();
+  }
+  /** Archives an item, or takes it out of the archive; nothing of it is deleted. */
+  async function archive(id: string, on: boolean) {
+    await api.archive({ bookId: id, on });
     await refresh();
   }
   async function setReadingWpm(wpm: number) {
@@ -301,6 +316,7 @@ export const useLibraryStore = defineStore("library", () => {
     readingWpm,
     setReadingWpm,
     markRead,
+    archive,
     setProgress,
     createCollection,
     renameCollection,

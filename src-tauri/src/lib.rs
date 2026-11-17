@@ -142,6 +142,7 @@ pub fn run() {
             commands::library::rename_collection,
             commands::library::delete_collection,
             commands::library::set_book_collections,
+            commands::library::archive,
             commands::library::tags,
             commands::library::set_book_tags,
             commands::library::tag_with_model,

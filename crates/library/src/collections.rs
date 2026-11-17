@@ -10,7 +10,7 @@ pub struct Collection {
     pub id: i64,
     pub name: String,
     pub created_at: i64,
-    /// Books on it.
+    /// Items on it, archived ones left out (they are on it still).
     pub books: u64,
 }
 
@@ -49,11 +49,12 @@ impl Library {
         Ok(())
     }
 
-    /// Every collection with its number of books, by name.
+    /// Every collection with its number of items not archived, by name.
     pub fn collections(&self) -> Result<Vec<Collection>> {
         let mut stmt = self.conn.prepare(
-            "SELECT c.id, c.name, c.created_at, COUNT(bc.book_id) FROM collections c
+            "SELECT c.id, c.name, c.created_at, COUNT(b.id) FROM collections c
              LEFT JOIN book_collections bc ON bc.collection_id = c.id
+             LEFT JOIN books b ON b.id = bc.book_id AND b.archived_at IS NULL
              GROUP BY c.id ORDER BY c.name COLLATE NOCASE, c.id",
         )?;
         let rows = stmt.query_map([], |row| {

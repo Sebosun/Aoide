@@ -24,10 +24,13 @@ const FILTERS: { value: BuiltInFilter; label: string }[] = [
   { value: "finished", label: "Finished" },
   { value: "listen", label: "Can listen" },
   { value: "preparing", label: "Preparing" },
+  { value: "archive", label: "Archive" },
 ];
-/** Preparing is offered only while something is being prepared (or it is the filter). */
+/** Preparing and Archive are offered only while they hold something (or are the filter). */
 const filters = computed(() =>
-  FILTERS.filter((f) => f.value !== "preparing" || library.counts.preparing > 0 || library.filter === "preparing"),
+  FILTERS.filter(
+    (f) => !["preparing", "archive"].includes(f.value) || library.counts[f.value] > 0 || library.filter === f.value,
+  ),
 );
 const KINDS: { value: ItemKind; label: string }[] = [
   { value: "book", label: "Books" },
