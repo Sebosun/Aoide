@@ -87,6 +87,25 @@ impl Highlights {
             .map_err(|e| e.to_string())
     }
 
+    /// Book `book`'s highlights as stored, in reading order, for when its text cannot be read
+    /// (its file is gone): not anchored, and without chapter titles.
+    pub fn unanchored(&self, book: &str) -> Result<Vec<HighlightView>, String> {
+        Ok(self
+            .stored(book)?
+            .into_iter()
+            .map(|h| HighlightView {
+                id: h.id,
+                chapter: h.chapter as usize,
+                chapter_title: String::new(),
+                start: h.start as usize,
+                end: h.end as usize,
+                text: h.text,
+                note: h.note,
+                detached: false,
+            })
+            .collect())
+    }
+
     /// Book `book`'s highlights in reading order, each anchored on its text (see [`anchor`]): one
     /// whose text moved is moved with it, and the new place stored; one whose text is gone is
     /// `detached`.

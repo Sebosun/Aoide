@@ -163,9 +163,14 @@ fn notes_of(core: &Core, id: &str) -> Result<(String, usize, usize), String> {
         }
         (parts, Vec::new())
     } else {
-        let book = core.load_book(id)?;
-        let titles = book.chapters.iter().map(|c| c.title.clone()).collect();
-        (titles, core.highlights(id)?)
+        match core.load_book(id) {
+            Ok(book) => {
+                let titles = book.chapters.iter().map(|c| c.title.clone()).collect();
+                (titles, core.highlights.list(&book)?)
+            }
+            // Its file is gone or cannot be read: its notes are still the user's, as stored.
+            Err(_) => (Vec::new(), core.highlights.unanchored(id)?),
+        }
     };
     let title = record.title.unwrap_or_else(|| "Untitled".into());
     let text = markdown(&Notes {
@@ -350,6 +355,52 @@ mod tests {
         core.export_notes(&id, &file.to_string_lossy()).unwrap();
         assert_eq!(std::fs::read_to_string(&file).unwrap(), markdown);
 
+        let folder = dir.path().join("all");
+        assert_eq!(core.export_all_notes(&folder.to_string_lossy()).unwrap(), 1);
+        assert_eq!(
+            std::fs::read_to_string(folder.join("Quay Lights.md")).unwrap(),
+            markdown
+        );
+    }
+
+    #[tokio::test]
+    async fn the_notes_of_a_book_whose_file_is_gone_are_still_exported() {
+        use crate::core::tests::{library_folder, start_with, until};
+        use std::sync::Arc;
+        let dir = tempfile::tempdir().unwrap();
+        let id = library_folder(dir.path(), "");
+        let (core, _events) = start_with(
+            dir.path(),
+            &aoide_tts::testing::FakeEngine::new(),
+            Arc::new(|_| Err("no speech recognition in this test".into())),
+        );
+        until("the library scan", || {
+            core.list_books().is_ok_and(|b| b.len() == 1)
+        })
+        .await;
+        // Highlighted in an earlier session (the book is not loaded in this one).
+        lock(&core.library)
+            .add_highlight(
+                &BookId(id.clone()),
+                &aoide_library::NewHighlight {
+                    chapter: 1,
+                    start: 4,
+                    end: 16,
+                    text: "lit the lamp".into(),
+                    note: "bright".into(),
+                },
+                &[],
+                1,
+            )
+            .unwrap();
+        std::fs::remove_file(dir.path().join("Books/quay-lights.epub")).unwrap();
+        core.rescan().unwrap();
+
+        let markdown = core.notes_markdown(&id).unwrap();
+        assert!(
+            markdown.contains("## Chapter 2\n\n> lit the lamp\n\nbright\n"),
+            "{markdown}"
+        );
         let folder = dir.path().join("all");
         assert_eq!(core.export_all_notes(&folder.to_string_lossy()).unwrap(), 1);
         assert_eq!(
