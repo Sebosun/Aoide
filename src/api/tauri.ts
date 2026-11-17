@@ -79,7 +79,12 @@ export const tauriApi: AoideApi = {
     })),
   chapter: async (args) => {
     const view = await commands.chapter(args);
-    return { ...view, inserts: view.inserts.map(({ path, ...insert }) => ({ ...insert, url: convertFileSrc(path) })) };
+    const inserts = view.inserts.map((insert) => {
+      if (insert.type !== "picture") return insert;
+      const { path, ...picture } = insert;
+      return { ...picture, url: convertFileSrc(path) };
+    });
+    return { ...view, inserts };
   },
   scanForBooks: async () => candidates(await commands.scanForBooks()),
   discoveredBooks: async () => candidates(await commands.discoveredBooks()),

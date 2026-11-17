@@ -22,6 +22,7 @@
   "leadImage": "https://1.bp.blogspot.com/-YIPC5jkXkDE/Vy7YPSqFKWI/AAAAAAAAAxI/a7D6Ji2GxoUvcrwUkI4RLZcr2LFQEJCTACLcB/w1200-h630-p-nu/block-diagram.png",
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "Open Verilog flow for Silego GreenPak4 programmable logic devices",
   "warnings": [
     "LeftOut { what: Table, count: 3 }"

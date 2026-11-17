@@ -22,6 +22,7 @@
   "leadImage": null,
   "published": null,
   "siteName": "Firefox Nightly News",
+  "tables": [],
   "title": "These Weeks in Firefox: Issue 85",
   "warnings": [
     "LeftOut { what: Image, count: 5 }"

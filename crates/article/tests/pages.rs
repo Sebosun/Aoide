@@ -77,6 +77,17 @@ fn details(extracted: &Extracted) -> String {
         "completeness": format!("{:?}", extracted.completeness),
         "feeds": extracted.feeds.iter().map(|f| serde_json::json!({"url": f.url.as_str(), "title": f.title})).collect::<Vec<_>>(),
         "warnings": document.warnings.iter().map(|w| format!("{w:?}")).collect::<Vec<_>>(),
+        // Tables kept beside the text: where, and how many rows of how many cells.
+        "tables": document.chapters.iter().flat_map(|c| &c.inserts).filter_map(|insert| match &insert.kind {
+            aoide_document::InsertKind::Table { rows, header_rows, .. } => Some(format!(
+                "before block {}: {} rows ({} heading) of {} cells",
+                insert.before_block,
+                rows.len(),
+                header_rows,
+                rows.iter().map(Vec::len).max().unwrap_or(0)
+            )),
+            _ => None,
+        }).collect::<Vec<_>>(),
     });
     serde_json::to_string_pretty(&value).unwrap() + "\n"
 }

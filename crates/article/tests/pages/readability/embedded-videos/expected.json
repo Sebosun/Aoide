@@ -9,6 +9,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "Embedded videos test",
   "warnings": [
     "LeftOut { what: Embed, count: 5 }"

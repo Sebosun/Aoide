@@ -274,6 +274,7 @@ mod core_tests {
                     caption_block,
                     ..
                 } => (*before_block, alt.clone(), *caption_block),
+                other => panic!("{other:?}"),
             })
             .collect();
         assert_eq!(
@@ -284,7 +285,9 @@ mod core_tests {
             ],
             "the ornament is left out"
         );
-        let InsertView::Picture { path, .. } = &view.inserts[1];
+        let InsertView::Picture { path, .. } = &view.inserts[1] else {
+            panic!("{:?}", view.inserts[1])
+        };
         let file = std::path::PathBuf::from(path);
         assert_eq!(std::fs::read(&file).unwrap(), png(300, 200));
         assert!(core.storage_report().unwrap().pictures_bytes > 0);

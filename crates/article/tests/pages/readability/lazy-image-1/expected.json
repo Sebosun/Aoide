@@ -12,6 +12,7 @@
     "text": "2019-10-18T17:23:34.816Z"
   },
   "siteName": "Voodoo Engineering",
+  "tables": [],
   "title": "Node.js and CPU profiling on production (in real-time without downtime)",
   "warnings": [
     "LeftOut { what: Image, count: 1 }",

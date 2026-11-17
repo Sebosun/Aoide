@@ -14,6 +14,7 @@
   "leadImage": "https://cdn1.medicalnewstoday.com/content/images/headlines/318/318674/hand-holding-brain-lightbulb.jpg",
   "published": null,
   "siteName": "Medical News Today",
+  "tables": [],
   "title": "How does the brain turn unconscious information into conscious thought?",
   "warnings": [
     "LeftOut { what: Image, count: 1 }"

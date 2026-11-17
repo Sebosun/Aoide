@@ -9,6 +9,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "SVG parsing",
   "warnings": [],
   "wordCount": 345

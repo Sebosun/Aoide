@@ -9,6 +9,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "This is a long title with a colon: Hello there",
   "warnings": [],
   "wordCount": 151

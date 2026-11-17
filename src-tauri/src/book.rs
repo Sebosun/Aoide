@@ -147,6 +147,14 @@ pub enum InsertView {
         /// A caption of its own, outside the text.
         caption: Option<String>,
     },
+    /// A table outside the text (an article's): drawn, not read.
+    Table {
+        before_block: usize,
+        /// Each row's cells' texts.
+        rows: Vec<Vec<String>>,
+        header_rows: usize,
+        caption: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -490,17 +498,28 @@ impl BookModel {
         let resources: Vec<&str> = model
             .inserts
             .iter()
-            .map(|insert| match &insert.kind {
-                aoide_document::InsertKind::Picture { resource, .. } => resource.as_str(),
+            .filter_map(|insert| match &insert.kind {
+                aoide_document::InsertKind::Picture { resource, .. } => Some(resource.as_str()),
+                aoide_document::InsertKind::Table { .. } => None,
             })
             .collect();
-        let files = file_of(&resources);
+        let mut files = file_of(&resources).into_iter();
         model
             .inserts
             .iter()
-            .zip(files)
-            .filter_map(|(insert, file)| match &insert.kind {
+            .filter_map(|insert| match &insert.kind {
+                aoide_document::InsertKind::Table {
+                    rows,
+                    header_rows,
+                    caption,
+                } => Some(InsertView::Table {
+                    before_block: in_view(insert.before_block),
+                    rows: rows.clone(),
+                    header_rows: *header_rows,
+                    caption: caption.clone(),
+                }),
                 aoide_document::InsertKind::Picture { alt, caption, .. } => {
+                    let file = files.next().flatten();
                     let (caption_block, caption) = match caption {
                         Some(aoide_document::Caption::Block(block))
                             if shown.get(*block) == Some(&true) =>
@@ -1204,4 +1223,3 @@ pub(crate) mod tests {
         assert_eq!(book.warnings.len(), 1);
     }
 }
-

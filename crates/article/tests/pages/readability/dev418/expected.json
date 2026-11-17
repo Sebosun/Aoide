@@ -9,6 +9,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "Readability Test",
   "warnings": [
     "LeftOut { what: Image, count: 4 }",

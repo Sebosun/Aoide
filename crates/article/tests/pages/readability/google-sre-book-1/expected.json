@@ -9,9 +9,10 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
-  "title": "Google - Site Reliability Engineering",
-  "warnings": [
-    "LeftOut { what: Table, count: 1 }"
+  "tables": [
+    "before block 34: 5 rows (1 heading) of 2 cells"
   ],
+  "title": "Google - Site Reliability Engineering",
+  "warnings": [],
   "wordCount": 4349
 }

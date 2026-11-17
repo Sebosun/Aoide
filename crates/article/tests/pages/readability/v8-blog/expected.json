@@ -18,6 +18,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "standalone WebAssembly binaries using Emscripten · V8",
   "warnings": [],
   "wordCount": 2448

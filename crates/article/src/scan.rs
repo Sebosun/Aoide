@@ -193,6 +193,7 @@ pub(crate) fn plain(html: &str, options: &ExtractOptions) -> Body {
     Body {
         blocks,
         warnings: Vec::new(),
+        inserts: Vec::new(),
     }
 }
 

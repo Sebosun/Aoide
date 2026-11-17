@@ -9,6 +9,7 @@
   "leadImage": "https://static01.nyt.com/images/2016/07/30/business/db-dealprof/db-dealprof-facebookJumbo.jpg",
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "Yahoo’s Sale to Verizon Leaves Shareholders With Little Say",
   "warnings": [
     "LeftOut { what: Figure, count: 1 }"

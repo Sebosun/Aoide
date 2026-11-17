@@ -12,10 +12,15 @@
     "text": "2001-10-29T01:59:14Z"
   },
   "siteName": "Wikimedia Foundation, Inc.",
+  "tables": [
+    "before block 1: 43 rows (1 heading) of 2 cells",
+    "before block 67: 5 rows (1 heading) of 10 cells",
+    "before block 79: 7 rows (1 heading) of 5 cells",
+    "before block 105: 12 rows (2 heading) of 10 cells"
+  ],
   "title": "New Zealand",
   "warnings": [
-    "LeftOut { what: Image, count: 32 }",
-    "LeftOut { what: Table, count: 4 }"
+    "LeftOut { what: Image, count: 32 }"
   ],
   "wordCount": 17214
 }

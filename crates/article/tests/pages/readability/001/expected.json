@@ -30,6 +30,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "Get your Frontend JavaScript Code Covered",
   "warnings": [
     "LeftOut { what: Image, count: 1 }"

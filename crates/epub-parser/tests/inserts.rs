@@ -103,6 +103,7 @@ fn a_picture_first_or_last_or_inside_a_line() {
         .iter()
         .map(|i| match &i.kind {
             InsertKind::Picture { resource, .. } => (i.before_block, resource.as_str()),
+            other => panic!("{other:?}"),
         })
         .collect();
     // Inside a line: after it, so the line is not cut.

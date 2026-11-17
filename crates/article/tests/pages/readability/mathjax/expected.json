@@ -9,6 +9,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "MathJax v3 with MathML input and HTML output",
   "warnings": [],
   "wordCount": 385

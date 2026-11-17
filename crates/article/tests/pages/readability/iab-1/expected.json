@@ -17,6 +17,7 @@
     "text": "2015-10-15T08:00:26+00:00"
   },
   "siteName": "IAB",
+  "tables": [],
   "title": "Getting LEAN with Digital Ad UX",
   "warnings": [
     "LeftOut { what: Image, count: 1 }",

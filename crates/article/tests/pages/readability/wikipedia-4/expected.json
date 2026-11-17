@@ -12,9 +12,10 @@
     "text": "2014-03-27T19:11:24Z"
   },
   "siteName": "Wikimedia Foundation, Inc.",
-  "title": "List of films featuring time loops",
-  "warnings": [
-    "LeftOut { what: Table, count: 1 }"
+  "tables": [
+    "before block 3: 73 rows (1 heading) of 3 cells"
   ],
+  "title": "List of films featuring time loops",
+  "warnings": [],
   "wordCount": 1670
 }

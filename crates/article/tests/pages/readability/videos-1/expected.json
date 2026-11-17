@@ -17,6 +17,7 @@
     "text": "2017-12-15T08:50:02-05:00"
   },
   "siteName": "Vox",
+  "tables": [],
   "title": "The 21 best movies of 2017",
   "warnings": [
     "LeftOut { what: Embed, count: 21 }"

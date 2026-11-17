@@ -9,6 +9,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "Remove trailing brs test",
   "warnings": [],
   "wordCount": 127

@@ -58,7 +58,8 @@ function marker(segment: SegmentView, note: NoteMarker) {
 let lastMarks: Map<string, readonly Mark[]> | undefined;
 const marks = computed(() => (lastMarks = sentenceMarks(props.chapter, props.highlights, lastMarks)));
 const clickable = (segment: SegmentView) => props.playable && segment.speakable;
-/** The pictures before block `index` (after the last block: `blocks.length`). */
+type Picture = Extract<InsertView, { type: "picture" }>;
+/** The pictures and tables before block `index` (after the last block: `blocks.length`). */
 const picturesBefore = computed(() => {
   const by = new Map<number, InsertView[]>();
   for (const insert of props.chapter.inserts) {
@@ -72,7 +73,7 @@ const captions = computed(
   () =>
     new Set(
       [...props.chapter.inserts, ...props.chapter.tables].flatMap((i) =>
-        i.captionBlock === null ? [] : [i.captionBlock],
+        "captionBlock" in i && i.captionBlock !== null ? [i.captionBlock] : [],
       ),
     ),
 );
@@ -94,12 +95,12 @@ function tableRows(table: TableView) {
     );
   });
 }
-const pictureLabel = (insert: InsertView) => insert.alt || insert.caption || "a picture";
+const pictureLabel = (insert: Picture) => insert.alt || insert.caption || "a picture";
 /** The picture opened large, over the page. */
-const enlarged = ref<InsertView | null>(null),
+const enlarged = ref<Picture | null>(null),
   overlay = ref<HTMLElement>();
 let opener: HTMLElement | null = null;
-async function enlarge(insert: InsertView, event: Event) {
+async function enlarge(insert: Picture, event: Event) {
   opener = event.currentTarget as HTMLElement;
   enlarged.value = insert;
   await nextTick();
@@ -127,22 +128,33 @@ const chapterMissing = computed(
     </p>
     <slot name="before" />
     <template v-for="(block, index) in chapter.blocks" :key="`${chapter.index}:${index}`">
-      <figure
-        v-for="(insert, p) in picturesBefore.get(index) ?? []"
-        :key="`p${index}:${p}`"
-        class="chapter-text__picture"
-        data-not-text
-      >
-        <button
-          type="button"
-          class="chapter-text__enlarge"
-          :aria-label="`Enlarge picture: ${pictureLabel(insert)}`"
-          @click="enlarge(insert, $event)"
-        >
-          <img :src="insert.url" :alt="insert.alt" loading="lazy" class="chapter-text__image" />
-        </button>
-        <figcaption v-if="insert.caption" class="chapter-text__caption">{{ insert.caption }}</figcaption>
-      </figure>
+      <template v-for="(insert, p) in picturesBefore.get(index) ?? []" :key="`p${index}:${p}`">
+        <figure v-if="insert.type === 'picture'" class="chapter-text__picture" data-not-text>
+          <button
+            type="button"
+            class="chapter-text__enlarge"
+            :aria-label="`Enlarge picture: ${pictureLabel(insert)}`"
+            @click="enlarge(insert, $event)"
+          >
+            <img :src="insert.url" :alt="insert.alt" loading="lazy" class="chapter-text__image" />
+          </button>
+          <figcaption v-if="insert.caption" class="chapter-text__caption">{{ insert.caption }}</figcaption>
+        </figure>
+        <div v-else class="chapter-text__table-wrap" data-not-text>
+          <table class="chapter-text__table">
+            <caption v-if="insert.caption" class="chapter-text__caption">
+              {{
+                insert.caption
+              }}
+            </caption>
+            <tr v-for="(row, r) in insert.rows" :key="r">
+              <component :is="r < insert.headerRows ? 'th' : 'td'" v-for="(cell, c) in row" :key="c">{{
+                cell
+              }}</component>
+            </tr>
+          </table>
+        </div>
+      </template>
       <div v-if="tableAt.get(index)" class="chapter-text__table-wrap">
         <table class="chapter-text__table">
           <tr v-for="(cells, r) in tableRows(tableAt.get(index)!)" :key="r">
@@ -200,22 +212,33 @@ const chapterMissing = computed(
         </aside>
       </div>
     </template>
-    <figure
-      v-for="(insert, p) in picturesBefore.get(chapter.blocks.length) ?? []"
-      :key="`end:${p}`"
-      class="chapter-text__picture"
-      data-not-text
-    >
-      <button
-        type="button"
-        class="chapter-text__enlarge"
-        :aria-label="`Enlarge picture: ${pictureLabel(insert)}`"
-        @click="enlarge(insert, $event)"
-      >
-        <img :src="insert.url" :alt="insert.alt" loading="lazy" class="chapter-text__image" />
-      </button>
-      <figcaption v-if="insert.caption" class="chapter-text__caption">{{ insert.caption }}</figcaption>
-    </figure>
+    <template v-for="(insert, p) in picturesBefore.get(chapter.blocks.length) ?? []" :key="`end:${p}`">
+      <figure v-if="insert.type === 'picture'" class="chapter-text__picture" data-not-text>
+        <button
+          type="button"
+          class="chapter-text__enlarge"
+          :aria-label="`Enlarge picture: ${pictureLabel(insert)}`"
+          @click="enlarge(insert, $event)"
+        >
+          <img :src="insert.url" :alt="insert.alt" loading="lazy" class="chapter-text__image" />
+        </button>
+        <figcaption v-if="insert.caption" class="chapter-text__caption">{{ insert.caption }}</figcaption>
+      </figure>
+      <div v-else class="chapter-text__table-wrap" data-not-text>
+        <table class="chapter-text__table">
+          <caption v-if="insert.caption" class="chapter-text__caption">
+            {{
+              insert.caption
+            }}
+          </caption>
+          <tr v-for="(row, r) in insert.rows" :key="r">
+            <component :is="r < insert.headerRows ? 'th' : 'td'" v-for="(cell, c) in row" :key="c">{{
+              cell
+            }}</component>
+          </tr>
+        </table>
+      </div>
+    </template>
     <slot name="after" />
     <Teleport to="body">
       <div

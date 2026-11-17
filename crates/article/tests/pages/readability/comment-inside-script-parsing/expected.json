@@ -9,6 +9,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "Test script parsing",
   "warnings": [],
   "wordCount": 127

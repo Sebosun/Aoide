@@ -9,6 +9,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "Lazy Load with Alt includes jpg/png/webp extensions",
   "warnings": [
     "LeftOut { what: Image, count: 2 }"

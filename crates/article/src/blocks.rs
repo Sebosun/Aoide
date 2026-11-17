@@ -1,11 +1,11 @@
 //! The main content's HTML as blocks: headings, paragraphs, list items and preformatted text,
-//! in reading order. Inline markup is flattened to its text. Images, figures, tables, embeds
-//! and forms are left out and counted. The walk keeps its own stack, so nesting depth costs
+//! in reading order. Inline markup is flattened to its text. A data table is kept beside the
+//! text (an insert); images, figures, layout tables, embeds and forms are left out and counted. The walk keeps its own stack, so nesting depth costs
 //! memory, not call depth.
 
 use std::collections::BTreeMap;
 
-use aoide_document::{Block, BlockKind, LeftOut, Warning};
+use aoide_document::{Block, BlockKind, Insert, InsertKind, LeftOut, Warning};
 use ego_tree::NodeRef;
 use scraper::{Html, Node};
 
@@ -14,6 +14,8 @@ use crate::ExtractOptions;
 pub(crate) struct Body {
     pub blocks: Vec<Block>,
     pub warnings: Vec<Warning>,
+    /// Tables kept beside the text, before the block they precede.
+    pub inserts: Vec<Insert>,
 }
 
 /// Elements whose text runs on within the surrounding block.
@@ -67,6 +69,7 @@ struct Builder<'o> {
     items: Vec<usize>,
     /// A scene break was read since the last block.
     after_break: bool,
+    inserts: Vec<Insert>,
 }
 
 impl Builder<'_> {
@@ -118,6 +121,7 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
         running_kind: BlockKind::Paragraph,
         items: Vec::new(),
         after_break: false,
+        inserts: Vec::new(),
     };
     let mut steps = vec![Step::Visit(fragment.tree.root(), BlockKind::Paragraph)];
     while let Some(step) = steps.pop() {
@@ -148,6 +152,17 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
             _ => continue,
         };
         let name = element.name();
+        if name == "table" {
+            builder.flush();
+            match data_table(node) {
+                Some(kind) => builder.inserts.push(Insert {
+                    before_block: builder.blocks.len(),
+                    kind,
+                }),
+                None => *builder.left_out.entry(LeftOut::Table).or_default() += 1,
+            }
+            continue;
+        }
         if let Some(what) = left_out(name) {
             *builder.left_out.entry(what).or_default() += 1;
             continue;
@@ -203,7 +218,56 @@ pub(crate) fn from_html(html: &str, options: &ExtractOptions) -> Body {
     Body {
         blocks: builder.blocks,
         warnings,
+        inserts: builder.inserts,
     }
+}
+
+/// A table that is a grid of cells (two rows and two columns at least): its rows' cell texts,
+/// heading rows and caption. A table inside it (a layout) makes it none.
+fn data_table(table: NodeRef<'_, Node>) -> Option<InsertKind> {
+    let elements = || {
+        table
+            .descendants()
+            .skip(1)
+            .filter_map(scraper::ElementRef::wrap)
+    };
+    if elements().any(|e| e.value().name() == "table") {
+        return None;
+    }
+    let text = |e: scraper::ElementRef<'_>| collapse(&e.text().collect::<String>());
+    let caption = elements()
+        .find(|e| e.value().name() == "caption")
+        .map(text)
+        .filter(|c| !c.is_empty());
+    let mut rows = Vec::new();
+    let mut header_rows = 0;
+    for row in elements().filter(|e| e.value().name() == "tr") {
+        let cells: Vec<_> = row
+            .children()
+            .filter_map(scraper::ElementRef::wrap)
+            .filter(|c| matches!(c.value().name(), "td" | "th"))
+            .collect();
+        if cells.is_empty() {
+            continue;
+        }
+        let in_head = row
+            .ancestors()
+            .filter_map(scraper::ElementRef::wrap)
+            .take_while(|a| a.value().name() != "table")
+            .any(|a| a.value().name() == "thead");
+        let heading = in_head || cells.iter().all(|c| c.value().name() == "th");
+        if heading && header_rows == rows.len() {
+            header_rows += 1;
+        }
+        rows.push(cells.into_iter().map(text).collect::<Vec<String>>());
+    }
+    // A grid: a single row or a single column is a box around something, not data.
+    let columns = rows.iter().map(Vec::len).max().unwrap_or(0);
+    (rows.len() >= 2 && columns >= 2).then_some(InsertKind::Table {
+        rows,
+        header_rows,
+        caption,
+    })
 }
 
 /// A `pre` element's text as written, without its first line break and trailing blank space.

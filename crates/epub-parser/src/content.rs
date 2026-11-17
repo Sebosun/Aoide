@@ -35,12 +35,15 @@ enum TableMark {
     CellEnd,
 }
 
+/// A cell laid out: its start and end in its row's text, and whether it is a heading.
+type Cell = (usize, usize, bool);
+
 /// A table being laid out.
 #[derive(Default)]
 struct TableBuild {
     caption_block: Option<usize>,
-    /// Each row: its block, and its cells (start, end, a heading cell).
-    rows: Vec<(Option<usize>, Vec<(usize, usize, bool)>)>,
+    /// Each row: its block, and its cells.
+    rows: Vec<(Option<usize>, Vec<Cell>)>,
     /// A cell's start: its block and offset, and whether it is a heading.
     open_cell: Option<(usize, usize, bool)>,
     /// Not a grid of lines (a cell over several lines, a table inside it).

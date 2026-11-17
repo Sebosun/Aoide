@@ -17,6 +17,7 @@
     "text": "2020-09-21"
   },
   "siteName": "Haki Benita",
+  "tables": [],
   "title": "Simple Anomaly Detection Using Plain SQL",
   "warnings": [
     "LeftOut { what: Figure, count: 12 }"

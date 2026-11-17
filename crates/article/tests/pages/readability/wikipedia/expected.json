@@ -9,10 +9,13 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [
+    "before block 0: 7 rows (0 heading) of 2 cells"
+  ],
   "title": "Mozilla",
   "warnings": [
     "LeftOut { what: Image, count: 6 }",
-    "LeftOut { what: Table, count: 2 }"
+    "LeftOut { what: Table, count: 1 }"
   ],
   "wordCount": 4209
 }

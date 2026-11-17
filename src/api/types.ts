@@ -124,7 +124,9 @@ export type * from "@/api/contract";
 /** A library book; the adapter turns the cover file path into a URL the webview can load. */
 export type BookSummary = Omit<Wire.BookSummary, "coverPath"> & { coverUrl: string | null };
 /** A picture between a chapter's blocks, its file as a URL the webview can load. */
-export type InsertView = Omit<Wire.InsertView, "path"> & { url: string };
+export type InsertView =
+  | (Omit<Extract<Wire.InsertView, { type: "picture" }>, "path"> & { url: string })
+  | Exclude<Wire.InsertView, { type: "picture" }>;
 /** A chapter as the page draws it, its pictures given as URLs. */
 export type ChapterView = Omit<Wire.ChapterView, "inserts"> & { inserts: InsertView[] };
 /** An EPUB found on this computer, with its cover as a webview URL. */

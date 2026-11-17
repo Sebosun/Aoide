@@ -158,6 +158,14 @@ pub enum InsertKind {
         alt: String,
         caption: Option<Caption>,
     },
+    /// A table outside the text (an article's), drawn but not read.
+    Table {
+        /// Each row's cells' texts.
+        rows: Vec<Vec<String>>,
+        /// How many rows at the top are headings.
+        header_rows: usize,
+        caption: Option<String>,
+    },
 }
 
 /// A picture's caption: a block of the text (an EPUB's `figcaption`, read as a paragraph), or

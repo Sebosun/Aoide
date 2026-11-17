@@ -132,3 +132,35 @@ it("draws a table's rows as a table, each sentence in its cell", () => {
   ]);
   expect(wrapper.findAll(".chapter-text__block")[0].classes()).toContain("chapter-text__block--caption");
 });
+
+it("draws an article's table beside the text, not as part of it", () => {
+  const article: ChapterView = {
+    ...chapter,
+    inserts: [
+      {
+        type: "table",
+        beforeBlock: 2,
+        rows: [
+          ["Month", "Task"],
+          ["April", "Check the queen"],
+        ],
+        headerRows: 1,
+        caption: "The year",
+      },
+    ],
+  };
+  wrapper = mount(ChapterText, {
+    attachTo: document.body,
+    props: { chapter: article, currentSegment: null, currentWord: null, marginNotes: false },
+  });
+  const table = wrapper.get(".chapter-text__table");
+  expect(table.element.closest("[data-not-text]")).not.toBeNull();
+  expect(table.find("caption").text()).toBe("The year");
+  expect(table.findAll("th").map((c) => c.text())).toEqual(["Month", "Task"]);
+  expect(table.findAll("td").map((c) => c.text())).toEqual(["April", "Check the queen"]);
+  // Between the paragraphs, as the core placed it.
+  const order = [...wrapper.element.querySelectorAll(".chapter-text__block, .chapter-text__table")].map((e) =>
+    e.matches("table") ? "table" : e.textContent?.trim(),
+  );
+  expect(order).toEqual(["The Lamp", "The keeper climbed the stair.", "table", "The lamp, lit at dusk."]);
+});

@@ -14,6 +14,7 @@
   "leadImage": "http://img-aws.ehowcdn.com/200x200/cme/photography.prod.demandstudios.com/16149374-814f-40bc-baf3-ca20f149f0ba.jpg",
   "published": null,
   "siteName": "eHow",
+  "tables": [],
   "title": "How to Build a Terrarium",
   "warnings": [
     "LeftOut { what: Figure, count: 11 }"

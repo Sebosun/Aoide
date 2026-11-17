@@ -12,6 +12,7 @@
     "text": "2024-12-06T22:00:40.000Z"
   },
   "siteName": "NBC News",
+  "tables": [],
   "title": "South Korean president’s impeachment fails after ruling party lawmakers walk out",
   "warnings": [
     "LeftOut { what: Figure, count: 3 }"

@@ -14,6 +14,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "Daring Fireball: Colophon",
   "warnings": [
     "LeftOut { what: Image, count: 1 }"

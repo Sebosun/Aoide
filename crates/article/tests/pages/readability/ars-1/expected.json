@@ -14,6 +14,7 @@
   "leadImage": "https://cdn.arstechnica.net/wp-content/uploads/2015/04/server-crash-640x215.jpg",
   "published": null,
   "siteName": "Ars Technica",
+  "tables": [],
   "title": "Just-released Minecraft exploit makes it easy to crash game servers",
   "warnings": [
     "LeftOut { what: Figure, count: 1 }"

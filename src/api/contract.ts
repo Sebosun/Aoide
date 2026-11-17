@@ -287,7 +287,11 @@ captionBlock: number | null,
 /**
  * A caption of its own, outside the text.
  */
-caption: string | null, };
+caption: string | null, } | { "type": "table", beforeBlock: number, 
+/**
+ * Each row's cells' texts.
+ */
+rows: Array<Array<string>>, headerRows: number, caption: string | null, };
 
 export type TableView = { firstBlock: number, rows: number, headerRows: number, 
 /**

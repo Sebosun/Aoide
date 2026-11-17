@@ -224,8 +224,11 @@ fn append(section: &mut ReadingSection, path: &str, laid: content::Laid, inserts
         .inserts
         .extend(inserts.into_iter().map(|mut insert| {
             insert.before_block += shift;
-            let InsertKind::Picture { caption, .. } = &mut insert.kind;
-            if let Some(Caption::Block(block)) = caption {
+            if let InsertKind::Picture {
+                caption: Some(Caption::Block(block)),
+                ..
+            } = &mut insert.kind
+            {
                 *block += shift;
             }
             insert

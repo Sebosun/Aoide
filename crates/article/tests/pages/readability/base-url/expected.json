@@ -9,6 +9,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "Base URL test",
   "warnings": [
     "LeftOut { what: Image, count: 5 }"

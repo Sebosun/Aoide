@@ -115,6 +115,7 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
     };
     let mut blocks = body.blocks;
     let mut warnings = body.warnings;
+    let mut inserts = body.inserts;
     let mut meta = read.meta;
     // An email's subject is its title, whatever its headings say.
     if options.email {
@@ -129,12 +130,17 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
         if captured * 100 < words(full) * patterns::CUT_SHORT_PERCENT {
             blocks = paragraphs(full, options);
             warnings.push(Warning::BodyFromMetadata);
+            // They stood among the markup's blocks, which are gone.
+            inserts.clear();
         }
     }
     // The title is shown above the text; a first heading saying the same is not repeated.
     if let (Some(title), Some(first)) = (&meta.title, blocks.first()) {
         if matches!(first.kind, BlockKind::Heading { .. }) && same_words(title, &first.text) {
             blocks.remove(0);
+            for insert in &mut inserts {
+                insert.before_block = insert.before_block.saturating_sub(1);
+            }
         }
     }
     meta.word_count = blocks.iter().map(|b| words(&b.text)).sum();
@@ -158,7 +164,7 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
         text: texts.join("\n\n"),
         blocks,
         note_refs: Vec::new(),
-        inserts: Vec::new(),
+        inserts,
         tables: Vec::new(),
         sources: vec![SourceLocation {
             path: url.as_str().into(),

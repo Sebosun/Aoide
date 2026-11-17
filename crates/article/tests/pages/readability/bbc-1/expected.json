@@ -12,6 +12,7 @@
     "text": "2015-07-24T05:36:09+01:00"
   },
   "siteName": "BBC News",
+  "tables": [],
   "title": "Obama admits US gun laws are his 'biggest frustration'",
   "warnings": [
     "LeftOut { what: Figure, count: 5 }"

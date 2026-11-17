@@ -56,12 +56,55 @@ fn the_article_body_becomes_one_chapter_of_blocks_without_the_page_around_it() {
                 what: aoide_document::LeftOut::Figure,
                 count: 1
             },
-            Warning::LeftOut {
-                what: aoide_document::LeftOut::Table,
-                count: 1
-            },
         ]
     );
+}
+
+#[test]
+fn a_data_table_is_kept_beside_the_text_and_a_layout_table_left_out() {
+    use aoide_document::{Insert, InsertKind};
+    let extracted = extract(&page("plain.html"), &url(), &ExtractOptions::default());
+    let chapter = &extracted.document.chapters[0];
+    let at = chapter
+        .blocks
+        .iter()
+        .position(|b| b.text == "Keeping records")
+        .unwrap();
+    assert_eq!(
+        chapter.inserts,
+        [Insert {
+            before_block: at,
+            kind: InsertKind::Table {
+                rows: vec![
+                    vec!["Month".into(), "Task".into()],
+                    vec!["April".into(), "Check the queen".into()]
+                ],
+                header_rows: 1,
+                caption: None,
+            },
+        }]
+    );
+    assert!(!chapter.text.contains("Check the queen"), "not in the text");
+
+    let nested = "<html><body><article><h1>Grids</h1><p>A first paragraph that is long enough to be the article body here.</p>\
+        <table><caption>Hives  by year</caption><thead><tr><th>Year</th><th>Hives</th></tr></thead><tbody><tr><td>2025</td><td>3</td></tr></tbody></table>\
+        <table><tr><td><table><tr><td>Inner</td></tr></table></td></tr></table>\
+        <p>A last paragraph that is long enough to be part of the article body too.</p></article></body></html>";
+    let extracted = extract(nested, &url(), &ExtractOptions::default());
+    let chapter = &extracted.document.chapters[0];
+    let tables: Vec<&InsertKind> = chapter.inserts.iter().map(|i| &i.kind).collect();
+    assert_eq!(
+        tables,
+        [&InsertKind::Table {
+            rows: vec![
+                vec!["Year".into(), "Hives".into()],
+                vec!["2025".into(), "3".into()]
+            ],
+            header_rows: 1,
+            caption: Some("Hives by year".into()),
+        }]
+    );
+    // The layout table (one inside another) is not drawn as one.
 }
 
 #[test]

@@ -9,10 +9,12 @@
   "leadImage": "https://aem.dropbox.com/cms/content/dam/dropbox/tech-blog/en-us/2020/11/atf/diagrams/Techblog-ATF-Social.png",
   "published": null,
   "siteName": null,
+  "tables": [
+    "before block 65: 8 rows (0 heading) of 4 cells"
+  ],
   "title": "How we designed Dropbox ATF: an async task framework",
   "warnings": [
-    "LeftOut { what: Figure, count: 2 }",
-    "LeftOut { what: Table, count: 1 }"
+    "LeftOut { what: Figure, count: 2 }"
   ],
   "wordCount": 2748
 }

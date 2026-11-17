@@ -9,6 +9,7 @@
   "leadImage": null,
   "published": null,
   "siteName": null,
+  "tables": [],
   "title": "linux video",
   "warnings": [
     "LeftOut { what: Image, count: 1 }",
