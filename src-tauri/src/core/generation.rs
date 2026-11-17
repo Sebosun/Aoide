@@ -55,6 +55,12 @@ pub(super) enum PlanEvent {
     BookForgotten(String),
     /// A book's voice settings changed: its plan is made again.
     BookSettingsChanged(String),
+    /// A pronunciation list changed: book `book`'s (`None`: the one for all books). The books
+    /// in `changed` say something differently now.
+    PronunciationsChanged {
+        book: Option<String>,
+        changed: HashSet<String>,
+    },
     /// Another engine makes speech from now on.
     EngineSwitched(Arc<dyn SpeechEngine>),
     /// The server Aoide starts for the engine is not running: nothing is asked of it, so
@@ -315,6 +321,13 @@ impl Generation {
             }
             PlanEvent::BookSettingsChanged(book) => {
                 lock(&self.preparation).drop_plans(Some(&book));
+                Some(true)
+            }
+            PlanEvent::PronunciationsChanged { book, changed } => {
+                let mut preparation = lock(&self.preparation);
+                // A prepared book it changes is prepared no longer; queued ones plan again.
+                preparation.audio_lost(&lock(&self.library), &changed, &HashSet::new());
+                preparation.drop_plans(book.as_deref());
                 Some(true)
             }
             PlanEvent::EngineSwitched(engine) => {

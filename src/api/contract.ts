@@ -450,6 +450,14 @@ excerpt: string, note: string, createdAt: number,
  */
 positionMs: number | null, };
 
+export type Pronunciation = { id: number, 
+/**
+ * The book whose list it is in; `None` for the list for all books.
+ */
+bookId: BookId | null, written: string, spoken: string, matchCase: boolean, createdAt: number, };
+
+export type AffectedView = { sentences: number, cached: number, };
+
 export type DayListening = { 
 /**
  * Local calendar day, `YYYY-MM-DD`.
@@ -1449,6 +1457,22 @@ export type Commands = {
   "say_again": { args: { bookId: string; segmentId: string }; result: void };
   /** Delete the book's generated audio so it is regenerated. */
   "regenerate_book": { args: { bookId: string }; result: void };
+  /** Book bookId's pronunciation list, or with a null bookId the list for all books. */
+  "pronunciations": { args: { bookId?: string | null }; result: Pronunciation[] };
+  /** What saving the pronunciation in bookId's list would change in that book. */
+  "pronunciation_affected": { args: { bookId: string; written: string; spoken: string; matchCase: boolean }; result: AffectedView };
+  /**
+   * Adds a word to bookId's pronunciation list (null: the list for all books), or changes how
+   * the list says it. The sentences it changes are made again.
+   */
+  "save_pronunciation": { args: { bookId?: string | null; written: string; spoken: string; matchCase: boolean }; result: Pronunciation };
+  /** Removes a word from its pronunciation list. The sentences it changed are made again. */
+  "delete_pronunciation": { args: { id: number }; result: void };
+  /**
+   * Says `spoken` alone in bookId's voice (null: the voice books are read in) and returns a WAV
+   * file as raw bytes. Nothing is saved or cached.
+   */
+  "preview_pronunciation": { args: { bookId?: string | null; spoken: string }; result: ArrayBuffer };
 };
 
 /** Every command as the UI calls it: a method taking the command's arguments by name. */
@@ -1749,6 +1773,22 @@ export interface CommandApi {
   sayAgain(args: { bookId: string; segmentId: string }): Promise<void>;
   /** Delete the book's generated audio so it is regenerated. */
   regenerateBook(args: { bookId: string }): Promise<void>;
+  /** Book bookId's pronunciation list, or with a null bookId the list for all books. */
+  pronunciations(args?: { bookId?: string | null }): Promise<Pronunciation[]>;
+  /** What saving the pronunciation in bookId's list would change in that book. */
+  pronunciationAffected(args: { bookId: string; written: string; spoken: string; matchCase: boolean }): Promise<AffectedView>;
+  /**
+   * Adds a word to bookId's pronunciation list (null: the list for all books), or changes how
+   * the list says it. The sentences it changes are made again.
+   */
+  savePronunciation(args: { bookId?: string | null; written: string; spoken: string; matchCase: boolean }): Promise<Pronunciation>;
+  /** Removes a word from its pronunciation list. The sentences it changed are made again. */
+  deletePronunciation(args: { id: number }): Promise<void>;
+  /**
+   * Says `spoken` alone in bookId's voice (null: the voice books are read in) and returns a WAV
+   * file as raw bytes. Nothing is saved or cached.
+   */
+  previewPronunciation(args: { bookId?: string | null; spoken: string }): Promise<ArrayBuffer>;
 }
 
 /** Each `CommandApi` method's command. */
@@ -1889,4 +1929,9 @@ export const COMMANDS = {
   cancelPrepare: "cancel_prepare",
   sayAgain: "say_again",
   regenerateBook: "regenerate_book",
+  pronunciations: "pronunciations",
+  pronunciationAffected: "pronunciation_affected",
+  savePronunciation: "save_pronunciation",
+  deletePronunciation: "delete_pronunciation",
+  previewPronunciation: "preview_pronunciation",
 } as const satisfies Record<keyof CommandApi, keyof Commands>;

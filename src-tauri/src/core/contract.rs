@@ -93,6 +93,8 @@ fn contract() -> String {
         super::BookSettings,
         // Bookmarks, stats, details
         aoide_library::Bookmark,
+        aoide_library::Pronunciation,
+        super::pronunciation::AffectedView,
         aoide_library::DayListening,
         aoide_library::DayActivity,
         aoide_library::BookActivity,

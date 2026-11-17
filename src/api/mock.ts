@@ -43,6 +43,7 @@ import type {
   EngineProfile,
   BookSettings,
   Bookmark,
+  Pronunciation,
   AppSettings,
   BookDetails,
   MetadataMatch,
@@ -265,6 +266,26 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     };
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
+  const pronunciations: Pronunciation[] = [];
+  let nextPronunciation = 1;
+  /** Words separated by single spaces, if any has a letter or digit (as the core keeps them). */
+  const listWords = (text: string) => {
+    const words = text.split(/\s+/).filter(Boolean).join(" ");
+    return /[\p{L}\p{N}]/u.test(words) ? words : null;
+  };
+  /** The sentences of book `id` the speech engine says that hold `written` as a whole word (a
+   *  plural or possessive too), as the core's pronunciation rule matches it. */
+  const sentencesSaying = (id: string, written: string, matchCase: boolean) => {
+    const escaped = written.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+");
+    const word = new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}s?(?=$|[^\\p{L}\\p{N}])`, matchCase ? "u" : "iu");
+    const list = chapters[Number(id.split("-")[1])] ?? [];
+    return list.flatMap((chapter, c) =>
+      chapter.blocks
+        .flatMap((b) => b.segments)
+        .filter((s) => s.canSayAgain && word.test(s.words.join(" ")))
+        .map((s) => ({ chapter: c, segmentId: s.id })),
+    );
+  };
   const listened = new Map<string, number>([
     ["book-0", 5_400_000],
     ["book-1", 1_200_000],
@@ -1476,6 +1497,53 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async deleteBookmark({ id }) {
       const index = bookmarks.findIndex((b) => b.id === id);
       if (index >= 0) bookmarks.splice(index, 1);
+    },
+    async pronunciations({ bookId } = {}) {
+      return structuredClone(
+        pronunciations
+          .filter((p) => p.bookId === (bookId ?? null))
+          .sort((a, b) => a.createdAt - b.createdAt || a.id - b.id),
+      );
+    },
+    async pronunciationAffected({ bookId: id, written, spoken, matchCase }) {
+      getBook(id);
+      const [word, said] = [listWords(written), listWords(spoken)];
+      if (!word) throw refused("say which word is written");
+      if (!said) throw refused("say how the word is said");
+      const saved = pronunciations.find((p) => p.bookId === id && p.written === word);
+      if (saved && saved.spoken === said && saved.matchCase === matchCase) return { sentences: 0, cached: 0 };
+      const found = sentencesSaying(id, word, matchCase);
+      // As chapterAudio: the first book's first chapter is made.
+      return { sentences: found.length, cached: id === "book-0" ? found.filter((f) => f.chapter === 0).length : 0 };
+    },
+    async savePronunciation({ bookId, written, spoken, matchCase }) {
+      const [word, said] = [listWords(written), listWords(spoken)];
+      if (!word) throw refused("say which word is written");
+      if (!said) throw refused("say how the word is said");
+      const book = bookId ?? null;
+      let entry = pronunciations.find((p) => p.bookId === book && p.written === word);
+      if (entry) Object.assign(entry, { spoken: said, matchCase });
+      else {
+        entry = {
+          id: nextPronunciation++,
+          bookId: book,
+          written: word,
+          spoken: said,
+          matchCase,
+          createdAt: Date.now(),
+        };
+        pronunciations.push(entry);
+      }
+      return structuredClone(entry);
+    },
+    async deletePronunciation({ id }) {
+      const at = pronunciations.findIndex((p) => p.id === id);
+      if (at < 0) throw refused("no such pronunciation");
+      pronunciations.splice(at, 1);
+    },
+    async previewPronunciation({ spoken }) {
+      if (!listWords(spoken)) throw refused("say how the word is said");
+      return silentWav();
     },
     async bookListening({ bookId: id }) {
       getBook(id);

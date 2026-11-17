@@ -421,3 +421,79 @@ async fn nothing_is_asked_of_a_launched_server_until_it_is_ready_and_no_problem_
     assert_eq!(engine.texts().len(), texts(&core, &id, None).len());
     core.shutdown();
 }
+
+// ------------------------------------------------------------ pronunciations
+
+#[tokio::test]
+async fn saving_a_pronunciation_while_listening_asks_again_for_the_sentence_with_the_word_only() {
+    let (_dir, engine, core, _events, id) = ready(&["A.wav"]).await;
+    core.prepare_book(&id).await.unwrap();
+    until("the book to be prepared", || {
+        stage(&core, &id) == Some(PrepareStage::Done)
+    })
+    .await;
+    let made = engine.texts().len();
+    core.play(&id, Some(0), None).await.unwrap();
+    core.pause();
+
+    let affected = core
+        .pronunciation_affected(&id, "gulls", "seagulls", false)
+        .unwrap();
+    assert_eq!(
+        affected,
+        super::AffectedView {
+            sentences: 1,
+            cached: 1
+        }
+    );
+    core.save_pronunciation(Some(&id), "gulls", "seagulls", false)
+        .await
+        .unwrap();
+    until("the sentence said again", || engine.texts().len() > made).await;
+    settle().await;
+
+    assert_eq!(
+        engine.texts()[made..],
+        ["seagulls argued over the nets. The tide came in slowly."]
+    );
+    assert_ne!(
+        stage(&core, &id),
+        Some(PrepareStage::Done),
+        "the item page offers to prepare the rest"
+    );
+    // Saved as it is now, nothing more changes.
+    let again = core
+        .pronunciation_affected(&id, "gulls", "seagulls", false)
+        .unwrap();
+    assert_eq!(again.sentences, 0);
+    core.stop();
+}
+
+#[tokio::test]
+async fn a_pronunciation_for_all_books_unprepares_a_prepared_book_it_changes_and_not_one_it_does_not(
+) {
+    let (_dir, _engine, core, _events, id) = ready(&["A.wav"]).await;
+    core.prepare_book(&id).await.unwrap();
+    until("the book to be prepared", || {
+        stage(&core, &id) == Some(PrepareStage::Done)
+    })
+    .await;
+
+    core.save_pronunciation(None, "harbour", "harbor", false)
+        .await
+        .unwrap();
+    assert_eq!(
+        stage(&core, &id),
+        Some(PrepareStage::Done),
+        "not in the book"
+    );
+
+    let lamp = core
+        .save_pronunciation(None, "lamp", "lantern", false)
+        .await
+        .unwrap();
+    assert_eq!(stage(&core, &id), None, "no longer prepared");
+    assert_eq!(core.pronunciations(None).unwrap().len(), 2);
+    core.delete_pronunciation(lamp.id).await.unwrap();
+    assert_eq!(core.pronunciations(None).unwrap().len(), 1);
+}

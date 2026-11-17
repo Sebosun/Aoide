@@ -91,6 +91,7 @@ pub use speech_problems::SpeechProblem;
 mod tagging;
 pub use tagging::{TaggingRun, TaggingSettings};
 mod pronunciation;
+pub use pronunciation::AffectedView;
 mod takes;
 mod timeline;
 mod voicing;

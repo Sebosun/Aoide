@@ -674,7 +674,7 @@ impl super::Core {
     }
 
     /// Waits while the speech server Aoide starts is on its way: until it answers, or fails.
-    async fn wait_for_speech_server(&self) -> Result<(), String> {
+    pub(super) async fn wait_for_speech_server(&self) -> Result<(), String> {
         let started = std::time::Instant::now();
         while started.elapsed() < Duration::from_secs(600) {
             let Some(view) = self.speech_server.view() else {

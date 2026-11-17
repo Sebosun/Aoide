@@ -160,3 +160,64 @@ pub async fn regenerate_book(core: CoreState<'_>, book_id: String) -> Result<(),
     let core = Arc::clone(&core);
     Ok(core.regenerate_book(&book_id).await?)
 }
+
+/// Book bookId's pronunciation list, or with a null bookId the list for all books.
+#[tauri::command]
+pub async fn pronunciations(
+    core: CoreState<'_>,
+    book_id: Option<String>,
+) -> Result<Vec<aoide_library::Pronunciation>, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.pronunciations(book_id.as_deref())).await
+}
+
+/// What saving the pronunciation in bookId's list would change in that book.
+#[tauri::command]
+pub async fn pronunciation_affected(
+    core: CoreState<'_>,
+    book_id: String,
+    written: String,
+    spoken: String,
+    match_case: bool,
+) -> Result<crate::core::AffectedView, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.pronunciation_affected(&book_id, &written, &spoken, match_case)).await
+}
+
+/// Adds a word to bookId's pronunciation list (null: the list for all books), or changes how
+/// the list says it. The sentences it changes are made again.
+#[tauri::command]
+pub async fn save_pronunciation(
+    core: CoreState<'_>,
+    book_id: Option<String>,
+    written: String,
+    spoken: String,
+    match_case: bool,
+) -> Result<aoide_library::Pronunciation, CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core
+        .save_pronunciation(book_id.as_deref(), &written, &spoken, match_case)
+        .await?)
+}
+
+/// Removes a word from its pronunciation list. The sentences it changed are made again.
+#[tauri::command]
+pub async fn delete_pronunciation(core: CoreState<'_>, id: i64) -> Result<(), CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.delete_pronunciation(id).await?)
+}
+
+/// Says `spoken` alone in bookId's voice (null: the voice books are read in) and returns a WAV
+/// file as raw bytes. Nothing is saved or cached.
+#[tauri::command]
+pub async fn preview_pronunciation(
+    core: CoreState<'_>,
+    book_id: Option<String>,
+    spoken: String,
+) -> Result<tauri::ipc::Response, CoreError> {
+    let core = Arc::clone(&core);
+    let wav = core
+        .preview_pronunciation(book_id.as_deref(), &spoken)
+        .await?;
+    Ok(tauri::ipc::Response::new(wav))
+}
