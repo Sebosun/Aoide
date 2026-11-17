@@ -284,6 +284,7 @@ folder.
 ## 3.3 Reader typography
 
 **Size:** S
+**Built:** 2026-11-17 (3cb8937..74fcee1)
 
 ### Outcome
 
