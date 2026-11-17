@@ -273,6 +273,9 @@ pub struct BookSettings {
     pub playback_speed: Option<f32>,
     /// Shorten the long silences of its recording (over the app setting); `None` follows it.
     pub shorten_silences: Option<bool>,
+    /// A second voice for what characters say (in quotation marks); `None`: one voice reads
+    /// everything.
+    pub dialogue_voice_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

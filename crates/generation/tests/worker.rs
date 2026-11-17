@@ -30,6 +30,7 @@ impl FakeEngine {
                 languages: None,
                 word_timings: false,
                 max_chars: 100,
+                cheap_voice_switch: true,
                 params: vec![],
             },
             calls: Mutex::new(vec![]),

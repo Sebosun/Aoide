@@ -141,6 +141,7 @@ it("flags a book voice the engine does not offer and opens Narration from the ma
       leftOut: [],
       playbackSpeed: null,
       shortenSilences: null,
+      dialogueVoiceId: null,
     },
   });
   const wrapper = await reader("book-0");

@@ -242,6 +242,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       languages: ["en", "fr", "de"],
       wordTimings: false,
       maxChars: 300,
+      cheapVoiceSwitch: true,
       params: [
         {
           key: "temperature",
@@ -265,6 +266,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       languages: null,
       wordTimings: false,
       maxChars: 1000,
+      cheapVoiceSwitch: false,
       params: [{ key: "speed", label: "Speed", kind: { type: "float", min: 0.25, max: 4, step: 0.05 }, default: 1 }],
     },
   ];
@@ -302,6 +304,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       leftOut: [],
       playbackSpeed: null,
       shortenSilences: null,
+      dialogueVoiceId: null,
     };
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
@@ -1750,6 +1753,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async showSpeechServerLog() {},
     async engineOptions() {
       return { descriptors: structuredClone(descriptors), profile: structuredClone(profile) };
+    },
+    /** A narration line and a quoted one from the book, in two voices (core/voicing.rs). */
+    async previewDialogue({ bookId: id }) {
+      getBook(id);
+      return silentWav();
     },
     async previewVoice() {
       return silentWav();

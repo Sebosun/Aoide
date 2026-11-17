@@ -34,6 +34,7 @@ pub fn descriptor() -> EngineDescriptor {
         languages: Some(LANGUAGES.iter().map(|l| l.to_string()).collect()),
         word_timings: false,
         max_chars: MAX_UNSPLIT_CHARS,
+        cheap_voice_switch: true,
         params: vec![
             float("temperature", "Temperature", 0.05, 2.0, 0.05, 0.8),
             float("exaggeration", "Exaggeration", 0.25, 2.0, 0.05, 0.5),

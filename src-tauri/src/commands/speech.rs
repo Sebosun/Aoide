@@ -93,6 +93,31 @@ pub async fn preview_voice(
     Ok(tauri::ipc::Response::new(wav))
 }
 
+/// Says a narration sentence from book `book_id` in `voice_id`, then a quoted one in
+/// `dialogue_voice_id`, and returns a WAV file as raw bytes.
+#[tauri::command]
+pub async fn preview_dialogue(
+    core: CoreState<'_>,
+    book_id: String,
+    profile: aoide_tts::EngineProfile,
+    voice_id: Option<String>,
+    dialogue_voice_id: String,
+    params: aoide_tts::Params,
+    language: Option<String>,
+) -> Result<tauri::ipc::Response, CoreError> {
+    let core = Arc::clone(&core);
+    let wav = core
+        .preview_dialogue(
+            &book_id,
+            profile,
+            (voice_id, dialogue_voice_id),
+            params,
+            language,
+        )
+        .await?;
+    Ok(tauri::ipc::Response::new(wav))
+}
+
 /// Says a few short paragraphs in the voice books are read in, with `pauses` (as on screen,
 /// saved or not) between them, and returns a WAV file as raw bytes.
 #[tauri::command]

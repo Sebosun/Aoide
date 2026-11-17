@@ -16,6 +16,7 @@ use aoide_tts::{resolve_params, EngineProfile, EngineStatus, Params, Registry, S
 use super::engine_process::{Answer, FailureKind, ServerState, ServerView, StoppedKind};
 use super::voicing::{fallback_voice, Voicing};
 use super::{lock, BookSettings, CoreEvent, EngineOptions, EngineState, EngineStatusView, Events};
+use aoide_text::Role;
 
 /// Appends `audio` to `said` (at `said`'s rate, the first audio's), then `pause_ms` of silence.
 fn follow_with(said: &mut aoide_tts::Synthesis, audio: aoide_tts::Synthesis, pause_ms: u32) {
@@ -437,11 +438,29 @@ impl Engine {
         language: Option<String>,
         lines: &[(String, u32)],
     ) -> Result<Vec<u8>, String> {
+        let lines: Vec<(String, u32, Role)> = lines
+            .iter()
+            .map(|(text, pause)| (text.clone(), *pause, Role::Narration))
+            .collect();
+        self.say_roles(profile, (voice_id, None), params, language, &lines)
+            .await
+    }
+
+    /// [`Engine::say`] with each line said in its role: dialogue in `voices.1`, when given.
+    pub async fn say_roles(
+        &self,
+        profile: EngineProfile,
+        (voice_id, dialogue_voice_id): (Option<String>, Option<String>),
+        params: Params,
+        language: Option<String>,
+        lines: &[(String, u32, Role)],
+    ) -> Result<Vec<u8>, String> {
         self.want();
         let engine = self.registry.create(&profile).map_err(|e| e.to_string())?;
         let descriptor = engine.descriptor().clone();
         let book = BookSettings {
             voice_id: voice_id.filter(|v| !v.trim().is_empty()),
+            dialogue_voice_id: dialogue_voice_id.filter(|v| !v.trim().is_empty()),
             params,
             ..BookSettings::default()
         };
@@ -469,9 +488,9 @@ impl Engine {
             samples: Vec::new(),
             word_timings: None,
         };
-        for (text, pause_ms) in lines {
+        for (text, pause_ms, role) in lines {
             let audio = engine
-                .synthesize(&request.request(text.clone(), 0))
+                .synthesize(&request.request_as(text.clone(), 0, *role))
                 .await
                 .map_err(|e| e.to_string())?;
             follow_with(&mut said, audio, *pause_ms);

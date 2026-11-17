@@ -461,7 +461,12 @@ wordTimings: boolean,
 /**
  * Longest text (in chars) one request should carry.
  */
-maxChars: number, params: Array<ParamSpec>, };
+maxChars: number, params: Array<ParamSpec>, 
+/**
+ * Requests can change voice at no cost (a cloned voice is a reference clip). When false,
+ * a second voice for dialogue may make narration slow.
+ */
+cheapVoiceSwitch: boolean, };
 
 export type NetworkScope = "loopback" | "privateNetwork";
 
@@ -529,7 +534,12 @@ playbackSpeed: number | null,
 /**
  * Shorten the long silences of its recording (over the app setting); `None` follows it.
  */
-shortenSilences: boolean | null, };
+shortenSilences: boolean | null, 
+/**
+ * A second voice for what characters say (in quotation marks); `None`: one voice reads
+ * everything.
+ */
+dialogueVoiceId: string | null, };
 
 export type Bookmark = { id: number, bookId: BookId, chapter: number, charOffset: number, segmentId: string | null, 
 /**
@@ -1919,6 +1929,11 @@ export type Commands = {
    */
   "preview_voice": { args: { profile: EngineProfile; voiceId?: string | null; params: { [key in string]: ParamValue }; language?: string | null }; result: ArrayBuffer };
   /**
+   * Says a narration sentence from book `book_id` in `voice_id`, then a quoted one in
+   * `dialogue_voice_id`, and returns a WAV file as raw bytes.
+   */
+  "preview_dialogue": { args: { bookId: string; profile: EngineProfile; voiceId?: string | null; dialogueVoiceId: string; params: { [key in string]: ParamValue }; language?: string | null }; result: ArrayBuffer };
+  /**
    * Says a few short paragraphs in the voice books are read in, with `pauses` (as on screen,
    * saved or not) between them, and returns a WAV file as raw bytes.
    */
@@ -2360,6 +2375,11 @@ export interface CommandApi {
    */
   previewVoice(args: { profile: EngineProfile; voiceId?: string | null; params: { [key in string]: ParamValue }; language?: string | null }): Promise<ArrayBuffer>;
   /**
+   * Says a narration sentence from book `book_id` in `voice_id`, then a quoted one in
+   * `dialogue_voice_id`, and returns a WAV file as raw bytes.
+   */
+  previewDialogue(args: { bookId: string; profile: EngineProfile; voiceId?: string | null; dialogueVoiceId: string; params: { [key in string]: ParamValue }; language?: string | null }): Promise<ArrayBuffer>;
+  /**
    * Says a few short paragraphs in the voice books are read in, with `pauses` (as on screen,
    * saved or not) between them, and returns a WAV file as raw bytes.
    */
@@ -2572,6 +2592,7 @@ export const COMMANDS = {
   engineOptions: "engine_options",
   engineVoices: "engine_voices",
   previewVoice: "preview_voice",
+  previewDialogue: "preview_dialogue",
   previewPauses: "preview_pauses",
   saveEngineProfile: "save_engine_profile",
   prepareBook: "prepare_book",

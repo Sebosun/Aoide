@@ -103,6 +103,7 @@ impl FakeEngine {
                 languages: None,
                 word_timings: false,
                 max_chars: 400,
+                cheap_voice_switch: true,
                 params: vec![],
             },
             calls: std::sync::Mutex::new(vec![]),

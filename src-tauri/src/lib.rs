@@ -175,6 +175,7 @@ pub fn run() {
             commands::library::storage_report,
             commands::library::clean_unused_files,
             commands::speech::preview_voice,
+            commands::speech::preview_dialogue,
             commands::speech::preview_pauses,
             commands::speech::save_engine_profile,
             commands::speech::prepare_book,

@@ -34,6 +34,14 @@ pub struct EngineDescriptor {
     /// Longest text (in chars) one request should carry.
     pub max_chars: usize,
     pub params: Vec<ParamSpec>,
+    /// Requests can change voice at no cost (a cloned voice is a reference clip). When false,
+    /// a second voice for dialogue may make narration slow.
+    #[serde(default = "switches_cheaply")]
+    pub cheap_voice_switch: bool,
+}
+
+fn switches_cheaply() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]

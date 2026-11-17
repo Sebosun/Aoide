@@ -875,10 +875,15 @@ impl ShelfHost for super::Core {
 
     fn layout(&self, id: &str) -> crate::book::Layout {
         let settings = self.book_settings(id);
+        // A recording is laid onto the book's own text, without footnotes read in between,
+        // and in its narrator's one voice.
+        let recorded = self.plays_recording(id, &settings);
         crate::book::Layout {
-            // A recording is laid onto the book's own text, without footnotes read in between.
-            read_notes: settings.read_notes && !self.plays_recording(id, &settings),
-            segments: self.app_settings().pauses.segment_options(),
+            read_notes: settings.read_notes && !recorded,
+            segments: aoide_text::SegmentOptions {
+                split_dialogue: settings.dialogue_voice_id.is_some() && !recorded,
+                ..self.app_settings().pauses.segment_options()
+            },
         }
     }
 
@@ -1046,6 +1051,13 @@ impl super::Core {
         let book = self.load_book(id)?;
         let mode = self.mode_of(id);
         let left_out = self.book_settings(id).left_out;
+        // The sentence the place is in now: its id moves when the book is segmented anew.
+        let progress = self.shelf.progress(&BookId(id.into())).map(|mut view| {
+            if let Some(index) = self.saved_index(&book) {
+                view.segment_id = book.segment(index).map(|s| s.id.clone());
+            }
+            view
+        });
         Ok(super::BookView {
             id: book.id.clone(),
             kind,
@@ -1059,7 +1071,7 @@ impl super::Core {
             excluded: book.excluded.clone(),
             language_warning: self.language_warning(book.language.as_deref()),
             voice_warning: self.voice_warning(&book),
-            progress: self.shelf.progress(&BookId(id.into())),
+            progress,
             word_count: book.word_count(),
             mode,
             shape: reading::shape(true, mode),
@@ -1110,7 +1122,11 @@ impl super::Core {
         settings: super::BookSettings,
     ) -> Result<(), String> {
         self.engine.check_params(&settings.params)?;
+        let split_before = self.book_settings(id).dialogue_voice_id.is_some();
         self.shelf.save_settings(id, &settings)?;
+        if settings.dialogue_voice_id.is_some() != split_before {
+            self.dialogue_changed(id, settings.dialogue_voice_id.is_some());
+        }
         // Whether its recording narrates it may have changed.
         self.emit_recording(id);
         if self.playback.is_book(id) {
@@ -1118,6 +1134,34 @@ impl super::Core {
         }
         self.plan(super::PlanEvent::BookSettingsChanged(id.into()));
         Ok(())
+    }
+
+    /// Book `id` has a second voice for dialogue now, or no longer: it is segmented anew, so
+    /// its sentence ids moved (places keep their character offsets) and its text is indexed
+    /// again.
+    fn dialogue_changed(&self, id: &str, on: bool) {
+        self.indexing.changed(id);
+        let counted = self.load_book(id).map(|book| {
+            let segments = book.chapters.iter().flat_map(|c| &c.segments);
+            let dialogue = segments
+                .clone()
+                .filter(|s| s.role == aoide_text::Role::Dialogue)
+                .count();
+            (segments.count(), dialogue)
+        });
+        match counted {
+            Ok((segments, dialogue)) => tracing::info!(
+                event = "voicing.dialogue",
+                book = crate::logging::book(id),
+                outcome = if on { "on" } else { "off" },
+                segments,
+                dialogue_segments = dialogue,
+                "A second voice for dialogue"
+            ),
+            Err(error) => {
+                tracing::warn!(event = "voicing.dialogue", book = crate::logging::book(id), outcome = "failed", %error, "Could not segment the book anew")
+            }
+        }
     }
 
     pub fn remove_book(&self, id: &str) -> Result<(), String> {

@@ -216,7 +216,7 @@ impl Generation {
                 requests.push(None);
                 continue;
             }
-            let mut request = voicing.request(segment.speech.clone(), 0);
+            let mut request = voicing.request_as(segment.speech.clone(), 0, segment.role);
             // A take belongs to what is said: a new pronunciation is a first take again.
             request.take = takes.take(&segment.id, &request.text);
             keys.push(cache_key(&descriptor, model.as_deref(), &request));
@@ -958,6 +958,7 @@ mod tests {
                     language: None,
                     params: Default::default(),
                     missing_voice: None,
+                    dialogue_voice_id: None,
                     rules: rules.into(),
                 },
                 descriptor: engine.descriptor().clone(),

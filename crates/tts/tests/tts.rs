@@ -15,6 +15,7 @@ fn descriptor() -> EngineDescriptor {
         languages: Some(vec!["en".into(), "pl".into()]),
         word_timings: false,
         max_chars: 300,
+        cheap_voice_switch: true,
         params: vec![
             ParamSpec {
                 key: "temperature".into(),

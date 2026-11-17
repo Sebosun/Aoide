@@ -555,6 +555,7 @@
         "args": {
           "bookId": "book-1",
           "settings": {
+            "dialogueVoiceId": null,
             "language": null,
             "leftOut": [],
             "mode": "read",
@@ -1277,6 +1278,7 @@
         "args": {
           "bookId": "book-0",
           "settings": {
+            "dialogueVoiceId": null,
             "language": null,
             "leftOut": [],
             "mode": "listen",

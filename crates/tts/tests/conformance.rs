@@ -11,6 +11,7 @@ fn descriptor() -> EngineDescriptor {
         languages: None,
         word_timings: true,
         max_chars: 100,
+        cheap_voice_switch: true,
         params: vec![ParamSpec {
             key: "speed".into(),
             label: "Speed".into(),

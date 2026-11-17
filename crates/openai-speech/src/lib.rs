@@ -20,6 +20,8 @@ pub fn descriptor() -> EngineDescriptor {
         languages: None,
         word_timings: false,
         max_chars: 1000,
+        // Servers behind this API may load a model per voice.
+        cheap_voice_switch: false,
         params: vec![ParamSpec {
             key: "speed".into(),
             label: "Speed".into(),

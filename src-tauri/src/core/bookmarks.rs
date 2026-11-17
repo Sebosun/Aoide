@@ -41,12 +41,12 @@ impl Bookmarks {
                 let progress = lock(&self.library)
                     .progress(&id)
                     .map_err(|e| e.to_string())?;
+                // The character offset is authoritative: a stored id may name other words
+                // once the book is segmented anew (a second voice for dialogue).
                 progress
                     .and_then(|p| {
-                        p.segment_id
-                            .as_deref()
-                            .and_then(|s| book.index_of(s))
-                            .or_else(|| book.index_at(p.chapter as usize, p.char_offset as usize))
+                        book.index_at(p.chapter as usize, p.char_offset as usize)
+                            .or_else(|| p.segment_id.as_deref().and_then(|s| book.index_of(s)))
                     })
                     .or_else(|| book.chapter_start(0))
                     .unwrap_or(0)
@@ -119,8 +119,29 @@ impl Bookmarks {
 }
 
 impl Core {
+    /// Book `id`'s bookmarks, each naming the sentence it is in now (by its character offset:
+    /// ids move when the book is segmented anew).
     pub fn bookmarks(&self, id: &str) -> Result<Vec<Bookmark>, String> {
-        self.bookmarks.list(id)
+        let mut marks = self.bookmarks.list(id)?;
+        let text = self.item_kind(id) != Some(aoide_library::ItemKind::Audiobook);
+        if let Some(book) = text.then(|| self.load_book(id).ok()).flatten() {
+            for mark in marks.iter_mut().filter(|m| m.position_ms.is_none()) {
+                if let Some(index) = book.index_at(mark.chapter as usize, mark.char_offset as usize)
+                {
+                    mark.segment_id = book.segment(index).map(|s| s.id.clone());
+                }
+            }
+        }
+        Ok(marks)
+    }
+
+    /// Where book `book`'s saved place is now, by its character offset.
+    pub(super) fn saved_index(&self, book: &crate::book::BookModel) -> Option<usize> {
+        let progress = lock(&self.library)
+            .progress(&BookId(book.id.clone()))
+            .ok()
+            .flatten()?;
+        book.index_at(progress.chapter as usize, progress.char_offset as usize)
     }
 
     /// Bookmarks the playhead when `id` is playing, else the book's saved position.
