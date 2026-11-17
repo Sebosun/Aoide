@@ -44,6 +44,9 @@ it("imports links from another app's export, choosing only the unread ones", asy
   expect(dialog.textContent).toContain("12 links");
   expect(dialog.textContent).toContain("3 already in your library");
   dialog.querySelector<HTMLInputElement>('[aria-label="Only the unread ones (9)"]')!.click();
+  // The count starts within what was found, so no field blocks the form (jsdom does not check).
+  expect(dialog.querySelector<HTMLInputElement>('[aria-label="How many of the most recent"]')!.value).toBe("12");
+  expect(dialog.querySelector("input:invalid")).toBeNull();
   // jsdom does not submit a form from its button: submit it as the button would.
   expect(inBody('[aria-label="Import links"]')?.getAttribute("type")).toBe("submit");
   inBody("form.link-import")!.dispatchEvent(new Event("submit", { cancelable: true }));

@@ -11,7 +11,7 @@ import { useLinkImportStore } from "@/stores/linkImport";
 const imports = useLinkImportStore();
 const view = computed(() => imports.view);
 const which = ref<"all" | "unread" | "recent">("all"),
-  count = ref(100);
+  count = ref(Math.min(100, imports.view.found));
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const notes = computed(() => {
   const v = view.value;
@@ -22,7 +22,9 @@ const notes = computed(() => {
   ].filter(Boolean);
 });
 function choice(): LinkChoice {
-  if (which.value === "recent") return { which: "recent", count: Math.max(1, Math.round(count.value)) };
+  // Clamped here, not by the field's limits: an out-of-range number would block the form.
+  if (which.value === "recent")
+    return { which: "recent", count: Math.min(view.value.found, Math.max(1, Math.round(count.value || 1))) };
   return { which: which.value };
 }
 </script>
@@ -50,8 +52,6 @@ function choice(): LinkChoice {
             v-model.number="count"
             class="link-import__count"
             type="number"
-            min="1"
-            :max="view.found"
             aria-label="How many of the most recent"
             @focus="which = 'recent'"
           />
