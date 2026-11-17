@@ -562,6 +562,7 @@
             "params": {},
             "playbackSpeed": null,
             "readNotes": false,
+            "shortenSilences": null,
             "speakMissing": false,
             "voiceId": null
           }
@@ -1283,6 +1284,7 @@
             "params": {},
             "playbackSpeed": null,
             "readNotes": false,
+            "shortenSilences": null,
             "speakMissing": false,
             "voiceId": null
           }

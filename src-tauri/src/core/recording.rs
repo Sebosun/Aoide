@@ -287,6 +287,8 @@ pub struct RecordingView {
     pub narrates: bool,
     /// What can be done about it now (see [`super::syncing::actions`]).
     pub actions: Vec<super::syncing::RecordingAction>,
+    /// Listening time shortened silences saved so far, as it was played.
+    pub silence_saved_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]

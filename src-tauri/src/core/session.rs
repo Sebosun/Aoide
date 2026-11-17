@@ -9,11 +9,12 @@ use aoide_audio::Pcm;
 use aoide_library::WordTiming;
 use aoide_text::WordEstimate;
 
-use super::feeder::{Fed, Feeder};
+use super::feeder::{Fed, Feeder, Trim};
 use super::narration::Followed;
 use super::recording::{clip_audio, RecordingPlan};
 use super::Target;
 use crate::book::word_index;
+use aoide_audio::trim::TrimOptions;
 
 /// Decoded audio kept ready ahead of the playhead.
 pub const PROVIDE_AHEAD: usize = 12;
@@ -35,6 +36,10 @@ pub struct Session {
     pub last_saved: Instant,
     /// When a recording being synced last took up the sync's progress.
     pub followed: Instant,
+    /// For a recording: its long silences are shortened.
+    trim: Option<TrimOptions>,
+    /// Where playback was sought to in entries to be fed again: nothing before is cut.
+    keep_from: HashMap<usize, u64>,
 }
 
 struct Feed {
@@ -62,7 +67,20 @@ impl Session {
             ticked: None,
             last_saved: Instant::now(),
             followed: Instant::now(),
+            trim: None,
+            keep_from: HashMap::new(),
         }
+    }
+
+    /// A recording's long silences are shortened from now on (by `options`), or not.
+    pub fn set_trim(&mut self, options: Option<TrimOptions>) {
+        self.trim = options;
+    }
+
+    /// Playback was sought `offset_ms` into entry `index`: when it is fed again, nothing before
+    /// that is cut, so the place means the same with and without shortened silences.
+    pub fn sought(&mut self, index: usize, offset_ms: u32) {
+        self.keep_from.insert(index, u64::from(offset_ms));
     }
 
     /// Entries from the playhead on said by the speech engine whose audio is made but not given
@@ -113,6 +131,7 @@ impl Session {
         let before = playhead.checked_sub(KEEP_BEHIND).filter(|b| *b > 0)?;
         self.provided.retain(|i| *i >= before);
         self.timings.retain(|i, _| *i >= before);
+        self.keep_from.retain(|i, _| *i >= before);
         if let Some(feed) = self.feed.as_mut() {
             feed.finished.retain(|i| *i >= before);
         }
@@ -122,6 +141,15 @@ impl Session {
     /// Recording clips given to the player since the last call.
     pub fn take_to_align(&mut self) -> Vec<usize> {
         std::mem::take(&mut self.to_align)
+    }
+
+    /// Entry `index`'s clip was fed (whole when `last`), as [`Session::feed`] records it.
+    #[cfg(test)]
+    pub fn fed_for_test(&mut self, index: usize, last: bool) {
+        self.provided.insert(index);
+        if let (true, Some(feed)) = (last, self.feed.as_mut()) {
+            feed.finished.insert(index);
+        }
     }
 
     #[cfg(test)]
@@ -158,8 +186,13 @@ impl Session {
             self.provided.insert(index);
             self.timings.insert(index, plan.word_times(index));
             self.to_align.push(index);
+            let keep_from_ms = self.keep_from.remove(&index).unwrap_or(0);
+            let trim = self.trim.map(|options| Trim {
+                options,
+                keep_from_ms,
+            });
             if let Some(feed) = self.feed.as_ref() {
-                feed.feeder.push(index, audio);
+                feed.feeder.push(index, audio, trim);
             }
         }
         let Some(feed) = self.feed.as_mut() else {

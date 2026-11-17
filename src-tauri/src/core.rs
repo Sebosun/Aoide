@@ -632,7 +632,45 @@ impl Core {
             .unwrap_or(start);
         self.playback
             .use_own_speed(self.book_settings(book_id).playback_speed);
+        self.playback
+            .shorten_silences(self.silences_for(&self.book_settings(book_id)));
         self.follow_through(self.playback.start(target, start))
+    }
+
+    /// A chapter was played with its silences shortened: the time saved is added to the book's.
+    fn silence_saved(&self, trimmed: playback::Trimmed) {
+        tracing::info!(
+            event = "recording.trimmed",
+            book = crate::logging::book(&trimmed.book),
+            chapter = trimmed.chapter,
+            removed_ms = trimmed.removed_ms,
+            "Shortened silences in a chapter played"
+        );
+        let book = BookId(trimmed.book.clone());
+        let library = lock(&self.library);
+        let saved = library
+            .book_value::<u64>(&book, aoide_library::BookKey::SilenceSaved)
+            .ok()
+            .flatten()
+            .unwrap_or(0);
+        if let Err(error) = library.set_book_value(
+            &book,
+            aoide_library::BookKey::SilenceSaved,
+            &(saved + trimmed.removed_ms),
+        ) {
+            tracing::warn!(event = "recording.trimmed", book = crate::logging::book(&trimmed.book), %error, "Could not keep the time saved");
+        }
+        drop(library);
+        self.emit_recording(&trimmed.book);
+    }
+
+    /// How a book's recording has its long silences shortened, if it does: its own setting,
+    /// else the app's.
+    fn silences_for(&self, settings: &BookSettings) -> Option<aoide_audio::trim::TrimOptions> {
+        settings
+            .shorten_silences
+            .unwrap_or_else(|| self.app_settings().shorten_silences)
+            .then(aoide_audio::trim::TrimOptions::default)
     }
 
     /// What narrates `book`: its synced recording when it has one and it is chosen (with the
@@ -711,6 +749,7 @@ impl Core {
             let paused_since = self.playback.paused_since();
             drop(self.playback.stop());
             self.playback.use_own_speed(settings.playback_speed);
+            self.playback.shorten_silences(self.silences_for(&settings));
             self.follow_through(self.playback.start(target, index))?;
             if !playing {
                 drop(self.playback.pause_since(paused_since));
@@ -805,6 +844,9 @@ impl Core {
                 .advance(&audio, |to_align| self.align(to_align));
             // Advancing never opens or closes the output.
             let _ = self.follow_through(moved);
+            for trimmed in self.playback.take_trimmed() {
+                self.silence_saved(trimmed);
+            }
             self.output.keep_alive(&self.playback);
             let state = self.player_state();
             self.queue_tick(ended, &state);

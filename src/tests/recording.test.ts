@@ -39,6 +39,7 @@ const view = (stage: SyncStage, more: Partial<RecordingView> = {}): RecordingVie
   listenable: stage === "ready",
   narrates: false,
   actions: [],
+  silenceSavedMs: 0,
   ...more,
 });
 

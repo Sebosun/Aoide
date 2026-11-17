@@ -580,7 +580,13 @@ impl Recordings {
         let listenable = live.is_some_and(Live::listenable);
         drop(state);
         let narrates = listenable && Narration::prefers_recording(host.narration(id));
+        let silence_saved_ms = lock(&self.library)
+            .book_value::<u64>(&BookId(id.into()), aoide_library::BookKey::SilenceSaved)
+            .ok()
+            .flatten()
+            .unwrap_or(0);
         Some(RecordingView {
+            silence_saved_ms,
             book_id: id.to_owned(),
             stage,
             error: row.error.clone(),

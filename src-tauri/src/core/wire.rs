@@ -271,6 +271,8 @@ pub struct BookSettings {
     /// when it plays at the usual speed. Not Chatterbox's `speed_factor` in `params`, which is
     /// how fast the engine speaks.
     pub playback_speed: Option<f32>,
+    /// Shorten the long silences of its recording (over the app setting); `None` follows it.
+    pub shorten_silences: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize)]

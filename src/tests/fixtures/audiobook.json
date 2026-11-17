@@ -24,6 +24,7 @@
     "narrates": true,
     "position": null,
     "remainingMs": null,
+    "silenceSavedMs": 0,
     "stage": "standalone",
     "summary": null,
     "totalMs": 1545,

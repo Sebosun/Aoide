@@ -301,6 +301,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       mode: null,
       leftOut: [],
       playbackSpeed: null,
+      shortenSilences: null,
     };
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
@@ -364,6 +365,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     close: "ask",
     backup: { folder: null, everyDays: 7, keep: 5, books: false },
     searchText: true,
+    shortenSilences: false,
   };
   /** The inbox as the core shows it: watched once chosen; `?inbox=unavailable` chooses one that is gone. */
   if (new URLSearchParams(search).get("inbox") === "unavailable") appSettings.inbox = "/media/reader/Stick/Books";
@@ -2986,11 +2988,12 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     id: string,
     stage: SyncStage,
     narration: "speech" | "recording" | null = stage === "ready" ? "recording" : null,
+    more: Partial<RecordingView> = {},
   ) => {
     settings.set(id, { ...settingsOf(id), narration });
     // As the core would report it: a ready recording chosen as the narration is what plays.
     if (narration !== "speech" && stage === "ready") getBook(id).audio = "recording";
-    emitSync(recordingIn(id, stage));
+    emitSync({ ...recordingIn(id, stage), ...more });
     changed();
   };
   /** Home as the core would make it for another library (an empty one, say). */

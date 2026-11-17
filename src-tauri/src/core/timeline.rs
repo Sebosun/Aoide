@@ -3,17 +3,18 @@
 //! at most [`CHUNK_MS`] (never across a part's boundary), which the feeder decodes a few seconds
 //! at a time; only the stretches near the playhead are held in memory.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::Arc;
 use std::time::Instant;
 
+use aoide_audio::trim::TrimOptions;
 use aoide_audio::Entry;
 use aoide_recording::AudioFile;
 
 use aoide_library::BookId;
 
-use super::feeder::{Fed, Feeder};
+use super::feeder::{Fed, Feeder, Trim};
 use super::playback::Place;
 use super::resuming::{self, Away};
 use super::{lock, Core};
@@ -165,9 +166,30 @@ pub struct TimelineSession {
     /// The playhead at the last tick; `None` before the first.
     pub ticked: Option<usize>,
     pub last_saved: Instant,
+    /// Long silences are shortened (see `Session::set_trim`).
+    trim: Option<TrimOptions>,
+    /// Where playback was sought to in stretches to be fed again: nothing before is cut.
+    keep_from: HashMap<usize, u64>,
 }
 
 impl TimelineSession {
+    /// Long silences are shortened from now on (by `options`), or not.
+    pub fn set_trim(&mut self, options: Option<TrimOptions>) {
+        self.trim = options;
+    }
+
+    /// Playback was sought `offset_ms` into stretch `index` (see `Session::sought`).
+    pub fn sought(&mut self, index: usize, offset_ms: u32) {
+        self.keep_from.insert(index, u64::from(offset_ms));
+    }
+
+    /// The part stretch `index` starts in.
+    pub fn part_of(&self, index: usize) -> usize {
+        self.timeline
+            .chunks
+            .get(index)
+            .map_or(0, |chunk| self.timeline.part_at(chunk.start))
+    }
     /// Decodes `timeline`'s files at `rate` on a feeder thread.
     pub fn new(timeline: Arc<Timeline>, rate: u32) -> Self {
         Self {
@@ -178,6 +200,8 @@ impl TimelineSession {
             finished: HashSet::new(),
             ticked: None,
             last_saved: Instant::now(),
+            trim: None,
+            keep_from: HashMap::new(),
         }
     }
 
@@ -187,7 +211,13 @@ impl TimelineSession {
         let ahead = (playhead + AHEAD).min(self.timeline.chunks.len());
         for index in playhead..ahead {
             if self.provided.insert(index) {
-                self.feeder.push(index, self.timeline.chunks[index].clone());
+                let keep_from_ms = self.keep_from.remove(&index).unwrap_or(0);
+                let trim = self.trim.map(|options| Trim {
+                    options,
+                    keep_from_ms,
+                });
+                self.feeder
+                    .push(index, self.timeline.chunks[index].clone(), trim);
             }
         }
         let mut pieces = self.feeder.take();
@@ -220,6 +250,7 @@ impl TimelineSession {
         let before = playhead.checked_sub(BEHIND).filter(|b| *b > 0)?;
         self.provided.retain(|i| *i >= before);
         self.finished.retain(|i| *i >= before);
+        self.keep_from.retain(|i, _| *i >= before);
         Some(before)
     }
 }
@@ -304,6 +335,8 @@ impl Core {
         };
         self.playback
             .use_own_speed(self.book_settings(id).playback_speed);
+        self.playback
+            .shorten_silences(self.silences_for(&self.book_settings(id)));
         self.follow_through(self.playback.start_timeline(Arc::new(timeline), at))
     }
 
@@ -574,6 +607,47 @@ mod tests {
             (state.position_ms, state.duration_ms, state.part_position_ms),
             (Some(4_000), Some(20_000), Some(4_000))
         );
+    }
+
+    #[test]
+    fn an_audiobook_alone_with_silences_shortened_keeps_its_times() {
+        use super::super::feeder::tests::{wav, RATE as WAV_RATE};
+        let dir = tempfile::tempdir().unwrap();
+        let second = WAV_RATE as usize;
+        let tone = |n: usize| (0..n).map(|i| ((i as f32) * 0.3).sin() * 0.5);
+        // 1 s spoken, 3 s of silence, 2 s spoken.
+        let samples: Vec<f32> = tone(second)
+            .chain(std::iter::repeat_n(0.0, 3 * second))
+            .chain(tone(2 * second))
+            .collect();
+        let file = wav(&dir.path().join("01.wav"), &samples);
+        let timeline = Arc::new(Timeline::new(
+            "a".into(),
+            "Item".into(),
+            vec![],
+            vec![file],
+            6_000,
+            vec![],
+        ));
+        let playback = Playback::new(PlayerCore::new(RATE));
+        playback.shorten_silences(Some(aoide_audio::trim::TrimOptions::default()));
+        let _ = playback.start_timeline(timeline, 0);
+        for n in 0..4 {
+            feed(&playback);
+            let mut out = vec![0.0; (500 * RATE / 1_000) as usize];
+            lock(playback.player()).render(&mut out);
+            if n == 0 {
+                // 0.5 s in: 5.5 s of the recording left, less the 2.5 s of silence to be cut.
+                assert_eq!(playback.state().book_left_ms, Some(3_000));
+            }
+        }
+        // 2 s played: the silence kept 0.5 s of its 3, so the recording is at 4.5 s.
+        assert_eq!(playback.time_of("a"), Some(4_500));
+        let _ = playback.seek_time("a", 5_000).unwrap();
+        assert_eq!(playback.time_of("a"), Some(5_000));
+        assert_eq!(lock(playback.player()).position().offset_ms, 2_500);
+        let _ = playback.stop();
+        assert_eq!(playback.take_trimmed().len(), 1, "what the one part saved");
     }
 
     #[test]

@@ -150,6 +150,7 @@ mod tests {
             mode: None,
             left_out: vec![],
             playback_speed: None,
+            shorten_silences: None,
         };
         let voicing = Voicing::resolve(
             &descriptor(None),

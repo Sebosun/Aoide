@@ -29,5 +29,6 @@
     "export",
     "resync",
     "remove"
-  ]
+  ],
+  "silenceSavedMs": 0
 }

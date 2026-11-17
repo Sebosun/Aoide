@@ -525,7 +525,11 @@ leftOut: Array<number>,
  * when it plays at the usual speed. Not Chatterbox's `speed_factor` in `params`, which is
  * how fast the engine speaks.
  */
-playbackSpeed: number | null, };
+playbackSpeed: number | null, 
+/**
+ * Shorten the long silences of its recording (over the app setting); `None` follows it.
+ */
+shortenSilences: boolean | null, };
 
 export type Bookmark = { id: number, bookId: BookId, chapter: number, charOffset: number, segmentId: string | null, 
 /**
@@ -762,9 +766,13 @@ backup: BackupSettings,
 /**
  * Keep the library's text in an index, so the library's search finds passages in it.
  */
-searchText: boolean, };
+searchText: boolean, 
+/**
+ * Shorten the long silences of recordings (a book can say otherwise).
+ */
+shortenSilences: boolean, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, backup?: BackupSettings, searchText?: boolean, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, backup?: BackupSettings, searchText?: boolean, shortenSilences?: boolean, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -1329,7 +1337,11 @@ narrates: boolean,
 /**
  * What can be done about it now (see [`super::syncing::actions`]).
  */
-actions: Array<RecordingAction>, };
+actions: Array<RecordingAction>, 
+/**
+ * Listening time shortened silences saved so far, as it was played.
+ */
+silenceSavedMs: number, };
 
 export type ChapterMatchView = { index: number, title: string, words: number, matchedWords: number, timedWords: number, startMs: number | null, endMs: number | null, };
 

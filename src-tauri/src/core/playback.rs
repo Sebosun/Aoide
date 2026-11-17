@@ -3,11 +3,12 @@
 //! while audio is read or decoded. Made speech comes through [`SpeechAudio`]: from the library
 //! in the app, from memory in tests.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use aoide_audio::trim::{to_original, to_trimmed, Cut, TrimOptions};
 use aoide_audio::{codec, Pcm, PlayerCore, Position, Status};
 use aoide_library::{BookId, BookKey, Library, Progress, WordTiming};
 use aoide_text::WordEstimate;
@@ -15,6 +16,7 @@ use aoide_tts::SynthesisRequest;
 
 use super::align::Alignable;
 use super::controls::SleepEvent;
+use super::feeder::Fed;
 use super::narration::{Fate, NarrationPlan};
 use super::recording::{Narration, RecordingPlan};
 use super::resuming::{self, Away};
@@ -237,6 +239,83 @@ pub struct Playback {
     paused_at: Mutex<Option<Instant>>,
     /// The player was at the end of what it plays at the last tick.
     at_end: Mutex<bool>,
+    /// Shorten a recording's long silences (`None`: not), for the next session started.
+    trim: Mutex<Option<TrimOptions>>,
+    /// The silences shortened in the audio the player has, and the time they saved as it is
+    /// played. A leaf lock.
+    cuts: Mutex<Cuts>,
+}
+
+/// The silences shortened in each entry's audio the player has, in order. The player plays the
+/// shortened audio; every time outside it is the recording's own, so word timings, places and
+/// the sync map mean the same with the setting on or off.
+#[derive(Default)]
+struct Cuts {
+    by_entry: HashMap<usize, Vec<Cut>>,
+    /// How many of an entry's cuts were played past (and counted as saved).
+    counted: HashMap<usize, usize>,
+    /// The book and chapter being counted, and what was saved in it so far.
+    book: Option<String>,
+    chapter: Option<usize>,
+    chapter_ms: u64,
+    /// A seek since the last tick: the entry left was not played to its end.
+    sought: bool,
+    /// Chapters left, with what shortening saved in them, for the caller to keep.
+    done: Vec<Trimmed>,
+}
+
+/// What shortened silences saved in a chapter of a book, as it was played.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Trimmed {
+    pub book: String,
+    pub chapter: usize,
+    pub removed_ms: u64,
+}
+
+impl Cuts {
+    /// Entry `index`'s cuts not counted yet, up to where it was played (`None`: all of them).
+    fn count(&mut self, index: usize, played_to: Option<u32>) {
+        let Some(cuts) = self.by_entry.get(&index) else {
+            return;
+        };
+        let counted = self.counted.entry(index).or_default();
+        for cut in &cuts[*counted..] {
+            if played_to.is_some_and(|ms| cut.at_ms > u64::from(ms)) {
+                break;
+            }
+            self.chapter_ms += cut.removed_ms;
+            *counted += 1;
+        }
+    }
+
+    /// The chapter counted ends: what it saved is kept.
+    fn close_chapter(&mut self) {
+        if let (Some(book), Some(chapter)) = (self.book.clone(), self.chapter) {
+            if self.chapter_ms > 0 {
+                self.done.push(Trimmed {
+                    book,
+                    chapter,
+                    removed_ms: self.chapter_ms,
+                });
+            }
+        }
+        self.chapter_ms = 0;
+    }
+
+    fn forget(&mut self, keep: impl Fn(usize) -> bool) {
+        self.by_entry.retain(|index, _| keep(*index));
+        self.counted.retain(|index, _| keep(*index));
+    }
+
+    /// Nothing plays: the chapter counted ends.
+    fn clear(&mut self) {
+        self.close_chapter();
+        let done = std::mem::take(&mut self.done);
+        *self = Self {
+            done,
+            ..Self::default()
+        };
+    }
 }
 
 impl Playback {
@@ -252,7 +331,50 @@ impl Playback {
             changes: tokio::sync::Notify::new(),
             paused_at: Mutex::new(None),
             at_end: Mutex::new(false),
+            trim: Mutex::new(None),
+            cuts: Mutex::default(),
         }
+    }
+
+    /// Recordings started from now on have their long silences shortened (by `options`), or not.
+    pub fn shorten_silences(&self, options: Option<TrimOptions>) {
+        *lock(&self.trim) = options;
+    }
+
+    /// Offset `ms` into entry `index` as played, in the recording's own time.
+    fn original(&self, index: usize, ms: u32) -> u32 {
+        match lock(&self.cuts).by_entry.get(&index) {
+            Some(cuts) => to_original(cuts, u64::from(ms)) as u32,
+            None => ms,
+        }
+    }
+
+    /// Offset `ms` into entry `index` in the recording's own time, as played.
+    fn trimmed(&self, index: usize, ms: u32) -> u32 {
+        match lock(&self.cuts).by_entry.get(&index) {
+            Some(cuts) => to_trimmed(cuts, u64::from(ms)) as u32,
+            None => ms,
+        }
+    }
+
+    /// What shortening took out of entry `index` from `offset_ms` (its own time) on.
+    fn removed_after(&self, index: usize, offset_ms: u32) -> u64 {
+        lock(&self.cuts).by_entry.get(&index).map_or(0, |cuts| {
+            cuts.iter()
+                .filter(|c| c.at_ms >= u64::from(offset_ms))
+                .map(|c| c.removed_ms)
+                .sum()
+        })
+    }
+
+    /// What shortening took out of entries `range`.
+    fn removed_in(&self, range: Range<usize>) -> u64 {
+        lock(&self.cuts)
+            .by_entry
+            .iter()
+            .filter(|(index, _)| range.contains(index))
+            .flat_map(|(_, cuts)| cuts.iter().map(|c| c.removed_ms))
+            .sum()
     }
 
     /// Resolves at the next change to what plays or how (at once, when one came since the last
@@ -348,8 +470,11 @@ impl Playback {
 
     // ------------------------------------------------------------ transport
 
+    /// The playhead, in the recording's own time (see `cuts`).
     pub fn position(&self) -> Position {
-        lock(&self.player).position()
+        let mut position = lock(&self.player).position();
+        position.offset_ms = self.original(position.index, position.offset_ms);
+        position
     }
 
     pub fn is_playing(&self) -> bool {
@@ -549,7 +674,12 @@ impl Playback {
             .map_or(0, |plan| plan.start_offset(start));
         let rate = self.load(entries, start, offset);
         *lock(&self.paused_at) = None;
-        *lock(&self.playing) = Some(Playing::Entries(Session::new(target, rate)));
+        let mut session = Session::new(target, rate);
+        if session.recording().is_some() {
+            session.set_trim(*lock(&self.trim));
+            session.sought(start, offset);
+        }
+        *lock(&self.playing) = Some(Playing::Entries(session));
         *lock(&self.error) = None;
         self.stir();
         Self::started()
@@ -569,7 +699,10 @@ impl Playback {
         let (start, offset) = timeline.locate(at_ms);
         let rate = self.load(timeline.entries(), start, offset);
         *lock(&self.paused_at) = None;
-        *lock(&self.playing) = Some(Playing::Timeline(TimelineSession::new(timeline, rate)));
+        let mut session = TimelineSession::new(timeline, rate);
+        session.set_trim(*lock(&self.trim));
+        session.sought(start, offset);
+        *lock(&self.playing) = Some(Playing::Timeline(session));
         *lock(&self.error) = None;
         self.stir();
         Self::started()
@@ -578,6 +711,7 @@ impl Playback {
     /// Gives the player `entries` and plays from `offset` ms into entry `start`; returns the
     /// rate it plays at.
     fn load(&self, entries: Vec<aoide_audio::Entry>, start: usize, offset: u32) -> u32 {
+        lock(&self.cuts).clear();
         let mut player = lock(&self.player);
         player.load(entries, start);
         player.seek_to(start, offset);
@@ -589,6 +723,7 @@ impl Playback {
     pub fn stop(&self) -> Moved {
         let place = self.place_to_save(true);
         lock(&self.player).load(Vec::new(), 0);
+        lock(&self.cuts).clear();
         // With nothing playing, the usual speed applies.
         self.use_own_speed(None);
         *lock(&self.paused_at) = None;
@@ -627,13 +762,23 @@ impl Playback {
                         .recording()
                         .map_or(0, |plan| plan.start_offset(index))
                 });
+                session.sought(index, offset);
                 (offset, session.restart_feed(), Some(Listening::Jumped))
             }
             Some(Playing::Timeline(session)) => {
-                (offset_ms.unwrap_or(0), session.restart_feed(), None)
+                let offset = offset_ms.unwrap_or(0);
+                session.sought(index, offset);
+                (offset, session.restart_feed(), None)
             }
             None => (0, Vec::new(), None),
         };
+        {
+            // Audio let go of is fed again, cut afresh from the place sought.
+            let mut cuts = lock(&self.cuts);
+            cuts.forget(|index| !released.contains(&index));
+            cuts.sought = true;
+        }
+        let offset = self.trimmed(index, offset);
         {
             let mut player = lock(&self.player);
             for entry in released {
@@ -700,6 +845,16 @@ impl Playback {
                     if let Some(before) = before {
                         log_skipped_left_out(&session.target, before, playhead);
                     }
+                    if session.recording().is_some() {
+                        let book = &session.target.book;
+                        let chapter_of = |index| book.locate(index).map_or(0, |(c, _)| c);
+                        self.count_trimmed(
+                            &book.id,
+                            before.map(|b| (b, chapter_of(b))),
+                            (playhead, chapter_of(playhead)),
+                            position.offset_ms,
+                        );
+                    }
                     let pieces = session.feed(playhead);
                     let book = session.target.book.id.clone();
                     let clips: Vec<Alignable> = match session.recording().cloned() {
@@ -717,27 +872,19 @@ impl Playback {
                     (moved, pieces, session.wanted_speech(playhead), clips)
                 }
                 Playing::Timeline(session) => {
-                    let moved = session.ticked.replace(playhead) != Some(playhead);
+                    let before = session.ticked.replace(playhead);
+                    let moved = before != Some(playhead);
+                    self.count_trimmed(
+                        &session.timeline.id,
+                        before.map(|b| (b, session.part_of(b))),
+                        (playhead, session.part_of(playhead)),
+                        position.offset_ms,
+                    );
                     (moved, session.feed(playhead), Vec::new(), Vec::new())
                 }
             }
         };
-        if !pieces.is_empty() {
-            let mut player = lock(&self.player);
-            let rate = player.output_rate();
-            for piece in pieces {
-                player.append(
-                    piece.index,
-                    &Pcm {
-                        sample_rate: rate,
-                        samples: piece.samples,
-                    },
-                );
-                if piece.last {
-                    player.finish(piece.index);
-                }
-            }
-        }
+        self.deliver(pieces);
         for (index, key) in wanted {
             let MadeSpeech { pcm, timings } = match audio.read(&key) {
                 Ok(Some(read)) => read,
@@ -763,12 +910,83 @@ impl Playback {
         };
         if let Some(before) = release {
             lock(&self.player).release_before(before);
+            lock(&self.cuts).forget(|index| index >= before);
         }
         Some(Tick {
             moved,
             to_align,
             ended,
         })
+    }
+
+    /// Gives the player decoded pieces of clips, and keeps their cuts.
+    fn deliver(&self, pieces: Vec<Fed>) {
+        if pieces.is_empty() {
+            return;
+        }
+        let mut player = lock(&self.player);
+        let rate = player.output_rate();
+        for piece in pieces {
+            player.append(
+                piece.index,
+                &Pcm {
+                    sample_rate: rate,
+                    samples: piece.samples,
+                },
+            );
+            if piece.last {
+                player.finish(piece.index);
+            }
+            if !piece.cuts.is_empty() {
+                lock(&self.cuts)
+                    .by_entry
+                    .entry(piece.index)
+                    .or_default()
+                    .extend(piece.cuts);
+            }
+        }
+    }
+
+    /// What shortened silences saved in the chapters left since the last call.
+    pub fn take_trimmed(&self) -> Vec<Trimmed> {
+        std::mem::take(&mut lock(&self.cuts).done)
+    }
+
+    /// Counts the silences the playhead went past: in the entry it left (unless it was sought
+    /// away from) and in the one it is in, up to where it is. A chapter left is kept.
+    fn count_trimmed(
+        &self,
+        book: &str,
+        before: Option<(usize, usize)>,
+        now: (usize, usize),
+        offset: u32,
+    ) {
+        let mut cuts = lock(&self.cuts);
+        if cuts.book.as_deref() != Some(book) {
+            cuts.close_chapter();
+            cuts.book = Some(book.into());
+            cuts.chapter = None;
+        }
+        let sought = std::mem::take(&mut cuts.sought);
+        if let Some((index, _)) = before.filter(|(index, _)| *index != now.0) {
+            if !sought {
+                cuts.count(index, None);
+            }
+        }
+        if cuts.chapter != Some(now.1) {
+            cuts.close_chapter();
+            cuts.chapter = Some(now.1);
+        }
+        cuts.count(now.0, Some(offset));
+    }
+
+    /// Pieces of clips as the feeder would give them.
+    #[cfg(test)]
+    pub fn deliver_for_test(&self, pieces: Vec<Fed>) {
+        for piece in &pieces {
+            self.session(|s| s.fed_for_test(piece.index, piece.last));
+        }
+        self.deliver(pieces);
     }
 
     #[cfg(test)]
@@ -907,10 +1125,14 @@ impl Playback {
 
     /// The player's state (without the sleep timer, which is not playback's).
     pub fn state(&self) -> PlayerStateView {
-        let (position, speed, volume) = {
+        let (mut position, speed, volume) = {
             let player = lock(&self.player);
             (player.position(), player.speed(), player.volume())
         };
+        // What is heard lags what is rendered; both are mapped to the recording's time.
+        let latency = (*lock(&self.latency_ms) as f32 * speed) as u32;
+        let heard_at = self.original(position.index, position.offset_ms.saturating_sub(latency));
+        position.offset_ms = self.original(position.index, position.offset_ms);
         let speed_scope = if lock(&self.speeds).own.is_some() {
             SpeedScope::Book
         } else {
@@ -942,8 +1164,22 @@ impl Playback {
         let playing = lock(&self.playing);
         match playing.as_ref() {
             None => stopped,
-            Some(Playing::Timeline(session)) => timeline_state(session, &position, stopped),
-            Some(Playing::Entries(session)) => self.entries_state(session, &position, stopped),
+            Some(Playing::Timeline(session)) => {
+                // Less what shortened silences took out, as far as it is known.
+                let timeline = &session.timeline;
+                let at = timeline.time_at(position.index, position.offset_ms);
+                let part_end = timeline.parts[timeline.part_at(at)].end_ms;
+                let (end, _) = timeline.locate(part_end);
+                let here = self.removed_after(position.index, position.offset_ms);
+                let removed = (
+                    here + self.removed_in(position.index + 1..end),
+                    here + self.removed_in(position.index + 1..usize::MAX),
+                );
+                timeline_state(session, &position, removed, stopped)
+            }
+            Some(Playing::Entries(session)) => {
+                self.entries_state(session, &position, heard_at, stopped)
+            }
         }
     }
 
@@ -952,6 +1188,7 @@ impl Playback {
         &self,
         session: &Session,
         position: &Position,
+        heard_at: u32,
         base: PlayerStateView,
     ) -> PlayerStateView {
         let speed = base.speed;
@@ -959,8 +1196,6 @@ impl Playback {
         let narration = &session.target.narration;
         let index = position.index.min(book.total_entries().saturating_sub(1));
         let (chapter, _) = book.locate(index).unwrap_or((0, 0));
-        let latency = (*lock(&self.latency_ms) as f32 * speed) as u32;
-        let heard_at = position.offset_ms.saturating_sub(latency);
         let recording = session.recording();
         let off_text = recording.is_some_and(|plan| plan.off_text(index, heard_at));
         let word = (position.status == Status::Playing && !off_text)
@@ -969,9 +1204,14 @@ impl Playback {
         let chapter_entries = book.chapters.get(chapter).map_or(index..index, |c| {
             c.first_entry..c.first_entry + c.segments.len()
         });
+        // Less what shortened silences took out, as far as it is known.
+        let removed_here = self.removed_after(index, position.offset_ms);
         let left = |end: usize| {
             let audio = narration.playing_ms(index..end)?;
-            let left = audio.saturating_sub(u64::from(position.offset_ms));
+            let removed = removed_here + self.removed_in(index + 1..end);
+            let left = audio
+                .saturating_sub(u64::from(position.offset_ms))
+                .saturating_sub(removed);
             Some(seconds(at_speed(left, speed)))
         };
         let chapter_left_ms = left(chapter_entries.end);
@@ -1030,6 +1270,7 @@ pub(super) fn step_back_in(
 fn timeline_state(
     session: &TimelineSession,
     position: &Position,
+    (chapter_removed, book_removed): (u64, u64),
     base: PlayerStateView,
 ) -> PlayerStateView {
     let timeline = &session.timeline;
@@ -1049,11 +1290,16 @@ fn timeline_state(
         },
         source: Narration::Recording,
         chapter_left_ms: Some(seconds(at_speed(
-            part.end_ms.saturating_sub(at),
+            part.end_ms
+                .saturating_sub(at)
+                .saturating_sub(chapter_removed),
             base.speed,
         ))),
         book_left_ms: Some(seconds(at_speed(
-            timeline.total_ms.saturating_sub(at),
+            timeline
+                .total_ms
+                .saturating_sub(at)
+                .saturating_sub(book_removed),
             base.speed,
         ))),
         chapter_ms: Some(length),
@@ -1616,6 +1862,58 @@ mod tests {
             ),
             book,
         }
+    }
+
+    #[test]
+    fn with_silences_shortened_the_playhead_and_seeks_are_in_the_recordings_own_time() {
+        use aoide_audio::trim::Cut;
+        let playback = Playback::new(PlayerCore::new(RATE));
+        let _ = playback.start(recorded(4), 0);
+        // Entry 0's clip (1 s) as played: 400 ms taken out 300 ms in.
+        playback.deliver_for_test(vec![Fed {
+            generation: 0,
+            index: 0,
+            samples: vec![0.1; 600 * RATE as usize / 1_000],
+            last: true,
+            cuts: vec![Cut {
+                at_ms: 300,
+                removed_ms: 400,
+            }],
+        }]);
+        listen(&playback, 200);
+        assert_eq!(
+            playback.position().offset_ms,
+            200,
+            "before the cut, the same"
+        );
+        listen(&playback, 300);
+        assert_eq!(
+            (playback.position().index, playback.position().offset_ms),
+            (0, 900),
+            "500 ms played is 900 ms into the recording"
+        );
+        // Played past the cut: what it saved is counted, and kept once playing stops.
+        playback.tick(&memory(&[])).unwrap();
+        assert!(playback.take_trimmed().is_empty(), "the chapter goes on");
+        // A place in the recording is sought where it is played.
+        let _ = playback.seek(0, Some(800));
+        assert_eq!(playback.position().offset_ms, 800);
+        assert_eq!(lock(playback.player()).position().offset_ms, 400);
+        // A place inside what was taken out plays from just after it.
+        let _ = playback.seek(0, Some(500));
+        assert_eq!(playback.position().offset_ms, 700);
+        // Nothing playing: nothing kept.
+        let _ = playback.stop();
+        assert!(lock(&playback.cuts).by_entry.is_empty());
+        assert_eq!(
+            playback.take_trimmed(),
+            [Trimmed {
+                book: "b".into(),
+                chapter: 0,
+                removed_ms: 400
+            }],
+            "counted once, though played past twice"
+        );
     }
 
     #[test]

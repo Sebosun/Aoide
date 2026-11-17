@@ -58,6 +58,9 @@ pub enum BookKey {
     PendingPlace,
     /// The details the user corrected by hand (title, authors, cover…). Outlives the book.
     Details,
+    /// How much listening time shortened silences saved in its recording (milliseconds).
+    /// Removed with the book.
+    SilenceSaved,
 }
 
 /// Stands for the book's id in a value's name, to find every book's.
@@ -79,6 +82,7 @@ impl BookKey {
             BookKey::Prepared => Place::Book("prepared"),
             BookKey::PendingPlace => Place::Book(PENDING_PLACE),
             BookKey::Details => Place::Settings(format!("book.{}.details", id.0)),
+            BookKey::SilenceSaved => Place::Book("silence-saved"),
         }
     }
 }
