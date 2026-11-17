@@ -111,6 +111,8 @@ pub struct FeedView {
     /// Why the last check failed, while it fails.
     pub error: Option<String>,
     pub last_ok_at: Option<i64>,
+    /// The collection its entries go on when saved to the library.
+    pub collection_id: Option<i64>,
 }
 
 /// A feed a page names.
@@ -342,6 +344,7 @@ impl Feeds {
             stage,
             error: feed.error.clone(),
             last_ok_at: feed.last_ok_at,
+            collection_id: feed.collection_id,
         }
     }
 
@@ -367,6 +370,20 @@ impl Feeds {
         library
             .set_shelf(&book, to.name())
             .map_err(|e| e.to_string())?;
+        // Saved: onto the collection its feed's entries go on, if one was chosen.
+        if to == ItemShelf::Library {
+            let collection = library
+                .entry_for_book(&book)
+                .ok()
+                .flatten()
+                .and_then(|entry| library.feed(entry.feed_id).ok().flatten())
+                .and_then(|feed| feed.collection_id);
+            if let Some(collection) = collection {
+                library
+                    .add_to_collection(&book, collection)
+                    .map_err(|e| e.to_string())?;
+            }
+        }
         drop(library);
         tracing::info!(
             event = "item.shelf",
@@ -460,6 +477,13 @@ impl Feeds {
                 .map_err(|e| e.to_string())?;
         }
         Ok(())
+    }
+
+    /// Sets (or with `None`, clears) the collection feed `id`'s entries go on when saved.
+    pub fn set_collection(&self, id: i64, collection: Option<i64>) -> Result<(), String> {
+        lock(&self.library)
+            .set_feed_collection(id, collection)
+            .map_err(|e| e.to_string())
     }
 
     pub fn mark_all_read(&self, feed: Option<i64>, now: i64) -> Result<(), String> {
@@ -1000,6 +1024,13 @@ impl super::Core {
 
     pub fn unsubscribe(&self, id: i64) -> Result<(), String> {
         self.feeds.unsubscribe(self, id)
+    }
+
+    /// Chooses the collection feed `id`'s entries go on when they are saved (`None`: none).
+    pub fn set_feed_collection(&self, id: i64, collection: Option<i64>) -> Result<(), String> {
+        self.feeds.set_collection(id, collection)?;
+        self.emit(super::CoreEvent::FeedsChanged);
+        Ok(())
     }
 
     /// Opens a feed's site (its own address when it names none) in the system's browser.

@@ -10,11 +10,13 @@ import type { MenuEntry } from "@/components/ui/types";
 import { api } from "@/api";
 import { age, dayName, localDay } from "@/days";
 import { useFeedsStore, type FeedsSource } from "@/stores/feeds";
+import { useLibraryStore } from "@/stores/library";
 import { useNavigationStore } from "@/stores/navigation";
 import { useUiStore } from "@/stores/ui";
 
 /** Subscriptions on the left, their entries by day on the right. */
 const feeds = useFeedsStore(),
+  library = useLibraryStore(),
   navigation = useNavigationStore(),
   ui = useUiStore();
 onMounted(() => void feeds.start());
@@ -56,6 +58,16 @@ const actions = (feed: FeedView): MenuEntry[] => [
     action: () => void api.openFeedSite({ feedId: feed.id }).catch((e) => ui.toast(String(e), "error")),
   },
   { id: "copy", label: "Copy feed address", icon: Copy, action: () => void copyAddress(feed) },
+  { kind: "separator" },
+  // The collection its entries go on when saved to the library.
+  { kind: "heading", label: "Save entries into" },
+  ...[{ id: null, name: "No collection" }, ...library.collections].map((c) => ({
+    id: `collection:${c.id ?? "none"}`,
+    label: c.name,
+    ariaLabel: c.name,
+    checked: feed.collectionId === c.id,
+    action: () => void feeds.setCollection(feed.id, c.id),
+  })),
   { kind: "separator" },
   {
     id: "unsubscribe",

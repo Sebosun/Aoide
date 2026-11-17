@@ -303,6 +303,16 @@ const MIGRATIONS: &[Step] = &[
     // Version 20.
     // The archive: when an item was archived. It stays in the library, out of the default views.
     Step::Run(|tx| add_column_if_missing(tx, "books", "archived_at", "INTEGER")),
+    // Version 21.
+    // The collection a feed's entries go on when they are saved to the library.
+    Step::Run(|tx| {
+        add_column_if_missing(
+            tx,
+            "feeds",
+            "collection_id",
+            "INTEGER REFERENCES collections(id) ON DELETE SET NULL",
+        )
+    }),
 ];
 
 fn add_column_if_missing(

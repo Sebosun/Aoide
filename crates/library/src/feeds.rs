@@ -3,7 +3,7 @@
 
 use rusqlite::{OptionalExtension, Row};
 
-use crate::{BookId, Library, Result};
+use crate::{BookId, Library, LibraryError, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FeedRow {
@@ -21,6 +21,8 @@ pub struct FeedRow {
     pub failures: u32,
     /// The first failure of those.
     pub failing_since: Option<i64>,
+    /// The collection its entries go on when saved to the library.
+    pub collection_id: Option<i64>,
 }
 
 /// An entry as a feed gave it.
@@ -81,6 +83,7 @@ fn read_feed(row: &Row<'_>) -> rusqlite::Result<FeedRow> {
         error: row.get("error")?,
         failures: row.get("failures")?,
         failing_since: row.get("failing_since")?,
+        collection_id: row.get("collection_id")?,
     })
 }
 
@@ -151,6 +154,24 @@ impl Library {
                 feed.failing_since,
             ],
         )?;
+        Ok(())
+    }
+
+    /// Sets (or with `None`, clears) the collection feed `id`'s entries go on when saved.
+    pub fn set_feed_collection(&self, id: i64, collection: Option<i64>) -> Result<()> {
+        self.conn
+            .execute(
+                "UPDATE feeds SET collection_id = ?2 WHERE id = ?1",
+                rusqlite::params![id, collection],
+            )
+            .map_err(|e| match e {
+                rusqlite::Error::SqliteFailure(f, _)
+                    if f.code == rusqlite::ErrorCode::ConstraintViolation =>
+                {
+                    LibraryError::Invalid("no such collection".into())
+                }
+                other => other.into(),
+            })?;
         Ok(())
     }
 

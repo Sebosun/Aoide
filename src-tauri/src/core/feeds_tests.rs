@@ -651,6 +651,39 @@ mod through_core {
     }
 
     #[tokio::test]
+    async fn entries_saved_from_a_feed_go_on_the_collection_chosen_for_it() {
+        let pages = Pages::with(&[]);
+        let (_dir, core) = subscribed(&pages).await;
+        let feed = core.feeds().unwrap()[0].id;
+        assert_eq!(core.feeds().unwrap()[0].collection_id, None);
+        let harbour = core.create_collection("Harbour").unwrap();
+        core.set_feed_collection(feed, Some(harbour)).unwrap();
+        assert_eq!(core.feeds().unwrap()[0].collection_id, Some(harbour));
+        assert!(core.set_feed_collection(feed, Some(harbour + 9)).is_err());
+
+        let collections = |core: &Core, id: &str| {
+            let books = core.list_books().unwrap();
+            books
+                .iter()
+                .find(|b| b.id == id)
+                .unwrap()
+                .collections
+                .clone()
+        };
+        let id = core
+            .save_feed_entry(entry(&core, "The night ferry").id)
+            .unwrap();
+        assert_eq!(collections(&core, &id), [harbour]);
+        // Taken off it and saved again, it is not put back while it stays in the library.
+        core.set_book_collections(&id, &[]).unwrap();
+        core.save_to_library(&id).unwrap();
+        assert!(collections(&core, &id).is_empty());
+
+        core.set_feed_collection(feed, None).unwrap();
+        assert_eq!(core.feeds().unwrap()[0].collection_id, None);
+    }
+
+    #[tokio::test]
     async fn a_page_sent_from_the_browser_that_a_feed_lists_is_new_to_the_library_until_undone() {
         let pages = Pages::with(&[]);
         let (_dir, core) = subscribed(&pages).await;

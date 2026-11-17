@@ -108,6 +108,7 @@
   ],
   "feeds": [
     {
+      "collectionId": null,
       "error": null,
       "id": 3,
       "lastOkAt": -1200000,
@@ -120,6 +121,7 @@
       "url": "https://fieldnotes.example/feed.xml"
     },
     {
+      "collectionId": null,
       "error": "The site answered with status 503.",
       "id": 4,
       "lastOkAt": -259200000,
@@ -133,6 +135,7 @@
       "url": "https://harbourletters.example/feed.xml"
     },
     {
+      "collectionId": null,
       "error": null,
       "id": 2,
       "lastOkAt": -1200000,
@@ -145,6 +148,7 @@
       "url": "https://smallcities.example/rss"
     },
     {
+      "collectionId": null,
       "error": null,
       "id": 1,
       "lastOkAt": -1200000,

@@ -84,6 +84,15 @@ impl Library {
         Ok(())
     }
 
+    /// Puts the book on collection `id` too (nothing changes when it is on it).
+    pub fn add_to_collection(&self, book: &BookId, id: i64) -> Result<()> {
+        self.conn.execute(
+            "INSERT OR IGNORE INTO book_collections (book_id, collection_id) VALUES (?1, ?2)",
+            rusqlite::params![book.0, id],
+        )?;
+        Ok(())
+    }
+
     /// The collections of every book that is on any, each list ordered by collection name.
     pub fn book_collections(&self) -> Result<std::collections::HashMap<BookId, Vec<i64>>> {
         let mut stmt = self.conn.prepare(

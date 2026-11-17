@@ -1671,6 +1671,29 @@ async fn scenarios_for_the_ui_mock() {
         &entries(&core, Unread),
         &["length"],
     );
+    // Entry 6's feed saves its entries into a collection.
+    let feed = entries(&core, All)
+        .unwrap()
+        .into_iter()
+        .find(|e| e.id == 6)
+        .unwrap()
+        .feed_id;
+    let harbour = core.create_collection("Harbour");
+    s.step(
+        "createCollection",
+        json!({"name": "Harbour"}),
+        &harbour,
+        &[""],
+    );
+    let harbour = harbour.unwrap();
+    s.step(
+        "setFeedCollection",
+        json!({"feedId": feed, "collectionId": harbour}),
+        &core.set_feed_collection(feed, Some(harbour)),
+        &[],
+    );
+    let collection = format!("[id={feed}].collectionId");
+    s.step("feeds", json!({}), &core.feeds(), &[&collection]);
     let saved = core.save_feed_entry(6);
     s.step(
         "saveFeedEntry",
@@ -1682,6 +1705,8 @@ async fn scenarios_for_the_ui_mock() {
     let item = saved.unwrap();
     let mut renames = library_renames.clone();
     renames.insert(0, (item.clone(), "book-6".into()));
+    let collections = format!("[id={item}].collections");
+    s.step("listBooks", json!({}), &core.list_books(), &[&collections]);
     s.step(
         "feedEntries",
         json!({"feedId": null, "filter": "saved"}),

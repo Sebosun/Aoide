@@ -911,7 +911,11 @@ export type FeedView = { id: number, title: string | null, url: string, siteUrl:
 /**
  * Why the last check failed, while it fails.
  */
-error: string | null, lastOkAt: number | null, };
+error: string | null, lastOkAt: number | null, 
+/**
+ * The collection its entries go on when saved to the library.
+ */
+collectionId: number | null, };
 
 export type SubscribeResult = { "kind": "subscribed", "value": FeedView } | { "kind": "choose", "value": Array<DiscoveredFeed> } | { "kind": "notAFeed" };
 
@@ -1398,6 +1402,8 @@ export type Commands = {
   "subscribe": { args: { url: string }; result: SubscribeResult };
   /** Removes a feed and its entries that were not saved. */
   "unsubscribe": { args: { feedId: number }; result: void };
+  /** Chooses the collection a feed's entries go on when they are saved (`null`: none). */
+  "set_feed_collection": { args: { feedId: number; collectionId?: number | null }; result: void };
   /** Entries newest first, from one feed or all; the next page starts `before` an entry id. */
   "feed_entries": { args: { feedId?: number | null; filter: EntryFilter; before?: number | null; limit?: number | null }; result: EntryView[] };
   /** The item to read an entry as (made on the feed shelf when needed); marks it read. */
@@ -1760,6 +1766,8 @@ export interface CommandApi {
   subscribe(args: { url: string }): Promise<SubscribeResult>;
   /** Removes a feed and its entries that were not saved. */
   unsubscribe(args: { feedId: number }): Promise<void>;
+  /** Chooses the collection a feed's entries go on when they are saved (`null`: none). */
+  setFeedCollection(args: { feedId: number; collectionId?: number | null }): Promise<void>;
   /** Entries newest first, from one feed or all; the next page starts `before` an entry id. */
   feedEntries(args: { feedId?: number | null; filter: EntryFilter; before?: number | null; limit?: number | null }): Promise<EntryView[]>;
   /** The item to read an entry as (made on the feed shelf when needed); marks it read. */
@@ -2054,6 +2062,7 @@ export const COMMANDS = {
   addLink: "add_link",
   subscribe: "subscribe",
   unsubscribe: "unsubscribe",
+  setFeedCollection: "set_feed_collection",
   feedEntries: "feed_entries",
   openFeedEntry: "open_feed_entry",
   saveFeedEntry: "save_feed_entry",

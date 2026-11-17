@@ -2042,6 +2042,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         stage: { kind: "idle" },
         error: null,
         lastOkAt: Date.now(),
+        collectionId: null,
       };
       feeds = [...feeds, feed].sort((a, b) => (a.title ?? a.url).localeCompare(b.title ?? b.url));
       // Articles that name it now say it is subscribed.
@@ -2083,9 +2084,24 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       await api.saveToLibrary({ bookId: id });
       return id;
     },
+    /** As the core does: saved, an entry's item goes on its feed's collection too. */
     async saveToLibrary({ bookId: id }) {
       if (!feedShelf.delete(id)) return;
+      const feedId = entries.find((e) => e.bookId === id)?.feedId;
+      const collection = feeds.find((f) => f.id === feedId)?.collectionId ?? null;
+      const book = books.find((b) => b.id === id);
+      if (book && collection !== null && !book.collections.includes(collection))
+        book.collections = shelves
+          .filter((s) => s.id === collection || book.collections.includes(s.id))
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((s) => s.id);
       setArticle(id, { inLibrary: true });
+      feedsChanged();
+    },
+    async setFeedCollection({ feedId, collectionId = null }) {
+      if (!feeds.some((f) => f.id === feedId)) throw refused("No such feed.");
+      if (collectionId !== null && !shelves.some((s) => s.id === collectionId)) throw refused("no such collection");
+      feeds = feeds.map((f) => (f.id === feedId ? { ...f, collectionId } : f));
       feedsChanged();
     },
     /** As the core does: a feed address subscribes, anything else is saved as an article. */
@@ -2137,6 +2153,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
           stage: { kind: "idle" },
           error: null,
           lastOkAt: null,
+          collectionId: null,
         });
       }
       feeds.sort((a, b) => (a.title ?? a.url).localeCompare(b.title ?? b.url));

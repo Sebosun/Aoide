@@ -131,6 +131,9 @@ export const useFeedsStore = defineStore("feeds", () => {
       await api.unsubscribe({ feedId: id });
       if (source.value.kind === "feed" && source.value.id === id) await choose({ kind: "all" });
     });
+  /** Chooses the collection feed `id`'s entries go on when saved (`null`: none). */
+  const setCollection = (id: number, collection: number | null) =>
+    run(() => api.setFeedCollection({ feedId: id, collectionId: collection }));
   /** Imports a subscription list the user picks; null when they pick none. */
   async function importList() {
     const path = await api.chooseOpml();
@@ -168,6 +171,7 @@ export const useFeedsStore = defineStore("feeds", () => {
     checkNow,
     markAllRead,
     unsubscribe,
+    setCollection,
     importList,
     exportList,
     dispose,

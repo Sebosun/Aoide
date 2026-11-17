@@ -33,6 +33,16 @@ pub fn unsubscribe(core: CoreState<'_>, feed_id: i64) -> Result<(), CoreError> {
     Ok(core.unsubscribe(feed_id)?)
 }
 
+/// Chooses the collection a feed's entries go on when they are saved (`null`: none).
+#[tauri::command]
+pub fn set_feed_collection(
+    core: CoreState<'_>,
+    feed_id: i64,
+    collection_id: Option<i64>,
+) -> Result<(), CoreError> {
+    Ok(core.set_feed_collection(feed_id, collection_id)?)
+}
+
 /// Entries newest first, from one feed or all; the next page starts `before` an entry id.
 #[tauri::command]
 pub fn feed_entries(

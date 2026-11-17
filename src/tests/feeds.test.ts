@@ -117,6 +117,32 @@ it("saves an entry to the library and takes it out again", async () => {
   expect((await mock.listBooks()).some((b) => b.kind === "article")).toBe(false);
 });
 
+it("saves a feed's entries into the collection chosen in its menu", async () => {
+  const harbour = await mock.createCollection({ name: "Harbour" });
+  const choose = vi.spyOn(mock, "setFeedCollection");
+  const wrapper = await openFeeds();
+  await wrapper.get('[aria-label="More for Field Notes"]').trigger("click");
+  await flushPromises();
+  const row = (name: string) =>
+    document.body.querySelector<HTMLElement>(`[role="menu"] [role="menuitemcheckbox"][aria-label="${name}"]`)!;
+  expect(row("No collection").getAttribute("aria-checked")).toBe("true");
+  row("Harbour").click();
+  await flushPromises();
+  expect(choose).toHaveBeenCalledWith({ feedId: 3, collectionId: harbour });
+
+  await entry(wrapper, "The quiet return of the night train").get(".feed-entry__save").trigger("click");
+  await flushPromises();
+  const saved = (await mock.listBooks()).find((b) => b.kind === "article")!;
+  expect(saved.collections).toEqual([harbour]);
+
+  await wrapper.get('[aria-label="More for Field Notes"]').trigger("click");
+  await flushPromises();
+  expect(row("Harbour").getAttribute("aria-checked")).toBe("true");
+  row("No collection").click();
+  await flushPromises();
+  expect(choose).toHaveBeenLastCalledWith({ feedId: 3, collectionId: null });
+});
+
 it("says since when a feed is not reachable", async () => {
   const wrapper = await openFeeds();
   const harbour = wrapper.findAll(".feeds__source").find((s) => s.text().startsWith("Harbour Letters"))!;

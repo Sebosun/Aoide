@@ -1368,11 +1368,48 @@
       },
       {
         "args": {
+          "name": "Harbour"
+        },
+        "call": "createCollection",
+        "error": null,
+        "expect": {
+          "": 1
+        }
+      },
+      {
+        "args": {
+          "collectionId": 1,
+          "feedId": 3
+        },
+        "call": "setFeedCollection",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[id=3].collectionId": 1
+        }
+      },
+      {
+        "args": {
           "entryId": 6
         },
         "call": "saveFeedEntry",
         "error": null,
         "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-6].collections": [
+            1
+          ]
+        }
       },
       {
         "args": {
