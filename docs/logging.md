@@ -102,6 +102,8 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `tags.classify_all` | info | `tagged`, `missed` (items given nothing or that failed), `took_ms`, `outcome` | `core/tagging.rs` |
 | `library.import` | info, warn | `ok`, `failed`; per failure `file`, `error` | `core.rs` `import_files` |
 | `library.watch` | warn | `error` | `core.rs`, the library folder watcher |
+| `inbox.imported` | info | `book`, `file` (name only) | `core/inbox.rs` `take`, a book file in the inbox folder copied into the library; the window is told what one look added (`inbox://added`) |
+| `inbox.skipped` | info | `file` (name only), `why` (`in_library`: its content is there already, `removed`: the user removed that book, `unreadable`, `failed`: it could not be added), `error` | `core/inbox.rs` `take`; a file passed over is not looked at again until it changes |
 | `inbox.stage` | info | `from`, `to` (`idle`, `settling`, `importing`, `unavailable`) | `core/inbox.rs` `Inbox::apply`, where the inbox's `next` is applied |
 | `discovery.scan` | info, warn | `roots`, `epubs`, `read`, `took_ms`, `outcome`, `error` | `core/discovery.rs` |
 | `discovery.import` | info | `chosen`, `failed` | `core/discovery.rs` |

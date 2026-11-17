@@ -8,17 +8,19 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
 use serde::Serialize;
 
-use super::lock;
+use super::{lock, CoreEvent, Events};
 
 /// What the inbox asks of the rest of the app.
 pub(super) trait InboxHost {
     /// Copies the book file at `path` into the library, as a dropped file is.
     fn import(&self, path: &Path) -> Result<InboxBook, String>;
+    /// Whether book `id` is in the library with its file present.
+    fn in_library(&self, id: &str) -> bool;
 }
 
 /// A book the inbox added to the library: what the window tells.
@@ -26,7 +28,9 @@ pub(super) trait InboxHost {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct InboxBook {
+    /// The item it is.
     pub id: String,
+    /// Its title.
     pub title: String,
 }
 
@@ -104,13 +108,15 @@ struct Files {
 }
 
 pub(super) struct Inbox {
+    events: Arc<dyn Events>,
     stage: Mutex<Stage>,
     files: Mutex<Files>,
 }
 
 impl Inbox {
-    pub fn new() -> Self {
+    pub fn new(events: Arc<dyn Events>) -> Self {
         Self {
+            events,
             stage: Mutex::new(Stage::Idle),
             files: Mutex::new(Files::default()),
         }
@@ -155,9 +161,15 @@ impl Inbox {
         if ready.is_empty() {
             return stage;
         }
+        let mut ready = ready;
+        ready.sort_by(|a, b| a.0.cmp(&b.0));
+        let mut added = Vec::new();
         for (path, stamp) in ready {
-            let _ = host.import(&path);
+            added.extend(take(&path, host));
             lock(&self.files).taken.insert(path, stamp);
+        }
+        if !added.is_empty() {
+            self.emit(CoreEvent::InboxAdded(added));
         }
         self.apply(Event::Taken {
             waiting: self.waiting_since(),
@@ -173,6 +185,16 @@ impl Inbox {
             .min()
     }
 
+    fn emit(&self, event: CoreEvent) {
+        let name = event.name();
+        match event.payload() {
+            Ok(value) => self.events.emit(name, value),
+            Err(error) => {
+                tracing::error!(event = "app.emit", name, %error, "Cannot send an event to the window")
+            }
+        }
+    }
+
     fn apply(&self, event: Event) -> Stage {
         let mut stage = lock(&self.stage);
         let from = *stage;
@@ -186,6 +208,36 @@ impl Inbox {
             );
         }
         *stage
+    }
+}
+
+/// Copies the book at `path` into the library unless its content is there already: what
+/// was added, if anything.
+fn take(path: &Path, host: &dyn InboxHost) -> Option<InboxBook> {
+    let file = crate::logging::file(path);
+    let skipped = |why: &str, error: &str| {
+        tracing::info!(event = "inbox.skipped", %file, why, error, "Passed over a file in the inbox");
+    };
+    let id = match std::fs::read(path) {
+        Ok(bytes) => aoide_library::content_hash(&bytes).0,
+        Err(error) => {
+            skipped("unreadable", &error.to_string());
+            return None;
+        }
+    };
+    if host.in_library(&id) {
+        skipped("in_library", "");
+        return None;
+    }
+    match host.import(path) {
+        Ok(book) => {
+            tracing::info!(event = "inbox.imported", book = crate::logging::book(&book.id), %file, "Added a book from the inbox");
+            Some(book)
+        }
+        Err(error) => {
+            skipped("failed", &error);
+            None
+        }
     }
 }
 
@@ -218,7 +270,12 @@ fn listed(dir: &Path) -> std::io::Result<Vec<(PathBuf, Stamp)>> {
 mod tests {
     use std::io::Write;
 
-    use super::super::tests::epub;
+    use aoide_library::{BookId, BookStatus, Library};
+
+    use super::super::error::Reporter;
+    use super::super::shelf::Shelf;
+    use super::super::tests::{epub, Recorder};
+    use super::super::CoreEvent;
     use super::*;
 
     /// Records what it is asked to import, and imports nothing.
@@ -234,6 +291,127 @@ mod tests {
                 title: name,
             })
         }
+
+        fn in_library(&self, _id: &str) -> bool {
+            false
+        }
+    }
+
+    impl InboxHost for Shelf {
+        fn import(&self, path: &Path) -> Result<InboxBook, String> {
+            let result = self
+                .import_files(vec![path.to_string_lossy().into_owned()])
+                .remove(0);
+            let id = result.book_id.ok_or(result.error.unwrap_or_default())?;
+            let title = self.shelve(|library| library.book(&BookId(id.clone())))?;
+            Ok(InboxBook {
+                id,
+                title: title.and_then(|record| record.title).unwrap_or_default(),
+            })
+        }
+
+        fn in_library(&self, id: &str) -> bool {
+            self.shelve(|library| library.book(&BookId(id.into())))
+                .ok()
+                .flatten()
+                .is_some_and(|record| record.status == BookStatus::Present)
+        }
+    }
+
+    /// A library folder with its shelf, an inbox folder, and the inbox.
+    struct World {
+        _dir: tempfile::TempDir,
+        root: PathBuf,
+        shelf: Shelf,
+        events: Arc<Recorder>,
+        inbox: Inbox,
+    }
+
+    fn world() -> World {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_owned();
+        for folder in ["Books", "covers", "Downloads"] {
+            std::fs::create_dir_all(root.join(folder)).unwrap();
+        }
+        let library = Arc::new(Mutex::new(Library::open_in_memory().unwrap()));
+        let events = Arc::new(Recorder::default());
+        let shelf = Shelf::new(
+            library,
+            root.join("Books"),
+            root.join("covers"),
+            Reporter::default(),
+            events.clone(),
+        );
+        World {
+            _dir: dir,
+            root,
+            shelf,
+            inbox: Inbox::new(events.clone()),
+            events,
+        }
+    }
+
+    impl World {
+        fn downloads(&self) -> PathBuf {
+            self.root.join("Downloads")
+        }
+
+        /// The names of the files in `folder`, in order.
+        fn files(&self, folder: &str) -> Vec<String> {
+            let mut names: Vec<String> = std::fs::read_dir(self.root.join(folder))
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            names
+        }
+
+        /// Looks at the inbox twice, `SETTLE` apart, from `at`.
+        fn settle(&self, at: Instant) {
+            self.inbox.pass_at(&self.downloads(), at, &self.shelf);
+            self.inbox
+                .pass_at(&self.downloads(), at + SETTLE, &self.shelf);
+        }
+
+        fn added(&self) -> Vec<serde_json::Value> {
+            self.events.payloads(CoreEvent::INBOX_ADDED)
+        }
+    }
+
+    #[test]
+    fn a_new_book_is_copied_in_once_and_the_same_content_under_another_name_is_not() {
+        let world = world();
+        std::fs::write(world.downloads().join("Lights.epub"), epub()).unwrap();
+        std::fs::write(world.downloads().join("Lights (1).epub"), epub()).unwrap();
+        let start = Instant::now();
+
+        world.settle(start);
+
+        assert_eq!(world.files("Books"), ["Lights (1).epub"]);
+        assert_eq!(world.files("Downloads"), ["Lights (1).epub", "Lights.epub"]);
+        assert_eq!(world.shelf.shelve(|l| l.books()).unwrap().len(), 1);
+        let added = world.added();
+        assert_eq!(added.len(), 1, "one toast for what one look added");
+        assert_eq!(added[0].as_array().unwrap().len(), 1);
+        assert_eq!(added[0][0]["title"], "Quay Lights");
+
+        // Looked at again (a later change in the folder): nothing more.
+        world.settle(start + Duration::from_secs(10));
+        assert_eq!(world.files("Books"), ["Lights (1).epub"]);
+        assert_eq!(world.added().len(), 1);
+    }
+
+    #[test]
+    fn a_book_already_in_the_library_is_passed_over() {
+        let world = world();
+        std::fs::write(world.root.join("Books/Kept.epub"), epub()).unwrap();
+        world.shelf.rescan().unwrap();
+        std::fs::write(world.downloads().join("Kept again.epub"), epub()).unwrap();
+
+        world.settle(Instant::now());
+
+        assert_eq!(world.files("Books"), ["Kept.epub"]);
+        assert!(world.added().is_empty());
     }
 
     impl Imports {
@@ -299,7 +477,7 @@ mod tests {
     }
 
     fn inbox() -> Inbox {
-        Inbox::new()
+        Inbox::new(Arc::new(Recorder::default()))
     }
 
     #[test]

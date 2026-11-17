@@ -22,6 +22,7 @@ import type {
   SiteView,
   SignInView,
   SavedLink,
+  InboxBook,
   SyncReportView,
   SyncAction,
   RecordingAction,
@@ -2388,6 +2389,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     onOpenItem: (h) => subscribe(new Set<(id: string) => void>(), h),
     // Nor a browser to send it pages.
     onLinkSaved: (h) => subscribe(new Set<(saved: SavedLink) => void>(), h),
+    // Nor a folder it watches.
+    onInboxAdded: (h) => subscribe(new Set<(books: InboxBook[]) => void>(), h),
   };
   /** Test hooks: put a book at a share of its length, or give it generated audio. */
   const setProgressForTest = (id: string, fraction: number) => {

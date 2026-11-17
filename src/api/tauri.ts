@@ -99,4 +99,5 @@ export const tauriApi: AoideApi = {
   onProblem: (h) => on("core://problem", h),
   onOpenItem: (h) => on("item://open", h),
   onLinkSaved: (h) => on("article://saved", h),
+  onInboxAdded: (h) => on("inbox://added", h),
 };

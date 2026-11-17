@@ -1217,6 +1217,16 @@ title: string,
  */
 newToLibrary: boolean, };
 
+export type InboxBook = { 
+/**
+ * The item it is.
+ */
+id: string, 
+/**
+ * Its title.
+ */
+title: string, };
+
 /** Every event Core emits, by name, with its payload. */
 export type CoreEvents = {
   "library://changed": null,
@@ -1228,6 +1238,7 @@ export type CoreEvents = {
   "discovery://details": string,
   "item://open": string,
   "article://saved": SavedLink,
+  "inbox://added": Array<InboxBook>,
   "discovery://import": DiscoveryImportProgress,
   "export://progress": ExportProgress,
   "sync://state": RecordingView,

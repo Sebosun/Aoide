@@ -193,6 +193,7 @@ fn contract() -> String {
         super::signin::SignInStage,
         super::signin::SignInView,
         super::launching::SavedLink,
+        super::inbox::InboxBook,
     );
     // Type aliases the commands use.
     names.insert("Params".into(), name::<aoide_tts::Params>(&config));
@@ -224,6 +225,10 @@ fn contract() -> String {
         (
             CoreEvent::LINK_SAVED,
             name::<super::launching::SavedLink>(&config),
+        ),
+        (
+            CoreEvent::INBOX_ADDED,
+            name::<Vec<super::inbox::InboxBook>>(&config),
         ),
         (
             CoreEvent::DISCOVERY_IMPORT,

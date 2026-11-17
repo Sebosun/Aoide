@@ -19,6 +19,7 @@ import type {
   SiteView,
   SignInView,
   SavedLink,
+  InboxBook,
   ArticleView,
   AddedLink,
   EntryFilter,
@@ -156,4 +157,6 @@ export interface AoideApi extends Omit<CommandApi, "listBooks" | "scanForBooks" 
   onOpenItem(handler: (id: string) => void): Promise<() => void>;
   /** A page sent from the browser (`aoide://save?url=…`) was saved. */
   onLinkSaved(handler: (saved: SavedLink) => void): Promise<() => void>;
+  /** Books that appeared in the inbox folder were added to the library. */
+  onInboxAdded(handler: (books: InboxBook[]) => void): Promise<() => void>;
 }
