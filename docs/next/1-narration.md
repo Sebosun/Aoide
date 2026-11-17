@@ -144,6 +144,7 @@ decided above.
 ## 1.2 Pronunciation list
 
 **Size:** M
+**Built:** 2026-11-17 (b3ce3f9..ea4a82d)
 
 ### Outcome
 
