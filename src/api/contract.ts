@@ -941,6 +941,8 @@ export type ReaderMode = "page" | "lines";
 
 export type TimeLeft = "chapter" | "book";
 
+export type ReaderFont = "serif" | "sans" | "legible" | "system";
+
 export type Appearance = { mode: AppearanceMode, 
 /**
  * A theme file name without `.toml`, or [`DEFAULT_THEME`].
@@ -957,7 +959,27 @@ zoom: number,
 /**
  * The player's time left, switched by clicking it.
  */
-timeLeft: TimeLeft, };
+timeLeft: TimeLeft, 
+/**
+ * The reading text's typeface.
+ */
+readerFont: ReaderFont, 
+/**
+ * Reading line spacing step, 0 (tightest) to 4; 2 is the designed spacing.
+ */
+lineSpacing: number, 
+/**
+ * Reading column width step, 0 (narrowest) to 4; 2 is the designed width.
+ */
+textWidth: number, 
+/**
+ * Justified reading text instead of ragged right.
+ */
+justify: boolean, 
+/**
+ * Hyphenate the reading text, in the book's language where the system has a dictionary.
+ */
+hyphenate: boolean, };
 
 export type Theme = { 
 /**

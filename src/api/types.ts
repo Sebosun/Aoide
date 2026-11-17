@@ -77,6 +77,7 @@ import type {
   PrepareView,
   PreparingView,
   ReaderMode,
+  ReaderFont,
   ScanProgress,
   ScanSettings,
   ScanStage,

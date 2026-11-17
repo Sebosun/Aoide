@@ -417,6 +417,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       readerMode: query.get("mode") === "lines" ? "lines" : "page",
       zoom: Number(query.get("zoom")) || 1,
       timeLeft: query.get("timeleft") === "book" ? "book" : "chapter",
+      readerFont: (["sans", "legible", "system"] as const).find((font) => font === query.get("font")) ?? "serif",
+      lineSpacing: Number(query.get("spacing") ?? 2),
+      textWidth: Number(query.get("width") ?? 2),
+      justify: query.has("justify"),
+      hyphenate: query.has("hyphenate"),
     },
     themes: [
       ...(structuredClone(fixtureThemes) as Theme[]),

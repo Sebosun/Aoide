@@ -151,6 +151,7 @@ fn contract() -> String {
         aoide_config::Mode,
         aoide_config::ReaderMode,
         aoide_config::TimeLeft,
+        aoide_config::ReaderFont,
         aoide_config::Appearance,
         aoide_config::Theme,
         super::config::PreferencesView,

@@ -13,6 +13,11 @@ export const usePreferencesStore = defineStore("preferences", () => {
     readerMode: "page",
     zoom: 1,
     timeLeft: "chapter",
+    readerFont: "serif",
+    lineSpacing: 2,
+    textWidth: 2,
+    justify: false,
+    hyphenate: false,
   });
   const themes = ref<Theme[]>([]),
     problems = ref<string[]>([]),
