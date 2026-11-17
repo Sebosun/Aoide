@@ -22,6 +22,7 @@ mod align;
 mod articles;
 mod audiobook;
 mod audiobooks;
+mod backup;
 mod browser_download;
 mod browsing;
 mod config;
@@ -132,6 +133,10 @@ mod queue_tests;
 mod recording_tests;
 #[cfg(test)]
 mod tests;
+pub use backup::{
+    apply_staged as apply_staged_restore, BackupInfoView, BackupOptions, BackupWritten,
+    EXTENSION as BACKUP_EXTENSION,
+};
 pub use error::CoreError;
 use preparation::Plan;
 pub use preparation::{PrepareView, Stage as PrepareStage};
@@ -232,6 +237,8 @@ pub struct Core {
     fullscreen: fullscreen::Fullscreen,
     /// In the window or in the background, and what closing the window does.
     presence: presence::Presences,
+    /// Writing backups, and the automatic ones.
+    backups: backup::Backups,
     /// The sleep timer, the media keys and the player state last sent.
     controls: controls::Controls,
     /// Exact word timings being asked for.
@@ -426,6 +433,7 @@ impl Core {
             queue,
             fullscreen: Default::default(),
             presence: Default::default(),
+            backups: Default::default(),
             controls: Default::default(),
             aligner,
             settings: config::Settings::new(config),
@@ -505,6 +513,16 @@ impl Core {
         std::thread::spawn(move || watcher.settings.watch(&*watcher, &runtime));
         let inbox = Arc::clone(core);
         std::thread::spawn(move || inbox.inbox.run(&*inbox));
+        // Automatic backups: a minute after start, then each hour (each writes only when due).
+        let backing_up = Arc::clone(core);
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            loop {
+                let core = Arc::clone(&backing_up);
+                let _ = tokio::task::spawn_blocking(move || core.run_automatic_backup()).await;
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+            }
+        });
     }
 
     /// Logs a failure Aoide carried on from and tells the user; see [`error::Reporter`].

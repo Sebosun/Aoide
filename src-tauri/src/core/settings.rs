@@ -50,6 +50,8 @@ pub struct AppSettings {
     pub archive_finished_articles: bool,
     /// What closing the window while working does.
     pub close: super::CloseBehaviour,
+    /// Automatic backups.
+    pub backup: super::backup::BackupSettings,
 }
 
 /// The silences narration leaves, in milliseconds (each within [`PAUSE_MS`]). The largest that
@@ -145,6 +147,8 @@ pub struct AppSettingsPatch {
     pub archive_finished_articles: Option<bool>,
     #[cfg_attr(test, ts(optional))]
     pub close: Option<super::CloseBehaviour>,
+    #[cfg_attr(test, ts(optional))]
+    pub backup: Option<super::backup::BackupSettings>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -187,6 +191,7 @@ impl AppSettingsPatch {
             self.archive_finished_articles,
         );
         set(&mut settings.close, self.close);
+        set(&mut settings.backup, self.backup);
         settings
     }
 }
@@ -215,6 +220,7 @@ impl From<AppSettings> for AppSettingsPatch {
             inbox,
             archive_finished_articles,
             close,
+            backup,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -237,6 +243,7 @@ impl From<AppSettings> for AppSettingsPatch {
             inbox: Some(inbox),
             archive_finished_articles: Some(archive_finished_articles),
             close: Some(close),
+            backup: Some(backup),
         }
     }
 }
@@ -290,6 +297,7 @@ impl Default for AppSettings {
             inbox: None,
             archive_finished_articles: false,
             close: super::CloseBehaviour::Ask,
+            backup: Default::default(),
         }
     }
 }

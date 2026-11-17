@@ -328,6 +328,8 @@ pub enum CoreEvent {
     Fullscreen(bool),
     /// The window was closed while working: it asks whether to keep working in the background.
     CloseAsked,
+    /// A backup is being written, or was.
+    BackupProgress(super::backup::BackupProgressView),
 }
 
 impl CoreEvent {
@@ -357,6 +359,7 @@ impl CoreEvent {
     pub const QUEUE_CHANGED: &'static str = "queue://changed";
     pub const FULLSCREEN: &'static str = "window://fullscreen";
     pub const CLOSE_ASKED: &'static str = "window://close-asked";
+    pub const BACKUP_PROGRESS: &'static str = "backup://progress";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -386,6 +389,7 @@ impl CoreEvent {
             Self::QueueChanged => Self::QUEUE_CHANGED,
             Self::Fullscreen(_) => Self::FULLSCREEN,
             Self::CloseAsked => Self::CLOSE_ASKED,
+            Self::BackupProgress(_) => Self::BACKUP_PROGRESS,
         }
     }
 
@@ -417,6 +421,7 @@ impl CoreEvent {
             Self::InboxState(p) => serde_json::to_value(p),
             Self::Finished(p) => serde_json::to_value(p),
             Self::Fullscreen(p) => serde_json::to_value(p),
+            Self::BackupProgress(p) => serde_json::to_value(p),
         }
     }
 }

@@ -1,4 +1,5 @@
 use super::prelude::*;
+use std::path::Path;
 
 /// Writes a line to Aoide's log (a failure the window saw).
 #[tauri::command]
@@ -82,4 +83,73 @@ pub fn choose_close(
     let action = core.choose_close(keep, remember)?;
     crate::background::act(&app, action);
     Ok(())
+}
+
+/// Writes a backup of the library to `path`.
+#[tauri::command]
+pub async fn back_up(
+    core: CoreState<'_>,
+    path: String,
+    options: crate::core::BackupOptions,
+) -> Result<crate::core::BackupWritten, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.back_up(Path::new(&path), options)).await
+}
+
+/// What the backup at `path` holds, and whether it can be restored here.
+#[tauri::command]
+pub async fn inspect_backup(
+    core: CoreState<'_>,
+    path: String,
+) -> Result<crate::core::BackupInfoView, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.inspect_backup(Path::new(&path))).await
+}
+
+/// Restores the backup at `path`: it is checked and set up (the current library saved first),
+/// then Aoide restarts and puts it in place before opening the library.
+#[tauri::command]
+pub async fn restore_backup(
+    app: tauri::AppHandle,
+    core: CoreState<'_>,
+    path: String,
+) -> Result<(), CoreError> {
+    let restoring = Arc::clone(&core);
+    blocking(move || restoring.restore(Path::new(&path))).await?;
+    tracing::info!(
+        event = "backup.restored",
+        outcome = "staged",
+        "Restarting to restore a backup"
+    );
+    app.restart();
+}
+
+/// The system's save dialog for a backup; null when cancelled.
+#[tauri::command]
+pub async fn choose_backup_target(app: tauri::AppHandle) -> Option<String> {
+    let name = format!(
+        "Aoide backup {}.{}",
+        chrono::Local::now().format("%Y-%m-%d"),
+        crate::core::BACKUP_EXTENSION
+    );
+    pick(&app, move |dialog, done| {
+        dialog
+            .set_title("Back up the library")
+            .set_file_name(&name)
+            .add_filter("Aoide backups", &[crate::core::BACKUP_EXTENSION])
+            .save_file(move |p| done(p.map(|p| p.to_string())))
+    })
+    .await
+}
+
+/// The system's open dialog for a backup to restore; null when cancelled.
+#[tauri::command]
+pub async fn choose_backup_file(app: tauri::AppHandle) -> Option<String> {
+    pick(&app, |dialog, done| {
+        dialog
+            .set_title("Restore a backup")
+            .add_filter("Aoide backups", &[crate::core::BACKUP_EXTENSION])
+            .pick_file(move |p| done(p.map(|p| p.to_string())))
+    })
+    .await
 }

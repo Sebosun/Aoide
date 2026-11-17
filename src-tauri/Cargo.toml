@@ -75,6 +75,8 @@ aoide-epub = { path = "../crates/epub-parser", features = ["ts"] }
 aoide-config = { path = "../crates/config", features = ["ts"] }
 aoide-metadata = { path = "../crates/metadata", features = ["ts"] }
 roxmltree = "0.21"
+# Tests set a database's schema version by hand (as a newer Aoide would have).
+rusqlite = { version = "0.32", features = ["bundled"] }
 # Read the Tauri commands for the generated contract.
 quote = "1"
 syn = { version = "2", features = ["full"] }

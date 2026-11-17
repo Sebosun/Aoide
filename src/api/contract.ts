@@ -754,9 +754,13 @@ archiveFinishedArticles: boolean,
 /**
  * What closing the window while working does.
  */
-close: CloseBehaviour, };
+close: CloseBehaviour, 
+/**
+ * Automatic backups.
+ */
+backup: BackupSettings, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, backup?: BackupSettings, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -926,6 +930,60 @@ export type SeriesView = { name: string,
 position: number | null, };
 
 export type CloseBehaviour = "quit" | "keepWhileWorking" | "keepAlways" | "ask";
+
+export type BackupOptions = { 
+/**
+ * The books in the library folder (they can be large).
+ */
+books: boolean, };
+
+export type BackupSettings = { 
+/**
+ * Where they are written; `None`: no automatic backups.
+ */
+folder: string | null, 
+/**
+ * How many days apart (1–365).
+ */
+everyDays: number, 
+/**
+ * How many are kept; older ones are removed (1–100).
+ */
+keep: number, 
+/**
+ * Whether the books go in too.
+ */
+books: boolean, };
+
+export type BackupInfoView = { 
+/**
+ * Unix milliseconds.
+ */
+createdAt: number, aoideVersion: string, booksIncluded: boolean, bytes: number, 
+/**
+ * Why it cannot be restored here (a newer Aoide made it); `None` when it can.
+ */
+refused: string | null, };
+
+export type BackupWritten = { path: string, bytes: number, };
+
+export type BackupProgressView = { 
+/**
+ * Files packed so far, of `of`.
+ */
+done: number, of: number, 
+/**
+ * The file being written.
+ */
+path: string, 
+/**
+ * Written by the schedule, not asked for.
+ */
+automatic: boolean, 
+/**
+ * Set once written.
+ */
+finished: boolean, };
 
 export type DiscoveredFeed = { url: string, title: string | null, subscribed: boolean, };
 
@@ -1376,6 +1434,7 @@ export type CoreEvents = {
   "queue://changed": null,
   "window://fullscreen": boolean,
   "window://close-asked": null,
+  "backup://progress": BackupProgressView,
   "signin://state": SignInView,
   "browser://download": BrowserDownloadView,
 };
@@ -1408,6 +1467,19 @@ export type Commands = {
    * it for next time. The window then hides, minimises or quits as the core says.
    */
   "choose_close": { args: { keep: boolean; remember: boolean }; result: void };
+  /** Writes a backup of the library to `path`. */
+  "back_up": { args: { path: string; options: BackupOptions }; result: BackupWritten };
+  /** What the backup at `path` holds, and whether it can be restored here. */
+  "inspect_backup": { args: { path: string }; result: BackupInfoView };
+  /**
+   * Restores the backup at `path`: it is checked and set up (the current library saved first),
+   * then Aoide restarts and puts it in place before opening the library.
+   */
+  "restore_backup": { args: { path: string }; result: void };
+  /** The system's save dialog for a backup; null when cancelled. */
+  "choose_backup_target": { args: Record<string, never>; result: string | null };
+  /** The system's open dialog for a backup to restore; null when cancelled. */
+  "choose_backup_file": { args: Record<string, never>; result: string | null };
   /**
    * Saves a link as an article (or finds it saved) and queues its fetch; returns its id. An invalid
    * link is refused. "article://state" reports the fetch.
@@ -1816,6 +1888,19 @@ export interface CommandApi {
    * it for next time. The window then hides, minimises or quits as the core says.
    */
   chooseClose(args: { keep: boolean; remember: boolean }): Promise<void>;
+  /** Writes a backup of the library to `path`. */
+  backUp(args: { path: string; options: BackupOptions }): Promise<BackupWritten>;
+  /** What the backup at `path` holds, and whether it can be restored here. */
+  inspectBackup(args: { path: string }): Promise<BackupInfoView>;
+  /**
+   * Restores the backup at `path`: it is checked and set up (the current library saved first),
+   * then Aoide restarts and puts it in place before opening the library.
+   */
+  restoreBackup(args: { path: string }): Promise<void>;
+  /** The system's save dialog for a backup; null when cancelled. */
+  chooseBackupTarget(): Promise<string | null>;
+  /** The system's open dialog for a backup to restore; null when cancelled. */
+  chooseBackupFile(): Promise<string | null>;
   /**
    * Saves a link as an article (or finds it saved) and queues its fetch; returns its id. An invalid
    * link is refused. "article://state" reports the fetch.
@@ -2208,6 +2293,11 @@ export const COMMANDS = {
   saveAppearance: "save_appearance",
   setFullscreen: "set_fullscreen",
   chooseClose: "choose_close",
+  backUp: "back_up",
+  inspectBackup: "inspect_backup",
+  restoreBackup: "restore_backup",
+  chooseBackupTarget: "choose_backup_target",
+  chooseBackupFile: "choose_backup_file",
   saveArticle: "save_article",
   refetchArticle: "refetch_article",
   article: "article",

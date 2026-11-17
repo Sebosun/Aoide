@@ -141,6 +141,11 @@ fn contract() -> String {
         super::details::DetailField,
         super::wire::SeriesView,
         super::presence::CloseBehaviour,
+        super::backup::BackupOptions,
+        super::backup::BackupSettings,
+        super::backup::BackupInfoView,
+        super::backup::BackupWritten,
+        super::backup::BackupProgressView,
         super::feeds::DiscoveredFeed,
         super::articles::ArticleView,
         super::articles::ArticleSummary,
@@ -289,6 +294,10 @@ fn contract() -> String {
         (CoreEvent::QUEUE_CHANGED, "null".to_owned()),
         (CoreEvent::FULLSCREEN, name::<bool>(&config)),
         (CoreEvent::CLOSE_ASKED, "null".to_owned()),
+        (
+            CoreEvent::BACKUP_PROGRESS,
+            name::<super::backup::BackupProgressView>(&config),
+        ),
         (
             CoreEvent::SIGN_IN_STATE,
             name::<super::signin::SignInView>(&config),

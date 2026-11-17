@@ -124,6 +124,11 @@ pub fn run() {
             commands::library::list_books,
             commands::library::home,
             commands::app::choose_close,
+            commands::app::back_up,
+            commands::app::inspect_backup,
+            commands::app::restore_backup,
+            commands::app::choose_backup_target,
+            commands::app::choose_backup_file,
             commands::library::series,
             commands::library::add_audiobook,
             commands::library::import_files,
@@ -414,6 +419,35 @@ fn exit_on_signals(app: tauri::AppHandle) {
     drop(app);
 }
 
+/// Puts a staged restore in place (see `core/backup.rs`); the error when it failed and the
+/// previous library is still in use.
+fn restore_staged(paths: &Paths) -> Option<String> {
+    let started = std::time::Instant::now();
+    match core::apply_staged_restore(paths) {
+        Ok(None) => None,
+        Ok(Some(manifest)) => {
+            tracing::info!(
+                event = "backup.restored",
+                outcome = "ok",
+                from_version = manifest.aoide_version,
+                took_ms = logging::took(started),
+                "Restored a backup"
+            );
+            None
+        }
+        Err(error) => {
+            tracing::error!(
+                event = "backup.restored",
+                outcome = "failed",
+                %error,
+                took_ms = logging::took(started),
+                "Could not restore a backup; the previous library is in use"
+            );
+            Some(error)
+        }
+    }
+}
+
 /// The pokes of events that may end a job, until something watches them.
 struct Pokes(std::sync::Mutex<Option<std::sync::mpsc::Receiver<()>>>);
 
@@ -448,6 +482,8 @@ fn start(app: &mut tauri::App) -> Result<Arc<Core>, Box<dyn std::error::Error>> 
         }
         None => migrate_from_folio(app, &paths)?,
     }
+    // A restore staged before the restart replaces the library now, before it is opened.
+    let restore_failed = restore_staged(&paths);
     let mut environment = crate::core::Environment::desktop(app.handle().clone());
     // The events that may end a job also look whether Quit when done can quit.
     let (events, pokes) = background::watched(environment.events.clone());
@@ -461,6 +497,9 @@ fn start(app: &mut tauri::App) -> Result<Arc<Core>, Box<dyn std::error::Error>> 
     let core = tauri::async_runtime::block_on(async move { Core::start(environment, paths) })?;
     // Watched once the tray is made.
     app.manage(Pokes(std::sync::Mutex::new(Some(pokes))));
+    if let Some(error) = restore_failed {
+        core.restore_failed(error);
+    }
     #[cfg(debug_assertions)]
     if let Ok(seconds) = std::env::var("AOIDE_SMOKE_SECONDS") {
         smoke::spawn(
