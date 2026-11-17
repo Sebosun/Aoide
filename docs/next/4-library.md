@@ -22,6 +22,7 @@ updated for both.
 ## 4.1 Edit a book's details
 
 **Size:** M
+**Built:** 2026-11-17 (cf8056b..11ae94a)
 
 ### Outcome
 
@@ -129,6 +130,18 @@ Option<String>` opens the file chooser, beside `choose_books` in `commands/disco
 
 - A changed file is a new item and does not carry the edit over, as it does not carry voice
   settings or the place (decided 2026-11-16: the book's id is its content hash).
+
+### As built
+
+- The rule is `details::apply` in its own module (`core/details.rs`), with `edit_of` and
+  `shown`; `Core::shown_record` is what readers ask. Besides the readers listed above, the
+  notes export, the tagging model's item, the queue's toasts, the finished-article offer, the
+  inbox's and the bookmarklet's toasts and `Shelf::cover` (now playing) use it. The `Encoder`
+  was given the covers folder for the M4B's and the read-along's cover.
+- `DetailsEdit` has no series fields yet; 4.2 adds them.
+- The dialog saves typed fields together and sends only the ones that changed; **Use the
+  file's** and **Choose a picture…** apply at once. Dropping an image on the cover was not
+  built.
 
 ---
 
