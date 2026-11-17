@@ -377,16 +377,13 @@ impl Inbox {
             waiting.retain(|path, _| found.iter().any(|(p, _)| p == path));
             let mut ready = Vec::new();
             for (path, stamp) in found {
-                if taken.get(&path) == Some(&stamp) {
+                // An empty file is a placeholder a browser fills in later: nothing to wait
+                // for until it is.
+                if stamp.len == 0 || taken.get(&path) == Some(&stamp) {
                     continue;
                 }
                 match waiting.get(&path) {
-                    // An empty file is a placeholder a browser fills in later.
-                    Some((seen, since))
-                        if *seen == stamp
-                            && stamp.len > 0
-                            && now >= *since + self.timing.settle =>
-                    {
+                    Some((seen, since)) if *seen == stamp && now >= *since + self.timing.settle => {
                         waiting.remove(&path);
                         ready.push((path, stamp));
                     }
@@ -916,5 +913,30 @@ mod tests {
         // A browser's placeholder stays empty until the download is renamed over it.
         inbox.pass_at(dir.path(), at(10), &host);
         assert_eq!(host.taken(), ["Growing.epub"]);
+    }
+
+    #[test]
+    fn an_empty_placeholder_does_not_keep_the_inbox_waiting() {
+        let dir = tempfile::tempdir().unwrap();
+        let (inbox, host, start) = (inbox(), Imports::default(), Instant::now());
+        // Firefox leaves it under the final name for as long as the download takes.
+        std::fs::write(dir.path().join("Coming.epub"), b"").unwrap();
+
+        assert_eq!(inbox.pass_at(dir.path(), start, &host), Stage::Idle);
+        assert_eq!(
+            inbox.pass_at(dir.path(), start + Duration::from_secs(60), &host),
+            Stage::Idle,
+            "nothing to look at again on its own"
+        );
+
+        // The download is renamed over it: it waits its two seconds, then it is taken.
+        std::fs::write(dir.path().join("Coming.epub"), epub()).unwrap();
+        let later = start + Duration::from_secs(61);
+        assert!(matches!(
+            inbox.pass_at(dir.path(), later, &host),
+            Stage::Settling { .. }
+        ));
+        inbox.pass_at(dir.path(), later + SETTLE, &host);
+        assert_eq!(host.taken(), ["Coming.epub"]);
     }
 }
