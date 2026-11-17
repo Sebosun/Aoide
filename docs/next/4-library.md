@@ -538,9 +538,12 @@ the library within seconds.
 - `AppSettings.inbox: Option<PathBuf>`; only the files directly in it; book extensions only. The
   library folder, or a folder inside it, is refused as an inbox.
 - Component `core/inbox.rs`, with a host trait for: the ids in the library, the removed ids, and
-  importing (`Shelf::import_files`). It runs `watch_folder` on its own thread and lists the
-  folder's top level itself on each wake (`watch_folder` gains the recursive mode as an
-  argument, or the component ignores what is below the top level).
+  importing (`Shelf::import_files`). It watches the folder's top level on its own thread
+  (`notify`, not recursive, with `watching::changes` to tell a change from a file read) and
+  lists the folder itself on each wake. Not `watch_folder`: that one cannot be woken by a
+  folder chosen in Settings, nor by a file's two seconds being up when nothing else changes.
+  After a change the folder is looked at half a second later; changes meanwhile do not put
+  that off (a long download beside a book would otherwise hold the book back).
 - A file is taken when its size has not changed for 2 s, on top of the watcher's settling.
 - A file is skipped when its hash is already in the library or **on the removed list**: the
   inbox checks this before calling `import_files`, which would otherwise bring a removed book
@@ -548,11 +551,13 @@ the library within seconds.
   session.
 - It is **copied** into the library and the original is left where it is. Aoide never deletes
   from the inbox.
-- State, one enum: `Idle`, `Settling { since }`, `Importing`, `Unavailable`. One import at a
-  time.
+- State, one enum: `Off` (no folder chosen), `Idle`, `Settling { since }`, `Importing`,
+  `Unavailable`. One import at a time.
 - A toast names what was added; nothing opens by itself.
 - The folder disappearing (an unmounted drive) moves to `Unavailable`, says so in Settings, and
-  checks every 30 s for its return; watching starts again when it is back.
+  checks every 30 s for its return; watching starts again when it is back. A watched folder is
+  also checked every 30 s to be the same folder (device and inode): a drive taken out can leave
+  an empty folder where it was mounted, which is watched afresh.
 
 ### Slices
 

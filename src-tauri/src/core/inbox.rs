@@ -8,9 +8,11 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
+use notify::{RecursiveMode, Watcher};
 use serde::Serialize;
 
 use super::{lock, CoreEvent, Events};
@@ -39,6 +41,47 @@ pub struct InboxBook {
 /// How long a file's size must hold before it is taken: a download or a sync still writing
 /// it grows meanwhile.
 pub const SETTLE: Duration = Duration::from_secs(2);
+/// How often a folder that is gone is looked for, and a watched one checked to be the same
+/// folder still (a drive taken out leaves an empty folder where it was).
+pub const RECHECK: Duration = Duration::from_secs(30);
+
+/// How long the inbox waits for what.
+#[derive(Debug, Clone, Copy)]
+struct Timing {
+    /// A file's size must hold this long before it is taken.
+    settle: Duration,
+    /// After a change in the folder, it is looked at this much later (a copy comes as a
+    /// burst of changes); changes meanwhile do not put the look off.
+    quiet: Duration,
+    /// See [`RECHECK`].
+    recheck: Duration,
+}
+
+const TIMING: Timing = Timing {
+    settle: SETTLE,
+    quiet: Duration::from_millis(500),
+    recheck: RECHECK,
+};
+
+/// What wakes the inbox's thread.
+#[derive(Debug)]
+enum Wake {
+    /// The folder changed (not a file opened or read in it).
+    Changed,
+    /// Another folder was chosen, or none.
+    Folder,
+    /// Aoide is closing.
+    Stop,
+}
+
+/// Why watching a folder ended.
+enum Ended {
+    /// It is gone, or cannot be watched: look for it again later.
+    Lost,
+    /// Watch the folder chosen now (or the same one again: it was replaced).
+    Again,
+    Stop,
+}
 
 /// A file as last seen: its length and when it was last written.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -50,6 +93,8 @@ struct Stamp {
 /// Where the inbox is. One import at a time: the folder is looked at on one thread.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stage {
+    /// No folder is chosen.
+    Off,
     /// Nothing waits.
     Idle,
     /// Files wait for their size to hold; the first was seen `since`.
@@ -63,6 +108,7 @@ enum Stage {
 impl Stage {
     fn name(self) -> &'static str {
         match self {
+            Stage::Off => "off",
             Stage::Idle => "idle",
             Stage::Settling { .. } => "settling",
             Stage::Importing => "importing",
@@ -81,8 +127,10 @@ enum Event {
     },
     /// The ready files were taken; files still wait since `waiting`.
     Taken { waiting: Option<Instant> },
-    /// The folder could not be listed.
+    /// The folder could not be listed, or watched.
     Gone,
+    /// No folder is chosen.
+    Off,
 }
 
 fn next(stage: Stage, event: Event) -> Stage {
@@ -91,6 +139,7 @@ fn next(stage: Stage, event: Event) -> Stage {
         None => Stage::Idle,
     };
     match (stage, event) {
+        (_, Event::Off) => Stage::Off,
         (_, Event::Gone) => Stage::Unavailable,
         (_, Event::Listed { ready: true, .. }) => Stage::Importing,
         (_, Event::Listed { waiting, .. }) => settled(waiting),
@@ -111,24 +160,155 @@ struct Files {
 
 pub(super) struct Inbox {
     events: Arc<dyn Events>,
+    timing: Timing,
+    /// The folder chosen.
+    folder: Mutex<Option<PathBuf>>,
     stage: Mutex<Stage>,
     files: Mutex<Files>,
+    wake: Mutex<std::sync::mpsc::Sender<Wake>>,
+    /// Taken by the thread that runs the inbox.
+    woken: Mutex<Option<Receiver<Wake>>>,
 }
 
 impl Inbox {
     pub fn new(events: Arc<dyn Events>) -> Self {
+        let (wake, woken) = std::sync::mpsc::channel();
         Self {
             events,
-            stage: Mutex::new(Stage::Idle),
+            timing: TIMING,
+            folder: Mutex::new(None),
+            stage: Mutex::new(Stage::Off),
             files: Mutex::new(Files::default()),
+            wake: Mutex::new(wake),
+            woken: Mutex::new(Some(woken)),
+        }
+    }
+
+    /// Watches `folder` from now on, or nothing.
+    pub fn set_folder(&self, folder: Option<PathBuf>) {
+        *lock(&self.folder) = folder;
+        let _ = lock(&self.wake).send(Wake::Folder);
+    }
+
+    /// Ends [`Inbox::run`].
+    pub fn stop(&self) {
+        let _ = lock(&self.wake).send(Wake::Stop);
+    }
+
+    fn stage(&self) -> Stage {
+        *lock(&self.stage)
+    }
+
+    /// Watches the folder chosen, taking the books that appear in it, until [`Inbox::stop`].
+    /// A folder that is gone is looked for every [`RECHECK`]. Blocks its thread; runs once.
+    pub fn run(&self, host: &dyn InboxHost) {
+        let Some(woken) = lock(&self.woken).take() else {
+            return;
+        };
+        loop {
+            let folder = lock(&self.folder).clone();
+            let wait = match folder {
+                None => {
+                    self.apply(Event::Off);
+                    None
+                }
+                Some(dir) => match self.watch(&dir, &woken, host) {
+                    Ended::Again => continue,
+                    Ended::Lost => Some(self.timing.recheck),
+                    Ended::Stop => return,
+                },
+            };
+            // Until another folder is chosen, or it is time to look for the one gone.
+            loop {
+                let woke = match wait {
+                    Some(wait) => woken.recv_timeout(wait),
+                    None => woken.recv().map_err(|_| RecvTimeoutError::Disconnected),
+                };
+                match woke {
+                    Ok(Wake::Folder) | Err(RecvTimeoutError::Timeout) => break,
+                    Ok(Wake::Stop) | Err(RecvTimeoutError::Disconnected) => return,
+                    // From a watch that has ended.
+                    Ok(Wake::Changed) => {}
+                }
+            }
+        }
+    }
+
+    /// Watches the folder `dir` and takes its books until it is gone, another is chosen, or
+    /// the inbox stops.
+    fn watch(&self, dir: &Path, woken: &Receiver<Wake>, host: &dyn InboxHost) -> Ended {
+        let wake = lock(&self.wake).clone();
+        let watcher = notify::recommended_watcher(move |event| {
+            if super::watching::changes(&event) {
+                let _ = wake.send(Wake::Changed);
+            }
+        })
+        .and_then(|mut watcher| {
+            watcher
+                .watch(dir, RecursiveMode::NonRecursive)
+                .map(|()| watcher)
+        });
+        let _watcher = match watcher {
+            Ok(watcher) => watcher,
+            Err(error) => {
+                self.lost(&error.to_string());
+                return Ended::Lost;
+            }
+        };
+        let same = identity(dir);
+        let mut look_at = Some(Instant::now());
+        let mut check_at = Instant::now() + self.timing.recheck;
+        loop {
+            let now = Instant::now();
+            if look_at.is_some_and(|at| at <= now) {
+                look_at = match self.pass_at(dir, now, host) {
+                    Stage::Unavailable => return Ended::Lost,
+                    Stage::Settling { since } => Some(since + self.timing.settle),
+                    _ => None,
+                };
+            }
+            if check_at <= now {
+                check_at = now + self.timing.recheck;
+                match identity(dir) {
+                    None => look_at = Some(now),
+                    found if found != same => return Ended::Again,
+                    _ => {}
+                }
+            }
+            let until = look_at.map_or(check_at, |at| at.min(check_at));
+            match woken.recv_timeout(until.saturating_duration_since(Instant::now())) {
+                Ok(Wake::Changed) => {
+                    let soon = Instant::now() + self.timing.quiet;
+                    look_at = Some(look_at.map_or(soon, |at| at.min(soon)));
+                }
+                Ok(Wake::Folder) => return Ended::Again,
+                Ok(Wake::Stop) | Err(RecvTimeoutError::Disconnected) => return Ended::Stop,
+                Err(RecvTimeoutError::Timeout) => {}
+            }
+        }
+    }
+
+    /// The folder is gone or cannot be watched, for `error`.
+    fn lost(&self, error: &str) {
+        let was = self.stage();
+        if self.apply(Event::Gone) != was {
+            tracing::warn!(
+                event = "inbox.unavailable",
+                error,
+                "The inbox folder cannot be watched"
+            );
         }
     }
 
     /// Looks at the folder `dir` at `now`, and takes the books in it whose size held for
     /// [`SETTLE`]. Returns the stage it is in after.
     fn pass_at(&self, dir: &Path, now: Instant, host: &dyn InboxHost) -> Stage {
-        let Ok(found) = listed(dir) else {
-            return self.apply(Event::Gone);
+        let found = match listed(dir) {
+            Ok(found) => found,
+            Err(error) => {
+                self.lost(&error.to_string());
+                return Stage::Unavailable;
+            }
         };
         let ready = {
             let mut files = lock(&self.files);
@@ -143,7 +323,9 @@ impl Inbox {
                 match waiting.get(&path) {
                     // An empty file is a placeholder a browser fills in later.
                     Some((seen, since))
-                        if *seen == stamp && stamp.len > 0 && now >= *since + SETTLE =>
+                        if *seen == stamp
+                            && stamp.len > 0
+                            && now >= *since + self.timing.settle =>
                     {
                         waiting.remove(&path);
                         ready.push((path, stamp));
@@ -246,6 +428,19 @@ fn take(path: &Path, host: &dyn InboxHost) -> Option<InboxBook> {
             None
         }
     }
+}
+
+/// Which folder `dir` is, so one put in its place is told apart; `None` when it is gone.
+#[cfg(unix)]
+fn identity(dir: &Path) -> Option<(u64, u64)> {
+    use std::os::unix::fs::MetadataExt;
+    let meta = std::fs::metadata(dir).ok().filter(|meta| meta.is_dir())?;
+    Some((meta.dev(), meta.ino()))
+}
+
+#[cfg(not(unix))]
+fn identity(dir: &Path) -> Option<()> {
+    dir.is_dir().then_some(())
 }
 
 /// The book files directly in `dir` (hidden ones left out), each as it is now.
@@ -448,6 +643,49 @@ mod tests {
         assert_eq!(world.added().len(), 1);
     }
 
+    /// Waits until `done` holds, or fails the test after a while.
+    fn until(what: &str, done: impl Fn() -> bool) {
+        let start = Instant::now();
+        while !done() {
+            assert!(start.elapsed() < Duration::from_secs(10), "never {what}");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    #[test]
+    fn watching_stops_while_the_folder_is_gone_and_starts_again_when_it_is_back() {
+        let mut world = world();
+        world.inbox.timing = Timing {
+            settle: Duration::from_millis(300),
+            quiet: Duration::from_millis(100),
+            recheck: Duration::from_millis(300),
+        };
+        world.inbox.set_folder(Some(world.downloads()));
+        std::thread::scope(|scope| {
+            let world = &world;
+            scope.spawn(|| world.inbox.run(&world.shelf));
+            until("watching", || world.inbox.stage() == Stage::Idle);
+            std::fs::write(world.downloads().join("Lights.epub"), epub()).unwrap();
+            until("added", || world.added().len() == 1);
+
+            std::fs::remove_dir_all(world.downloads()).unwrap();
+            until("unavailable", || world.inbox.stage() == Stage::Unavailable);
+
+            std::fs::create_dir(world.downloads()).unwrap();
+            let other = super::super::tests::epub_with(
+                "<html><body><p>The tide came in.</p></body></html>".into(),
+                "<html><body><p>The tide went out.</p></body></html>".into(),
+            );
+            std::fs::write(world.downloads().join("Tide.epub"), other).unwrap();
+            until("added again", || world.added().len() == 2);
+            assert_eq!(world.files("Books"), ["Lights.epub", "Tide.epub"]);
+
+            world.inbox.set_folder(None);
+            until("off", || world.inbox.stage() == Stage::Off);
+            world.inbox.stop();
+        });
+    }
+
     impl Imports {
         fn taken(&self) -> Vec<String> {
             lock(&self.0).clone()
@@ -458,52 +696,21 @@ mod tests {
     fn the_stage_moves_on_named_events() {
         let t = Instant::now();
         let settling = Stage::Settling { since: t };
+        let listed = |waiting, ready| Event::Listed { waiting, ready };
+        let taken = |waiting| Event::Taken { waiting };
         let cases = [
-            (
-                Stage::Idle,
-                Event::Listed {
-                    waiting: None,
-                    ready: false,
-                },
-                Stage::Idle,
-            ),
-            (
-                Stage::Idle,
-                Event::Listed {
-                    waiting: Some(t),
-                    ready: false,
-                },
-                settling,
-            ),
-            (
-                settling,
-                Event::Listed {
-                    waiting: Some(t),
-                    ready: true,
-                },
-                Stage::Importing,
-            ),
-            (
-                Stage::Importing,
-                Event::Taken { waiting: None },
-                Stage::Idle,
-            ),
-            (
-                Stage::Importing,
-                Event::Taken { waiting: Some(t) },
-                settling,
-            ),
-            (Stage::Idle, Event::Taken { waiting: Some(t) }, Stage::Idle),
+            (Stage::Off, listed(None, false), Stage::Idle),
+            (Stage::Idle, listed(None, false), Stage::Idle),
+            (Stage::Idle, listed(Some(t), false), settling),
+            (settling, listed(Some(t), true), Stage::Importing),
+            (Stage::Importing, taken(None), Stage::Idle),
+            (Stage::Importing, taken(Some(t)), settling),
+            (Stage::Idle, taken(Some(t)), Stage::Idle),
             (settling, Event::Gone, Stage::Unavailable),
             (Stage::Importing, Event::Gone, Stage::Unavailable),
-            (
-                Stage::Unavailable,
-                Event::Listed {
-                    waiting: None,
-                    ready: false,
-                },
-                Stage::Idle,
-            ),
+            (Stage::Unavailable, listed(None, false), Stage::Idle),
+            (Stage::Unavailable, Event::Off, Stage::Off),
+            (settling, Event::Off, Stage::Off),
         ];
         for (from, event, to) in cases {
             assert_eq!(next(from, event), to, "{from:?} on {event:?}");

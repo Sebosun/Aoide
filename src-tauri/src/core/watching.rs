@@ -12,7 +12,7 @@ use notify::{Event, EventKind, RecursiveMode, Watcher};
 
 /// Whether `event` changed what the folder holds: not a file opened, read, or closed unwritten.
 /// An error counts, since it may hide a change (a full event queue).
-fn changes(event: &notify::Result<Event>) -> bool {
+pub(super) fn changes(event: &notify::Result<Event>) -> bool {
     match event {
         Ok(event) => match event.kind {
             EventKind::Access(AccessKind::Close(AccessMode::Write)) => true,

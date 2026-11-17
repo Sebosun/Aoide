@@ -104,7 +104,8 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `library.watch` | warn | `error` | `core.rs`, the library folder watcher |
 | `inbox.imported` | info | `book`, `file` (name only) | `core/inbox.rs` `take`, a book file in the inbox folder copied into the library; the window is told what one look added (`inbox://added`) |
 | `inbox.skipped` | info | `file` (name only), `why` (`in_library`: its content is there already, `removed`: the user removed that book, `unreadable`, `failed`: it could not be added), `error` | `core/inbox.rs` `take`; a file passed over is not looked at again until it changes |
-| `inbox.stage` | info | `from`, `to` (`idle`, `settling`, `importing`, `unavailable`) | `core/inbox.rs` `Inbox::apply`, where the inbox's `next` is applied |
+| `inbox.unavailable` | warn | `error` | `core/inbox.rs` `Inbox::lost`: the inbox folder cannot be listed or watched (gone, or on a drive taken out); it is looked for every 30 s. Never its path |
+| `inbox.stage` | info | `from`, `to` (`off`, `idle`, `settling`, `importing`, `unavailable`) | `core/inbox.rs` `Inbox::apply`, where the inbox's `next` is applied |
 | `discovery.scan` | info, warn | `roots`, `epubs`, `read`, `took_ms`, `outcome`, `error` | `core/discovery.rs` |
 | `discovery.import` | info | `chosen`, `failed` | `core/discovery.rs` |
 | `library.audiobook` | info | `book`, `outcome` (`ok`, `refused`), `error` | `core/audiobook.rs` `add_audiobook` |
