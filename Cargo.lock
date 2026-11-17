@@ -395,6 +395,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aoide-plaintext"
+version = "0.1.0"
+dependencies = [
+ "aoide-document",
+ "encoding_rs",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "aoide-recording"
 version = "0.1.0"
 dependencies = [

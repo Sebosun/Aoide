@@ -98,6 +98,10 @@ pub enum Warning {
     /// The page's own markup carried less text than its metadata, so the body was built from
     /// the metadata's copy of it.
     BodyFromMetadata,
+    /// A text file was not UTF-8 (nor marked as UTF-16), so it was read in this encoding.
+    GuessedEncoding {
+        encoding: String,
+    },
 }
 
 /// What an article's page shows that its text leaves out.
@@ -250,4 +254,60 @@ pub enum BlockKind {
 pub struct SourceLocation {
     pub path: String,
     pub fragment: Option<String>,
+}
+
+impl ParsedBook {
+    /// A book of these chapters, with nothing else known about it.
+    pub fn of(chapters: Vec<Chapter>) -> Self {
+        Self {
+            title: None,
+            authors: Vec::new(),
+            language: None,
+            publisher: None,
+            description: None,
+            identifiers: Vec::new(),
+            isbn: None,
+            subjects: Vec::new(),
+            series: None,
+            cover: None,
+            notes: Vec::new(),
+            chapters,
+            warnings: Vec::new(),
+            excluded: Vec::new(),
+        }
+    }
+}
+
+impl Chapter {
+    /// A chapter of these blocks, its text their texts joined, read from `path`.
+    pub fn of(title: String, blocks: Vec<Block>, path: &str) -> Self {
+        Self {
+            title,
+            text: blocks
+                .iter()
+                .map(|b| b.text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n\n"),
+            blocks,
+            note_refs: Vec::new(),
+            sources: vec![SourceLocation {
+                path: path.into(),
+                fragment: None,
+            }],
+            inserts: Vec::new(),
+            tables: Vec::new(),
+        }
+    }
+}
+
+impl Block {
+    /// A block of `kind` holding `text`.
+    pub fn of(kind: BlockKind, text: String) -> Self {
+        Self {
+            kind,
+            text,
+            break_before: false,
+            layout: None,
+        }
+    }
 }

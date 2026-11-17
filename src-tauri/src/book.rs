@@ -983,6 +983,9 @@ fn describe_warning(warning: &Warning) -> String {
             "The page showed less text than it declared; the text comes from the page's metadata."
                 .into()
         }
+        Warning::GuessedEncoding { encoding } => format!(
+            "The file is not UTF-8; it was read as {encoding}, so a few characters may be wrong."
+        ),
     }
 }
 
