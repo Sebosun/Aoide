@@ -99,21 +99,26 @@ const chapterMissing = computed(
   row-gap: var(--space-9);
   font: 400 calc(20.5px * var(--read-scale)) / var(--read-line) var(--read-font);
   color: var(--reading);
-  text-align: var(--read-align);
-  hyphens: var(--read-hyphens);
-  -webkit-hyphens: var(--read-hyphens);
 }
 .chapter-text__row {
   min-width: 0;
 }
+/* Justified and hyphenated as chosen: the book's text, not its headings or code, nor what the
+   page puts around it (an article's header, notices). */
 .chapter-text__block {
+  text-align: var(--read-align);
+  hyphens: var(--read-hyphens);
+  -webkit-hyphens: var(--read-hyphens);
   margin: 0;
 }
-.chapter-text__block--heading {
-  font: 600 calc(34px * var(--read-scale)) / 1.15 var(--read-font);
+.chapter-text__block--heading,
+.chapter-text__block--preformatted {
   text-align: start;
   hyphens: manual;
   -webkit-hyphens: manual;
+}
+.chapter-text__block--heading {
+  font: 600 calc(34px * var(--read-scale)) / 1.15 var(--read-font);
   color: var(--ink);
   letter-spacing: -0.012em;
   padding-bottom: var(--space-3);
@@ -151,7 +156,9 @@ h3.chapter-text__block--heading {
   padding-top: var(--space-3);
   font: 400 14.5px/1.5 var(--read-font);
   color: var(--dim);
-  text-align: start;
+  /* A narrow column: ragged, hyphenated when the text is. */
+  hyphens: var(--read-hyphens);
+  -webkit-hyphens: var(--read-hyphens);
 }
 .chapter-text__margin-note:focus {
   outline: none;
