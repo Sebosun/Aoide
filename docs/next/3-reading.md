@@ -31,6 +31,7 @@ Two facts every plan here leans on:
 ## 3.1 A menu on selected text
 
 **Size:** M. Several other features hang their entry point here.
+**Built:** 2026-11-17 (fb2a6af..daea241)
 
 ### Outcome
 
