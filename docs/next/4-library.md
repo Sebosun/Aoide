@@ -221,6 +221,7 @@ merge is worse than two shelves, and 4.1 lets the user fix a name.
 ## 4.3 Archive, and quicker collections
 
 **Size:** S
+**Built:** 2026-11-17 (01f363b..3d42273)
 
 ### Outcome
 
