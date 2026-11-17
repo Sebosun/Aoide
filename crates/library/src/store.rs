@@ -345,6 +345,40 @@ const MIGRATIONS: &[Step] = &[
             PRIMARY KEY (import_id, book_id)
         );",
     ),
+    // Version 26.
+    // The library's text, one row per block, in a full-text index (external content, kept in
+    // step by triggers), and which items are indexed under which rule.
+    Step::Sql(
+        "CREATE TABLE IF NOT EXISTS passage_rows (
+            id INTEGER PRIMARY KEY,
+            book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+            chapter INTEGER NOT NULL,
+            block INTEGER NOT NULL,
+            at INTEGER NOT NULL,
+            segments TEXT NOT NULL,
+            text TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS passage_rows_book ON passage_rows(book_id);
+        CREATE VIRTUAL TABLE IF NOT EXISTS passages USING fts5(
+            text, content = 'passage_rows', content_rowid = 'id',
+            tokenize = 'unicode61 remove_diacritics 2'
+        );
+        CREATE TRIGGER IF NOT EXISTS passage_rows_ai AFTER INSERT ON passage_rows BEGIN
+            INSERT INTO passages(rowid, text) VALUES (new.id, new.text);
+        END;
+        CREATE TRIGGER IF NOT EXISTS passage_rows_ad AFTER DELETE ON passage_rows BEGIN
+            INSERT INTO passages(passages, rowid, text) VALUES ('delete', old.id, old.text);
+        END;
+        CREATE TRIGGER IF NOT EXISTS passage_rows_au AFTER UPDATE ON passage_rows BEGIN
+            INSERT INTO passages(passages, rowid, text) VALUES ('delete', old.id, old.text);
+            INSERT INTO passages(rowid, text) VALUES (new.id, new.text);
+        END;
+        CREATE TABLE IF NOT EXISTS indexed (
+            book_id TEXT PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+            version INTEGER NOT NULL,
+            blocks INTEGER NOT NULL
+        );",
+    ),
 ];
 
 fn add_column_if_missing(

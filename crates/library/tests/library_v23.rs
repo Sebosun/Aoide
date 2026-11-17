@@ -108,5 +108,5 @@ fn a_version_22_library_opens_with_no_folders() {
         .unwrap()
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 25);
+    assert_eq!(version, 26);
 }
