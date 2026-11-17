@@ -89,7 +89,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `ipc.error` | warn | `command`, `took_ms` (`msg` is the error) | `src/api/tauri.ts` `call`; errors of kind `cancelled` (a scan the user stopped) left out |
 | `ipc.slow` | info | `command`, `took_ms` | `src/api/tauri.ts`, answers over 2 s (long jobs left out) |
 | `ui.error` | error | `view` | `src/main.ts`, an error no view caught |
-| `ui.selection` | info | `command` (the entry: `copy`, `search`, `listen`, `say-differently`), `view` | `src/components/reader/ReaderSelectionMenu.vue`, an entry of the menu on selected text or on a sentence; never the text |
+| `ui.selection` | info | `command` (the entry: `copy`, `search`, `listen`, `say-differently`, `say-again`, `bookmark`), `view` | `src/components/reader/ReaderSelectionMenu.vue`, an entry of the menu on selected text or on a sentence; never the text |
 | `ui.frames` | debug | `command` (`scroll`, `open`, `view`), `view`, `frames`, `dropped` (over 24 ms), `worst_ms`, `took_ms` | `src/composables/useFrameLog.ts`: each scroll (`took_ms` and `frames` include the 300 ms it takes to count as ended), and each change of view until it has come in; an `open` counts from the click |
 | **Library** | | | |
 | `library.scan` | info, warn, error | `books`, `new`, `read`, `took_ms`, `outcome`, `error` | `core.rs` `rescan` |

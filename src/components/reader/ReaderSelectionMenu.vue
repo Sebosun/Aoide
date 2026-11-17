@@ -64,7 +64,14 @@ onMounted(async () => {
   if (!props.focus) return;
   before = document.activeElement as HTMLElement | null;
   await nextTick();
+  // WebKit clears the page's selection when a button takes the focus: it is put back.
+  const selection = document.getSelection();
+  const kept = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : null;
   items()[0]?.focus();
+  if (kept && selection?.isCollapsed) {
+    selection.removeAllRanges();
+    selection.addRange(kept);
+  }
 });
 onUnmounted(() => {
   document.removeEventListener("keydown", onKeydown);

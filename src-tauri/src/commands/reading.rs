@@ -59,15 +59,17 @@ pub async fn bookmarks(
     blocking(move || core.bookmarks(&book_id)).await
 }
 
-/// Bookmarks the current playhead (or the saved position of bookId when not playing it).
+/// Bookmarks sentence `segmentId` when given, else the current playhead (or the saved position
+/// of bookId when not playing it).
 #[tauri::command]
 pub async fn add_bookmark(
     core: CoreState<'_>,
     book_id: String,
     note: String,
+    segment_id: Option<String>,
 ) -> Result<aoide_library::Bookmark, CoreError> {
     let core = Arc::clone(&core);
-    blocking(move || core.add_bookmark(&book_id, &note)).await
+    blocking(move || core.add_bookmark_at(&book_id, &note, segment_id.as_deref())).await
 }
 
 #[tauri::command]

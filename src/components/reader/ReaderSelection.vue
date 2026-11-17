@@ -15,6 +15,8 @@ const actions = useTextActions();
 const SETTLE_MS = 300;
 const open = shallowRef<{ target: TextTarget; anchor: Anchor; focus: boolean } | null>(null);
 let pointerDown = false,
+  /** A right click opened the menu: WebKit may follow it with a click, which is not one to play. */
+  swallowClick = false,
   settling: ReturnType<typeof setTimeout> | undefined;
 
 /** A still rectangle around what is selected (the range's, else its first sentence's). */
@@ -30,13 +32,46 @@ function openOnSelection(focus = false) {
   const selection = document.getSelection();
   const range =
     selection && props.root && props.chapter ? rangeOfSelection(selection, props.root, props.chapter) : null;
-  open.value =
-    range && selection
-      ? { target: { kind: "selection", range }, anchor: rectangle(selection.getRangeAt(0)), focus }
-      : null;
+  if (!range || !selection) {
+    open.value = null;
+    return;
+  }
+  const target: TextTarget = { kind: "selection", range };
+  // The same words: the menu stays as it is (and where the focus is).
+  if (open.value && JSON.stringify(open.value.target) === JSON.stringify(target)) return;
+  open.value = { target, anchor: rectangle(selection.getRangeAt(0)), focus };
+}
+/** A right click (or the menu key): the menu on what is selected, else on the sentence under
+ *  the pointer. Elsewhere the page keeps its own menu. */
+function onContextmenu(event: MouseEvent) {
+  const root = props.root,
+    chapter = props.chapter;
+  if (!root || !chapter || !root.contains(event.target as Node)) return;
+  const at = new DOMRect(event.clientX, event.clientY, 0, 0),
+    anchor = { getBoundingClientRect: () => at };
+  const selection = document.getSelection();
+  const range = selection && !selection.isCollapsed ? rangeOfSelection(selection, root, chapter) : null;
+  if (range) {
+    event.preventDefault();
+    swallowClick = true;
+    open.value = { target: { kind: "selection", range }, anchor, focus: true };
+    return;
+  }
+  const id = (event.target as Element).closest?.("[data-segment-id]")?.getAttribute("data-segment-id");
+  if (!id || !chapter.blocks.some((b) => b.segments.some((s) => s.id === id))) return;
+  event.preventDefault();
+  swallowClick = true;
+  open.value = { target: { kind: "sentence", chapter: chapter.index, segmentId: id }, anchor, focus: true };
+}
+function onClick(event: MouseEvent) {
+  if (!swallowClick || !props.root?.contains(event.target as Node)) return;
+  swallowClick = false;
+  event.stopPropagation();
 }
 function onPointerdown(event: PointerEvent) {
-  pointerDown = Boolean(props.root?.contains(event.target as Node));
+  swallowClick = false;
+  // The main button selects; a right click opens the menu itself (`onContextmenu`).
+  pointerDown = event.button === 0 && Boolean(props.root?.contains(event.target as Node));
 }
 function onPointerup() {
   if (!pointerDown) return;
@@ -48,7 +83,8 @@ function onSelectionchange() {
   clearTimeout(settling);
   const selection = document.getSelection();
   if (!selection || selection.isCollapsed) {
-    if (open.value?.target.kind === "selection") open.value = null;
+    // A menu that took the focus stays: focusing it may clear the selection for a moment.
+    if (open.value?.target.kind === "selection" && !open.value.focus) open.value = null;
     return;
   }
   if (pointerDown) return;
@@ -58,12 +94,16 @@ onMounted(() => {
   document.addEventListener("pointerdown", onPointerdown, true);
   document.addEventListener("pointerup", onPointerup, true);
   document.addEventListener("selectionchange", onSelectionchange);
+  document.addEventListener("contextmenu", onContextmenu);
+  document.addEventListener("click", onClick, true);
 });
 onUnmounted(() => {
   clearTimeout(settling);
   document.removeEventListener("pointerdown", onPointerdown, true);
   document.removeEventListener("pointerup", onPointerup, true);
   document.removeEventListener("selectionchange", onSelectionchange);
+  document.removeEventListener("contextmenu", onContextmenu);
+  document.removeEventListener("click", onClick, true);
 });
 // Another chapter: what was selected is gone.
 watch(

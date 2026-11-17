@@ -156,11 +156,12 @@ export function rangeOfSelection(
   };
 }
 
-/** Whether the page has text selected: the click that ends a drag selecting words is not a
- *  click to play. */
-export function selecting(): boolean {
+/** Whether a click on a sentence is one to play it: with the main button (WebKit also clicks
+ *  on a right click, which opens the text menu), and not the click that ends a drag selecting
+ *  words. */
+export function clickToPlay(event: MouseEvent): boolean {
   const selection = document.getSelection();
-  return Boolean(selection && !selection.isCollapsed);
+  return event.button === 0 && !(selection && !selection.isCollapsed);
 }
 
 /** Most words a selection may have to be said differently: a name or a term. */

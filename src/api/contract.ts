@@ -1435,8 +1435,11 @@ export type Commands = {
   "set_mode": { args: { bookId: string; mode: ReadingMode }; result: BookView };
   /** Bookmarks of a book, in reading order. */
   "bookmarks": { args: { bookId: string }; result: Bookmark[] };
-  /** Bookmarks the current playhead (or the saved position of bookId when not playing it). */
-  "add_bookmark": { args: { bookId: string; note: string }; result: Bookmark };
+  /**
+   * Bookmarks sentence `segmentId` when given, else the current playhead (or the saved position
+   * of bookId when not playing it).
+   */
+  "add_bookmark": { args: { bookId: string; note: string; segmentId?: string | null }; result: Bookmark };
   "update_bookmark_note": { args: { id: number; note: string }; result: void };
   "delete_bookmark": { args: { id: number }; result: void };
   /** One book's listened time per local day, oldest first. */
@@ -1756,8 +1759,11 @@ export interface CommandApi {
   setMode(args: { bookId: string; mode: ReadingMode }): Promise<BookView>;
   /** Bookmarks of a book, in reading order. */
   bookmarks(args: { bookId: string }): Promise<Bookmark[]>;
-  /** Bookmarks the current playhead (or the saved position of bookId when not playing it). */
-  addBookmark(args: { bookId: string; note: string }): Promise<Bookmark>;
+  /**
+   * Bookmarks sentence `segmentId` when given, else the current playhead (or the saved position
+   * of bookId when not playing it).
+   */
+  addBookmark(args: { bookId: string; note: string; segmentId?: string | null }): Promise<Bookmark>;
   updateBookmarkNote(args: { id: number; note: string }): Promise<void>;
   deleteBookmark(args: { id: number }): Promise<void>;
   /** One book's listened time per local day, oldest first. */

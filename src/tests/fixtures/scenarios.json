@@ -425,6 +425,36 @@
     ]
   },
   {
+    "name": "a sentence chosen in the reader is bookmarked, not the playhead",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-1",
+          "note": "",
+          "segmentId": "1:1:0"
+        },
+        "call": "addBookmark",
+        "error": null,
+        "expect": {
+          "chapter": 1,
+          "note": "",
+          "segmentId": "1:1:0"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "note": "",
+          "segmentId": "9:9:9"
+        },
+        "call": "addBookmark",
+        "error": "no sentence 9:9:9 in this book",
+        "expect": {}
+      }
+    ]
+  },
+  {
     "name": "a word is said another way in the sentences that have it, and only there",
     "start": "",
     "steps": [

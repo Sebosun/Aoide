@@ -110,7 +110,13 @@ As built: `ReaderSelection.vue` watches the selection beside `ChapterText` and i
 fills in the field and runs the search.
 
 **Bookmark here.** `add_bookmark` gains an optional `segment_id`: when given, the bookmark is
-on that sentence instead of the playhead.
+on that sentence instead of the playhead (`Core::add_bookmark_at`; an unknown sentence is
+refused, and so is any sentence of an audiobook without text).
+
+**The right click.** On selected text it opens the selection's menu; on a sentence without a
+selection, the sentence's (Listen from here, Say this again when `canSayAgain`, Bookmark here).
+Both take the focus and put back the selection WebKit clears when a button is focused. WebKit
+may follow a right click with a click: the next click in the text after it does not play.
 
 **Lines view.** The same menu; `ReaderLines.vue` draws whole sentences with
 `data-segment-id`, so the same rule applies. Its lines move while listening; a selection there

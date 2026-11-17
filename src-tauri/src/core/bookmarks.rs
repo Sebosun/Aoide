@@ -31,15 +31,11 @@ impl Bookmarks {
             .map_err(|e| e.to_string())
     }
 
-    /// Bookmarks entry `playing` of `book` when it is playing, else the book's saved position.
-    pub fn add(
-        &self,
-        book: &BookModel,
-        playing: Option<usize>,
-        note: &str,
-    ) -> Result<Bookmark, String> {
+    /// Bookmarks entry `at` of `book` (the playhead, or a sentence chosen in the reader), else
+    /// the book's saved position.
+    pub fn add(&self, book: &BookModel, at: Option<usize>, note: &str) -> Result<Bookmark, String> {
         let id = BookId(book.id.clone());
-        let index = match playing {
+        let index = match at {
             Some(index) => index.min(book.total_entries().saturating_sub(1)),
             None => {
                 let progress = lock(&self.library)
@@ -129,18 +125,38 @@ impl Core {
 
     /// Bookmarks the playhead when `id` is playing, else the book's saved position.
     pub fn add_bookmark(&self, id: &str, note: &str) -> Result<Bookmark, String> {
+        self.add_bookmark_at(id, note, None)
+    }
+
+    /// Bookmarks sentence `segment` of book `id` (one chosen in the reader); without one, as
+    /// [`Core::add_bookmark`].
+    pub fn add_bookmark_at(
+        &self,
+        id: &str,
+        note: &str,
+        segment: Option<&str>,
+    ) -> Result<Bookmark, String> {
         if self.item_kind(id) == Some(aoide_library::ItemKind::Audiobook) {
+            if segment.is_some() {
+                return Err("an audiobook without text has no sentences to bookmark".into());
+            }
             let (part, position_ms, title) = self.audiobook_place(id)?;
             return self
                 .bookmarks
                 .add_time(id, part as u32, position_ms, &title, note);
         }
-        let playing = self
-            .playback
-            .is_book(id)
-            .then(|| self.playback.position().index);
         let book = self.load_book(id)?;
-        self.bookmarks.add(&book, playing, note)
+        let at = match segment {
+            Some(segment) => Some(
+                book.index_of(segment)
+                    .ok_or_else(|| format!("no sentence {segment} in this book"))?,
+            ),
+            None => self
+                .playback
+                .is_book(id)
+                .then(|| self.playback.position().index),
+        };
+        self.bookmarks.add(&book, at, note)
     }
 
     pub fn update_bookmark_note(&self, bookmark: i64, note: &str) -> Result<(), String> {
@@ -180,6 +196,35 @@ mod tests {
         assert_eq!(mark.chapter, 0);
         bookmarks.delete(mark.id).unwrap();
         assert!(bookmarks.list("b").unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_bookmark_on_a_chosen_sentence_marks_it_rather_than_the_playhead() {
+        use super::super::tests::{library_folder, start_with, until};
+        let dir = tempfile::tempdir().unwrap();
+        let id = library_folder(dir.path(), "");
+        let (core, _events) = start_with(
+            dir.path(),
+            &aoide_tts::testing::FakeEngine::new(),
+            Arc::new(|_| Err("no speech recognition in this test".into())),
+        );
+        until("the library scan", || {
+            core.list_books().is_ok_and(|b| b.len() == 1)
+        })
+        .await;
+        core.play(&id, Some(0), None).await.unwrap();
+        core.pause();
+        let chosen = core.chapter(&id, 1).unwrap().blocks[0].segments[0]
+            .id
+            .clone();
+        let mark = core.add_bookmark_at(&id, "", Some(&chosen)).unwrap();
+        assert_eq!(
+            (mark.chapter, mark.segment_id.as_deref()),
+            (1, Some(chosen.as_str()))
+        );
+        let playhead = core.add_bookmark_at(&id, "", None).unwrap();
+        assert_eq!(playhead.chapter, 0, "without one, the playhead");
+        assert!(core.add_bookmark_at(&id, "", Some("9:9:9")).is_err());
     }
 
     #[test]

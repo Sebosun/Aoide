@@ -190,3 +190,84 @@ it("offers the same menu in Lines", async () => {
   await pickMenuItem("Listen from here");
   expect(play).toHaveBeenCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:1:1" });
 });
+
+/** Right-clicks sentence `id` of the page. */
+async function rightClick(id: string) {
+  const sentence = document.querySelector(`[data-segment-id="${id}"]`)!;
+  sentence.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 2 }));
+  const event = new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 300, clientY: 200 });
+  sentence.dispatchEvent(event);
+  sentence.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, button: 2 }));
+  await settle(5);
+  return event;
+}
+const sentenceMenu = () => document.querySelector<HTMLElement>('[role="menu"][aria-label="Sentence"]');
+
+it("right-clicking a sentence without selecting offers Listen from here, Say this again and Bookmark here", async () => {
+  const play = vi.spyOn(mock, "play");
+  await openReader();
+  const event = await rightClick("0:1:1");
+  expect(event.defaultPrevented, "the page's own menu does not open").toBe(true);
+  expect([...sentenceMenu()!.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent?.trim())).toEqual([
+    "Listen from here",
+    "Say this again",
+    "Bookmark here",
+  ]);
+  expect(document.activeElement?.textContent?.trim(), "the menu takes the focus").toBe("Listen from here");
+  await pickMenuItem("Listen from here");
+  expect(play).toHaveBeenCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:1:1" });
+});
+
+it("says a right-clicked sentence again, and bookmarks it rather than the playhead", async () => {
+  const again = vi.spyOn(mock, "sayAgain"),
+    mark = vi.spyOn(mock, "addBookmark");
+  await openReader();
+  await mock.play({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
+  await flushPromises();
+  await rightClick("0:2:0");
+  await pickMenuItem("Say this again");
+  expect(again).toHaveBeenCalledWith({ bookId: "book-0", segmentId: "0:2:0" });
+  await rightClick("0:2:0");
+  await pickMenuItem("Bookmark here");
+  expect(mark).toHaveBeenCalledWith({ bookId: "book-0", note: "", segmentId: "0:2:0" });
+  expect((await mock.bookmarks({ bookId: "book-0" })).at(-1)).toMatchObject({ chapter: 0, segmentId: "0:2:0" });
+  expect(useUiStore().toasts.map((t) => t.text)).toContain("Bookmarked");
+});
+
+it("offers Say this again only for a sentence the speech engine says", async () => {
+  await openReader("book-1");
+  await rightClick("0:0:0");
+  expect(sentenceMenu()!.textContent).toContain("Say this again");
+  useReaderStore().chapter!.blocks[0].segments[0].canSayAgain = false;
+  document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await rightClick("0:0:0");
+  expect(sentenceMenu()!.textContent).not.toContain("Say this again");
+});
+
+it("right-clicking selected text opens the menu on the selection", async () => {
+  await openReader();
+  await drag(["0:1:0", "lantern"]);
+  document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  await flushPromises();
+  await rightClick("0:1:0");
+  expect(sentenceMenu()).toBeNull();
+  expect(entries()).toContain("Copy");
+  expect(document.getSelection()!.toString(), "the selection is kept").toBe("lantern");
+});
+
+it("does not play the sentence a right click opened the menu on, when WebKit follows it with a click", async () => {
+  const play = vi.spyOn(mock, "play");
+  await openReader();
+  await rightClick("0:2:0");
+  document
+    .querySelector('[data-segment-id="0:2:0"]')!
+    .dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+  await flushPromises();
+  expect(play).not.toHaveBeenCalled();
+  expect(sentenceMenu()).not.toBeNull();
+  const sentence = document.querySelector('[data-segment-id="0:2:0"]')!;
+  sentence.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
+  sentence.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+  await flushPromises();
+  expect(play, "the next click plays").toHaveBeenCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:2:0" });
+});

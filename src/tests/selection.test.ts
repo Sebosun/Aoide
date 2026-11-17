@@ -206,3 +206,13 @@ it("does not play a sentence when a drag selected words in it; a plain click sti
   await sentence.trigger("click");
   expect(wrapper!.emitted("play")).toEqual([["0:1:0"]]);
 });
+
+it("does not play a sentence on a click of another button than the main one (WebKit clicks on a right click)", async () => {
+  const { chapter } = shapes;
+  draw(chapter);
+  const sentence = wrapper!.get('[data-segment-id="0:1:0"]');
+  await sentence.trigger("click", { button: 2 });
+  expect(wrapper!.emitted("play")).toBeUndefined();
+  await sentence.trigger("click", { button: 0 });
+  expect(wrapper!.emitted("play")).toEqual([["0:1:0"]]);
+});

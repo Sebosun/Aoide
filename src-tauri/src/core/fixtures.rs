@@ -1194,6 +1194,27 @@ async fn scenarios_for_the_ui_mock() {
     scenarios.push(s.done());
 
     let mut s = Scenario::new(
+        "a sentence chosen in the reader is bookmarked, not the playhead",
+        "",
+    );
+    let chosen = core.chapter(&second, 1).unwrap().blocks[1].segments[0]
+        .id
+        .clone();
+    s.step(
+        "addBookmark",
+        json!({"bookId": second, "note": "", "segmentId": chosen}),
+        &core.add_bookmark_at(&second, "", Some(&chosen)),
+        &["chapter", "segmentId", "note"],
+    );
+    s.step(
+        "addBookmark",
+        json!({"bookId": second, "note": "", "segmentId": "9:9:9"}),
+        &core.add_bookmark_at(&second, "", Some("9:9:9")),
+        &[],
+    );
+    scenarios.push(s.done());
+
+    let mut s = Scenario::new(
         "a word is said another way in the sentences that have it, and only there",
         "",
     );

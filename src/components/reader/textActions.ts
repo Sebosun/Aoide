@@ -1,5 +1,5 @@
 import type { Component } from "vue";
-import { Copy, Headphones, Search, SpellCheck } from "@lucide/vue";
+import { Bookmark, Copy, Headphones, RotateCcw, Search, SpellCheck } from "@lucide/vue";
 import { api } from "@/api";
 import { fewWords, type TextRange } from "@/components/reader/selection";
 import { useNavigationStore } from "@/stores/navigation";
@@ -85,6 +85,35 @@ export function useTextActions(): TextAction[] {
       applies: ["selection", "sentence"],
       run: async (target) => {
         if (reader.book) await player.play(reader.book.id, chapterOf(target), firstSentence(target));
+      },
+    },
+    {
+      id: "say-again",
+      label: "Say this again",
+      icon: RotateCcw,
+      applies: ["sentence"],
+      // The core decides (`canSayAgain`): the speech engine says it.
+      available: (target) =>
+        Boolean(
+          reader.chapter?.blocks.flatMap((b) => b.segments).find((s) => s.id === firstSentence(target))?.canSayAgain,
+        ),
+      run: async (target) => {
+        if (reader.book) await player.sayAgain(reader.book.id, firstSentence(target));
+      },
+    },
+    {
+      id: "bookmark",
+      label: "Bookmark here",
+      icon: Bookmark,
+      applies: ["sentence"],
+      run: async (target) => {
+        if (!reader.book) return;
+        try {
+          await api.addBookmark({ bookId: reader.book.id, note: "", segmentId: firstSentence(target) });
+          ui.toast("Bookmarked");
+        } catch (e) {
+          ui.toast(String(e), "error");
+        }
       },
     },
     {

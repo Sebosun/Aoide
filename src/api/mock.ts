@@ -1486,10 +1486,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
           ),
       );
     },
-    async addBookmark({ bookId: id, note }) {
+    async addBookmark({ bookId: id, note, segmentId: chosen = null }) {
       const book = getBook(id);
       const playing = state.bookId === id;
       if (isAudiobook(id)) {
+        if (chosen) throw refused("an audiobook without text has no sentences to bookmark");
         const at = (playing ? state.positionMs : book.progress?.positionMs) ?? 0,
           parts = partsOf(id),
           part = partAt(parts, at);
@@ -1507,11 +1508,16 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         bookmarks.push(mark);
         return structuredClone(mark);
       }
-      const chapter = playing ? state.chapter : (book.progress?.chapter ?? 0);
-      const segmentId = (playing ? state.segmentId : book.progress?.segmentId) ?? null;
-      const segment = getChapter(id, chapter)
-        .blocks.flatMap((b) => b.segments)
-        .find((s) => s.id === segmentId);
+      // As the core does: the sentence chosen, else the playhead, else the saved place.
+      const chapter = chosen ? Number(chosen.split(":")[0]) : playing ? state.chapter : (book.progress?.chapter ?? 0);
+      const segmentId = chosen ?? (playing ? state.segmentId : book.progress?.segmentId) ?? null;
+      const inBook = Boolean(chapters[Number(id.split("-")[1])]?.[chapter]);
+      const segment = inBook
+        ? getChapter(id, chapter)
+            .blocks.flatMap((b) => b.segments)
+            .find((s) => s.id === segmentId)
+        : undefined;
+      if (chosen && !segment) throw refused(`no sentence ${chosen} in this book`);
       const mark: Bookmark = {
         id: nextBookmark++,
         bookId: id,
