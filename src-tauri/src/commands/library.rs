@@ -190,6 +190,17 @@ pub async fn search_book(
     blocking(move || core.search_book(&book_id, &query)).await
 }
 
+/// The library's text searched: the items whose passages hold every word, best first, with
+/// their best three passages each. An empty query finds nothing.
+#[tauri::command]
+pub async fn search_library(
+    core: CoreState<'_>,
+    query: String,
+) -> Result<Vec<crate::core::LibraryHits>, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.search_library(&query)).await
+}
+
 #[tauri::command]
 pub async fn book_details(
     core: CoreState<'_>,

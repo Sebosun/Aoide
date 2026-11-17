@@ -57,6 +57,7 @@ pub use sites::SiteView;
 mod generation;
 mod inbox;
 pub use inbox::InboxView;
+mod indexing;
 mod item;
 mod launching;
 mod link_import;
@@ -139,6 +140,7 @@ pub use backup::{
     EXTENSION as BACKUP_EXTENSION,
 };
 pub use error::CoreError;
+pub use indexing::LibraryHits;
 pub use link_import::{LinkChoice, LinkImportView};
 use preparation::Plan;
 pub use preparation::{PrepareView, Stage as PrepareStage};
@@ -243,6 +245,8 @@ pub struct Core {
     backups: backup::Backups,
     /// Importing links from another app.
     link_imports: link_import::LinkImports,
+    /// The library's text, indexed for search.
+    indexing: indexing::Indexing,
     /// The sleep timer, the media keys and the player state last sent.
     controls: controls::Controls,
     /// Exact word timings being asked for.
@@ -407,6 +411,7 @@ impl Core {
             launching::Launching::new(Arc::clone(&library), Arc::clone(&events), reporter.clone());
         let inbox = inbox::Inbox::new(Arc::clone(&events));
         let queue = queue::Queue::new(Arc::clone(&library), Arc::clone(&events));
+        let indexing = indexing::Indexing::new(Arc::clone(&library));
         let core = Arc::new(Self {
             articles,
             feeds,
@@ -440,6 +445,7 @@ impl Core {
             presence: Default::default(),
             backups: Default::default(),
             link_imports: Default::default(),
+            indexing,
             controls: Default::default(),
             aligner,
             settings: config::Settings::new(config),
@@ -503,6 +509,7 @@ impl Core {
         }
         let checking = Arc::clone(core);
         tokio::spawn(async move { checking.feeds.run(&*checking).await });
+        tokio::spawn(Arc::clone(core).index_loop());
         core.spawn_sync_runner();
         core.controls.attach_media(crate::media::spawn(core));
         if core.app_settings().scan.on_startup {
@@ -537,6 +544,10 @@ impl Core {
     }
 
     fn emit(&self, event: CoreEvent) {
+        if matches!(event, CoreEvent::LibraryChanged) {
+            // Items may have come that have text to index.
+            self.indexing.poke();
+        }
         let name = event.name();
         match event.payload() {
             Ok(value) => self.events.emit(name, value),

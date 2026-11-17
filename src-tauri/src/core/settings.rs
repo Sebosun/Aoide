@@ -52,6 +52,8 @@ pub struct AppSettings {
     pub close: super::CloseBehaviour,
     /// Automatic backups.
     pub backup: super::backup::BackupSettings,
+    /// Keep the library's text in an index, so the library's search finds passages in it.
+    pub search_text: bool,
 }
 
 /// The silences narration leaves, in milliseconds (each within [`PAUSE_MS`]). The largest that
@@ -149,6 +151,8 @@ pub struct AppSettingsPatch {
     pub close: Option<super::CloseBehaviour>,
     #[cfg_attr(test, ts(optional))]
     pub backup: Option<super::backup::BackupSettings>,
+    #[cfg_attr(test, ts(optional))]
+    pub search_text: Option<bool>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -192,6 +196,7 @@ impl AppSettingsPatch {
         );
         set(&mut settings.close, self.close);
         set(&mut settings.backup, self.backup);
+        set(&mut settings.search_text, self.search_text);
         settings
     }
 }
@@ -221,6 +226,7 @@ impl From<AppSettings> for AppSettingsPatch {
             archive_finished_articles,
             close,
             backup,
+            search_text,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -244,6 +250,7 @@ impl From<AppSettings> for AppSettingsPatch {
             archive_finished_articles: Some(archive_finished_articles),
             close: Some(close),
             backup: Some(backup),
+            search_text: Some(search_text),
         }
     }
 }
@@ -298,6 +305,7 @@ impl Default for AppSettings {
             archive_finished_articles: false,
             close: super::CloseBehaviour::Ask,
             backup: Default::default(),
+            search_text: true,
         }
     }
 }

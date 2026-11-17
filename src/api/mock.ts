@@ -57,7 +57,15 @@ import type {
   HomeView,
 } from "@/api/types";
 import type * as Wire from "@/api/contract";
-import type { BackupProgressView, DetailField, LinkImportView, QueueView, WhyNot } from "@/api/contract";
+import type {
+  BackupProgressView,
+  DetailField,
+  LibraryHits,
+  LinkImportView,
+  PassageHitView,
+  QueueView,
+  WhyNot,
+} from "@/api/contract";
 import fixtureLibrary from "@/tests/fixtures/library.json";
 import fixtureViews from "@/tests/fixtures/book-views.json";
 import fixturePlayer from "@/tests/fixtures/player.json";
@@ -355,6 +363,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     archiveFinishedArticles: false,
     close: "ask",
     backup: { folder: null, everyDays: 7, keep: 5, books: false },
+    searchText: true,
   };
   /** The inbox as the core shows it: watched once chosen; `?inbox=unavailable` chooses one that is gone. */
   if (new URLSearchParams(search).get("inbox") === "unavailable") appSettings.inbox = "/media/reader/Stick/Books";
@@ -1854,6 +1863,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         booksBytes: 3_600_000,
         databaseBytes: 240_000,
         syncBytes: recordings.size * 1_900_000,
+        searchBytes: appSettings.searchText ? 240_000 : 0,
         modelsBytes: recordings.size ? 147_964_211 : 0,
         browserBytes: browserDownloaded ? 512_000_000 : 0,
         unusedFiles: unused.files,
@@ -1881,6 +1891,69 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
             ? null
             : { remainingMs: minutes === null ? null : minutes * 60_000, endOfChapter, extended: false },
       });
+    },
+    /** The library's text searched, like the core (core/indexing.rs, FTS5): every word must be
+     *  in the block (the last as a word's start), accents and case folded; each item's best
+     *  three blocks (most matches), items by their best. */
+    async searchLibrary({ query }) {
+      if (!appSettings.searchText) return [];
+      const fold = (w: string) =>
+        w
+          .normalize("NFD")
+          .replace(/\p{M}/gu, "")
+          .toLowerCase()
+          .replace(/[^\p{L}\p{N}]/gu, "");
+      const terms = query.split(/\s+/).map(fold).filter(Boolean);
+      if (!terms.length) return [];
+      const matches = (word: string, t: number) =>
+        t === terms.length - 1 ? word.startsWith(terms[t]) : word === terms[t];
+      const found: LibraryHits[] = [];
+      chapters.forEach((book, b) => {
+        const id = `book-${b}`;
+        if (!books.some((x) => x.id === id)) return;
+        const hits: { hit: PassageHitView; score: number }[] = [];
+        for (const chapter of book)
+          for (const block of chapter.blocks) {
+            const words = block.segments.flatMap((s) =>
+              s.words.map((w, i) => ({ text: w, folded: fold(w), segment: s.id, start: s.starts[i] })),
+            );
+            if (!terms.every((_, t) => words.some((w) => matches(w.folded, t)))) continue;
+            const marked = words.map((w) => terms.some((_, t) => matches(w.folded, t)));
+            const first = words[marked.indexOf(true)];
+            let snippet = "",
+              at = 0;
+            const marks: [number, number][] = [];
+            words.forEach((w, i) => {
+              if (i) {
+                snippet += " ";
+                at += 1;
+              }
+              const length = Array.from(w.text).length;
+              // The word's letters, without the punctuation around them.
+              const lead = Array.from(w.text).findIndex((c) => /[\p{L}\p{N}]/u.test(c));
+              const core = Array.from(w.text.replace(/[^\p{L}\p{N}]+$/u, "")).length;
+              if (marked[i]) marks.push([at + lead, at + core]);
+              snippet += w.text;
+              at += length;
+            });
+            const lead = Array.from(first.text).findIndex((c) => /[\p{L}\p{N}]/u.test(c));
+            const core = Array.from(first.text.replace(/[^\p{L}\p{N}]+$/u, "")).length;
+            hits.push({
+              score: marks.length,
+              hit: {
+                chapter: chapter.index,
+                segmentId: first.segment,
+                snippet,
+                marks,
+                found: [first.start + lead, first.start + core],
+              },
+            });
+          }
+        if (!hits.length) return;
+        hits.sort((x, y) => y.score - x.score);
+        found.push({ bookId: id, hits: hits.slice(0, 3).map((h) => h.hit), more: Math.max(0, hits.length - 3) });
+      });
+      return found.sort((a, b) => b.hits[0].marks.length - a.hits[0].marks.length).slice(0, 30);
     },
     async searchBook({ bookId: id, query }) {
       getBook(id);

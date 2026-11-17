@@ -22,8 +22,8 @@ pub struct PassageHit {
     pub block: u32,
     /// The sentence holding the first match.
     pub segment_id: String,
-    /// Where the first match starts in the chapter's text (characters).
-    pub first: u32,
+    /// The first match in the chapter's text, as a character range.
+    pub found: (u32, u32),
     /// The words around the matches.
     pub snippet: String,
     /// The matches in `snippet`, as character ranges.
@@ -244,7 +244,9 @@ impl Library {
             let segments: Vec<(u32, String)> = serde_json::from_str(&segments)
                 .map_err(|e| crate::LibraryError::Corrupt(e.to_string()))?;
             let (_, in_block) = unmark(&whole);
-            let start = in_block.first().map_or(0, |m| m.0) as u32;
+            let (start, end) = in_block
+                .first()
+                .map_or((0, 0), |m| (m.0 as u32, m.1 as u32));
             let segment_id = segments
                 .iter()
                 .take_while(|(from, _)| *from <= start)
@@ -257,7 +259,7 @@ impl Library {
                 chapter,
                 block,
                 segment_id,
-                first: at + start,
+                found: (at + start, at + end),
                 snippet,
                 marks,
             };

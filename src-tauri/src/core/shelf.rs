@@ -35,6 +35,8 @@ pub(super) trait ShelfHost {
     fn article_document(&self, id: &str) -> Result<aoide_document::ParsedBook, String>;
     /// Article `id`'s site and fetch, as its summary shows them.
     fn article_of(&self, id: &str) -> Option<super::ArticleSummary>;
+    /// Book `id` was parsed to be opened (its text may be indexed from it).
+    fn parsed(&self, _id: &str, _book: &Arc<BookModel>) {}
 }
 
 /// Who archived an item, or took it out of the archive, for the log.
@@ -631,6 +633,20 @@ impl Shelf {
         if let Some(book) = lock(&self.books).get(id) {
             return Ok(Arc::clone(book));
         }
+        let book = Arc::new(self.parse(id, host)?);
+        host.parsed(id, &book);
+        let mut books = lock(&self.books);
+        if books.len() >= 3 {
+            let playing = host.playing();
+            books.retain(|k, _| Some(k) == playing.as_ref());
+        }
+        books.insert(id.into(), Arc::clone(&book));
+        Ok(book)
+    }
+
+    /// Item `id`'s text, parsed (outside the library lock) as the reader shows it, and not
+    /// kept: [`Shelf::load`] keeps it, indexing does not.
+    pub fn parse(&self, id: &str, host: &dyn ShelfHost) -> Result<BookModel, String> {
         let record = lock(&self.library)
             .book(&BookId(id.into()))
             .map_err(|e| e.to_string())?
@@ -661,7 +677,6 @@ impl Shelf {
             book.title = title;
         }
         book.authors = shown.authors;
-        let book = Arc::new(book);
         // Its length, for reading-time estimates in lists that do not parse it.
         let words = u32::try_from(book.word_count()).unwrap_or(u32::MAX);
         if record.word_count != Some(words) {
@@ -669,12 +684,6 @@ impl Shelf {
                 tracing::warn!(event = "library.word_count", book = crate::logging::book(id), %error, "Could not store the word count");
             }
         }
-        let mut books = lock(&self.books);
-        if books.len() >= 3 {
-            let playing = host.playing();
-            books.retain(|k, _| Some(k) == playing.as_ref());
-        }
-        books.insert(id.into(), Arc::clone(&book));
         Ok(book)
     }
 
@@ -860,6 +869,10 @@ impl Shelf {
 }
 
 impl ShelfHost for super::Core {
+    fn parsed(&self, id: &str, book: &Arc<BookModel>) {
+        self.indexing.offer(id, Arc::clone(book));
+    }
+
     fn layout(&self, id: &str) -> crate::book::Layout {
         let settings = self.book_settings(id);
         crate::book::Layout {

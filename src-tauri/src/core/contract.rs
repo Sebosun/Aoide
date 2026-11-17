@@ -149,6 +149,8 @@ fn contract() -> String {
         super::link_import::LinkImportView,
         super::link_import::LinkChoice,
         super::link_import::Stage,
+        super::indexing::LibraryHits,
+        super::indexing::PassageHitView,
         super::feeds::DiscoveredFeed,
         super::articles::ArticleView,
         super::articles::ArticleSummary,

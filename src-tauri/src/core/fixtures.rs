@@ -1932,6 +1932,31 @@ async fn scenarios_for_the_ui_mock() {
     let library_renames = renames_with_audiobook;
 
     let mut s = Scenario::new(
+        "the library's text is searched: an item, its passage's sentence and the words found",
+        "",
+    );
+    while let super::indexing::Step::Indexed(_) = core.indexing.step(&*core) {}
+    let hit = [
+        "length",
+        "0.bookId",
+        "0.more",
+        "0.hits.length",
+        "0.hits.0.chapter",
+        "0.hits.0.segmentId",
+        "0.hits.0.found",
+        "0.hits.0.marks",
+    ];
+    for query in ["Sparrow", "rowing bo", "zeppelin", "   "] {
+        s.step(
+            "searchLibrary",
+            json!({ "query": query }),
+            &core.search_library(query),
+            &hit,
+        );
+    }
+    scenarios.push(s.done());
+
+    let mut s = Scenario::new(
         "an import of links waits for a file, and is cancelled before it starts",
         "",
     );

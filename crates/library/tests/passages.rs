@@ -85,7 +85,7 @@ fn an_indexed_book_is_found_by_its_words_and_its_place_is_given() {
     assert_eq!((hit.chapter, hit.block), (2, 3));
     // Its first match is in the second sentence, 17 characters into the block.
     assert_eq!(hit.segment_id, "2:3:1");
-    assert_eq!(hit.first, 120 + 17);
+    assert_eq!(hit.found, (120 + 17, 120 + 21));
     let marked: Vec<String> = hit
         .marks
         .iter()

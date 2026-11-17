@@ -41,6 +41,8 @@ pub struct StorageReport {
     pub database_bytes: u64,
     /// Recordings' transcripts, loudness and sync maps (kept in the database).
     pub sync_bytes: u64,
+    /// The library's text, indexed for search (kept in the database).
+    pub search_bytes: u64,
     /// Speech-recognition models.
     pub models_bytes: u64,
     /// The optional browser: a downloaded one, and its profile (sign-ins, site data).
@@ -227,12 +229,13 @@ impl Storage {
 
     /// `in_use`: whether a book is playing, being prepared or being exported.
     pub fn report(&self, in_use: &dyn Fn(&str) -> bool) -> Result<StorageReport, String> {
-        let (audio_bytes, usage, sync_bytes) = {
+        let (audio_bytes, usage, sync_bytes, search_bytes) = {
             let library = lock(&self.library);
             (
                 library.total_audio_bytes().map_err(|e| e.to_string())?,
                 library.audio_usage().map_err(|e| e.to_string())?,
                 library.sync_data_bytes().map_err(|e| e.to_string())?,
+                library.passages_bytes().map_err(|e| e.to_string())?,
             )
         };
         let unused = self.unused()?;
@@ -249,8 +252,11 @@ impl Storage {
             covers_bytes: tree_bytes(&self.covers_dir),
             articles_bytes: tree_bytes(&self.articles_dir),
             books_bytes: tree_bytes(&self.library_dir),
-            database_bytes: database_bytes.saturating_sub(sync_bytes),
+            database_bytes: database_bytes
+                .saturating_sub(sync_bytes)
+                .saturating_sub(search_bytes),
             sync_bytes,
+            search_bytes,
             models_bytes: tree_bytes(&self.models_dir),
             browser_bytes: tree_bytes(&self.browser_dir),
             unused_files: unused.files.len() as u64,

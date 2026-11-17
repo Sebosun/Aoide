@@ -1767,6 +1767,104 @@
     ]
   },
   {
+    "name": "the library's text is searched: an item, its passage's sentence and the words found",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "query": "Sparrow"
+        },
+        "call": "searchLibrary",
+        "error": null,
+        "expect": {
+          "0.bookId": "book-1",
+          "0.hits.0.chapter": 0,
+          "0.hits.0.found": [
+            203,
+            210
+          ],
+          "0.hits.0.marks": [
+            [
+              50,
+              57
+            ]
+          ],
+          "0.hits.0.segmentId": "0:2:0",
+          "0.hits.length": 1,
+          "0.more": 0,
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "query": "rowing bo"
+        },
+        "call": "searchLibrary",
+        "error": null,
+        "expect": {
+          "0.bookId": "book-0",
+          "0.hits.0.chapter": 1,
+          "0.hits.0.found": [
+            30,
+            38
+          ],
+          "0.hits.0.marks": [
+            [
+              12,
+              20
+            ],
+            [
+              30,
+              36
+            ],
+            [
+              37,
+              41
+            ]
+          ],
+          "0.hits.0.segmentId": "1:1:0",
+          "0.hits.length": 1,
+          "0.more": 0,
+          "length": 1
+        }
+      },
+      {
+        "args": {
+          "query": "zeppelin"
+        },
+        "call": "searchLibrary",
+        "error": null,
+        "expect": {
+          "0.bookId": null,
+          "0.hits.0.chapter": null,
+          "0.hits.0.found": null,
+          "0.hits.0.marks": null,
+          "0.hits.0.segmentId": null,
+          "0.hits.length": null,
+          "0.more": null,
+          "length": 0
+        }
+      },
+      {
+        "args": {
+          "query": "   "
+        },
+        "call": "searchLibrary",
+        "error": null,
+        "expect": {
+          "0.bookId": null,
+          "0.hits.0.chapter": null,
+          "0.hits.0.found": null,
+          "0.hits.0.marks": null,
+          "0.hits.0.segmentId": null,
+          "0.hits.length": null,
+          "0.more": null,
+          "length": 0
+        }
+      }
+    ]
+  },
+  {
     "name": "an import of links waits for a file, and is cancelled before it starts",
     "start": "",
     "steps": [

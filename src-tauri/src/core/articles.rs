@@ -1162,8 +1162,9 @@ impl ArticlesHost for super::Core {
     /// with what the feeds know of it.
     fn article_changed(&self, view: ArticleView, snapshot: bool) {
         if snapshot {
-            // Its text is read again from the new copy.
+            // Its text is read again from the new copy, and indexed again.
             self.shelf.unload(&view.id);
+            self.indexing.changed(&view.id);
         }
         self.emit(super::CoreEvent::LibraryChanged);
         self.emit(super::CoreEvent::ArticleState(self.completed(view)));

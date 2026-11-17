@@ -191,6 +191,7 @@ pub fn run() {
             commands::speech::preview_pronunciation,
             commands::playback::set_sleep_timer,
             commands::library::search_book,
+            commands::library::search_library,
             commands::playback::skip_chapter,
             commands::playback::seek,
             commands::playback::skip,

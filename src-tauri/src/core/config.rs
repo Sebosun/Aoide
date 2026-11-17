@@ -464,6 +464,13 @@ impl ConfigHost for Core {
         if before.inbox != after.inbox {
             self.inbox.set_folder(after.inbox.clone());
         }
+        if before.search_text && !after.search_text {
+            if let Err(error) = self.indexing.turned_off() {
+                tracing::warn!(event = "index.cleared", outcome = "failed", %error, "Could not drop the library's text index");
+            }
+        } else if after.search_text && !before.search_text {
+            self.indexing.poke();
+        }
     }
 
     fn preferences_changed(&self, preferences: PreferencesView) {

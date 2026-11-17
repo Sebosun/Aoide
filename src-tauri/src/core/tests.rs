@@ -210,7 +210,7 @@ network = "loopback"
     aoide_library::content_hash(bytes).0
 }
 
-fn start(root: &Path, engine: &Arc<FakeEngine>) -> (Arc<Core>, Arc<Recorder>) {
+pub(super) fn start(root: &Path, engine: &Arc<FakeEngine>) -> (Arc<Core>, Arc<Recorder>) {
     start_with(
         root,
         engine,

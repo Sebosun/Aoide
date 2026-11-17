@@ -758,9 +758,13 @@ close: CloseBehaviour,
 /**
  * Automatic backups.
  */
-backup: BackupSettings, };
+backup: BackupSettings, 
+/**
+ * Keep the library's text in an index, so the library's search finds passages in it.
+ */
+searchText: boolean, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, backup?: BackupSettings, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, close?: CloseBehaviour, backup?: BackupSettings, searchText?: boolean, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -793,6 +797,10 @@ databaseBytes: number,
  * Recordings' transcripts, loudness and sync maps (kept in the database).
  */
 syncBytes: number, 
+/**
+ * The library's text, indexed for search (kept in the database).
+ */
+searchBytes: number, 
 /**
  * Speech-recognition models.
  */
@@ -1018,6 +1026,30 @@ of: number, ready: number, partial: number, failed: number, };
 export type LinkChoice = { "which": "all" } | { "which": "unread" } | { "which": "recent", count: number, };
 
 export type LinkImportStage = "idle" | "reading" | "choosing" | "fetching" | "paused" | "done";
+
+export type LibraryHits = { bookId: string, hits: Array<PassageHitView>, 
+/**
+ * Passages that matched beyond those given.
+ */
+more: number, };
+
+export type PassageHitView = { chapter: number, 
+/**
+ * The sentence that holds the first match: the reader opens there.
+ */
+segmentId: string, 
+/**
+ * The words around the matches.
+ */
+snippet: string, 
+/**
+ * The matches in `snippet`, as character ranges `[start, end)`.
+ */
+marks: Array<[number, number]>, 
+/**
+ * The first match in the chapter's text, as a character range: the reader marks it.
+ */
+found: [number, number], };
 
 export type DiscoveredFeed = { url: string, title: string | null, subscribed: boolean, };
 
@@ -1714,6 +1746,11 @@ export type Commands = {
   "clean_unused_files": { args: Record<string, never>; result: CleanResult };
   /** Case-insensitive text search (min 2 chars), at most 200 hits in reading order. */
   "search_book": { args: { bookId: string; query: string }; result: SearchHit[] };
+  /**
+   * The library's text searched: the items whose passages hold every word, best first, with
+   * their best three passages each. An empty query finds nothing.
+   */
+  "search_library": { args: { query: string }; result: LibraryHits[] };
   "book_details": { args: { bookId: string }; result: BookDetails };
   /**
    * Searches Open Library for the book (fails when lookups are turned off). Cached for 30 days;
@@ -2150,6 +2187,11 @@ export interface CommandApi {
   cleanUnusedFiles(): Promise<CleanResult>;
   /** Case-insensitive text search (min 2 chars), at most 200 hits in reading order. */
   searchBook(args: { bookId: string; query: string }): Promise<SearchHit[]>;
+  /**
+   * The library's text searched: the items whose passages hold every word, best first, with
+   * their best three passages each. An empty query finds nothing.
+   */
+  searchLibrary(args: { query: string }): Promise<LibraryHits[]>;
   bookDetails(args: { bookId: string }): Promise<BookDetails>;
   /**
    * Searches Open Library for the book (fails when lookups are turned off). Cached for 30 days;
@@ -2450,6 +2492,7 @@ export const COMMANDS = {
   storageReport: "storage_report",
   cleanUnusedFiles: "clean_unused_files",
   searchBook: "search_book",
+  searchLibrary: "search_library",
   bookDetails: "book_details",
   lookupMetadata: "lookup_metadata",
   editDetails: "edit_details",
