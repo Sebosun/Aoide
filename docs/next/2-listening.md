@@ -232,6 +232,7 @@ None.
 ## 2.3 A speed for each book
 
 **Size:** S
+**Built:** 2026-11-17 (d3737fd..e6933dc)
 
 ### Outcome
 
