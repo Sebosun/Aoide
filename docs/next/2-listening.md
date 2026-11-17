@@ -310,6 +310,7 @@ New row in `docs/logging.md`.
 ## 2.4 A gentler sleep timer
 
 **Size:** S (upper end)
+**Built:** 2026-11-17 (5777942..17d33c8)
 
 ### Outcome
 
