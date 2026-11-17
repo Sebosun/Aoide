@@ -198,6 +198,7 @@ Any of these works:
 - Click **Add → Scan for books…** to find EPUBs on your computer you haven't added yet.
 - Copy files into `~/Documents/Aoide/Books` yourself. Aoide notices.
 - For an article, paste its link anywhere on the window (or drop it there), or put it in **Add → A link to an article or a feed**, and press **Save article**. A feed's address there subscribes to it instead.
+- To save the page you are reading in your web browser, drag **Save to Aoide** from **Settings → Sites → Save from your browser** to the browser's bookmarks bar (or make a bookmark with the text **Copy** gives as its address), and click it on any page. Aoide saves the page as an article, starting if it is not running, and its toast offers **Undo**. The browser asks before it opens Aoide; a build from source needs `--install-desktop-file` first (see *Build Aoide*). A page saved this way is only ever saved, never subscribed to, and Aoide takes at most one a second.
 - For a feed, press **Subscribe** in **Feeds** and give the feed's address or just the site's; a site with several feeds lets you pick. **Settings → Feeds → Import…** takes an OPML list from another feed reader.
 
 Open a book and read, or press **Listen**.

@@ -7,14 +7,20 @@ const tauri = vi.hoisted(() => ({
   held: [] as string[],
   /** The files the core could not open meanwhile, told when the window asks. */
   failed: [] as string[],
+  /** The pages sent from the browser it saved meanwhile, told when the window asks. */
+  saved: [] as unknown[],
   calls: [] as string[],
+  args: [] as unknown[],
 }));
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(async (name: string) => {
+  invoke: vi.fn(async (name: string, args?: unknown) => {
     tauri.calls.push(name);
+    tauri.args.push(args);
     if (name !== "take_open_requests") return undefined;
-    // Asked for what it held, the core tells the files it could not open meanwhile.
+    // Asked for what it held, the core tells the files it could not open and the pages it
+    // saved meanwhile.
     for (const message of tauri.failed.splice(0)) tauri.handlers.get("core://problem")?.({ payload: { message } });
+    for (const payload of tauri.saved.splice(0)) tauri.handlers.get("article://saved")?.({ payload });
     return tauri.held.splice(0);
   }),
   convertFileSrc: (p: string) => p,
@@ -37,7 +43,9 @@ beforeEach(() => {
   tauri.handlers.clear();
   tauri.held = [];
   tauri.failed = [];
+  tauri.saved = [];
   tauri.calls = [];
+  tauri.args = [];
 });
 
 it("clicking a desktop notification opens its item's page, closing the Add dialog", async () => {
@@ -67,5 +75,23 @@ it("a book that could not be opened while the window started is shown as a probl
   tauri.failed = ["Could not open Torn.epub: not a book"];
   const off = await listenToCore(tauriApi);
   expect(useUiStore().toasts.map((t) => [t.text, t.tone])).toEqual([["Could not open Torn.epub: not a book", "error"]]);
+  off();
+});
+
+it("a page saved from the browser is named in a toast, whose Undo removes it when it was new to the library", async () => {
+  tauri.saved = [{ id: "article-1", title: "quay.example", newToLibrary: true }];
+  const off = await listenToCore(tauriApi);
+  const ui = useUiStore();
+  expect(ui.toasts.map((t) => [t.text, t.action?.label])).toEqual([["Saved “quay.example”", "Undo"]]);
+
+  await ui.toasts[0].action!.run();
+  expect(tauri.calls.at(-1)).toBe("remove_book");
+  expect(tauri.args.at(-1)).toEqual({ bookId: "article-1" });
+
+  // One the library had already: nothing to undo.
+  tauri.handlers.get("article://saved")!({
+    payload: { id: "article-2", title: "The Quay Lights", newToLibrary: false },
+  });
+  expect(ui.toasts.at(-1)).toMatchObject({ text: "“The Quay Lights” is in the library already", action: undefined });
   off();
 });

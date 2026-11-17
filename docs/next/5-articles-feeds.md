@@ -251,10 +251,13 @@ A bookmark in your browser's toolbar saves the page you are on to Aoide.
   `aoide://save?url=…` request and a bookmarklet:
 
   ```
-  javascript:location.href='aoide://save?url='+encodeURIComponent(location.href)
+  javascript:void(location.href='aoide://save?url='+encodeURIComponent(location.href))
   ```
 
-  Settings › Sites shows it as a link to drag to the bookmarks bar, with two sentences on how.
+  (`void`, because a `javascript:` address whose expression gives a string replaces the page
+  with that string in Firefox.) Settings › Sites shows it as a link to drag to the bookmarks
+  bar, with **Copy** beside it for a browser that will not take the drag, and two sentences on
+  how.
 - **Any web page can make this request**, so it is treated as untrusted input:
   - only `http` and `https` addresses (`parse_link`), and only `Reach::Public` as for every
     fetch;
@@ -283,7 +286,9 @@ if the bookmarklet proves popular.
    (`article://saved`, a `SavedLink`: `id`, `title`, `newToLibrary`), held with the window's
    other requests until it listens (`take_open_requests`).
 3. The rate limit.
-4. The toast's action and **Undo**; Settings › Sites: the bookmarklet.
+4. The toast's action and **Undo**; Settings › Sites: the bookmarklet. The toast is
+   `showSavedLink` (`src/opening.ts`), listened for before `take_open_requests`; the preview
+   shows it with `saved=new|again`.
 
 ### Logging
 

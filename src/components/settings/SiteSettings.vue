@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { Download, Globe, Trash2, X } from "@lucide/vue";
+import { BookmarkPlus, Copy, Download, Globe, Trash2, X } from "@lucide/vue";
 import { api } from "@/api";
 import type { BrowserDownloadView, BrowserStatusView, BrowserUse, SiteData, SiteFetch, SiteView } from "@/api/types";
 import SettingsSection from "@/components/settings/SettingsSection.vue";
@@ -172,6 +172,17 @@ async function removeBrowser() {
   if (ok) await run(() => api.removeBrowser(), "Removed the downloaded browser.");
 }
 const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start(site.waitingArticle);
+
+/** A bookmark whose address sends the page it is clicked on to Aoide (`launch.rs` reads it). */
+const BOOKMARKLET = "javascript:void(location.href='aoide://save?url='+encodeURIComponent(location.href))";
+async function copyBookmarklet() {
+  try {
+    await navigator.clipboard.writeText(BOOKMARKLET);
+    ui.toast("Copied");
+  } catch (e) {
+    ui.toast(`Could not copy: ${String(e)}`, "error");
+  }
+}
 </script>
 
 <template>
@@ -367,6 +378,25 @@ const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start
       </div>
       <SettingsNote>Other rules (pages to wait for, addresses to block) are kept in site-rules.toml.</SettingsNote>
     </SettingsSection>
+    <SettingsSection title="Save from your browser" :icon="BookmarkPlus">
+      <div class="site-settings__bookmark">
+        <!-- Clicked here it would only send Aoide's own window away. -->
+        <a
+          class="site-settings__bookmarklet"
+          :href="BOOKMARKLET"
+          title="Drag this to your browser's bookmarks bar"
+          @click.prevent="ui.toast('Drag it to your browser’s bookmarks bar')"
+          >Save to Aoide</a
+        >
+        <UiButton variant="outline" size="sm" class="site-settings__button" @click="copyBookmarklet">
+          <Copy :size="15" aria-hidden="true" />Copy
+        </UiButton>
+      </div>
+      <SettingsNote
+        >Drag Save to Aoide to your browser's bookmarks bar, or make a bookmark with the copied text as its address.
+        Clicking it saves the page you are on to your library, starting Aoide if it is not running.</SettingsNote
+      >
+    </SettingsSection>
     <p v-if="error || signIn.error" class="site-settings__error" role="alert">{{ error || signIn.error }}</p>
   </div>
 </template>
@@ -461,6 +491,28 @@ const startSignIn = (site: SiteView) => site.waitingArticle && void signIn.start
   align-items: center;
   justify-content: space-between;
   gap: var(--space-6);
+}
+.site-settings__bookmark {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5);
+}
+.site-settings__bookmarklet {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-sm);
+  padding: 0 var(--space-7);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-pill);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: grab;
+}
+.site-settings__bookmarklet:active {
+  cursor: grabbing;
 }
 .site-settings__error {
   font-size: 12.5px;

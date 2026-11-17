@@ -513,3 +513,21 @@ it("edits a site's data policy and route, signs out, forgets and removes all sit
   wrapper.unmount();
   host.unmount();
 });
+
+it("offers a bookmark that sends the page to Aoide, to drag to the bookmarks bar or copy", async () => {
+  const writeText = vi.fn(() => Promise.resolve());
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  const host = mount(UiHost, { attachTo: document.body });
+  const wrapper = await sitesTab("off");
+  const code = "javascript:void(location.href='aoide://save?url='+encodeURIComponent(location.href))";
+  const link = wrapper.get(".site-settings__bookmarklet");
+  expect(link.text()).toBe("Save to Aoide");
+  expect(link.attributes("href")).toBe(code);
+
+  await button(wrapper, "Copy")!.trigger("click");
+  await flushPromises();
+  expect(writeText).toHaveBeenCalledWith(code);
+  expect(useUiStore().toasts.at(-1)?.text).toBe("Copied");
+  wrapper.unmount();
+  host.unmount();
+});

@@ -4,6 +4,8 @@ import { useReaderStore } from "@/stores/reader";
 import { useLibraryStore } from "@/stores/library";
 import { api } from "@/api";
 import { useRecordingsStore } from "@/stores/recordings";
+import { showSavedLink } from "@/opening";
+import fixtureArticle from "@/tests/fixtures/article.json";
 
 /** Browser preview only: `?view=home|library|feeds|activity|item|reader|find|audiobooks&book=book-0&play=1500&theme=dark&mode=lines&zoom=1.25` opens a
  *  screen in a known state (used for screenshots). `play` plays for that many ms, then pauses;
@@ -27,7 +29,9 @@ import { useRecordingsStore } from "@/stores/recordings";
  *  `pronounce=1` fills the pronunciation lists (book-1's and the one for all books), and
  *  `highlight=1` highlights two passages of `book`'s first chapter, the first with a note, and
  *  bookmarks a sentence of it;
- *  `select=Ren` selects that word in the chapter text once the screen is up (before any `click`). */
+ *  `select=Ren` selects that word in the chapter text once the screen is up (before any `click`);
+ *  `saved=new|again` shows the toast for a page sent from the browser (new to the library, with
+ *  Undo, or one the library had). */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
   const view = query.get("view") as View | null,
@@ -60,6 +64,13 @@ export async function applyPreviewParams(search = location.search) {
     await api.setLeftOut({
       bookId: query.get("book") ?? "book-0",
       chapters: leftOut.split(",").filter(Boolean).map(Number),
+    });
+  const saved = query.get("saved");
+  if (saved)
+    showSavedLink(api, {
+      id: fixtureArticle.view.id,
+      title: saved === "new" ? new URL(fixtureArticle.article.canonicalUrl).hostname : fixtureArticle.summary.title,
+      newToLibrary: saved === "new",
     });
   if (settings) useNavigationStore().openSettings(settings);
   if (query.has("shortcuts")) useNavigationStore().openShortcuts();
