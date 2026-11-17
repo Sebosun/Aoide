@@ -14,6 +14,291 @@ enum SleepTimer {
     EndOfChapter(usize),
 }
 
+/// How long a timed sleep fades before it is due.
+const FADE: Duration = Duration::from_secs(20);
+/// The gain a fade ends at.
+const FADE_FLOOR: f32 = 0.2;
+/// How long a due sleep waits for the sentence playing to end before it pauses anyway.
+const STOP_WAIT: Duration = Duration::from_secs(15);
+/// How long after a sleep rang playing again starts the same timer again.
+const AGAIN_WITHIN: Duration = Duration::from_secs(3 * 60);
+
+/// When a running sleep timer is due.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Until {
+    At(Instant),
+    /// Once chapter (an audiobook's part) `usize` ends.
+    EndOfChapter(usize),
+}
+
+/// The sleep timer. `minutes` is what was asked for, kept to start the same timer again;
+/// `extended`: it was started again by playing soon after it rang.
+#[allow(dead_code)] // Wired into Core in the next slice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(super) enum Sleep {
+    #[default]
+    Off,
+    Running {
+        until: Until,
+        minutes: Option<u32>,
+        extended: bool,
+    },
+    /// The last seconds of a timed sleep: the gain falls until `ends`.
+    Fading {
+        ends: Instant,
+        minutes: u32,
+        extended: bool,
+    },
+    /// Due: waiting for the player to stop at the end of the sentence playing.
+    Stopping {
+        since: Instant,
+        minutes: u32,
+        extended: bool,
+    },
+    /// Paused by the timer `at`; playing again soon starts it again.
+    Rang {
+        at: Instant,
+        minutes: Option<u32>,
+        end_of_chapter: bool,
+    },
+}
+
+/// What happens to the sleep timer.
+#[allow(dead_code)] // Wired into Core in the next slice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SleepEvent {
+    /// The listener set it: `minutes`, or the end of `chapter` (the one playing; `None`
+    /// when nothing plays). Neither: it is cancelled.
+    Set {
+        minutes: Option<u32>,
+        end_of_chapter: bool,
+        chapter: Option<usize>,
+        now: Instant,
+    },
+    Cancelled,
+    /// The tick looked at the player: `chapter` plays, or is paused when not `playing`.
+    Tick {
+        now: Instant,
+        chapter: usize,
+        playing: bool,
+    },
+    /// The listener paused.
+    Paused(Instant),
+    /// The listener played, `chapter` playing.
+    Played {
+        now: Instant,
+        chapter: usize,
+    },
+}
+
+/// What the player is to do for the sleep timer.
+#[allow(dead_code)] // Wired into Core in the next slice.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum SleepAction {
+    /// Play at this gain (1.0 is full).
+    Fade(f32),
+    /// Pause where the entry playing ends.
+    PauseAtEntryEnd,
+    /// Play at full gain, and pause where chapter `usize` ends.
+    PauseAtChapterEnd(usize),
+    /// Pause now (a pause plays at full gain again and lets go of any stop set up).
+    Pause,
+    /// Play at full gain, with no stop set up.
+    RestoreGain,
+}
+
+/// The sleep timer after `event`, and what the player is to do.
+#[allow(dead_code)] // Wired into Core in the next slice.
+pub(super) fn next(sleep: Sleep, event: SleepEvent) -> (Sleep, Option<SleepAction>) {
+    use SleepAction::*;
+    use SleepEvent::*;
+    // Fading, stopping and an end of chapter set up hold the player: letting go restores it.
+    let release = || {
+        matches!(
+            sleep,
+            Sleep::Fading { .. }
+                | Sleep::Stopping { .. }
+                | Sleep::Running {
+                    until: Until::EndOfChapter(_),
+                    ..
+                }
+        )
+        .then_some(RestoreGain)
+    };
+    let rang = |at, minutes| Sleep::Rang {
+        at,
+        minutes: Some(minutes),
+        end_of_chapter: false,
+    };
+    match (sleep, event) {
+        (
+            _,
+            Set {
+                end_of_chapter: true,
+                chapter: Some(chapter),
+                ..
+            },
+        ) => (
+            Sleep::Running {
+                until: Until::EndOfChapter(chapter),
+                minutes: None,
+                extended: false,
+            },
+            Some(PauseAtChapterEnd(chapter)),
+        ),
+        (
+            _,
+            Set {
+                minutes: Some(minutes),
+                end_of_chapter: false,
+                now,
+                ..
+            },
+        ) => (
+            Sleep::Running {
+                until: Until::At(now + minutes_of(minutes)),
+                minutes: Some(minutes),
+                extended: false,
+            },
+            release(),
+        ),
+        (_, Set { .. } | Cancelled) => (Sleep::Off, release()),
+
+        (
+            Sleep::Running {
+                until: Until::At(ends),
+                minutes: Some(minutes),
+                extended,
+            },
+            Tick { now, playing, .. },
+        ) => {
+            if !playing {
+                // Due while paused: there is nothing to stop.
+                return (if now >= ends { Sleep::Off } else { sleep }, None);
+            }
+            if now + FADE < ends {
+                return (sleep, None);
+            }
+            (
+                Sleep::Fading {
+                    ends,
+                    minutes,
+                    extended,
+                },
+                Some(Fade(fade_at(now, ends))),
+            )
+        }
+        (
+            Sleep::Running {
+                until: Until::EndOfChapter(ending),
+                ..
+            },
+            Tick { now, chapter, .. },
+        ) if chapter != ending => (
+            Sleep::Rang {
+                at: now,
+                minutes: None,
+                end_of_chapter: true,
+            },
+            Some(Pause),
+        ),
+        (
+            Sleep::Fading {
+                ends,
+                minutes,
+                extended,
+            },
+            Tick { now, playing, .. },
+        ) => {
+            if !playing {
+                (rang(now, minutes), Some(Pause))
+            } else if now >= ends {
+                (
+                    Sleep::Stopping {
+                        since: now,
+                        minutes,
+                        extended,
+                    },
+                    Some(PauseAtEntryEnd),
+                )
+            } else {
+                (sleep, Some(Fade(fade_at(now, ends))))
+            }
+        }
+        (Sleep::Stopping { since, minutes, .. }, Tick { now, playing, .. })
+            if !playing || now >= since + STOP_WAIT =>
+        {
+            (rang(now, minutes), Some(Pause))
+        }
+
+        (Sleep::Fading { minutes, .. } | Sleep::Stopping { minutes, .. }, Paused(now)) => {
+            (rang(now, minutes), Some(RestoreGain))
+        }
+
+        (
+            Sleep::Rang {
+                at,
+                minutes,
+                end_of_chapter,
+            },
+            Played { now, chapter },
+        ) => {
+            if now >= at + AGAIN_WITHIN {
+                return (Sleep::Off, None);
+            }
+            if end_of_chapter {
+                (
+                    Sleep::Running {
+                        until: Until::EndOfChapter(chapter),
+                        minutes: None,
+                        extended: true,
+                    },
+                    Some(PauseAtChapterEnd(chapter)),
+                )
+            } else {
+                let minutes = minutes.unwrap_or_default();
+                (
+                    Sleep::Running {
+                        until: Until::At(now + minutes_of(minutes)),
+                        minutes: Some(minutes),
+                        extended: true,
+                    },
+                    None,
+                )
+            }
+        }
+        (Sleep::Fading { minutes, .. } | Sleep::Stopping { minutes, .. }, Played { now, .. }) => (
+            Sleep::Running {
+                until: Until::At(now + minutes_of(minutes)),
+                minutes: Some(minutes),
+                extended: true,
+            },
+            Some(RestoreGain),
+        ),
+        (
+            Sleep::Running {
+                until: Until::EndOfChapter(ending),
+                ..
+            },
+            Played { chapter, .. },
+        ) if chapter == ending => (sleep, Some(PauseAtChapterEnd(ending))),
+
+        (sleep, _) => (sleep, None),
+    }
+}
+
+fn minutes_of(minutes: u32) -> Duration {
+    Duration::from_secs(u64::from(minutes) * 60)
+}
+
+/// The gain at `now` of a fade that ends at `ends`: from full down to [`FADE_FLOOR`], in
+/// hundredths.
+fn fade_at(now: Instant, ends: Instant) -> f32 {
+    let left = ends.saturating_duration_since(now).as_secs_f32() / FADE.as_secs_f32();
+    let gain = FADE_FLOOR + (1.0 - FADE_FLOOR) * left.min(1.0);
+    (gain * 100.0).round() / 100.0
+}
+
 /// What the desktop's now-playing panel shows.
 pub struct NowPlaying {
     pub title: String,
@@ -207,6 +492,253 @@ mod tests {
             artist: "Someone".into(),
             cover: None,
         })
+    }
+
+    #[test]
+    fn the_sleep_timer_moves_through_its_states_on_named_events() {
+        use SleepAction::*;
+        use SleepEvent::*;
+        let t0 = Instant::now();
+        let s = |secs: u64| t0 + Duration::from_secs(secs);
+        let min = |m: u64| s(m * 60);
+        let running = |until, minutes| Sleep::Running {
+            until,
+            minutes,
+            extended: false,
+        };
+        let at15 = running(Until::At(min(15)), Some(15));
+        let chapter2 = running(Until::EndOfChapter(2), None);
+        let fading = Sleep::Fading {
+            ends: min(15),
+            minutes: 15,
+            extended: false,
+        };
+        let stopping = Sleep::Stopping {
+            since: min(15),
+            minutes: 15,
+            extended: false,
+        };
+        let rang = |at, minutes, end_of_chapter| Sleep::Rang {
+            at,
+            minutes,
+            end_of_chapter,
+        };
+        let tick = |now, chapter, playing| Tick {
+            now,
+            chapter,
+            playing,
+        };
+        let set = |minutes, end_of_chapter, chapter| Set {
+            minutes,
+            end_of_chapter,
+            chapter,
+            now: t0,
+        };
+        let table: Vec<(Sleep, SleepEvent, Sleep, Option<SleepAction>)> = vec![
+            // Setting: timed, or until the chapter playing ends (the player is told at once).
+            (Sleep::Off, set(Some(15), false, Some(0)), at15, None),
+            (
+                Sleep::Off,
+                set(None, true, Some(2)),
+                chapter2,
+                Some(PauseAtChapterEnd(2)),
+            ),
+            (
+                Sleep::Off,
+                set(Some(15), true, Some(2)),
+                chapter2,
+                Some(PauseAtChapterEnd(2)),
+            ),
+            (Sleep::Off, set(None, true, None), Sleep::Off, None),
+            (Sleep::Off, set(None, false, Some(0)), Sleep::Off, None),
+            (
+                fading,
+                set(Some(15), false, Some(0)),
+                at15,
+                Some(RestoreGain),
+            ),
+            (
+                fading,
+                set(None, false, Some(0)),
+                Sleep::Off,
+                Some(RestoreGain),
+            ),
+            // Cancelling lets go of the player.
+            (at15, Cancelled, Sleep::Off, None),
+            (chapter2, Cancelled, Sleep::Off, Some(RestoreGain)),
+            (fading, Cancelled, Sleep::Off, Some(RestoreGain)),
+            (stopping, Cancelled, Sleep::Off, Some(RestoreGain)),
+            (rang(s(0), Some(15), false), Cancelled, Sleep::Off, None),
+            // A timed timer runs until its last 20 seconds, then fades to a fifth.
+            (at15, tick(min(14), 0, true), at15, None),
+            (
+                at15,
+                tick(s(14 * 60 + 40), 0, true),
+                fading,
+                Some(Fade(1.0)),
+            ),
+            (
+                fading,
+                tick(s(14 * 60 + 50), 0, true),
+                fading,
+                Some(Fade(0.6)),
+            ),
+            (
+                fading,
+                tick(s(14 * 60 + 59), 3, true),
+                fading,
+                Some(Fade(0.24)),
+            ),
+            // Due: it waits for the sentence to end, at most 15 seconds.
+            (
+                fading,
+                tick(min(15), 0, true),
+                stopping,
+                Some(PauseAtEntryEnd),
+            ),
+            (stopping, tick(s(15 * 60 + 5), 0, true), stopping, None),
+            (
+                stopping,
+                tick(s(15 * 60 + 5), 0, false),
+                rang(s(15 * 60 + 5), Some(15), false),
+                Some(Pause),
+            ),
+            (
+                stopping,
+                tick(s(15 * 60 + 15), 0, true),
+                rang(s(15 * 60 + 15), Some(15), false),
+                Some(Pause),
+            ),
+            // Paused before it was due: nothing to stop.
+            (at15, tick(min(14), 0, false), at15, None),
+            (at15, tick(min(15), 0, false), Sleep::Off, None),
+            (
+                fading,
+                tick(s(14 * 60 + 50), 0, false),
+                rang(s(14 * 60 + 50), Some(15), false),
+                Some(Pause),
+            ),
+            // The end of the chapter: rings once another chapter plays.
+            (chapter2, tick(min(30), 2, true), chapter2, None),
+            (
+                chapter2,
+                tick(min(30), 3, false),
+                rang(min(30), None, true),
+                Some(Pause),
+            ),
+            // Pausing: a timer running keeps running; one fading or stopping has rung.
+            (at15, Paused(min(1)), at15, None),
+            (chapter2, Paused(min(1)), chapter2, None),
+            (
+                fading,
+                Paused(s(14 * 60 + 50)),
+                rang(s(14 * 60 + 50), Some(15), false),
+                Some(RestoreGain),
+            ),
+            (
+                stopping,
+                Paused(s(15 * 60 + 2)),
+                rang(s(15 * 60 + 2), Some(15), false),
+                Some(RestoreGain),
+            ),
+            // Playing within three minutes of a ring starts the same timer again.
+            (
+                rang(min(15), Some(15), false),
+                Played {
+                    now: min(17),
+                    chapter: 4,
+                },
+                Sleep::Running {
+                    until: Until::At(min(32)),
+                    minutes: Some(15),
+                    extended: true,
+                },
+                None,
+            ),
+            (
+                rang(min(15), None, true),
+                Played {
+                    now: min(17),
+                    chapter: 3,
+                },
+                Sleep::Running {
+                    until: Until::EndOfChapter(3),
+                    minutes: None,
+                    extended: true,
+                },
+                Some(PauseAtChapterEnd(3)),
+            ),
+            (
+                rang(min(15), Some(15), false),
+                Played {
+                    now: min(18),
+                    chapter: 4,
+                },
+                Sleep::Off,
+                None,
+            ),
+            // Playing while it fades: still awake.
+            (
+                fading,
+                Played {
+                    now: s(14 * 60 + 50),
+                    chapter: 0,
+                },
+                Sleep::Running {
+                    until: Until::At(s(29 * 60 + 50)),
+                    minutes: Some(15),
+                    extended: true,
+                },
+                Some(RestoreGain),
+            ),
+            // Playing on in the chapter: the player is told its end again.
+            (
+                chapter2,
+                Played {
+                    now: min(1),
+                    chapter: 2,
+                },
+                chapter2,
+                Some(PauseAtChapterEnd(2)),
+            ),
+            (
+                chapter2,
+                Played {
+                    now: min(1),
+                    chapter: 5,
+                },
+                chapter2,
+                None,
+            ),
+            (
+                at15,
+                Played {
+                    now: min(1),
+                    chapter: 0,
+                },
+                at15,
+                None,
+            ),
+            (
+                Sleep::Off,
+                Played {
+                    now: min(1),
+                    chapter: 0,
+                },
+                Sleep::Off,
+                None,
+            ),
+            (
+                rang(s(0), Some(15), false),
+                tick(min(5), 0, true),
+                rang(s(0), Some(15), false),
+                None,
+            ),
+        ];
+        for (from, event, to, action) in table {
+            let label = format!("{from:?} {event:?}");
+            assert_eq!(next(from, event), (to, action), "{label}");
+        }
     }
 
     #[test]
