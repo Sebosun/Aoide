@@ -103,6 +103,7 @@ pub fn run() {
             commands::app::log_ui,
             commands::app::app_info,
             commands::app::take_open_requests,
+            commands::app::inbox_status,
             commands::library::list_books,
             commands::library::home,
             commands::library::add_audiobook,

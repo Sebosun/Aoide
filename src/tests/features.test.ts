@@ -125,6 +125,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     pauses: { paragraphMs: 250, breakMs: 1200, headingMs: 700 },
     stepBackOnResume: true,
     notices: true,
+    inbox: null,
   });
   wrapper.unmount();
 });

@@ -18,6 +18,12 @@ pub fn take_open_requests(core: CoreState<'_>) -> Vec<String> {
     core.take_open_requests()
 }
 
+/// The inbox folder, and whether it is being watched.
+#[tauri::command]
+pub fn inbox_status(core: CoreState<'_>) -> crate::core::InboxView {
+    core.inbox_status()
+}
+
 #[tauri::command]
 pub fn app_settings(core: CoreState<'_>) -> AppSettings {
     core.app_settings()

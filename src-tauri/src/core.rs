@@ -52,6 +52,7 @@ pub use signin::SignInView;
 pub use sites::SiteView;
 mod generation;
 mod inbox;
+pub use inbox::InboxView;
 mod item;
 mod launching;
 mod shelf;
@@ -237,6 +238,7 @@ pub struct Core {
     notices: notices::Notices,
     /// What starts of Aoide ask it to open.
     launching: launching::Launching,
+    inbox: inbox::Inbox,
 }
 
 impl Core {
@@ -277,7 +279,7 @@ impl Core {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         let library = Library::open(&paths.db_path).map_err(|e| e.to_string())?;
-        let config = config::Config::open(&paths.config_dir, &library);
+        let config = config::Config::open(&paths.config_dir, &paths.library_dir, &library);
         for problem in config.problems() {
             tracing::warn!(event = "config.problem", error = %problem, "Problem in the settings");
         }
@@ -376,6 +378,7 @@ impl Core {
         ));
         let launching =
             launching::Launching::new(Arc::clone(&library), Arc::clone(&events), reporter.clone());
+        let inbox = inbox::Inbox::new(Arc::clone(&events));
         let core = Arc::new(Self {
             articles,
             feeds,
@@ -411,7 +414,9 @@ impl Core {
             audiobooks,
             notices: notices::Notices::new(notifier),
             launching,
+            inbox,
         });
+        core.inbox.set_folder(core.app_settings().inbox);
         Ok((core, worker_events))
     }
 
@@ -479,6 +484,8 @@ impl Core {
         let watcher = Arc::clone(core);
         let runtime = tokio::runtime::Handle::current();
         std::thread::spawn(move || watcher.settings.watch(&*watcher, &runtime));
+        let inbox = Arc::clone(core);
+        std::thread::spawn(move || inbox.inbox.run(&*inbox));
     }
 
     /// Logs a failure Aoide carried on from and tells the user; see [`error::Reporter`].
@@ -826,5 +833,6 @@ impl Core {
         self.speech_server.stop(&engine::SpeechServer(self));
         self.stop_aligner();
         self.browsing.stop();
+        self.inbox.stop();
     }
 }

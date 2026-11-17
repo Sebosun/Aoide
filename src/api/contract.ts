@@ -686,9 +686,14 @@ stepBackOnResume: boolean,
 /**
  * Tell the desktop when a long job ends, or one needs the user, while Aoide is not in front.
  */
-notices: boolean, };
+notices: boolean, 
+/**
+ * A folder (Downloads, or one a sync tool fills) whose books are added to the library as
+ * they appear; never the library folder or one inside it.
+ */
+inbox: string | null, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -1227,6 +1232,18 @@ id: string,
  */
 title: string, };
 
+export type InboxState = "off" | "watching" | "unavailable";
+
+export type InboxView = { 
+/**
+ * The folder chosen, if any.
+ */
+folder: string | null, 
+/**
+ * Whether it is watched, or gone.
+ */
+state: InboxState, };
+
 /** Every event Core emits, by name, with its payload. */
 export type CoreEvents = {
   "library://changed": null,
@@ -1239,6 +1256,7 @@ export type CoreEvents = {
   "item://open": string,
   "article://saved": SavedLink,
   "inbox://added": Array<InboxBook>,
+  "inbox://state": InboxView,
   "discovery://import": DiscoveryImportProgress,
   "export://progress": ExportProgress,
   "sync://state": RecordingView,
@@ -1262,6 +1280,8 @@ export type Commands = {
    * from the file manager); called once the window listens for `item://open`.
    */
   "take_open_requests": { args: Record<string, never>; result: string[] };
+  /** The inbox folder, and whether it is being watched. */
+  "inbox_status": { args: Record<string, never>; result: InboxView };
   "app_settings": { args: Record<string, never>; result: AppSettings };
   /** Merges a change into the app settings; resolves with the settings now saved. */
   "update_app_settings": { args: { patch: AppSettingsPatch }; result: AppSettings };
@@ -1620,6 +1640,8 @@ export interface CommandApi {
    * from the file manager); called once the window listens for `item://open`.
    */
   takeOpenRequests(): Promise<string[]>;
+  /** The inbox folder, and whether it is being watched. */
+  inboxStatus(): Promise<InboxView>;
   appSettings(): Promise<AppSettings>;
   /** Merges a change into the app settings; resolves with the settings now saved. */
   updateAppSettings(args: { patch: AppSettingsPatch }): Promise<AppSettings>;
@@ -1973,6 +1995,7 @@ export const COMMANDS = {
   logUi: "log_ui",
   appInfo: "app_info",
   takeOpenRequests: "take_open_requests",
+  inboxStatus: "inbox_status",
   appSettings: "app_settings",
   updateAppSettings: "update_app_settings",
   preferences: "preferences",

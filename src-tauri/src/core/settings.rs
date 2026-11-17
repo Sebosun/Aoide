@@ -43,6 +43,9 @@ pub struct AppSettings {
     pub step_back_on_resume: bool,
     /// Tell the desktop when a long job ends, or one needs the user, while Aoide is not in front.
     pub notices: bool,
+    /// A folder (Downloads, or one a sync tool fills) whose books are added to the library as
+    /// they appear; never the library folder or one inside it.
+    pub inbox: Option<PathBuf>,
 }
 
 /// The silences narration leaves, in milliseconds (each within [`PAUSE_MS`]). The largest that
@@ -131,6 +134,9 @@ pub struct AppSettingsPatch {
     pub step_back_on_resume: Option<bool>,
     #[cfg_attr(test, ts(optional))]
     pub notices: Option<bool>,
+    #[serde(deserialize_with = "present")]
+    #[cfg_attr(test, ts(optional))]
+    pub inbox: Option<Option<PathBuf>>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -167,6 +173,7 @@ impl AppSettingsPatch {
         set(&mut settings.pauses, self.pauses);
         set(&mut settings.step_back_on_resume, self.step_back_on_resume);
         set(&mut settings.notices, self.notices);
+        set(&mut settings.inbox, self.inbox);
         settings
     }
 }
@@ -192,6 +199,7 @@ impl From<AppSettings> for AppSettingsPatch {
             pauses,
             step_back_on_resume,
             notices,
+            inbox,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -211,6 +219,7 @@ impl From<AppSettings> for AppSettingsPatch {
             pauses: Some(pauses),
             step_back_on_resume: Some(step_back_on_resume),
             notices: Some(notices),
+            inbox: Some(inbox),
         }
     }
 }
@@ -259,6 +268,7 @@ impl Default for AppSettings {
             pauses: Default::default(),
             step_back_on_resume: true,
             notices: true,
+            inbox: None,
         }
     }
 }

@@ -256,6 +256,67 @@
     ]
   },
   {
+    "name": "an inbox folder is chosen, then none",
+    "start": "",
+    "steps": [
+      {
+        "args": {},
+        "call": "inboxStatus",
+        "error": null,
+        "expect": {
+          "state": "off"
+        }
+      },
+      {
+        "args": {
+          "patch": {
+            "inbox": "/home/reader/Downloads"
+          }
+        },
+        "call": "updateAppSettings",
+        "error": null,
+        "event": {
+          "expect": {
+            "folder": "/home/reader/Downloads",
+            "state": "watching"
+          },
+          "name": "onInboxState"
+        },
+        "expect": {
+          "inbox": "/home/reader/Downloads"
+        }
+      },
+      {
+        "args": {},
+        "call": "inboxStatus",
+        "error": null,
+        "expect": {
+          "folder": "/home/reader/Downloads",
+          "state": "watching"
+        }
+      },
+      {
+        "args": {
+          "patch": {
+            "inbox": null
+          }
+        },
+        "call": "updateAppSettings",
+        "error": null,
+        "event": {
+          "expect": {
+            "folder": null,
+            "state": "off"
+          },
+          "name": "onInboxState"
+        },
+        "expect": {
+          "inbox": null
+        }
+      }
+    ]
+  },
+  {
     "name": "chapters are left out of the narration",
     "start": "",
     "steps": [

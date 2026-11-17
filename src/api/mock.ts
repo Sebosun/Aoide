@@ -23,6 +23,7 @@ import type {
   SignInView,
   SavedLink,
   InboxBook,
+  InboxView,
   SyncReportView,
   SyncAction,
   RecordingAction,
@@ -325,7 +326,17 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     pauses: { paragraphMs: 250, breakMs: 1200, headingMs: 700 },
     stepBackOnResume: true,
     notices: true,
+    inbox: null,
   };
+  /** The inbox as the core shows it: watched once chosen; `?inbox=unavailable` chooses one that is gone. */
+  if (new URLSearchParams(search).get("inbox") === "unavailable") appSettings.inbox = "/media/reader/Stick/Books";
+  const inboxGone = () =>
+    new URLSearchParams(search).get("inbox") === "unavailable" && appSettings.inbox === "/media/reader/Stick/Books";
+  const inboxView = (): InboxView => ({
+    folder: appSettings.inbox,
+    state: appSettings.inbox === null ? "off" : inboxGone() ? "unavailable" : "watching",
+  });
+  const inboxHandlers = new Set<(inbox: InboxView) => void>();
   /** The browser for articles, as the core finds it (core/browsing.rs). `?browser=off|missing|ready`:
    *  off (the default) finds Chromium but does not run it; missing finds none; ready finds one. */
   const systemChromium = new URLSearchParams(search).get("browser") !== "missing";
@@ -1784,9 +1795,15 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       return { ...appSettings };
     },
     async updateAppSettings({ patch }) {
+      const inbox = appSettings.inbox;
       appSettings = JSON.parse(JSON.stringify({ ...appSettings, ...patch }));
+      if (appSettings.inbox !== inbox) inboxHandlers.forEach((h) => h(inboxView()));
       return JSON.parse(JSON.stringify(appSettings));
     },
+    async inboxStatus() {
+      return inboxView();
+    },
+    onInboxState: (h) => subscribe(inboxHandlers, h),
     async preferences() {
       return structuredClone(preferences);
     },

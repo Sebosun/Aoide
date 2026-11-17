@@ -1086,6 +1086,40 @@ async fn scenarios_for_the_ui_mock() {
     }
     scenarios.push(s.done());
 
+    let mut s = Scenario::new("an inbox folder is chosen, then none", "");
+    s.step(
+        "inboxStatus",
+        json!({}),
+        &Ok(core.inbox_status()),
+        &["state"],
+    );
+    let downloads = "/home/reader/Downloads";
+    let patch = |inbox: Option<&str>| super::AppSettingsPatch {
+        inbox: Some(inbox.map(Into::into)),
+        ..Default::default()
+    };
+    s.step(
+        "updateAppSettings",
+        json!({"patch": {"inbox": downloads}}),
+        &core.update_app_settings(patch(Some(downloads))),
+        &["inbox"],
+    );
+    s.then("onInboxState", &core.inbox_status(), &["folder", "state"]);
+    s.step(
+        "inboxStatus",
+        json!({}),
+        &Ok(core.inbox_status()),
+        &["folder", "state"],
+    );
+    s.step(
+        "updateAppSettings",
+        json!({"patch": {"inbox": null}}),
+        &core.update_app_settings(patch(None)),
+        &["inbox"],
+    );
+    s.then("onInboxState", &core.inbox_status(), &["folder", "state"]);
+    scenarios.push(s.done());
+
     let mut s = Scenario::new("chapters are left out of the narration", "");
     let narrated = [
         "chapters.0.leftOut",

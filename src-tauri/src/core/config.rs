@@ -48,6 +48,8 @@ pub struct PreferencesView {
 
 pub(super) struct Config {
     dir: PathBuf,
+    /// The library folder, which cannot be the inbox.
+    library_dir: PathBuf,
     file: SettingsFile,
     /// Set while settings.toml cannot be parsed: values are defaults and nothing is written.
     parse_error: Option<String>,
@@ -65,12 +67,13 @@ pub(super) struct Config {
 impl Config {
     /// Reads `settings.toml` in `dir`. When it does not exist, creates it from the values
     /// Aoide used to keep in `library`; the old database rows are left in place.
-    pub(super) fn open(dir: &Path, library: &Library) -> Self {
+    pub(super) fn open(dir: &Path, library_dir: &Path, library: &Library) -> Self {
         let path = dir.join(SETTINGS_FILE);
         match SettingsFile::load(&path) {
             Ok(Some(file)) => {
                 let mut config = Self {
                     dir: dir.to_path_buf(),
+                    library_dir: library_dir.to_path_buf(),
                     text: std::fs::read_to_string(&path).ok(),
                     file,
                     parse_error: None,
@@ -84,6 +87,7 @@ impl Config {
             Ok(None) => {
                 let mut config = Self {
                     dir: dir.to_path_buf(),
+                    library_dir: library_dir.to_path_buf(),
                     file: SettingsFile::empty(&path),
                     parse_error: None,
                     text: None,
@@ -97,6 +101,7 @@ impl Config {
             }
             Err(error) => Self {
                 dir: dir.to_path_buf(),
+                library_dir: library_dir.to_path_buf(),
                 file: SettingsFile::empty(&path),
                 parse_error: Some(error.to_string()),
                 text: std::fs::read_to_string(&path).ok(),
@@ -112,7 +117,7 @@ impl Config {
     /// not taken, and the reason is listed among the problems.
     fn adopt_app(&mut self) -> Option<(AppSettings, AppSettings)> {
         let found = self.get::<AppSettings>(APP).unwrap_or_default();
-        match check_app(&found) {
+        match check_app(&found, &self.library_dir) {
             Ok(()) => {
                 self.rejected_app = None;
                 (found != self.app)
@@ -235,8 +240,12 @@ impl Config {
     }
 }
 
-/// Checks app settings before they are used, wherever they came from.
-fn check_app(settings: &AppSettings) -> Result<(), String> {
+/// Checks app settings before they are used, wherever they came from (`library_dir` is the
+/// library folder).
+fn check_app(settings: &AppSettings, library_dir: &Path) -> Result<(), String> {
+    if let Some(inbox) = &settings.inbox {
+        super::inbox::check_folder(inbox, library_dir)?;
+    }
     settings.recognition.validate()?;
     if !super::settings::READING_WPM.contains(&settings.reading_wpm) {
         return Err(format!(
@@ -339,7 +348,7 @@ impl Settings {
         let mut config = lock(&self.config);
         let before = config.app.clone();
         let settings = patch.apply(before.clone());
-        check_app(&settings)?;
+        check_app(&settings, &config.library_dir)?;
         config.update(|file| file.set_section(APP, &settings))?;
         config.app = settings.clone();
         config.rejected_app = None;
@@ -446,6 +455,9 @@ impl ConfigHost for Core {
         if before.pauses != after.pauses {
             self.text_laid_out_again();
         }
+        if before.inbox != after.inbox {
+            self.inbox.set_folder(after.inbox.clone());
+        }
     }
 
     fn preferences_changed(&self, preferences: PreferencesView) {
@@ -484,7 +496,11 @@ mod tests {
     #[test]
     fn first_start_moves_settings_from_the_database_to_the_config_file() {
         let dir = tempfile::tempdir().unwrap();
-        let config = Config::open(dir.path(), &library_with_old_settings());
+        let config = Config::open(
+            dir.path(),
+            &dir.path().join("Books"),
+            &library_with_old_settings(),
+        );
 
         let on_disk = SettingsFile::load(dir.path().join(SETTINGS_FILE))
             .unwrap()
@@ -516,7 +532,11 @@ mod tests {
             "[player]\nspeed = 2.0\n\n[appearance]\nmode = \"dark\"\n",
         )
         .unwrap();
-        let config = Config::open(dir.path(), &library_with_old_settings());
+        let config = Config::open(
+            dir.path(),
+            &dir.path().join("Books"),
+            &library_with_old_settings(),
+        );
         assert_eq!(
             config.get::<PlayerSettings>(PLAYER),
             Some(PlayerSettings {
@@ -533,7 +553,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(SETTINGS_FILE);
         std::fs::write(&path, "[player\nspeed = ").unwrap();
-        let mut config = Config::open(dir.path(), &library_with_old_settings());
+        let mut config = Config::open(
+            dir.path(),
+            &dir.path().join("Books"),
+            &library_with_old_settings(),
+        );
 
         assert_eq!(config.problems().len(), 1);
         assert!(config.problems()[0].contains("settings.toml"));
@@ -565,7 +589,11 @@ mod tests {
     #[test]
     fn aoide_writes_are_not_mistaken_for_user_edits() {
         let dir = tempfile::tempdir().unwrap();
-        let mut config = Config::open(dir.path(), &Library::open_in_memory().unwrap());
+        let mut config = Config::open(
+            dir.path(),
+            &dir.path().join("Books"),
+            &Library::open_in_memory().unwrap(),
+        );
         config
             .update(|file| {
                 file.set_section(
@@ -588,7 +616,11 @@ mod tests {
             "[appearance]\nmode = \"sepia\"\n",
         )
         .unwrap();
-        let config = Config::open(dir.path(), &Library::open_in_memory().unwrap());
+        let config = Config::open(
+            dir.path(),
+            &dir.path().join("Books"),
+            &Library::open_in_memory().unwrap(),
+        );
         let problems = config.problems();
         assert_eq!(problems.len(), 1, "{problems:?}");
         assert!(problems[0].contains("[appearance]"));
@@ -604,7 +636,11 @@ mod tests {
             "[dark]\naccent = \"#FFB000\"\n",
         )
         .unwrap();
-        let config = Config::open(dir.path(), &Library::open_in_memory().unwrap());
+        let config = Config::open(
+            dir.path(),
+            &dir.path().join("Books"),
+            &Library::open_in_memory().unwrap(),
+        );
         let themes = config.preferences().themes;
         let dusk = themes.last().unwrap();
         assert_eq!((dusk.name.as_str(), dusk.builtin), ("dusk", false));
@@ -645,6 +681,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let settings = Settings::new(Config::open(
             dir.path(),
+            &dir.path().join("Books"),
             &Library::open_in_memory().unwrap(),
         ));
         let host = Host::default();
@@ -659,6 +696,7 @@ mod tests {
         assert!(refused.is_err());
         let saved = Settings::new(Config::open(
             dir.path(),
+            &dir.path().join("Books"),
             &Library::open_in_memory().unwrap(),
         ))
         .app();
@@ -683,6 +721,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let settings = Settings::new(Config::open(
             dir.path(),
+            &dir.path().join("Books"),
             &Library::open_in_memory().unwrap(),
         ));
         let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -703,6 +742,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let settings = Settings::new(Config::open(
             dir.path(),
+            &dir.path().join("Books"),
             &Library::open_in_memory().unwrap(),
         ));
         let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -748,7 +788,11 @@ mod tests {
             dir.path(),
             "[app]\nreadingWpm = 5\nmetadataLookup = false\n",
         );
-        let config = Config::open(dir.path(), &Library::open_in_memory().unwrap());
+        let config = Config::open(
+            dir.path(),
+            &dir.path().join("Books"),
+            &Library::open_in_memory().unwrap(),
+        );
         assert_eq!(config.app, AppSettings::default());
         assert_eq!(config.problems().len(), 1, "{:?}", config.problems());
     }

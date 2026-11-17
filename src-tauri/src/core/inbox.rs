@@ -3,9 +3,6 @@
 //! book files; each is taken once its size has held for [`SETTLE`], copied into the library,
 //! and left where it is.
 
-// Started by the core in a later step.
-#![cfg_attr(not(test), allow(dead_code))]
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
@@ -36,6 +33,45 @@ pub struct InboxBook {
     pub id: String,
     /// Its title.
     pub title: String,
+}
+
+/// The inbox as Settings shows it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct InboxView {
+    /// The folder chosen, if any.
+    pub folder: Option<String>,
+    /// Whether it is watched, or gone.
+    pub state: InboxState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum InboxState {
+    /// No folder is chosen.
+    Off,
+    /// Books that appear in the folder are added.
+    Watching,
+    /// The folder is not there (on a drive taken out?); it is looked for every 30 seconds.
+    Unavailable,
+}
+
+/// Whether `folder` can be the inbox: a full path, outside the library folder `library_dir`
+/// (whose books are in the library already).
+pub(super) fn check_folder(folder: &Path, library_dir: &Path) -> Result<(), String> {
+    if !folder.is_absolute() {
+        return Err("The inbox must be given as a folder's full path".into());
+    }
+    let real = |path: &Path| std::fs::canonicalize(path).unwrap_or_else(|_| path.to_owned());
+    if real(folder).starts_with(real(library_dir)) {
+        return Err(
+            "The inbox cannot be the library folder or a folder inside it: books there are in the library already"
+                .into(),
+        );
+    }
+    Ok(())
 }
 
 /// How long a file's size must hold before it is taken: a download or a sync still writing
@@ -186,8 +222,32 @@ impl Inbox {
 
     /// Watches `folder` from now on, or nothing.
     pub fn set_folder(&self, folder: Option<PathBuf>) {
+        let before = self.view();
         *lock(&self.folder) = folder;
         let _ = lock(&self.wake).send(Wake::Folder);
+        self.tell(before);
+    }
+
+    /// The inbox as Settings shows it.
+    pub fn view(&self) -> InboxView {
+        let folder = lock(&self.folder).clone();
+        let state = match (&folder, self.stage()) {
+            (None, _) => InboxState::Off,
+            (Some(_), Stage::Unavailable) => InboxState::Unavailable,
+            (Some(_), _) => InboxState::Watching,
+        };
+        InboxView {
+            folder: folder.map(|folder| folder.to_string_lossy().into_owned()),
+            state,
+        }
+    }
+
+    /// Tells the window the inbox's view when it is no longer `before`.
+    fn tell(&self, before: InboxView) {
+        let now = self.view();
+        if now != before {
+            self.emit(CoreEvent::InboxState(now));
+        }
     }
 
     /// Ends [`Inbox::run`].
@@ -380,18 +440,23 @@ impl Inbox {
     }
 
     fn apply(&self, event: Event) -> Stage {
-        let mut stage = lock(&self.stage);
-        let from = *stage;
-        *stage = next(from, event);
-        if from.name() != stage.name() {
+        let before = self.view();
+        let (from, to) = {
+            let mut stage = lock(&self.stage);
+            let from = *stage;
+            *stage = next(from, event);
+            (from, *stage)
+        };
+        if from.name() != to.name() {
             tracing::info!(
                 event = "inbox.stage",
                 from = from.name(),
-                to = stage.name(),
+                to = to.name(),
                 "The inbox moved on"
             );
         }
-        *stage
+        self.tell(before);
+        to
     }
 }
 
@@ -427,6 +492,45 @@ fn take(path: &Path, host: &dyn InboxHost) -> Option<InboxBook> {
             skipped("failed", &error);
             None
         }
+    }
+}
+
+impl InboxHost for super::Core {
+    fn import(&self, path: &Path) -> Result<InboxBook, String> {
+        let result = self
+            .import_files(vec![path.to_string_lossy().into_owned()])
+            .pop()
+            .ok_or("it was not added")?;
+        let id = result
+            .book_id
+            .ok_or_else(|| result.error.unwrap_or_else(|| "it was not added".into()))?;
+        let record = lock(&self.library)
+            .book(&aoide_library::BookId(id.clone()))
+            .ok()
+            .flatten();
+        let title = record
+            .and_then(|record| record.title)
+            .unwrap_or_else(|| crate::logging::file(path).into_owned());
+        Ok(InboxBook { id, title })
+    }
+
+    fn in_library(&self, id: &str) -> bool {
+        lock(&self.library)
+            .book(&aoide_library::BookId(id.into()))
+            .ok()
+            .flatten()
+            .is_some_and(|record| record.status == aoide_library::BookStatus::Present)
+    }
+
+    fn removed(&self) -> HashSet<String> {
+        self.shelf.ignored()
+    }
+}
+
+impl super::Core {
+    /// The inbox folder, and whether it is being watched.
+    pub fn inbox_status(&self) -> InboxView {
+        self.inbox.view()
     }
 }
 
@@ -479,6 +583,7 @@ mod tests {
     use super::super::tests::{epub, Recorder};
     use super::super::CoreEvent;
     use super::*;
+    use super::{InboxState, InboxView};
 
     /// Records what it is asked to import, and imports nothing.
     #[derive(Default)]
@@ -684,6 +789,68 @@ mod tests {
             until("off", || world.inbox.stage() == Stage::Off);
             world.inbox.stop();
         });
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_folder_chosen_in_settings_is_watched_and_the_library_folder_is_refused() {
+        use super::super::AppSettingsPatch;
+        let dir = tempfile::tempdir().unwrap();
+        // The library holds another book.
+        let other = super::super::tests::epub_with(
+            "<html><body><p>The tide came in.</p></body></html>".into(),
+            "<html><body><p>The tide went out.</p></body></html>".into(),
+        );
+        super::super::tests::library_folder_holding(
+            dir.path(),
+            "",
+            "voiceId = \"Test.wav\"",
+            &other,
+        );
+        let (core, events) = super::super::tests::start_with(
+            dir.path(),
+            &aoide_tts::testing::FakeEngine::new(),
+            Arc::new(|_| Err("no speech recognition in this test".into())),
+        );
+        let choose = |folder: Option<PathBuf>| {
+            core.update_app_settings(AppSettingsPatch {
+                inbox: Some(folder),
+                ..Default::default()
+            })
+        };
+        let library = dir.path().join("Books");
+        let refused = choose(Some(library.clone())).unwrap_err();
+        assert!(refused.contains("library folder"), "{refused}");
+        assert!(choose(Some(library.join("Incoming"))).is_err());
+        assert!(choose(Some(PathBuf::from("Downloads"))).is_err());
+        assert_eq!(core.app_settings().inbox, None);
+        assert_eq!(core.inbox_status().state, InboxState::Off);
+
+        let downloads = dir.path().join("Downloads");
+        std::fs::create_dir_all(&downloads).unwrap();
+        choose(Some(downloads.clone())).unwrap();
+        let watching = InboxView {
+            folder: Some(downloads.to_string_lossy().into_owned()),
+            state: InboxState::Watching,
+        };
+        assert_eq!(core.inbox_status(), watching);
+        let told = events.payloads(CoreEvent::INBOX_STATE);
+        assert_eq!(told.last(), Some(&serde_json::to_value(&watching).unwrap()));
+
+        // Saving an EPUB to Downloads puts it in the library without touching Aoide.
+        let running = Arc::clone(&core);
+        let thread = std::thread::spawn(move || running.inbox.run(&*running));
+        std::fs::write(downloads.join("Lights.epub"), epub()).unwrap();
+        until("added", || events.count(CoreEvent::INBOX_ADDED) == 1);
+        let added = &events.payloads(CoreEvent::INBOX_ADDED)[0][0];
+        assert_eq!(added["title"], "Quay Lights");
+        let id = added["id"].as_str().unwrap();
+        assert!(core.list_books().unwrap().iter().any(|book| book.id == id));
+        assert!(downloads.join("Lights.epub").is_file(), "left where it was");
+
+        choose(None).unwrap();
+        assert_eq!(core.inbox_status().state, InboxState::Off);
+        core.shutdown();
+        thread.join().unwrap();
     }
 
     impl Imports {
