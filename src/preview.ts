@@ -4,7 +4,7 @@ import { useReaderStore } from "@/stores/reader";
 import { useLibraryStore } from "@/stores/library";
 import { api } from "@/api";
 import { useRecordingsStore } from "@/stores/recordings";
-import { showSavedLink } from "@/opening";
+import { showInboxAdded, showSavedLink } from "@/opening";
 import fixtureArticle from "@/tests/fixtures/article.json";
 
 /** Browser preview only: `?view=home|library|feeds|activity|item|reader|find|audiobooks&book=book-0&play=1500&theme=dark&mode=lines&zoom=1.25` opens a
@@ -31,7 +31,9 @@ import fixtureArticle from "@/tests/fixtures/article.json";
  *  bookmarks a sentence of it;
  *  `select=Ren` selects that word in the chapter text once the screen is up (before any `click`);
  *  `saved=new|again` shows the toast for a page sent from the browser (new to the library, with
- *  Undo, or one the library had). */
+ *  Undo, or one the library had);
+ *  `added=one|several` shows the toast for books the inbox folder added; `inbox=unavailable`
+ *  chooses an inbox folder that is gone (`settings=library` shows it). */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
   const view = query.get("view") as View | null,
@@ -72,6 +74,13 @@ export async function applyPreviewParams(search = location.search) {
       title: saved === "new" ? new URL(fixtureArticle.article.canonicalUrl).hostname : fixtureArticle.summary.title,
       newToLibrary: saved === "new",
     });
+  const added = query.get("added");
+  if (added)
+    showInboxAdded(
+      ["The Lantern Keeper", "A Map of Quiet Places", "The Absent Orchard"]
+        .slice(0, added === "one" ? 1 : 3)
+        .map((title, n) => ({ id: `book-${n}`, title })),
+    );
   if (settings) useNavigationStore().openSettings(settings);
   if (query.has("shortcuts")) useNavigationStore().openShortcuts();
   for (const id of query.get("prepare")?.split(",").filter(Boolean) ?? []) await api.prepareBook({ bookId: id });

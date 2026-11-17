@@ -95,3 +95,22 @@ it("a page saved from the browser is named in a toast, whose Undo removes it whe
   expect(ui.toasts.at(-1)).toMatchObject({ text: "“The Quay Lights” is in the library already", action: undefined });
   off();
 });
+
+it("books the inbox folder added are named in one toast, and nothing opens", async () => {
+  const off = await listenToCore(tauriApi);
+  const navigation = useNavigationStore();
+  const view = navigation.view;
+  tauri.handlers.get("inbox://added")!({ payload: [{ id: "book-9", title: "The Quay Lights" }] });
+  tauri.handlers.get("inbox://added")!({
+    payload: [
+      { id: "book-10", title: "Tide Tables" },
+      { id: "book-11", title: "Harbour Songs" },
+    ],
+  });
+  expect(useUiStore().toasts.map((t) => t.text)).toEqual([
+    "Added “The Quay Lights” from the inbox folder",
+    "Added 2 books from the inbox folder: “Tide Tables” and “Harbour Songs”",
+  ]);
+  expect(navigation.view).toBe(view);
+  off();
+});

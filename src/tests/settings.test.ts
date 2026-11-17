@@ -531,3 +531,46 @@ it("offers a bookmark that sends the page to Aoide, to drag to the bookmarks bar
   wrapper.unmount();
   host.unmount();
 });
+
+it("chooses an inbox folder in Settings › Library, says beside it why one is refused, and stops watching it", async () => {
+  const { default: LibrarySettings } = await import("@/components/settings/LibrarySettings.vue");
+  const wrapper = mount(LibrarySettings);
+  await flushPromises();
+  const inbox = () => wrapper.get('[aria-label="Inbox folder"]');
+  expect(inbox().text()).toContain("None");
+  expect(button(wrapper, "Stop watching")).toBeUndefined();
+
+  const chooser = vi.spyOn(mock, "chooseFolder").mockResolvedValueOnce("/home/reader/Downloads");
+  await button(wrapper, "Choose a folder…")!.trigger("click");
+  await flushPromises();
+  expect(chooser).toHaveBeenCalledWith({ title: "Choose the inbox folder" });
+  expect(inbox().text()).toContain("/home/reader/Downloads");
+  expect((await mock.appSettings()).inbox).toBe("/home/reader/Downloads");
+
+  // The core refuses a folder: said beside the inbox.
+  vi.spyOn(mock, "chooseFolder").mockResolvedValueOnce("/home/reader/Documents/Aoide/Books");
+  vi.spyOn(mock, "updateAppSettings").mockRejectedValueOnce(
+    new Error("The inbox cannot be the library folder or a folder inside it"),
+  );
+  await button(wrapper, "Choose a folder…")!.trigger("click");
+  await flushPromises();
+  expect(inbox().get('[role="alert"]').text()).toContain("cannot be the library folder");
+  expect(inbox().text()).toContain("/home/reader/Downloads");
+
+  await button(wrapper, "Stop watching")!.trigger("click");
+  await flushPromises();
+  expect(inbox().text()).toContain("None");
+  expect((await mock.appSettings()).inbox).toBeNull();
+  wrapper.unmount();
+});
+
+it("says in Settings › Library when the inbox folder is gone", async () => {
+  mock.dispose();
+  mock = createMockApi("?inbox=unavailable");
+  backend.api = mock;
+  const { default: LibrarySettings } = await import("@/components/settings/LibrarySettings.vue");
+  const wrapper = mount(LibrarySettings);
+  await flushPromises();
+  expect(wrapper.get('[aria-label="Inbox folder"] [role="status"]').text()).toContain("every 30 seconds");
+  wrapper.unmount();
+});

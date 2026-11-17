@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
-import { computed, onMounted, ref } from "vue";
-import { FileDown, FolderSearch, Library, Sparkles } from "@lucide/vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
+import { FileDown, FolderOpen, FolderSearch, FolderX, Inbox, Library, Sparkles } from "@lucide/vue";
 import { api } from "@/api";
-import type { TaggingSettings } from "@/api/types";
+import type { InboxView, TaggingSettings } from "@/api/types";
 import SettingsSection from "@/components/settings/SettingsSection.vue";
 import SettingsField from "@/components/settings/SettingsField.vue";
 import SettingsNote from "@/components/settings/SettingsNote.vue";
@@ -57,6 +57,31 @@ function findBooks() {
   navigation.closeSettings();
   navigation.view = "find";
 }
+/** The inbox folder as the core watches it; a folder it refuses is said beside it. */
+const inbox = ref<InboxView | null>(null),
+  inboxError = ref("");
+let offInbox: (() => void) | undefined;
+onMounted(async () => {
+  offInbox = await api.onInboxState((view) => (inbox.value = view));
+  try {
+    inbox.value = await api.inboxStatus();
+  } catch (e) {
+    inboxError.value = String(e);
+  }
+});
+onUnmounted(() => offInbox?.());
+/** Saves the inbox folder (`null`: none), keeping a refusal beside the inbox. */
+async function saveInbox(folder: string | null) {
+  inboxError.value = "";
+  if (!(await save({ inbox: folder }))) {
+    inboxError.value = error.value;
+    error.value = "";
+  }
+}
+async function chooseInbox() {
+  const folder = await api.chooseFolder({ title: "Choose the inbox folder" });
+  if (folder) await saveInbox(folder);
+}
 </script>
 
 <template>
@@ -73,6 +98,29 @@ function findBooks() {
           <FolderSearch :size="15" /> Find books on this computer…
         </UiButton>
       </div>
+    </SettingsSection>
+    <SettingsSection title="Inbox" :icon="Inbox">
+      <div class="library-settings__inbox" role="group" aria-label="Inbox folder">
+        <SettingsField label="Inbox folder" as="div"
+          ><code class="library-settings__path">{{ inbox?.folder ?? "None" }}</code></SettingsField
+        >
+        <div class="library-settings__row">
+          <UiButton size="sm" @click="chooseInbox"><FolderOpen :size="15" /> Choose a folder…</UiButton>
+          <UiButton v-if="inbox?.folder" size="sm" @click="saveInbox(null)"
+            ><FolderX :size="15" /> Stop watching</UiButton
+          >
+        </div>
+        <SettingsNote v-if="inbox?.state === 'unavailable'" tone="warn" role="status"
+          >The folder is not there; the drive it is on may be taken out. Aoide looks for it every 30 seconds and adds
+          what is new once it is back.</SettingsNote
+        >
+        <p v-if="inboxError" class="library-settings__error" role="alert">{{ inboxError }}</p>
+      </div>
+      <SettingsNote
+        >EPUBs and PDFs saved in this folder, such as Downloads or one a sync tool fills, are copied into the library
+        within seconds, and so are those in it now. The files there are left as they are, and a book you removed is not
+        added again.</SettingsNote
+      >
     </SettingsSection>
     <SettingsSection title="Notes">
       <SettingsNote
@@ -222,6 +270,10 @@ function findBooks() {
   background: var(--ground);
   color: var(--ink);
   font-size: 13px;
+}
+.library-settings__inbox {
+  display: grid;
+  gap: var(--space-5);
 }
 .library-settings__row {
   display: flex;

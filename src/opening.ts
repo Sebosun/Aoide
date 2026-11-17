@@ -1,4 +1,4 @@
-import type { AoideApi, SavedLink } from "@/api/types";
+import type { AoideApi, InboxBook, SavedLink } from "@/api/types";
 import { listenForProblems } from "@/problems";
 import { useNavigationStore } from "@/stores/navigation";
 import { useUiStore } from "@/stores/ui";
@@ -42,16 +42,27 @@ export function showSavedLink(api: AoideApi, saved: SavedLink) {
   });
 }
 
+/** Names the books the core added from the inbox folder in one look; nothing opens. */
+export function showInboxAdded(books: InboxBook[]) {
+  const quoted = books.map((book) => `“${book.title}”`);
+  const ui = useUiStore();
+  if (quoted.length === 1) return ui.toast(`Added ${quoted[0]} from the inbox folder`);
+  const names = quoted.length <= 3 ? `: ${quoted.slice(0, -1).join(", ")} and ${quoted.at(-1)}` : "";
+  ui.toast(`Added ${quoted.length} books from the inbox folder${names}`);
+}
+
 /** Listens for the core's problems and the pages it saved, then for items to open: taking what
  *  the core held while the window started also tells the books it could not open and the pages
  *  it saved meanwhile. */
 export async function listenToCore(api: AoideApi) {
   const offProblems = await listenForProblems(api);
   const offSaved = await api.onLinkSaved((saved) => showSavedLink(api, saved));
+  const offInbox = await api.onInboxAdded(showInboxAdded);
   const offOpening = await listenForOpenItems(api);
   return () => {
     offProblems();
     offSaved();
+    offInbox();
     offOpening();
   };
 }
