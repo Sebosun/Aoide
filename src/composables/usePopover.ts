@@ -6,7 +6,7 @@ import { nextTick, onUnmounted, ref, watch, type Ref } from "vue";
 /** CSS zoom on the root element (the browser preview's interface zoom): rectangles are measured
  *  in window pixels, lengths set on the popup are multiplied by this. 1 in the desktop app,
  *  where the webview itself zooms. */
-const rootZoom = () => Number(getComputedStyle(document.documentElement).getPropertyValue("zoom")) || 1;
+export const rootZoom = () => Number(getComputedStyle(document.documentElement).getPropertyValue("zoom")) || 1;
 export function usePopover(
   anchor: Ref<HTMLElement | undefined>,
   popup: Ref<HTMLElement | undefined>,

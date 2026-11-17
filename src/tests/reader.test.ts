@@ -467,6 +467,25 @@ it("sets the reader's font, line spacing, width, justification and hyphenation f
   wrapper.unmount();
 });
 
+// The Text panel is wider than the space left of Aa in a narrow window (the app is 640 px at least).
+it("keeps the Text panel inside a narrow window", async () => {
+  const wrapper = await openReader();
+  const aa = wrapper.get('[aria-label="Text"]');
+  // The panel hangs from the box around Aa.
+  aa.element.parentElement!.getBoundingClientRect = () =>
+    ({ left: 280, right: 320, top: 20, bottom: 56, width: 40 }) as DOMRect;
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(380);
+  onTestFinished(() => {
+    vi.restoreAllMocks();
+  });
+  await aa.trigger("click");
+  await flushPromises();
+  const panel = wrapper.get<HTMLElement>('[role="group"][aria-label="Text"]').element;
+  // Its right edge is under Aa's (320), so it would start at -60: moved right to start 8 px in.
+  expect(panel.style.transform).toBe("translateX(68px)");
+  wrapper.unmount();
+});
+
 it("sets the volume from the dock, and mutes and unmutes to the same level", async () => {
   const wrapper = await openReader();
   const dock = () => wrapper.get('[aria-label="Player"]');
