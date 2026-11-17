@@ -1,0 +1,13 @@
+[package]
+name = "aoide-docx"
+version = "0.1.0"
+edition.workspace = true
+license = "MIT"
+publish.workspace = true
+description = "Word (.docx) files, as Aoide's parsed-book model"
+
+[dependencies]
+aoide-document = { path = "../document" }
+roxmltree = "0.21"
+thiserror = "2"
+zip = { version = "2.4", default-features = false, features = ["deflate"] }

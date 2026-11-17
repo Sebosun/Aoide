@@ -133,6 +133,7 @@ dependencies = [
  "aoide-config",
  "aoide-discovery",
  "aoide-document",
+ "aoide-docx",
  "aoide-epub",
  "aoide-fb2",
  "aoide-feeds",
@@ -289,6 +290,16 @@ name = "aoide-document"
 version = "0.1.0"
 dependencies = [
  "ts-rs",
+]
+
+[[package]]
+name = "aoide-docx"
+version = "0.1.0"
+dependencies = [
+ "aoide-document",
+ "roxmltree",
+ "thiserror 2.0.21",
+ "zip 2.6.1",
 ]
 
 [[package]]

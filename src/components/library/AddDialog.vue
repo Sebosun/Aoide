@@ -221,8 +221,9 @@ function rescan() {
         <div class="add-dialog__drop">
           <b class="add-dialog__drop-title">Drop books or audiobooks anywhere on this window</b>
           <p class="add-dialog__hint">
-            EPUB or PDF for text, or a saved email (.eml) to read as an article. M4B, MP3, FLAC or Ogg for audio: an
-            audiobook is paired with its book, or added on its own.
+            EPUB, PDF, Word (.docx), FB2, plain text, Markdown or a saved web page (.html) for text, or a saved email
+            (.eml) to read as an article. A Kindle book (MOBI, AZW3) needs converting to EPUB first. M4B, MP3, FLAC or
+            Ogg for audio: an audiobook is paired with its book, or added on its own.
           </p>
           <div class="add-dialog__buttons">
             <UiButton

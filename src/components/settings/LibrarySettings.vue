@@ -144,9 +144,9 @@ async function chooseInbox() {
         <p v-if="inboxError" class="library-settings__error" role="alert">{{ inboxError }}</p>
       </div>
       <SettingsNote
-        >EPUBs and PDFs saved in this folder, such as Downloads or one a sync tool fills, are copied into the library
-        within seconds, and so are those in it now. The files there are left as they are, and a book you removed is not
-        added again.</SettingsNote
+        >EPUB, PDF and FB2 books saved in this folder, such as Downloads or one a sync tool fills, are copied into the
+        library within seconds, and so are those in it now. The files there are left as they are, and a book you removed
+        is not added again.</SettingsNote
       >
     </SettingsSection>
     <SettingsSection title="Notes">

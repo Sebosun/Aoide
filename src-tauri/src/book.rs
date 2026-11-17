@@ -282,7 +282,7 @@ pub fn parse_document_named(bytes: &[u8], name: Option<&str>) -> Result<ParsedBo
             Ok(document)
         }
         Format::Fb2 => aoide_fb2::parse_fb2(bytes).map_err(|e| e.to_string()),
-        Format::Docx => Err("this format is not read yet".into()),
+        Format::Docx => aoide_docx::parse_docx(bytes).map_err(|e| e.to_string()),
         Format::Kindle => Err(KINDLE.into()),
     }
 }
@@ -1143,6 +1143,51 @@ pub fn plain_text(html: &str) -> String {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    #[test]
+    fn a_files_format_is_told_by_its_content_before_its_name() {
+        use std::io::Write;
+        let zipped = |files: &[(&str, &str)]| {
+            let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
+            for (name, text) in files {
+                zip.start_file(*name, zip::write::SimpleFileOptions::default())
+                    .unwrap();
+                zip.write_all(text.as_bytes()).unwrap();
+            }
+            zip.finish().unwrap().into_inner()
+        };
+        let word = zipped(&[(
+            "word/document.xml",
+            r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Dear harbour master,</w:t></w:r></w:p></w:body></w:document>"#,
+        )]);
+        let fb2 = r#"<?xml version="1.0"?><FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0"><body><section><p>Tide.</p></section></body></FictionBook>"#;
+        let mut kindle = vec![0u8; 80];
+        kindle[60..68].copy_from_slice(b"BOOKMOBI");
+        // A wrong or missing name does not matter where the content says.
+        assert_eq!(format_of(&word, Some("letter.bin")), Format::Docx);
+        assert_eq!(format_of(fb2.as_bytes(), Some("book.txt")), Format::Fb2);
+        assert_eq!(format_of(&zipped(&[("book.fb2", fb2)]), None), Format::Fb2);
+        assert_eq!(format_of(&kindle, Some("lamp.epub")), Format::Kindle);
+        assert_eq!(
+            format_of(
+                &zipped(&[("mimetype", "application/epub+zip")]),
+                Some("lamp.pdf")
+            ),
+            Format::Epub
+        );
+        // Text is told by its name.
+        assert_eq!(format_of(b"# Lamps", Some("Lamps.MD")), Format::Markdown);
+        assert_eq!(format_of(b"<p>Lamps</p>", Some("lamps.htm")), Format::Html);
+        assert_eq!(format_of(b"Lamps", Some("lamps.txt")), Format::Text);
+        assert!(parse_document_named(&word, Some("letter.docx"))
+            .unwrap()
+            .chapters[0]
+            .text
+            .contains("Dear harbour master,"));
+        assert!(parse_document_named(&kindle, None)
+            .unwrap_err()
+            .contains("Calibre"));
+    }
+
     #[test]
     fn plain_text_strips_markup_and_entities() {
         assert_eq!(
