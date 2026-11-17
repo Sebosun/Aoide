@@ -68,6 +68,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
   { value: "title", label: "Title" },
   { value: "author", label: "Author" },
   { value: "progress", label: "Progress" },
+  { value: "series", label: "Series" },
 ];
 </script>
 
@@ -167,6 +168,7 @@ const SORTS: { value: LibrarySort; label: string }[] = [
         :key="book.id"
         :book="book"
         :busy="reader.loading"
+        :series-place="library.sort === 'series'"
         @open="openCard(book)"
         @details="navigation.openItem(book.id)"
         @remove="library.remove(book.id)"

@@ -181,6 +181,16 @@ export const useLibraryStore = defineStore("library", () => {
       title: byTitle,
       author: (a, b) => text(a.authors[0] ?? "\uffff", b.authors[0] ?? "\uffff") || byTitle(a, b),
       progress: (a, b) => (b.progress?.fraction ?? -1) - (a.progress?.fraction ?? -1) || byTitle(a, b),
+      // By series and place in it (as the core matches series: trimmed, case folded); books in
+      // no series after, by title.
+      series: (a, b) => {
+        if (!a.series || !b.series) return Number(!a.series) - Number(!b.series) || byTitle(a, b);
+        return (
+          text(a.series.name.trim(), b.series.name.trim()) ||
+          (a.series.position ?? Infinity) - (b.series.position ?? Infinity) ||
+          byTitle(a, b)
+        );
+      },
     };
     return [...matches].sort(order[sort.value]);
   });

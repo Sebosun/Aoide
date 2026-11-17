@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { useLibraryStore } from "@/stores/library";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "@/api/mock";
@@ -420,4 +421,30 @@ it("chooses a cover picture for an item, and goes back to the file's", async () 
   expect(edit).toHaveBeenLastCalledWith({ bookId: "book-2", patch: { cover: null } });
   expect(cover().exists()).toBe(false);
   wrapper.unmount();
+});
+
+it("puts an item in a series by hand, and goes back to the file's", async () => {
+  const edit = vi.spyOn(mock, "editDetails");
+  const { wrapper, dialog } = await editing("book-2");
+  await dialog().get('[aria-label="Series"]').setValue("Harbour Lights");
+  await dialog().get('[aria-label="Number in series"]').setValue("2.5");
+  await dialog().get("form").trigger("submit");
+  await flushPromises();
+  expect(edit).toHaveBeenLastCalledWith({
+    bookId: "book-2",
+    patch: { series: "Harbour Lights", seriesPosition: 2.5 },
+  });
+  expect(useLibraryStore().books.find((b) => b.id === "book-2")?.series).toEqual({
+    name: "Harbour Lights",
+    position: 2.5,
+  });
+  wrapper.unmount();
+
+  const again = await editing("book-2");
+  expect((again.dialog().get('[aria-label="Number in series"]').element as HTMLInputElement).value).toBe("2.5");
+  await again.dialog().get(`[aria-label="Use the file's series"]`).trigger("click");
+  await flushPromises();
+  expect(edit).toHaveBeenLastCalledWith({ bookId: "book-2", patch: { series: null, seriesPosition: null } });
+  expect(useLibraryStore().books.find((b) => b.id === "book-2")?.series).toBeNull();
+  again.wrapper.unmount();
 });

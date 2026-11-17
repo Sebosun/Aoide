@@ -8,7 +8,7 @@ import UiDialog from "@/components/ui/UiDialog.vue";
 import { useLibraryStore } from "@/stores/library";
 import { useUiStore } from "@/stores/ui";
 
-/** An item's title, authors, publication date and cover, corrected by hand. The file is never
+/** An item's title, authors, publication date, series and cover, corrected by hand. The file is never
  *  changed: what the core keeps is the correction, and each corrected field can go back to the
  *  file's at once. Typed changes are saved together; a cover is used as soon as it is chosen. */
 const props = defineProps<{ bookId: string }>();
@@ -20,22 +20,31 @@ const edited = (field: DetailField) => summary.value?.edited.includes(field) ?? 
 
 const title = ref(""),
   authors = ref(""),
-  published = ref("");
+  published = ref(""),
+  series = ref(""),
+  position = ref("");
+const fields = { title, authors, published, series, position };
+type Typed = keyof typeof fields;
 /** What the fields held when the dialog opened (or a field went back to the file's). */
-const shown = { title: "", authors: "", published: "" };
-async function fill(fields: ("title" | "authors" | "published")[]) {
+const shown: Record<Typed, string> = { title: "", authors: "", published: "", series: "", position: "" };
+async function fill(names: Typed[]) {
   const book = summary.value;
-  const date = fields.includes("published")
+  const date = names.includes("published")
     ? ((await api.bookDetails({ bookId: props.bookId }).catch(() => null))?.published ?? "")
     : "";
-  for (const field of fields) {
-    const value =
-      field === "title" ? (book?.title ?? "") : field === "authors" ? (book?.authors ?? []).join("\n") : date;
-    shown[field] = value;
-    ({ title, authors, published })[field].value = value;
+  const values: Record<Typed, string> = {
+    title: book?.title ?? "",
+    authors: (book?.authors ?? []).join("\n"),
+    published: date,
+    series: book?.series?.name ?? "",
+    position: book?.series?.position == null ? "" : String(book.series.position),
+  };
+  for (const name of names) {
+    shown[name] = values[name];
+    fields[name].value = values[name];
   }
 }
-onMounted(() => fill(["title", "authors", "published"]));
+onMounted(() => fill(["title", "authors", "published", "series", "position"]));
 
 const busy = ref(false);
 async function send(patch: DetailsPatch) {
@@ -62,13 +71,24 @@ async function save() {
       .map((a) => a.trim())
       .filter(Boolean);
   if (published.value.trim() !== shown.published.trim()) patch.published = published.value.trim() || null;
+  if (series.value.trim() !== shown.series.trim()) patch.series = series.value.trim();
+  if (position.value.trim() !== shown.position.trim()) {
+    const place = position.value.trim() ? Number(position.value.trim().replace(",", ".")) : null;
+    if (place !== null && !Number.isFinite(place)) {
+      ui.toast("A place in a series is a number, such as 2 or 2.5.", "error");
+      return;
+    }
+    patch.seriesPosition = place;
+  }
   if (Object.keys(patch).length && !(await send(patch))) return;
   emit("close");
 }
 /** Sets one field back to the file's, at once. */
 async function useFiles(field: DetailField) {
-  if (!(await send({ [field]: null }))) return;
-  if (field !== "cover") await fill([field]);
+  const patch: DetailsPatch = field === "series" ? { series: null, seriesPosition: null } : { [field]: null };
+  if (!(await send(patch))) return;
+  if (field === "series") await fill(["series", "position"]);
+  else if (field !== "cover") await fill([field]);
 }
 async function chooseCover() {
   const path = await api.chooseImage().catch(() => null);
@@ -137,6 +157,26 @@ async function chooseCover() {
       >
         <RotateCcw :size="13" aria-hidden="true" /> Use the looked-up date
       </button>
+      <div class="details-editor__series">
+        <label class="details-editor__field">
+          <span class="details-editor__label">Series</span>
+          <input v-model="series" type="text" aria-label="Series" maxlength="300" spellcheck="false" />
+        </label>
+        <label class="details-editor__field">
+          <span class="details-editor__label">Number</span>
+          <input v-model="position" type="text" inputmode="decimal" aria-label="Number in series" maxlength="12" />
+        </label>
+      </div>
+      <button
+        v-if="edited('series')"
+        type="button"
+        class="details-editor__reset"
+        aria-label="Use the file's series"
+        :disabled="busy"
+        @click="useFiles('series')"
+      >
+        <RotateCcw :size="13" aria-hidden="true" /> Use the file's
+      </button>
       <div class="details-editor__field">
         <span class="details-editor__label">Cover</span>
         <div class="details-editor__cover">
@@ -169,6 +209,11 @@ async function chooseCover() {
   display: grid;
   gap: var(--space-5);
   padding: var(--space-12);
+}
+.details-editor__series {
+  display: grid;
+  grid-template-columns: 1fr 5.5em;
+  gap: var(--space-4);
 }
 .details-editor__head {
   display: flex;

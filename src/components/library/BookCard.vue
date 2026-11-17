@@ -40,7 +40,8 @@ import { formatBytes } from "@/bytes";
 import { timeLeft } from "@/estimate";
 import { ACTION_ICONS, ACTION_LABELS, describePreparation, preparationStatus, runPrepareAction } from "@/preparation";
 
-const props = defineProps<{ book: BookSummary; busy?: boolean }>();
+/** `seriesPlace`: show its place in its series on the cover (the library sorted by series). */
+const props = defineProps<{ book: BookSummary; busy?: boolean; seriesPlace?: boolean }>();
 const emit = defineEmits<{ open: []; details: []; remove: [] }>();
 const unavailable = computed(() => props.book.status.kind !== "present");
 const percent = computed(() => Math.round((props.book.progress?.fraction ?? 0) * 100));
@@ -266,6 +267,12 @@ function dragged(event: DragEvent) {
         :label="false"
         :shape="audiobook ? 'square' : 'portrait'"
       />
+      <span
+        v-if="seriesPlace && book.series?.position != null"
+        class="book-card__series"
+        :title="`Book ${book.series.position} of ${book.series.name}`"
+        >{{ book.series.position }}</span
+      >
       <span v-if="book.kind === 'book' && book.recording" class="book-card__audiobook" title="Has an audiobook"
         ><Headphones :size="13" aria-hidden="true"
       /></span>
@@ -370,6 +377,23 @@ function dragged(event: DragEvent) {
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--ink) 72%, transparent);
   color: var(--page);
+  box-shadow: 0 2px 8px -2px var(--shadow);
+}
+.book-card__series {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  min-width: var(--space-12);
+  height: var(--space-12);
+  padding: 0 var(--space-3);
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ink) 72%, transparent);
+  color: var(--page);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   box-shadow: 0 2px 8px -2px var(--shadow);
 }
 .book-card__open:disabled {

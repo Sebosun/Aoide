@@ -598,8 +598,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const details = new Map<string, BookDetails>();
   /** As the core does (core/details.rs): a field corrected by hand shows over the file's,
    *  which is kept so that `null` sets it back. */
-  const fileDetails = new Map<string, { title: string; authors: string[]; coverUrl: string | null }>();
-  const edits = new Map<string, { published?: string }>();
+  const fileDetails = new Map<
+    string,
+    { title: string; authors: string[]; coverUrl: string | null; series: BookSummary["series"] }
+  >();
+  const edits = new Map<string, { published?: string; series?: string; seriesPosition?: number }>();
   /** A picture chosen as a cover: the preview cannot read the file, so it shows a plain one. */
   const ownCover = (path: string) =>
     `data:image/svg+xml,${encodeURIComponent(
@@ -2005,7 +2008,12 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       const book = books.find((b) => b.id === id);
       if (!book) throw refused("No such item.");
       if (!fileDetails.has(id))
-        fileDetails.set(id, { title: book.title, authors: [...book.authors], coverUrl: book.coverUrl });
+        fileDetails.set(id, {
+          title: book.title,
+          authors: [...book.authors],
+          coverUrl: book.coverUrl,
+          series: structuredClone(book.series),
+        });
       const file = fileDetails.get(id)!;
       const edited = new Set(book.edited);
       const mark = (field: DetailField, on: boolean) => (on ? edited.add(field) : edited.delete(field));
@@ -2025,11 +2033,22 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         edits.set(id, { ...edits.get(id), published: published ?? undefined });
         mark("published", published !== null);
       }
+      if (patch.series !== undefined || patch.seriesPosition !== undefined) {
+        // As the core: the name and the number are each kept over the file's; an empty name
+        // is in no series.
+        const kept = { ...edits.get(id) };
+        if (patch.series !== undefined) kept.series = patch.series === null ? undefined : patch.series.trim();
+        if (patch.seriesPosition !== undefined) kept.seriesPosition = patch.seriesPosition ?? undefined;
+        edits.set(id, kept);
+        const name = kept.series ?? file.series?.name ?? "";
+        book.series = name ? { name, position: kept.seriesPosition ?? file.series?.position ?? null } : null;
+        mark("series", kept.series !== undefined || kept.seriesPosition !== undefined);
+      }
       if (patch.cover !== undefined) {
         book.coverUrl = patch.cover ? ownCover(patch.cover) : file.coverUrl;
         mark("cover", Boolean(patch.cover));
       }
-      book.edited = (["title", "authors", "cover", "published"] as const).filter((f) => edited.has(f));
+      book.edited = (["title", "authors", "cover", "published", "series"] as const).filter((f) => edited.has(f));
       changed();
     },
     async lookupMetadata({ bookId: id, refresh: _refresh }): Promise<MetadataMatch[]> {

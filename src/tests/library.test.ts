@@ -143,6 +143,27 @@ it("sorts the library and remembers the order", async () => {
   wrapper.unmount();
 });
 
+it("sorts by series and place in it, books in no series after, and badges the place", async () => {
+  const wrapper = await library();
+  await choose(wrapper, "Sort library", "Series");
+  await flushPromises();
+  expect(titles(wrapper)).toEqual([
+    "The Lantern Keeper",
+    "An Unfinished Atlas",
+    "The Absent Orchard",
+    "A Map of Quiet Places",
+  ]);
+  const badge = (title: string) =>
+    wrapper
+      .findAll(".book-card")
+      .find((c) => c.text().includes(title))
+      ?.find(".book-card__series");
+  expect(badge("An Unfinished Atlas")?.text()).toBe("2");
+  expect(badge("An Unfinished Atlas")?.attributes("title")).toBe("Book 2 of The Coast Books");
+  expect(badge("The Absent Orchard")?.exists() ?? false).toBe(false);
+  wrapper.unmount();
+});
+
 it("removes a book after confirming in a dialog from its card menu", async () => {
   const remove = vi.spyOn(mock, "removeBook");
   const wrapper = await library();
