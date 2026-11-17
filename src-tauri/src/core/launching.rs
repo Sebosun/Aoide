@@ -4,6 +4,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use aoide_library::{BookId, BookStatus, Library};
 use serde::Serialize;
@@ -34,6 +35,41 @@ pub struct SavedLink {
     /// Whether it was not in the library before: only then does Undo (removing it) undo the
     /// save. An item a feed lists goes back to the feed shelf.
     pub new_to_library: bool,
+}
+
+/// Any web page can send a page to save, so saves are let through one a second at most…
+pub const SAVE_EVERY: Duration = Duration::from_secs(1);
+/// …and no more than this many are held while the window starts.
+pub const HELD_SAVES: usize = 20;
+
+/// Why a page sent from the browser was not saved.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Dropped {
+    /// Less than [`SAVE_EVERY`] after the last one.
+    TooSoon,
+    /// [`HELD_SAVES`] are held already.
+    TooMany,
+}
+
+impl Dropped {
+    fn name(self) -> &'static str {
+        match self {
+            Dropped::TooSoon => "too_soon",
+            Dropped::TooMany => "too_many",
+        }
+    }
+}
+
+/// Whether a page sent at `now` is saved, with `held` saves waiting for the window and the
+/// last one let through at `last`.
+fn admit(held: usize, last: Option<Instant>, now: Instant) -> Result<(), Dropped> {
+    if held >= HELD_SAVES {
+        return Err(Dropped::TooMany);
+    }
+    match last {
+        Some(last) if now.saturating_duration_since(last) < SAVE_EVERY => Err(Dropped::TooSoon),
+        _ => Ok(()),
+    }
 }
 
 /// Whether the window can be asked to open an item yet.
@@ -187,6 +223,8 @@ pub(super) struct Launching {
     events: Arc<dyn Events>,
     reporter: Reporter,
     window: Mutex<Window>,
+    /// When the last page sent from the browser was let through.
+    last_save: Mutex<Option<Instant>>,
 }
 
 impl Launching {
@@ -200,12 +238,18 @@ impl Launching {
                 failed: Vec::new(),
                 saved: Vec::new(),
             }),
+            last_save: Mutex::new(None),
         }
     }
 
     /// Acts on `requests`: every file is opened, and the first one's page shown; every page
     /// sent from the browser is saved.
     pub fn act(&self, requests: Vec<Request>, host: &dyn LaunchHost) {
+        self.act_at(requests, host, Instant::now());
+    }
+
+    /// [`Launching::act`] at `now`.
+    fn act_at(&self, requests: Vec<Request>, host: &dyn LaunchHost, now: Instant) {
         let mut first = None;
         for request in requests {
             match request {
@@ -214,7 +258,7 @@ impl Launching {
                         first.get_or_insert(id);
                     }
                 }
-                Request::SaveLink(url) => self.save_link(&url, host),
+                Request::SaveLink(url) => self.save_link(&url, host, now),
                 Request::Show => {}
             }
         }
@@ -256,8 +300,18 @@ impl Launching {
         Some(id)
     }
 
-    /// Saves the page at `url`, and tells the window, once it listens.
-    fn save_link(&self, url: &Url, host: &dyn LaunchHost) {
+    /// Saves the page at `url` sent at `now`, and tells the window, once it listens; drops it
+    /// when it comes too soon after the last or too many are held.
+    fn save_link(&self, url: &Url, host: &dyn LaunchHost, now: Instant) {
+        if let Err(why) = self.admit(now) {
+            tracing::warn!(
+                event = "launch.save_link",
+                outcome = "dropped",
+                why = why.name(),
+                "Dropped a page sent from the browser"
+            );
+            return;
+        }
         match host.save_link(url) {
             Ok(saved) => {
                 tracing::info!(
@@ -288,6 +342,18 @@ impl Launching {
                 }
             }
         }
+    }
+
+    /// Lets a save at `now` through, or says why not.
+    fn admit(&self, now: Instant) -> Result<(), Dropped> {
+        let held = match &*lock(&self.window) {
+            Window::Waiting { saved, .. } => saved.len(),
+            Window::Ready => 0,
+        };
+        let mut last = lock(&self.last_save);
+        admit(held, *last, now)?;
+        *last = Some(now);
+        Ok(())
     }
 
     /// Whether book `id` is in the library with its file present.
@@ -641,6 +707,87 @@ mod tests {
         }
     }
 
+    /// Saves every page it is sent, and keeps their addresses.
+    #[derive(Default)]
+    struct Saves(Mutex<Vec<String>>);
+
+    impl LaunchHost for Saves {
+        fn import(&self, path: &Path) -> ImportResult {
+            Imports(Vec::new()).import(path)
+        }
+
+        fn save_link(&self, url: &Url) -> Result<SavedLink, String> {
+            lock(&self.0).push(url.path().to_owned());
+            Ok(saved(url.path()))
+        }
+    }
+
+    #[test]
+    fn pages_are_saved_at_most_one_a_second_and_twenty_held_before_the_window_listens() {
+        use std::time::{Duration, Instant};
+        let library = Arc::new(Mutex::new(Library::open_in_memory().unwrap()));
+        let events = Arc::new(Recorder::default());
+        let launching = Launching::new(library, events.clone(), Reporter::default());
+        let host = Saves::default();
+        let start = Instant::now();
+        let send = |n: u64, at_ms: u64| {
+            let url = Url::parse(&format!("https://quay.example/{n}")).unwrap();
+            let at = start + Duration::from_millis(at_ms);
+            launching.act_at(vec![Request::SaveLink(url)], &host, at);
+        };
+        let told = || -> Vec<String> {
+            events
+                .payloads(CoreEvent::LINK_SAVED)
+                .iter()
+                .map(|saved| saved["id"].as_str().unwrap().to_owned())
+                .collect()
+        };
+
+        send(0, 0);
+        send(1, 999);
+        send(2, 1_000);
+        for n in 3..=20 {
+            send(n, n * 1_000);
+        }
+        // Twenty are held: the next is dropped, not saved.
+        send(21, 21_000);
+        let paths = |ns: &[u64]| -> Vec<String> { ns.iter().map(|n| format!("/{n}")).collect() };
+        let held: Vec<u64> = [0].into_iter().chain(2..=20).collect();
+        assert_eq!(*lock(&host.0), paths(&held));
+        assert_eq!(told(), [] as [String; 0]);
+
+        assert_eq!(launching.take_open_requests(), [] as [String; 0]);
+        assert_eq!(told(), paths(&held));
+
+        // Listening, the window is told each as it comes, one a second.
+        send(22, 22_000);
+        send(23, 22_500);
+        send(24, 23_500);
+        assert_eq!(told()[held.len()..], paths(&[22, 24]));
+    }
+
+    #[test]
+    fn a_save_is_let_through_only_a_second_after_the_last_and_with_room_to_hold_it() {
+        use std::time::{Duration, Instant};
+        let start = Instant::now();
+        let at = |ms: u64| start + Duration::from_millis(ms);
+        let cases = [
+            (0, None, at(0), Ok(())),
+            (0, Some(at(0)), at(999), Err(Dropped::TooSoon)),
+            (0, Some(at(0)), at(1_000), Ok(())),
+            (HELD_SAVES - 1, Some(at(0)), at(5_000), Ok(())),
+            (HELD_SAVES, Some(at(0)), at(5_000), Err(Dropped::TooMany)),
+            (HELD_SAVES, None, at(0), Err(Dropped::TooMany)),
+        ];
+        for (held, last, now, verdict) in cases {
+            assert_eq!(
+                admit(held, last, now),
+                verdict,
+                "{held} held, last {last:?}"
+            );
+        }
+    }
+
     #[test]
     fn the_window_state_moves_on_named_events() {
         use Event::*;
@@ -778,7 +925,9 @@ mod through_core {
         .await;
 
         // Sent again, it is the same item, already in the library: nothing to undo.
-        core.launch(vec![Request::SaveLink(lights)]);
+        let later = std::time::Instant::now() + super::SAVE_EVERY;
+        core.launching
+            .act_at(vec![Request::SaveLink(lights)], &*core, later);
         assert_eq!(
             events.payloads(CoreEvent::LINK_SAVED)[1],
             serde_json::json!({ "id": id, "title": "The Quay Lights", "newToLibrary": false })
