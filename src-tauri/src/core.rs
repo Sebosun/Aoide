@@ -90,6 +90,7 @@ mod speech_problems;
 pub use speech_problems::SpeechProblem;
 mod tagging;
 pub use tagging::{TaggingRun, TaggingSettings};
+mod pronunciation;
 mod takes;
 mod timeline;
 mod voicing;
@@ -190,6 +191,7 @@ pub struct Core {
     shelf: Arc<shelf::Shelf>,
     discovery: Arc<discovery::Discovery>,
     bookmarks: bookmarks::Bookmarks,
+    pronunciations: pronunciation::Pronunciations,
     listening: listening::Listening,
     reading: reading::Reading,
     metadata: metadata::Metadata,
@@ -315,6 +317,7 @@ impl Core {
             Arc::clone(&events),
         );
         let bookmarks = bookmarks::Bookmarks::new(Arc::clone(&library));
+        let pronunciations = pronunciation::Pronunciations::new(Arc::clone(&library));
         let listening = listening::Listening::new(Arc::clone(&library), reporter.clone());
         let reading = reading::Reading::new(Arc::clone(&library), reporter.clone());
         let storage = storage::Storage::new(Arc::clone(&library), &paths);
@@ -374,6 +377,7 @@ impl Core {
             shelf: Arc::new(shelf),
             discovery,
             bookmarks,
+            pronunciations,
             listening,
             reading,
             metadata,

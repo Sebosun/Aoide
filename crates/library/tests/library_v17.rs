@@ -62,8 +62,10 @@ fn a_version_16_library_opens_with_no_takes_and_counts_them() {
     let path = dir.path().join("library.sqlite");
     drop(Library::open(&path).unwrap());
     let conn = rusqlite::Connection::open(&path).unwrap();
-    conn.execute_batch("DROP TABLE segment_takes; PRAGMA user_version = 16;")
-        .unwrap();
+    conn.execute_batch(
+        "DROP TABLE segment_takes; DROP TABLE pronunciations; PRAGMA user_version = 16;",
+    )
+    .unwrap();
     drop(conn);
 
     let lib = Library::open(&path).unwrap();
@@ -74,7 +76,7 @@ fn a_version_16_library_opens_with_no_takes_and_counts_them() {
         .unwrap()
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 17);
+    assert_eq!(version, 18);
 }
 
 #[test]

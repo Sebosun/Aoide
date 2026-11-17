@@ -272,6 +272,20 @@ const MIGRATIONS: &[Step] = &[
                     take INTEGER NOT NULL CHECK(take > 0),
                     PRIMARY KEY (book_id, segment_id)
                 );"),
+    // Version 18.
+    // How to say a written word: a list for each book (`book_id`) and one for all books (NULL).
+    // SQLite treats NULLs as distinct in UNIQUE, so the list for all books has its own index.
+    Step::Sql("CREATE TABLE pronunciations (
+                    id INTEGER PRIMARY KEY,
+                    book_id TEXT REFERENCES books(id) ON DELETE CASCADE,
+                    written TEXT NOT NULL,
+                    spoken TEXT NOT NULL,
+                    match_case INTEGER NOT NULL DEFAULT 0,
+                    created_at INTEGER NOT NULL,
+                    UNIQUE(book_id, written)
+                );
+                CREATE UNIQUE INDEX pronunciations_all_books ON pronunciations(written)
+                    WHERE book_id IS NULL;"),
 ];
 
 fn add_column_if_missing(
