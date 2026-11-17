@@ -21,21 +21,23 @@ pub(super) struct Notes<'a> {
     pub date: &'a str,
 }
 
-/// Backslashes the characters Markdown would read as markup in text from a book, and a line
-/// start that would begin a heading, a list or a quotation.
+/// Backslashes the characters Markdown would read as markup in text from a book (`~` is
+/// struck-through text and a code fence), and a line start that would begin a heading (`=`
+/// under a line), a list or a quotation.
 fn escape(line: &str) -> String {
     let mut out = String::with_capacity(line.len());
     for c in line.chars() {
         if matches!(
             c,
-            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '#' | '|'
+            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '#' | '|' | '~'
         ) {
             out.push('\\');
         }
         out.push(c);
     }
     let digits = out.chars().take_while(char::is_ascii_digit).count();
-    let list = out.starts_with(['-', '+']) || (digits > 0 && out[digits..].starts_with(['.', ')']));
+    let list =
+        out.starts_with(['-', '+', '=']) || (digits > 0 && out[digits..].starts_with(['.', ')']));
     if list {
         let at = if digits > 0 { digits } else { 0 };
         out.insert(at, '\\');
@@ -312,6 +314,36 @@ mod tests {
             date: "2026-11-16",
         };
         assert_eq!(markdown(&notes), include_str!("testdata/notes.md"));
+    }
+
+    #[test]
+    fn a_books_text_that_markdown_would_read_as_markup_stays_text() {
+        let notes = Notes {
+            title: "Lines",
+            authors: &[],
+            chapters: &["One".into()],
+            highlights: &[highlight(
+                0,
+                0,
+                "A title\n===\n~~~\nnot ~~struck~~ out\n- not a list\n1. nor this",
+                "",
+            )],
+            bookmarks: &[],
+            date: "2026-11-16",
+        };
+        let text = markdown(&notes);
+        let quoted: Vec<&str> = text.lines().filter(|l| l.starts_with('>')).collect();
+        assert_eq!(
+            quoted,
+            [
+                "> A title",
+                "> \\===",
+                "> \\~\\~\\~",
+                "> not \\~\\~struck\\~\\~ out",
+                "> \\- not a list",
+                "> 1\\. nor this"
+            ]
+        );
     }
 
     #[tokio::test]
