@@ -278,7 +278,7 @@ impl Core {
         self.choose_mode(id, super::reading::ModeEvent::ListenChosen)?;
         if self.playback.is_book(id) {
             let Some(part) = part else {
-                return self.resume();
+                return self.resume_playing();
             };
             self.seek_part(id, part)?;
             return self.follow_through(self.playback.play());

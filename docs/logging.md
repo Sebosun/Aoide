@@ -206,6 +206,9 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `playback.cache` | warn | `key`, `error` | `core/playback.rs` |
 | `playback.resumed` | info | `book`, `away_s`, `stepped_back` (a number of `unit`: `entries`, 0 being the sentence's start, or `ms` for an audiobook alone), `unit`, `from` (`pause`, or `saved`: the saved place's time) | `core/playback.rs` `step_back_in`, `core/timeline.rs` `step_back_on`, one line per resume that steps back |
 | `playback.skipped_left_out` | info | `book`, `from`, `to` (chapter indexes; `to` is the chapter count when the book ended) | `core/playback.rs` `tick`, one line each time playback passes over chapters left out |
+| `sleep.set` | info | `minutes`, `end_of_chapter` (neither: cancelled) | `core/controls.rs` `Controls::sleep`, where `next` is applied, the timer set or cancelled |
+| `sleep.rang` | info | `minutes`, `end_of_chapter` | `core/controls.rs` `Controls::sleep`, the timer paused playback (or the listener paused while it faded) |
+| `sleep.extended` | info | `minutes`, `end_of_chapter` | `core/controls.rs` `Controls::sleep`, playing within 3 minutes of a ring started the same timer again |
 | `feeder.read` | warn | `error` | `core/feeder.rs` |
 | `cache.evict` | info | `segments`, `books` | `core/storage.rs` `enforce_cache_limit` |
 | `export.done` | info, warn | `kind`, `book`, `file`, `took_ms`, `outcome`, `error` | `core/export.rs` (`Exports`) |

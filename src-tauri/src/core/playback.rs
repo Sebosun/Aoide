@@ -14,6 +14,7 @@ use aoide_text::WordEstimate;
 use aoide_tts::SynthesisRequest;
 
 use super::align::Alignable;
+use super::controls::SleepEvent;
 use super::narration::{Fate, NarrationPlan};
 use super::recording::{Narration, RecordingPlan};
 use super::resuming::{self, Away};
@@ -483,6 +484,48 @@ impl Playback {
     pub fn set_volume(&self, volume: f32) {
         lock(&self.player).set_volume(volume);
         self.stir();
+    }
+
+    // ------------------------------------------------------------ for the sleep timer
+
+    /// Plays at `gain` (1.0 is full), the volume as it is.
+    pub fn set_fade(&self, gain: f32) {
+        lock(&self.player).set_fade(gain);
+    }
+
+    /// Plays at full gain, with no pause set up.
+    pub fn restore_gain(&self) {
+        let mut player = lock(&self.player);
+        player.set_fade(1.0);
+        player.pause_before(None);
+    }
+
+    /// Pauses where the entry playing ends (after its pause), so no word is cut; false when
+    /// what plays has no sentences (an audiobook alone).
+    pub fn pause_at_entry_end(&self) -> bool {
+        if !matches!(lock(&self.playing).as_ref(), Some(Playing::Entries(_))) {
+            return false;
+        }
+        let mut player = lock(&self.player);
+        let next = player.position().index + 1;
+        player.pause_before(Some(next));
+        true
+    }
+
+    /// Plays at full gain and pauses where `chapter` of the book playing ends, before the next
+    /// chapter's first entry. An audiobook alone is left as it is: its parts are not entries.
+    pub fn pause_at_chapter_end(&self, chapter: usize) {
+        let next = self.session(|s| {
+            let book = &s.target.book;
+            book.chapters
+                .get(chapter + 1)
+                .map_or(book.total_entries(), |c| c.first_entry)
+        });
+        let mut player = lock(&self.player);
+        player.set_fade(1.0);
+        if let Some(next) = next {
+            player.pause_before(Some(next));
+        }
     }
 
     /// The audio output failed: playback pauses with `error` shown.
@@ -1114,16 +1157,32 @@ impl super::Core {
     pub fn pause(&self) {
         // A pause leaves the output as it is: nothing in it can fail.
         let _ = self.follow_through(self.playback.pause());
+        self.sleep(SleepEvent::Paused(Instant::now()));
     }
 
     /// Plays on after a pause, a little earlier after a break unless that is turned off.
     pub fn resume(&self) -> Result<(), String> {
+        self.resume_playing()?;
+        self.played();
+        Ok(())
+    }
+
+    /// [`Core::resume`], without telling the sleep timer.
+    pub(super) fn resume_playing(&self) -> Result<(), String> {
         let moved = if self.steps_back() {
             self.playback.resume_at(Instant::now())
         } else {
             self.playback.play()
         };
         self.follow_through(moved)
+    }
+
+    /// Tells the sleep timer the listener played: soon after it rang, it starts again.
+    pub(super) fn played(&self) {
+        self.sleep(SleepEvent::Played {
+            now: Instant::now(),
+            chapter: self.playback.chapter().unwrap_or_default(),
+        });
     }
 
     /// Whether playback steps back a little after a break (a setting).

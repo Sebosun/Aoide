@@ -517,6 +517,18 @@ impl Core {
         chapter: Option<usize>,
         segment_id: Option<String>,
     ) -> Result<(), String> {
+        self.start_playing(book_id, chapter, segment_id).await?;
+        self.played();
+        Ok(())
+    }
+
+    /// [`Core::play`], without telling the sleep timer.
+    async fn start_playing(
+        &self,
+        book_id: &str,
+        chapter: Option<usize>,
+        segment_id: Option<String>,
+    ) -> Result<(), String> {
         if self.item_kind(book_id) == Some(aoide_library::ItemKind::Audiobook) {
             return self.play_timeline(book_id, chapter);
         }
@@ -531,7 +543,7 @@ impl Core {
             .or_else(|| chapter.and_then(|c| book.chapter_start(c)));
         if same_book {
             let Some(index) = start else {
-                return self.resume();
+                return self.resume_playing();
             };
             self.follow_through(self.playback.seek(index, None))?;
             return self.follow_through(self.playback.play());
@@ -740,9 +752,14 @@ impl Core {
             let _ = self.follow_through(moved);
             self.output.keep_alive(&self.playback);
             let state = self.player_state();
-            if self.controls.sleep_due(state.chapter) {
-                self.pause();
-            }
+            self.sleep(controls::SleepEvent::Tick {
+                now: Instant::now(),
+                chapter: state.chapter,
+                playing: matches!(
+                    state.status,
+                    PlaybackStatus::Playing | PlaybackStatus::Buffering
+                ),
+            });
             self.listening.track(&state);
             let now_playing = |chapter| match self.playback.book() {
                 Some(book) => Some(controls::NowPlaying::of(

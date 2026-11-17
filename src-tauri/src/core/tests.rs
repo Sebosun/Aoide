@@ -890,6 +890,71 @@ async fn moving_the_playhead_saves_the_new_place() {
     core.stop();
 }
 
+// ------------------------------------------------------------ the sleep timer
+
+/// Waits for the sleep timer to have paused playback and let go of the player.
+async fn rung(core: &Core) {
+    until("the sleep timer to pause", || {
+        let paused = core.playback.position().status == aoide_audio::Status::Paused;
+        let fade = core.playback.player().lock().unwrap().fade();
+        paused && fade == 1.0 && core.player_state().sleep.is_none()
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn a_due_sleep_timer_pauses_where_a_sentence_ends_and_playing_soon_after_starts_it_again() {
+    use super::controls::SleepEvent;
+    let dir = tempfile::tempdir().unwrap();
+    let (core, _id, saved) = playing_chapter(dir.path(), 0).await;
+    core.set_volume(0.7);
+    until("speech", || {
+        core.player_state().status == super::PlaybackStatus::Playing
+    })
+    .await;
+    // Set a quarter of an hour ago, less a moment: it fades and is due at once.
+    let now = std::time::Instant::now();
+    core.sleep(SleepEvent::Set {
+        minutes: Some(15),
+        end_of_chapter: false,
+        chapter: Some(0),
+        now: now - Duration::from_secs(15 * 60) + Duration::from_millis(300),
+    });
+    rung(&core).await;
+    let position = core.playback.position();
+    assert_eq!(position.offset_ms, 0, "where an entry begins: {position:?}");
+    assert_eq!(core.player_state().volume, 0.7, "the volume as it was");
+    assert!(saved(&core).is_some(), "the place is saved");
+
+    core.resume().unwrap();
+    let again = core.player_state().sleep.expect("set again");
+    assert!(
+        again
+            .remaining_ms
+            .is_some_and(|ms| (14 * 60_000..=15 * 60_000).contains(&ms)),
+        "{again:?}"
+    );
+    core.stop();
+}
+
+#[tokio::test]
+async fn a_sleep_timer_for_the_end_of_the_chapter_pauses_before_the_next_one_begins() {
+    let dir = tempfile::tempdir().unwrap();
+    let (core, _id, saved) = playing_chapter(dir.path(), 0).await;
+    core.set_sleep_timer(None, true);
+    rung(&core).await;
+    let next = core.playback.book().unwrap().chapters[1].first_entry;
+    let position = core.playback.position();
+    assert_eq!((position.index, position.offset_ms), (next, 0));
+    assert_eq!(core.player_state().chapter, 1);
+    assert_eq!(saved(&core), Some(1));
+
+    core.resume().unwrap();
+    let again = core.player_state().sleep.expect("set again");
+    assert!(again.end_of_chapter, "{again:?}");
+    core.stop();
+}
+
 // ------------------------------------------------------------ what screens show
 
 #[tokio::test]

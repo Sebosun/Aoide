@@ -8,12 +8,6 @@ use std::time::{Duration, Instant};
 use super::{lock, PlayerStateView, SleepView};
 pub use crate::media::MediaUpdate;
 
-#[derive(Debug, Clone, Copy)]
-enum SleepTimer {
-    At(Instant),
-    EndOfChapter(usize),
-}
-
 /// How long a timed sleep fades before it is due.
 const FADE: Duration = Duration::from_secs(20);
 /// The gain a fade ends at.
@@ -33,7 +27,6 @@ pub(super) enum Until {
 
 /// The sleep timer. `minutes` is what was asked for, kept to start the same timer again;
 /// `extended`: it was started again by playing soon after it rang.
-#[allow(dead_code)] // Wired into Core in the next slice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub(super) enum Sleep {
     #[default]
@@ -64,7 +57,6 @@ pub(super) enum Sleep {
 }
 
 /// What happens to the sleep timer.
-#[allow(dead_code)] // Wired into Core in the next slice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SleepEvent {
     /// The listener set it: `minutes`, or the end of `chapter` (the one playing; `None`
@@ -92,7 +84,6 @@ pub(super) enum SleepEvent {
 }
 
 /// What the player is to do for the sleep timer.
-#[allow(dead_code)] // Wired into Core in the next slice.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) enum SleepAction {
     /// Play at this gain (1.0 is full).
@@ -108,7 +99,6 @@ pub(super) enum SleepAction {
 }
 
 /// The sleep timer after `event`, and what the player is to do.
-#[allow(dead_code)] // Wired into Core in the next slice.
 pub(super) fn next(sleep: Sleep, event: SleepEvent) -> (Sleep, Option<SleepAction>) {
     use SleepAction::*;
     use SleepEvent::*;
@@ -343,7 +333,7 @@ impl NowPlaying {
 
 #[derive(Default)]
 pub(super) struct Controls {
-    sleep: Mutex<Option<SleepTimer>>,
+    sleep: Mutex<Sleep>,
     media: Mutex<Option<Sender<MediaUpdate>>>,
     /// The player state last sent to the window.
     sent: Mutex<Option<PlayerStateView>>,
@@ -355,42 +345,42 @@ impl Controls {
         *lock(&self.media) = media;
     }
 
-    /// `minutes`: pause after that long; `end_of_chapter`: pause once `chapter` (the one
-    /// playing) ends. Neither cancels the timer.
-    pub fn set_sleep(&self, minutes: Option<u32>, end_of_chapter: bool, chapter: Option<usize>) {
-        let timer = if end_of_chapter {
-            chapter.map(SleepTimer::EndOfChapter)
-        } else {
-            minutes.map(|m| SleepTimer::At(Instant::now() + Duration::from_secs(u64::from(m) * 60)))
-        };
-        *lock(&self.sleep) = timer;
-    }
-
-    /// Whether playback should pause now, `chapter` playing; a timer that is due is cleared.
-    pub fn sleep_due(&self, chapter: usize) -> bool {
+    /// Moves the sleep timer on by `event` (see [`next`]); says what the player is to do.
+    pub fn sleep(&self, event: SleepEvent) -> Option<SleepAction> {
         let mut sleep = lock(&self.sleep);
-        let due = match *sleep {
-            Some(SleepTimer::At(at)) => Instant::now() >= at,
-            Some(SleepTimer::EndOfChapter(c)) => chapter != c,
-            None => false,
-        };
-        if due {
-            *sleep = None;
-        }
-        due
+        let before = *sleep;
+        let (after, action) = next(before, event);
+        *sleep = after;
+        drop(sleep);
+        log_sleep(before, event, after);
+        action
     }
 
+    /// The sleep timer as the player shows it: none once it has rung (fading is not shown).
     pub fn sleep_view(&self) -> Option<SleepView> {
+        let now = Instant::now();
+        let left = |ends: Instant| Some(ends.saturating_duration_since(now).as_millis() as u64);
         match *lock(&self.sleep) {
-            Some(SleepTimer::At(at)) => Some(SleepView {
-                remaining_ms: Some(at.saturating_duration_since(Instant::now()).as_millis() as u64),
+            Sleep::Running {
+                until: Until::At(ends),
+                ..
+            }
+            | Sleep::Fading { ends, .. } => Some(SleepView {
+                remaining_ms: left(ends),
                 end_of_chapter: false,
             }),
-            Some(SleepTimer::EndOfChapter(_)) => Some(SleepView {
+            Sleep::Stopping { .. } => Some(SleepView {
+                remaining_ms: Some(0),
+                end_of_chapter: false,
+            }),
+            Sleep::Running {
+                until: Until::EndOfChapter(_),
+                ..
+            } => Some(SleepView {
                 remaining_ms: None,
                 end_of_chapter: true,
             }),
-            None => None,
+            Sleep::Off | Sleep::Rang { .. } => None,
         }
     }
 
@@ -443,13 +433,82 @@ impl Controls {
     }
 }
 
+/// Logs a change of the sleep timer worth a line: set (or cancelled), rung, or started again.
+fn log_sleep(before: Sleep, event: SleepEvent, after: Sleep) {
+    let (minutes, end_of_chapter) = match after {
+        Sleep::Running { until, minutes, .. } => (minutes, matches!(until, Until::EndOfChapter(_))),
+        Sleep::Rang {
+            minutes,
+            end_of_chapter,
+            ..
+        } => (minutes, end_of_chapter),
+        _ => (None, false),
+    };
+    if let SleepEvent::Set { .. } | SleepEvent::Cancelled = event {
+        tracing::info!(
+            event = "sleep.set",
+            minutes,
+            end_of_chapter,
+            "Sleep timer set"
+        );
+    } else if matches!(after, Sleep::Rang { .. }) && !matches!(before, Sleep::Rang { .. }) {
+        tracing::info!(
+            event = "sleep.rang",
+            minutes,
+            end_of_chapter,
+            "Sleep timer paused playback"
+        );
+    } else if matches!(after, Sleep::Running { extended: true, .. })
+        && !matches!(before, Sleep::Running { .. })
+    {
+        tracing::info!(
+            event = "sleep.extended",
+            minutes,
+            end_of_chapter,
+            "Sleep timer started again by playing soon after it rang"
+        );
+    }
+}
+
 impl super::Core {
     /// `minutes`: pause after that long; `end_of_chapter`: pause when the chapter ends.
     /// Neither cancels the timer.
     pub fn set_sleep_timer(&self, minutes: Option<u32>, end_of_chapter: bool) {
-        let chapter = self.playback.chapter();
-        self.controls.set_sleep(minutes, end_of_chapter, chapter);
-        self.playback.stir();
+        if minutes.is_none() && !end_of_chapter {
+            return self.sleep(SleepEvent::Cancelled);
+        }
+        self.sleep(SleepEvent::Set {
+            minutes,
+            end_of_chapter,
+            chapter: self.playback.chapter(),
+            now: Instant::now(),
+        });
+    }
+
+    /// Moves the sleep timer on by `event`, and has the player do what it asks.
+    pub(super) fn sleep(&self, event: SleepEvent) {
+        let action = self.controls.sleep(event);
+        match action {
+            None => {}
+            Some(SleepAction::Fade(gain)) => self.playback.set_fade(gain),
+            Some(SleepAction::PauseAtEntryEnd) => {
+                // An audiobook alone has no sentences: it pauses now.
+                if !self.playback.pause_at_entry_end() {
+                    self.pause();
+                }
+            }
+            Some(SleepAction::PauseAtChapterEnd(chapter)) => {
+                self.playback.pause_at_chapter_end(chapter);
+            }
+            Some(SleepAction::Pause) => {
+                self.pause();
+                self.playback.restore_gain();
+            }
+            Some(SleepAction::RestoreGain) => self.playback.restore_gain(),
+        }
+        if matches!(event, SleepEvent::Set { .. } | SleepEvent::Cancelled) || action.is_some() {
+            self.playback.stir();
+        }
     }
 }
 
@@ -742,25 +801,39 @@ mod tests {
     }
 
     #[test]
-    fn a_timer_for_the_end_of_the_chapter_is_due_once_the_chapter_changes() {
+    fn the_view_shows_what_is_left_of_a_timer_until_it_rings() {
         let controls = Controls::default();
-        controls.set_sleep(None, true, Some(2));
-        assert!(!controls.sleep_due(2));
-        assert!(controls.sleep_due(3));
-        assert!(!controls.sleep_due(4), "it fires once");
-        assert_eq!(controls.sleep_view(), None);
-    }
-
-    #[test]
-    fn a_timer_in_minutes_shows_what_is_left_until_it_is_due() {
-        let controls = Controls::default();
-        controls.set_sleep(Some(5), false, Some(0));
+        let now = Instant::now();
+        controls.sleep(SleepEvent::Set {
+            minutes: Some(5),
+            end_of_chapter: false,
+            chapter: Some(0),
+            now,
+        });
         let view = controls.sleep_view().expect("set");
         assert!(!view.end_of_chapter);
         assert!(view
             .remaining_ms
             .is_some_and(|ms| ms > 290_000 && ms <= 300_000));
-        assert!(!controls.sleep_due(1), "a timed timer ignores chapters");
+
+        let action = controls.sleep(SleepEvent::Set {
+            minutes: None,
+            end_of_chapter: true,
+            chapter: Some(2),
+            now,
+        });
+        assert_eq!(action, Some(SleepAction::PauseAtChapterEnd(2)));
+        let view = controls.sleep_view().expect("set");
+        assert_eq!((view.remaining_ms, view.end_of_chapter), (None, true));
+        let tick = |chapter| SleepEvent::Tick {
+            now,
+            chapter,
+            playing: true,
+        };
+        assert_eq!(controls.sleep(tick(2)), None);
+        assert_eq!(controls.sleep(tick(3)), Some(SleepAction::Pause));
+        assert_eq!(controls.sleep(tick(4)), None, "it rings once");
+        assert_eq!(controls.sleep_view(), None);
     }
 
     #[test]
