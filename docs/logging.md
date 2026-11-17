@@ -224,7 +224,7 @@ from it:
 |---|---|---|
 | `launch.open` | adding a book file opened from the file manager or the command line (the message names the file), or saving a page sent from the browser; one that fails while the window starts is told when it listens | `core/launching.rs` `Launching::act`, `take_open_requests` |
 | `progress.save` | saving the listening position | `core.rs` `save_progress` |
-| `library.save` | saving the books left out, or when a book was opened | `core.rs` |
+| `library.save` | saving the books left out, when a book was opened, or a book's own playback speed | `core.rs`, `core/playback.rs` `Core::set_speed` |
 | `listening.save` | saving listening time | `core/listening.rs` |
 | `narration.save` | saving that a book plays its recording | `core/recording.rs` |
 | `playback.restart` | playing on in the book listened to after its pauses changed | `core.rs` `text_laid_out_again` |

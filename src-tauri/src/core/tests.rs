@@ -1551,3 +1551,78 @@ async fn a_book_with_its_own_speed_starts_at_it_and_the_next_book_at_the_usual_o
     core.stop();
     assert_eq!(speed(&core), 1.25, "nothing playing: the usual speed");
 }
+
+/// `[player]` `speed` as settings.toml holds it.
+fn usual_speed_in_file(root: &Path) -> f64 {
+    let text = std::fs::read_to_string(root.join("config/settings.toml")).unwrap();
+    let file: toml::Table = toml::from_str(&text).unwrap();
+    file["player"]["speed"].as_float().unwrap()
+}
+
+#[tokio::test]
+async fn a_change_of_speed_goes_to_the_playing_books_own_speed_or_else_to_the_usual_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = FakeEngine::new();
+    let (core, id, other) = two_books(dir.path(), &engine, 1.25).await;
+    let own = BookSettings {
+        playback_speed: Some(1.5),
+        ..Default::default()
+    };
+    core.shelf.save_settings(&id, &own).unwrap();
+    let speed = |core: &Core| core.player_state().speed;
+
+    core.play(&id, Some(0), None).await.unwrap();
+    core.set_speed(1.75);
+    assert_eq!(speed(&core), 1.75);
+    assert_eq!(core.book_settings(&id).playback_speed, Some(1.75));
+    assert_eq!(
+        usual_speed_in_file(dir.path()),
+        1.25,
+        "the usual speed is not touched"
+    );
+    core.set_volume(0.5);
+    assert_eq!(
+        usual_speed_in_file(dir.path()),
+        1.25,
+        "nor by saving the volume"
+    );
+    // The book's settings, saved from a form holding them as they were.
+    core.save_book_settings(&id, own.clone()).await.unwrap();
+    assert_eq!(core.book_settings(&id).playback_speed, Some(1.75));
+    assert_eq!(speed(&core), 1.75);
+
+    core.play(&other, Some(0), None).await.unwrap();
+    assert_eq!(speed(&core), 1.25);
+    core.set_speed(1.1);
+    assert_eq!(usual_speed_in_file(dir.path()), 1.1);
+    assert_eq!(core.book_settings(&id).playback_speed, Some(1.75));
+    assert_eq!(core.book_settings(&other).playback_speed, None);
+
+    core.play(&id, Some(0), None).await.unwrap();
+    assert_eq!(speed(&core), 1.75, "kept with the book");
+}
+
+#[tokio::test]
+async fn a_hand_edited_usual_speed_waits_while_a_book_with_its_own_speed_plays() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = FakeEngine::new();
+    let (core, id, other) = two_books(dir.path(), &engine, 1.25).await;
+    let own = BookSettings {
+        playback_speed: Some(1.5),
+        ..Default::default()
+    };
+    core.shelf.save_settings(&id, &own).unwrap();
+    let speed = |core: &Core| core.player_state().speed;
+    core.play(&id, Some(0), None).await.unwrap();
+
+    let path = dir.path().join("config/settings.toml");
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(&path, text.replace("speed = 1.25", "speed = 2.0")).unwrap();
+    core.settings
+        .apply_edits(&*core, &tokio::runtime::Handle::current());
+    assert_eq!(speed(&core), 1.5, "the book plays on at its own speed");
+    assert_eq!(core.book_settings(&id).playback_speed, Some(1.5));
+
+    core.play(&other, Some(0), None).await.unwrap();
+    assert_eq!(speed(&core), 2.0, "the usual speed, as edited");
+}

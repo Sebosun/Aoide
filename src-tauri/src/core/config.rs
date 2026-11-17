@@ -22,6 +22,7 @@ pub(super) const ENGINE: &str = "engine";
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct PlayerSettings {
+    #[serde(serialize_with = "two_decimals")]
     pub speed: f32,
     /// Output gain, 0.0..=1.0; files written before volume existed play at full volume.
     #[serde(default = "full_volume")]
@@ -30,6 +31,11 @@ pub(super) struct PlayerSettings {
 
 fn full_volume() -> f32 {
     1.0
+}
+
+/// A speed written as it is kept, to two decimals (`1.1`, not `1.100000023841858`).
+fn two_decimals<S: serde::Serializer>(speed: &f32, serializer: S) -> Result<S::Ok, S::Error> {
+    serializer.serialize_f64((f64::from(*speed) * 100.0).round() / 100.0)
 }
 
 /// What the UI needs to apply appearance settings and show config problems.
@@ -425,7 +431,7 @@ impl ConfigHost for Core {
         runtime: &tokio::runtime::Handle,
     ) -> Result<(), String> {
         if let Some(player) = player {
-            self.playback.set_speed(player.speed);
+            self.playback.set_usual_speed(player.speed);
             self.playback.set_volume(player.volume);
         }
         match engine {

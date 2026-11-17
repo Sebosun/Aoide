@@ -200,6 +200,15 @@ struct Speeds {
     own: Option<f32>,
 }
 
+/// Where a change of speed went (see [`Playback::set_speed`]).
+#[derive(Debug, Clone, PartialEq)]
+pub enum SpeedChange {
+    /// The usual speed, kept in `[player]`.
+    Usual,
+    /// Item `id`'s own speed, now `speed`.
+    Own { id: String, speed: f32 },
+}
+
 /// A playback speed as the core keeps it: 0.5–3.0, to two decimals (so steps of 0.1 do not
 /// drift to 1.4000001); 1.0 for a value that is not a number.
 pub fn kept_speed(speed: f32) -> f32 {
@@ -414,23 +423,44 @@ impl Playback {
         }
     }
 
-    pub fn speed(&self) -> f32 {
-        lock(&self.player).speed()
-    }
-
     pub fn volume(&self) -> f32 {
         lock(&self.player).volume()
     }
 
-    /// Plays at `speed`: the playing book's own speed when it has one, else the usual speed.
-    pub fn set_speed(&self, speed: f32) {
+    /// Plays at `speed`, which becomes the playing item's own speed when it has one, else the
+    /// usual speed; says which, for it to be saved there.
+    pub fn set_speed(&self, speed: f32) -> SpeedChange {
         let speed = kept_speed(speed);
+        let playing = self.playing_id();
         let mut speeds = lock(&self.speeds);
-        match speeds.own.as_mut() {
-            Some(own) => *own = speed,
-            None => speeds.usual = speed,
-        }
+        let change = match (speeds.own.as_mut(), playing) {
+            (Some(own), Some(id)) => {
+                *own = speed;
+                SpeedChange::Own { id, speed }
+            }
+            _ => {
+                speeds.usual = speed;
+                SpeedChange::Usual
+            }
+        };
         lock(&self.player).set_speed(speed);
+        drop(speeds);
+        self.stir();
+        change
+    }
+
+    /// The usual speed, which items without their own play at.
+    pub fn usual_speed(&self) -> f32 {
+        lock(&self.speeds).usual
+    }
+
+    /// Makes `speed` the usual one; the player takes it unless what plays has its own.
+    pub fn set_usual_speed(&self, speed: f32) {
+        let mut speeds = lock(&self.speeds);
+        speeds.usual = kept_speed(speed);
+        if speeds.own.is_none() {
+            lock(&self.player).set_speed(speeds.usual);
+        }
         drop(speeds);
         self.stir();
     }
@@ -1124,9 +1154,17 @@ impl super::Core {
         self.play(&book.id, Some(target), None).await
     }
 
+    /// Plays at `speed`, saved as the playing book's own speed when it has one, else as the
+    /// usual speed.
     pub fn set_speed(&self, speed: f32) {
-        self.playback.set_speed(speed);
-        self.save_player_settings();
+        match self.playback.set_speed(speed) {
+            SpeedChange::Usual => self.save_player_settings(),
+            SpeedChange::Own { id, speed } => {
+                if let Err(error) = self.shelf.set_playback_speed(&id, Some(speed)) {
+                    self.report("library.save", "Could not save the book's speed", error);
+                }
+            }
+        }
     }
 
     pub fn set_volume(&self, volume: f32) {
@@ -1136,7 +1174,8 @@ impl super::Core {
 
     pub(super) fn save_player_settings(&self) {
         let settings = super::config::PlayerSettings {
-            speed: self.playback.speed(),
+            // A book's own speed is the book's, not the usual one.
+            speed: self.playback.usual_speed(),
             volume: self.playback.volume(),
         };
         let saved = self.settings.save(super::config::PLAYER, &settings);

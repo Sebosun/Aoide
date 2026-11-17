@@ -690,6 +690,23 @@ impl Shelf {
         changed.map_err(|e| e.to_string())
     }
 
+    /// Sets book `id`'s own playback speed (`None`: the usual one), keeping its other
+    /// settings; how it is read does not depend on it.
+    pub fn set_playback_speed(&self, id: &str, speed: Option<f32>) -> Result<(), String> {
+        let book = BookId(id.into());
+        let library = lock(&self.library);
+        library
+            .book_value::<super::BookSettings>(&book, BookKey::Settings)
+            .and_then(|stored| {
+                let settings = super::BookSettings {
+                    playback_speed: speed,
+                    ..stored.unwrap_or_default()
+                };
+                library.set_book_value(&book, BookKey::Settings, &settings)
+            })
+            .map_err(|e| e.to_string())
+    }
+
     /// Notes that book `id` was opened now.
     pub fn opened(&self, id: &str) {
         if let Err(error) = lock(&self.library).set_last_opened(&BookId(id.into()), now_ms()) {
@@ -942,15 +959,18 @@ impl super::Core {
         self.shelf.settings(id)
     }
 
-    /// Saves book `id`'s settings, keeping the chapters it leaves out: those change only
-    /// through [`super::Core::set_left_out`], so a form holding older settings cannot undo them.
+    /// Saves book `id`'s settings, keeping the chapters it leaves out and its own playback
+    /// speed: those change only through [`super::Core::set_left_out`] and the speed's own
+    /// commands, so a form holding older settings cannot undo them.
     pub async fn save_book_settings(
         &self,
         id: &str,
         settings: super::BookSettings,
     ) -> Result<(), String> {
+        let stored = self.book_settings(id);
         let settings = super::BookSettings {
-            left_out: self.book_settings(id).left_out,
+            left_out: stored.left_out,
+            playback_speed: stored.playback_speed,
             ..settings
         };
         self.store_book_settings(id, settings).await
