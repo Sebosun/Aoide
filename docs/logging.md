@@ -125,6 +125,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `item.shelf` | info | `book`, `from`, `to` (`library`, `feed`) | `core/feeds.rs` `move_shelf`: an entry saved, or removed from the library while its feed lists it |
 | `feed.import` | info | `added`, `skipped` (feeds) | `core/feeds.rs` `import` (OPML) |
 | `feed.export` | info | `feeds` | `core/feeds.rs` `export` (OPML) |
+| `feed.folder` | info | `feed` (absent on a rename), `outcome` (`moved`, `removed`, `renamed`) | `core/feeds.rs` `set_folder`, `rename_folder` |
 | **Browser** (optional, off by default) | | | |
 | `browser.start` | info | `visible`, `outcome` (`ok`, `failed`), `error` | `core/browsing.rs` `ChromeDriver`, a browser process started (headless to render, visible to sign in) |
 | `browser.render` | info | `outcome` (`ok`, `failed`), `took_ms`, `error` | `core/browsing.rs` `render`, one page rendered for an article |

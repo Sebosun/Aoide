@@ -113,6 +113,8 @@ pub struct FeedView {
     pub last_ok_at: Option<i64>,
     /// The collection its entries go on when saved to the library.
     pub collection_id: Option<i64>,
+    /// The folder it is in; a folder exists while a feed is in it.
+    pub folder: Option<String>,
 }
 
 /// A feed a page names.
@@ -225,6 +227,8 @@ impl EntryFilter {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct EntryQuery {
     pub feed: Option<i64>,
+    /// The feeds in this folder.
+    pub folder: Option<String>,
     pub filter: EntryFilter,
     pub before: Option<i64>,
     /// At most this many (50 when unset).
@@ -345,6 +349,7 @@ impl Feeds {
             error: feed.error.clone(),
             last_ok_at: feed.last_ok_at,
             collection_id: feed.collection_id,
+            folder: feed.folder.clone(),
         }
     }
 
@@ -416,6 +421,7 @@ impl Feeds {
         let rows = library
             .list_entries(
                 query.feed,
+                query.folder.as_deref(),
                 query.filter.name(),
                 query.before,
                 query.limit.unwrap_or(50).min(200),
@@ -486,10 +492,57 @@ impl Feeds {
             .map_err(|e| e.to_string())
     }
 
-    pub fn mark_all_read(&self, feed: Option<i64>, now: i64) -> Result<(), String> {
+    /// Marks read the unread entries of `feed`, of the feeds in `folder`, or of every feed.
+    pub fn mark_all_read(
+        &self,
+        feed: Option<i64>,
+        folder: Option<&str>,
+        now: i64,
+    ) -> Result<(), String> {
         lock(&self.library)
-            .mark_all_read(feed, now)
+            .mark_all_read(feed, folder, now)
             .map_err(|e| e.to_string())
+    }
+
+    /// Puts feed `id` in `folder`, or in none.
+    pub fn set_folder(
+        &self,
+        host: &dyn FeedsHost,
+        id: i64,
+        folder: Option<&str>,
+    ) -> Result<(), String> {
+        let folder = folder.map(str::trim).filter(|f| !f.is_empty());
+        {
+            let library = lock(&self.library);
+            if library.feed(id).map_err(|e| e.to_string())?.is_none() {
+                return Err("No such feed.".into());
+            }
+            library
+                .set_feed_folder(id, folder)
+                .map_err(|e| e.to_string())?;
+        }
+        tracing::info!(
+            event = "feed.folder",
+            feed = id,
+            outcome = if folder.is_some() { "moved" } else { "removed" },
+            "Moved a feed to a folder"
+        );
+        host.feeds_changed();
+        Ok(())
+    }
+
+    /// Renames folder `from` to `to`; renamed onto another folder, the two become one.
+    pub fn rename_folder(&self, host: &dyn FeedsHost, from: &str, to: &str) -> Result<(), String> {
+        lock(&self.library)
+            .rename_feed_folder(from, to)
+            .map_err(|e| e.to_string())?;
+        tracing::info!(
+            event = "feed.folder",
+            outcome = "renamed",
+            "Renamed a feed folder"
+        );
+        host.feeds_changed();
+        Ok(())
     }
 
     fn link(&self, entry: i64, item: &str) -> Result<(), String> {
@@ -597,8 +650,9 @@ impl Feeds {
         self.view_of(id).map(Some)
     }
 
-    /// Subscribes to the feeds an OPML list names that are not subscribed yet. They are named
-    /// by the list until their first check, which the worker makes soon after.
+    /// Subscribes to the feeds an OPML list names that are not subscribed yet, in the list's
+    /// folders. They are named by the list until their first check, which the worker makes
+    /// soon after. A feed already subscribed keeps its name and folder.
     pub fn import(&self, host: &dyn FeedsHost, xml: &str) -> Result<OpmlImport, String> {
         let now = host.now_ms();
         let mut result = OpmlImport {
@@ -632,6 +686,11 @@ impl Feeds {
                         .map(String::from);
                     library.update_feed(&row).map_err(|e| e.to_string())?;
                 }
+                if outline.folder.is_some() {
+                    library
+                        .set_feed_folder(id, outline.folder.as_deref())
+                        .map_err(|e| e.to_string())?;
+                }
                 result.added += 1;
             }
         }
@@ -657,6 +716,7 @@ impl Feeds {
                 title: f.title,
                 xml_url: f.url,
                 html_url: f.site_url,
+                folder: f.folder,
             })
             .collect();
         tracing::info!(
@@ -1114,10 +1174,20 @@ impl super::Core {
     }
 
     /// Marks every entry read: of `feed`, or of all feeds.
-    pub fn mark_all_read(&self, feed: Option<i64>) -> Result<(), String> {
-        self.feeds.mark_all_read(feed, super::now_ms())?;
+    pub fn mark_all_read(&self, feed: Option<i64>, folder: Option<&str>) -> Result<(), String> {
+        self.feeds.mark_all_read(feed, folder, super::now_ms())?;
         self.emit(super::CoreEvent::FeedsChanged);
         Ok(())
+    }
+
+    /// Puts feed `id` in `folder`, or in none.
+    pub fn set_feed_folder(&self, id: i64, folder: Option<&str>) -> Result<(), String> {
+        self.feeds.set_folder(self, id, folder)
+    }
+
+    /// Renames a feed folder; onto another folder's name, the two become one.
+    pub fn rename_feed_folder(&self, from: &str, to: &str) -> Result<(), String> {
+        self.feeds.rename_folder(self, from, to)
     }
 
     /// Keeps item `id`, opened from a feed, in the library (the reader's "Save to library").

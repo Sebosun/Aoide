@@ -43,17 +43,36 @@ pub fn set_feed_collection(
     Ok(core.set_feed_collection(feed_id, collection_id)?)
 }
 
-/// Entries newest first, from one feed or all; the next page starts `before` an entry id.
+/// Puts a feed in a folder (`null`: in none). A folder exists while a feed is in it.
+#[tauri::command]
+pub fn set_feed_folder(
+    core: CoreState<'_>,
+    feed_id: i64,
+    folder: Option<String>,
+) -> Result<(), CoreError> {
+    Ok(core.set_feed_folder(feed_id, folder.as_deref())?)
+}
+
+/// Renames a feed folder; onto another folder's name, the two become one.
+#[tauri::command]
+pub fn rename_feed_folder(core: CoreState<'_>, from: String, to: String) -> Result<(), CoreError> {
+    Ok(core.rename_feed_folder(&from, &to)?)
+}
+
+/// Entries newest first, from one feed, the feeds in a folder, or all; the next page starts
+/// `before` an entry id.
 #[tauri::command]
 pub fn feed_entries(
     core: CoreState<'_>,
     feed_id: Option<i64>,
+    folder: Option<String>,
     filter: crate::core::EntryFilter,
     before: Option<i64>,
     limit: Option<u32>,
 ) -> Result<Vec<crate::core::EntryView>, CoreError> {
     let query = crate::core::EntryQuery {
         feed: feed_id,
+        folder,
         filter,
         before,
         limit,
@@ -78,10 +97,14 @@ pub fn mark_entry_read(core: CoreState<'_>, entry_id: i64, read: bool) -> Result
     Ok(core.mark_entry_read(entry_id, read)?)
 }
 
-/// Marks one feed's entries read, or every feed's.
+/// Marks one feed's entries read, a folder's, or every feed's.
 #[tauri::command]
-pub fn mark_all_read(core: CoreState<'_>, feed_id: Option<i64>) -> Result<(), CoreError> {
-    Ok(core.mark_all_read(feed_id)?)
+pub fn mark_all_read(
+    core: CoreState<'_>,
+    feed_id: Option<i64>,
+    folder: Option<String>,
+) -> Result<(), CoreError> {
+    Ok(core.mark_all_read(feed_id, folder.as_deref())?)
 }
 
 /// Keeps an item opened from a feed in the library (the reader's "Save to library").

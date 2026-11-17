@@ -232,6 +232,8 @@ pub fn run() {
             commands::feeds::subscribe,
             commands::feeds::unsubscribe,
             commands::feeds::set_feed_collection,
+            commands::feeds::set_feed_folder,
+            commands::feeds::rename_feed_folder,
             commands::feeds::feed_entries,
             commands::feeds::open_feed_entry,
             commands::feeds::save_feed_entry,

@@ -1925,6 +1925,127 @@
     ]
   },
   {
+    "name": "a folder is read as one stream, renamed and left",
+    "start": "",
+    "steps": [
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[id=1].folder": "Sea",
+          "[id=2].folder": null,
+          "[id=4].folder": "Sea"
+        }
+      },
+      {
+        "args": {
+          "filter": "unread",
+          "folder": "Sea"
+        },
+        "call": "feedEntries",
+        "error": null,
+        "expect": {
+          "length": 2
+        }
+      },
+      {
+        "args": {
+          "folder": "Sea"
+        },
+        "call": "markAllRead",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[id=1].unread": 0,
+          "[id=2].unread": 2,
+          "[id=4].unread": 0
+        }
+      },
+      {
+        "args": {
+          "feedId": 2,
+          "folder": "  Towns "
+        },
+        "call": "setFeedFolder",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "from": "Sea",
+          "to": "Coast"
+        },
+        "call": "renameFeedFolder",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "from": "Coast",
+          "to": " "
+        },
+        "call": "renameFeedFolder",
+        "error": "a folder needs a name",
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[id=1].folder": "Coast",
+          "[id=2].folder": "Towns",
+          "[id=4].folder": "Coast"
+        }
+      },
+      {
+        "args": {
+          "filter": "unread",
+          "folder": "Towns"
+        },
+        "call": "feedEntries",
+        "error": null,
+        "expect": {
+          "length": 2
+        }
+      },
+      {
+        "args": {
+          "feedId": 2,
+          "folder": ""
+        },
+        "call": "setFeedFolder",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "feedId": 99,
+          "folder": "Towns"
+        },
+        "call": "setFeedFolder",
+        "error": "No such feed.",
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "feeds",
+        "error": null,
+        "expect": {
+          "[id=1].folder": "Coast",
+          "[id=2].folder": null,
+          "[id=4].folder": "Coast"
+        }
+      }
+    ]
+  },
+  {
     "name": "feeds are found on the preview's web and imported from a list",
     "start": "",
     "steps": [

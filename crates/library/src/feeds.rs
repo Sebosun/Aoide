@@ -23,6 +23,8 @@ pub struct FeedRow {
     pub failing_since: Option<i64>,
     /// The collection its entries go on when saved to the library.
     pub collection_id: Option<i64>,
+    /// The folder it is in. Set only with `set_feed_folder`, never by `update_feed`.
+    pub folder: Option<String>,
 }
 
 /// An entry as a feed gave it.
@@ -84,6 +86,7 @@ fn read_feed(row: &Row<'_>) -> rusqlite::Result<FeedRow> {
         failures: row.get("failures")?,
         failing_since: row.get("failing_since")?,
         collection_id: row.get("collection_id")?,
+        folder: row.get("folder")?,
     })
 }
 
@@ -133,7 +136,8 @@ impl Library {
             .optional()?)
     }
 
-    /// Stores everything about feed `feed.id` but when it was added.
+    /// Stores everything about feed `feed.id` but when it was added, its collection and its
+    /// folder.
     pub fn update_feed(&self, feed: &FeedRow) -> Result<()> {
         self.conn.execute(
             "UPDATE feeds SET url = ?2, title = ?3, site_url = ?4, last_checked_at = ?5,
@@ -172,6 +176,29 @@ impl Library {
                 }
                 other => other.into(),
             })?;
+        Ok(())
+    }
+
+    /// Puts feed `id` in `folder`, or with `None` (or a blank name) in none.
+    pub fn set_feed_folder(&self, id: i64, folder: Option<&str>) -> Result<()> {
+        let folder = folder.map(str::trim).filter(|f| !f.is_empty());
+        self.conn.execute(
+            "UPDATE feeds SET folder = ?2 WHERE id = ?1",
+            rusqlite::params![id, folder],
+        )?;
+        Ok(())
+    }
+
+    /// Moves every feed in folder `from` to folder `to` (which may already have feeds).
+    pub fn rename_feed_folder(&self, from: &str, to: &str) -> Result<()> {
+        let to = to.trim();
+        if to.is_empty() {
+            return Err(LibraryError::Invalid("a folder needs a name".into()));
+        }
+        self.conn.execute(
+            "UPDATE feeds SET folder = ?2 WHERE folder = ?1",
+            rusqlite::params![from, to],
+        )?;
         Ok(())
     }
 
@@ -253,12 +280,13 @@ impl Library {
         Ok(entries.collect::<rusqlite::Result<_>>()?)
     }
 
-    /// Entries newest first (by published date, else when first seen): of `feed` or all
-    /// feeds; `filter` is `all`, `unread` or `saved` (its item is in the library); after entry
+    /// Entries newest first (by published date, else when first seen): of `feed`, of the feeds
+    /// in `folder`, or of all feeds; `filter` is `all`, `unread` or `saved` (its item is in the library); after entry
     /// `before` in that order; at most `limit`.
     pub fn list_entries(
         &self,
         feed: Option<i64>,
+        folder: Option<&str>,
         filter: &str,
         before: Option<i64>,
         limit: u32,
@@ -272,10 +300,12 @@ impl Library {
                     OR (?2 = 'saved' AND b.shelf = 'library'))
                AND (?3 IS NULL OR (COALESCE(e.published_at, e.seen_at), e.id) <
                     (SELECT COALESCE(published_at, seen_at), id FROM feed_entries WHERE id = ?3))
+               AND (?5 IS NULL OR f.folder = ?5)
              ORDER BY COALESCE(e.published_at, e.seen_at) DESC, e.id DESC
              LIMIT ?4",
         )?;
-        let rows = stmt.query_map(rusqlite::params![feed, filter, before, limit], |row| {
+        let params = rusqlite::params![feed, filter, before, limit, folder];
+        let rows = stmt.query_map(params, |row| {
             Ok(EntryListing {
                 entry: read_entry(row)?,
                 feed_title: row.get("feed_title")?,
@@ -306,12 +336,14 @@ impl Library {
         Ok(())
     }
 
-    /// Marks every unread entry read at `now`: of `feed`, or of all feeds.
-    pub fn mark_all_read(&self, feed: Option<i64>, now: i64) -> Result<()> {
+    /// Marks every unread entry read at `now`: of `feed`, of the feeds in `folder`, or of all
+    /// feeds.
+    pub fn mark_all_read(&self, feed: Option<i64>, folder: Option<&str>, now: i64) -> Result<()> {
         self.conn.execute(
             "UPDATE feed_entries SET read_at = ?2
-             WHERE read_at IS NULL AND (?1 IS NULL OR feed_id = ?1)",
-            rusqlite::params![feed, now],
+             WHERE read_at IS NULL AND (?1 IS NULL OR feed_id = ?1)
+               AND (?3 IS NULL OR feed_id IN (SELECT id FROM feeds WHERE folder = ?3))",
+            rusqlite::params![feed, now, folder],
         )?;
         Ok(())
     }

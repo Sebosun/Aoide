@@ -390,6 +390,66 @@ async fn an_opml_list_adds_the_feeds_not_subscribed_and_the_first_check_fills_th
 }
 
 #[tokio::test]
+async fn folders_come_from_a_list_and_go_back_out_with_it() {
+    use super::feeds::{EntryFilter, EntryQuery};
+    const QUAY: &str = "https://quay.example/feed.xml";
+    const TIDES: &str = "https://tides.example/feed.xml";
+    let pages = Pages::with(&[]);
+    pages.feed(HARBOUR, &rss(0..2), "v1");
+    let (feeds, _) = feeds(&pages);
+    let host = Host::at(20 * DAY);
+    // Subscribed before the import, and in no folder: it stays where it is.
+    let harbour = subscribed(feeds.subscribe(&host, HARBOUR).await);
+    let opml = format!(
+        r#"<opml version="2.0"><body>
+        <outline text="News"><outline text="Harbour" xmlUrl="{HARBOUR}"/>
+          <outline text="Quay" xmlUrl="{QUAY}"/>
+          <outline text="Sea"><outline text="Tides" xmlUrl="{TIDES}"/></outline>
+        </outline></body></opml>"#
+    );
+    feeds.import(&host, &opml).unwrap();
+    let folder_of = |url: &str| {
+        feeds
+            .views()
+            .unwrap()
+            .into_iter()
+            .find(|v| v.url == url)
+            .unwrap()
+            .folder
+    };
+    assert_eq!(folder_of(HARBOUR), None);
+    assert_eq!(folder_of(QUAY).as_deref(), Some("News"));
+    assert_eq!(folder_of(TIDES).as_deref(), Some("News / Sea"));
+
+    let changed = host.changed.load(Ordering::SeqCst);
+    feeds.set_folder(&host, harbour.id, Some("News")).unwrap();
+    feeds.rename_folder(&host, "News / Sea", "Sea").unwrap();
+    assert_eq!(host.changed.load(Ordering::SeqCst), changed + 2);
+    assert_eq!(folder_of(HARBOUR).as_deref(), Some("News"));
+    assert_eq!(folder_of(TIDES).as_deref(), Some("Sea"));
+
+    let news = EntryQuery {
+        feed: None,
+        folder: Some("News".into()),
+        filter: EntryFilter::Unread,
+        before: None,
+        limit: None,
+    };
+    assert_eq!(feeds.entries(&news).unwrap().len(), 2);
+    feeds.mark_all_read(None, Some("Sea"), 30 * DAY).unwrap();
+    assert_eq!(feeds.entries(&news).unwrap().len(), 2, "another folder");
+    feeds.mark_all_read(None, Some("News"), 30 * DAY).unwrap();
+    assert!(feeds.entries(&news).unwrap().is_empty());
+
+    let folders: Vec<_> = aoide_feeds::opml::read(&feeds.export().unwrap())
+        .into_iter()
+        .map(|o| (o.xml_url, o.folder))
+        .collect();
+    assert!(folders.contains(&(HARBOUR.into(), Some("News".into()))));
+    assert!(folders.contains(&(TIDES.into(), Some("Sea".into()))));
+}
+
+#[tokio::test]
 async fn old_entries_go_unless_saved_and_items_no_entry_needs_are_named() {
     use aoide_library::{BookId, ItemKind, NewBook, NewEntry};
     let pages = Pages::with(&[]);

@@ -2229,6 +2229,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         error: null,
         lastOkAt: Date.now(),
         collectionId: null,
+        folder: null,
       };
       feeds = [...feeds, feed].sort((a, b) => (a.title ?? a.url).localeCompare(b.title ?? b.url));
       // Articles that name it now say it is subscribed.
@@ -2249,10 +2250,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       }
       feedsChanged();
     },
-    async feedEntries({ feedId = null, filter, before = null, limit = null }) {
+    async feedEntries({ feedId = null, folder = null, filter, before = null, limit = null }) {
       const all = entryViews().filter(
         (e) =>
           (feedId === null || e.feedId === feedId) &&
+          (folder === null || feeds.find((f) => f.id === e.feedId)?.folder === folder) &&
           (filter === "all" || (filter === "unread" ? !e.read : e.inLibrary)),
       );
       const start = before === null ? 0 : all.findIndex((e) => e.id === before) + 1;
@@ -2302,8 +2304,23 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       getEntry(entryId).read = read;
       feedsChanged();
     },
-    async markAllRead({ feedId = null } = {}) {
-      for (const entry of entries) if (feedId === null || entry.feedId === feedId) entry.read = true;
+    async markAllRead({ feedId = null, folder = null } = {}) {
+      const inFolder = (id: number) => folder === null || feeds.find((f) => f.id === id)?.folder === folder;
+      for (const entry of entries) if ((feedId === null || entry.feedId === feedId) && inFolder(entry.feedId)) entry.read = true;
+      feedsChanged();
+    },
+    /** As the core does: a blank name is no folder. */
+    async setFeedFolder({ feedId, folder = null }) {
+      if (!feeds.some((f) => f.id === feedId)) throw refused("No such feed.");
+      const name = folder?.trim() || null;
+      feeds = feeds.map((f) => (f.id === feedId ? { ...f, folder: name } : f));
+      feedsChanged();
+    },
+    /** As the core does: renamed onto another folder, the two become one. */
+    async renameFeedFolder({ from, to }) {
+      const name = to.trim();
+      if (!name) throw refused("a folder needs a name");
+      feeds = feeds.map((f) => (f.folder === from ? { ...f, folder: name } : f));
       feedsChanged();
     },
     /** Feeds that answer were just checked; a failing one still fails. */
@@ -2340,6 +2357,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
           error: null,
           lastOkAt: null,
           collectionId: null,
+          folder: null,
         });
       }
       feeds.sort((a, b) => (a.title ?? a.url).localeCompare(b.title ?? b.url));

@@ -110,6 +110,7 @@
     {
       "collectionId": null,
       "error": null,
+      "folder": null,
       "id": 3,
       "lastOkAt": -1200000,
       "siteUrl": "https://fieldnotes.example/",
@@ -123,6 +124,7 @@
     {
       "collectionId": null,
       "error": "The site answered with status 503.",
+      "folder": "Sea",
       "id": 4,
       "lastOkAt": -259200000,
       "siteUrl": "https://harbourletters.example/",
@@ -137,6 +139,7 @@
     {
       "collectionId": null,
       "error": null,
+      "folder": null,
       "id": 2,
       "lastOkAt": -1200000,
       "siteUrl": "https://smallcities.example/",
@@ -150,6 +153,7 @@
     {
       "collectionId": null,
       "error": null,
+      "folder": "Sea",
       "id": 1,
       "lastOkAt": -1200000,
       "siteUrl": "https://tidewatch.example/",

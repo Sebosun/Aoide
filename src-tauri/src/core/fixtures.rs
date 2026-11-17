@@ -695,6 +695,9 @@ async fn feeds_core() -> (
     for (url, ..) in feeds {
         core.subscribe(url).await.unwrap();
     }
+    // Two of them in a folder.
+    core.set_feed_folder(1, Some("Sea")).unwrap();
+    core.set_feed_folder(4, Some("Sea")).unwrap();
     pages.feed_fails(feeds[3].0, aoide_fetch::FetchError::Status(503));
     core.check_feeds().await;
     let all = |core: &Core| {
@@ -1856,7 +1859,7 @@ async fn scenarios_for_the_ui_mock() {
     s.step(
         "markAllRead",
         json!({"feedId": 2}),
-        &core.mark_all_read(Some(2)),
+        &core.mark_all_read(Some(2), None),
         &[],
     );
     s.step(
@@ -1977,6 +1980,72 @@ async fn scenarios_for_the_ui_mock() {
         &[],
     );
     s.step("feeds", json!({}), &core.feeds(), &[&collection]);
+    scenarios.push(s.done());
+
+    // ---- feed folders, on the feeds as the mock starts
+    let (core, _folders_dir, _, _) = feeds_core().await;
+    let mut s = Scenario::new("a folder is read as one stream, renamed and left", "");
+    let in_folder = |core: &Core, folder: &str| {
+        core.feed_entries(&super::feeds::EntryQuery {
+            folder: Some(folder.into()),
+            filter: Unread,
+            ..super::feeds::EntryQuery::default()
+        })
+    };
+    let unread = ["[id=1].unread", "[id=2].unread", "[id=4].unread"];
+    let folders = ["[id=1].folder", "[id=2].folder", "[id=4].folder"];
+    s.step("feeds", json!({}), &core.feeds(), &folders);
+    s.step(
+        "feedEntries",
+        json!({"folder": "Sea", "filter": "unread"}),
+        &in_folder(&core, "Sea"),
+        &["length"],
+    );
+    s.step(
+        "markAllRead",
+        json!({"folder": "Sea"}),
+        &core.mark_all_read(None, Some("Sea")),
+        &[],
+    );
+    s.step("feeds", json!({}), &core.feeds(), &unread);
+    s.step(
+        "setFeedFolder",
+        json!({"feedId": 2, "folder": "  Towns "}),
+        &core.set_feed_folder(2, Some("  Towns ")),
+        &[],
+    );
+    s.step(
+        "renameFeedFolder",
+        json!({"from": "Sea", "to": "Coast"}),
+        &core.rename_feed_folder("Sea", "Coast"),
+        &[],
+    );
+    s.step(
+        "renameFeedFolder",
+        json!({"from": "Coast", "to": " "}),
+        &core.rename_feed_folder("Coast", " "),
+        &[],
+    );
+    s.step("feeds", json!({}), &core.feeds(), &folders);
+    s.step(
+        "feedEntries",
+        json!({"folder": "Towns", "filter": "unread"}),
+        &in_folder(&core, "Towns"),
+        &["length"],
+    );
+    s.step(
+        "setFeedFolder",
+        json!({"feedId": 2, "folder": ""}),
+        &core.set_feed_folder(2, Some("")),
+        &[],
+    );
+    s.step(
+        "setFeedFolder",
+        json!({"feedId": 99, "folder": "Towns"}),
+        &core.set_feed_folder(99, Some("Towns")),
+        &[],
+    );
+    s.step("feeds", json!({}), &core.feeds(), &folders);
     scenarios.push(s.done());
 
     // ---- the preview's web, from the feeds as the mock starts

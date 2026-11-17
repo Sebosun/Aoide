@@ -941,7 +941,11 @@ error: string | null, lastOkAt: number | null,
 /**
  * The collection its entries go on when saved to the library.
  */
-collectionId: number | null, };
+collectionId: number | null, 
+/**
+ * The folder it is in; a folder exists while a feed is in it.
+ */
+folder: string | null, };
 
 export type SubscribeResult = { "kind": "subscribed", "value": FeedView } | { "kind": "choose", "value": Array<DiscoveredFeed> } | { "kind": "notAFeed" };
 
@@ -1449,15 +1453,22 @@ export type Commands = {
   "unsubscribe": { args: { feedId: number }; result: void };
   /** Chooses the collection a feed's entries go on when they are saved (`null`: none). */
   "set_feed_collection": { args: { feedId: number; collectionId?: number | null }; result: void };
-  /** Entries newest first, from one feed or all; the next page starts `before` an entry id. */
-  "feed_entries": { args: { feedId?: number | null; filter: EntryFilter; before?: number | null; limit?: number | null }; result: EntryView[] };
+  /** Puts a feed in a folder (`null`: in none). A folder exists while a feed is in it. */
+  "set_feed_folder": { args: { feedId: number; folder?: string | null }; result: void };
+  /** Renames a feed folder; onto another folder's name, the two become one. */
+  "rename_feed_folder": { args: { from: string; to: string }; result: void };
+  /**
+   * Entries newest first, from one feed, the feeds in a folder, or all; the next page starts
+   * `before` an entry id.
+   */
+  "feed_entries": { args: { feedId?: number | null; folder?: string | null; filter: EntryFilter; before?: number | null; limit?: number | null }; result: EntryView[] };
   /** The item to read an entry as (made on the feed shelf when needed); marks it read. */
   "open_feed_entry": { args: { entryId: number }; result: string };
   /** Keeps an entry's item in the library; returns its id. */
   "save_feed_entry": { args: { entryId: number }; result: string };
   "mark_entry_read": { args: { entryId: number; read: boolean }; result: void };
-  /** Marks one feed's entries read, or every feed's. */
-  "mark_all_read": { args: { feedId?: number | null }; result: void };
+  /** Marks one feed's entries read, a folder's, or every feed's. */
+  "mark_all_read": { args: { feedId?: number | null; folder?: string | null }; result: void };
   /** Keeps an item opened from a feed in the library (the reader's "Save to library"). */
   "save_to_library": { args: { bookId: string }; result: void };
   /** Opens a feed's site (its own address when it names none) in the system's browser. */
@@ -1833,15 +1844,22 @@ export interface CommandApi {
   unsubscribe(args: { feedId: number }): Promise<void>;
   /** Chooses the collection a feed's entries go on when they are saved (`null`: none). */
   setFeedCollection(args: { feedId: number; collectionId?: number | null }): Promise<void>;
-  /** Entries newest first, from one feed or all; the next page starts `before` an entry id. */
-  feedEntries(args: { feedId?: number | null; filter: EntryFilter; before?: number | null; limit?: number | null }): Promise<EntryView[]>;
+  /** Puts a feed in a folder (`null`: in none). A folder exists while a feed is in it. */
+  setFeedFolder(args: { feedId: number; folder?: string | null }): Promise<void>;
+  /** Renames a feed folder; onto another folder's name, the two become one. */
+  renameFeedFolder(args: { from: string; to: string }): Promise<void>;
+  /**
+   * Entries newest first, from one feed, the feeds in a folder, or all; the next page starts
+   * `before` an entry id.
+   */
+  feedEntries(args: { feedId?: number | null; folder?: string | null; filter: EntryFilter; before?: number | null; limit?: number | null }): Promise<EntryView[]>;
   /** The item to read an entry as (made on the feed shelf when needed); marks it read. */
   openFeedEntry(args: { entryId: number }): Promise<string>;
   /** Keeps an entry's item in the library; returns its id. */
   saveFeedEntry(args: { entryId: number }): Promise<string>;
   markEntryRead(args: { entryId: number; read: boolean }): Promise<void>;
-  /** Marks one feed's entries read, or every feed's. */
-  markAllRead(args?: { feedId?: number | null }): Promise<void>;
+  /** Marks one feed's entries read, a folder's, or every feed's. */
+  markAllRead(args?: { feedId?: number | null; folder?: string | null }): Promise<void>;
   /** Keeps an item opened from a feed in the library (the reader's "Save to library"). */
   saveToLibrary(args: { bookId: string }): Promise<void>;
   /** Opens a feed's site (its own address when it names none) in the system's browser. */
@@ -2144,6 +2162,8 @@ export const COMMANDS = {
   subscribe: "subscribe",
   unsubscribe: "unsubscribe",
   setFeedCollection: "set_feed_collection",
+  setFeedFolder: "set_feed_folder",
+  renameFeedFolder: "rename_feed_folder",
   feedEntries: "feed_entries",
   openFeedEntry: "open_feed_entry",
   saveFeedEntry: "save_feed_entry",

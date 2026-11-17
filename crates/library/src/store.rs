@@ -319,6 +319,9 @@ const MIGRATIONS: &[Step] = &[
                     book_id TEXT PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
                     position INTEGER NOT NULL
                 );"),
+    // Version 23.
+    // Feed folders: one level, a folder exists while a feed is in it.
+    Step::Run(|tx| add_column_if_missing(tx, "feeds", "folder", "TEXT")),
 ];
 
 fn add_column_if_missing(

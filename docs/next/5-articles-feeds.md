@@ -361,7 +361,7 @@ Folders in an OPML file are kept on import and written on export.
 
 ### Logging
 
-`feeds.folder` (`feed`, `outcome`).
+`feed.folder` (`feed`, `outcome`: `moved`, `removed`, `renamed`). Folder names are not logged.
 
 ### Done when
 

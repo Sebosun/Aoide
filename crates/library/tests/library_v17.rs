@@ -76,7 +76,7 @@ fn a_version_16_library_opens_with_no_takes_and_counts_them() {
         .unwrap()
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 22);
+    assert_eq!(version, 23);
 }
 
 #[test]
