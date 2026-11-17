@@ -5,6 +5,7 @@
 use std::sync::{Arc, Mutex};
 
 use aoide_library::{BookId, Highlight, Library, NewHighlight};
+use serde::Serialize;
 
 use super::{lock, now_ms};
 use crate::book::BookModel;
@@ -28,6 +29,38 @@ impl From {
     }
 }
 
+/// A highlight as the reader and the Notes list show it, in reading order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct HighlightView {
+    pub id: i64,
+    pub chapter: usize,
+    pub chapter_title: String,
+    /// Characters of the chapter's display text (Unicode scalar values), as `SegmentView.starts`.
+    pub start: usize,
+    pub end: usize,
+    pub text: String,
+    pub note: String,
+    /// Its text is no longer in the chapter: listed, not drawn.
+    pub detached: bool,
+}
+
+/// Where `highlight`'s text is in `book` now: its stored range when the text is still there,
+/// else the place in its chapter nearest to it where the text is found, else `None`.
+fn anchor(book: &BookModel, highlight: &Highlight) -> Option<(usize, usize)> {
+    let text = &book.chapters.get(highlight.chapter as usize)?.text;
+    let (start, end) = (highlight.start as usize, highlight.end as usize);
+    if cut(text, start, end.min(text.chars().count()).max(start)) == highlight.text {
+        return Some((start, end));
+    }
+    let length = highlight.text.chars().count();
+    text.match_indices(highlight.text.as_str())
+        .map(|(at, _)| text[..at].chars().count())
+        .min_by_key(|at| at.abs_diff(start))
+        .map(|at| (at, at + length))
+}
+
 /// Characters `start..end` of `text` (Unicode scalar values).
 fn cut(text: &str, start: usize, end: usize) -> String {
     text.chars().skip(start).take(end - start).collect()
@@ -47,6 +80,48 @@ impl Highlights {
         lock(&self.library)
             .highlights(&BookId(book.into()))
             .map_err(|e| e.to_string())
+    }
+
+    /// Book `book`'s highlights in reading order, each anchored on its text (see [`anchor`]): one
+    /// whose text moved is moved with it, and the new place stored; one whose text is gone is
+    /// `detached`.
+    pub fn list(&self, book: &BookModel) -> Result<Vec<HighlightView>, String> {
+        let mut views = Vec::new();
+        for highlight in self.stored(&book.id)? {
+            let chapter = highlight.chapter as usize;
+            let place = anchor(book, &highlight);
+            match place {
+                Some((start, end)) if start != highlight.start as usize => {
+                    lock(&self.library)
+                        .move_highlight(highlight.id, start as u32, end as u32)
+                        .map_err(|e| e.to_string())?;
+                }
+                Some(_) => {}
+                None => tracing::info!(
+                    event = "highlight.detached",
+                    book = crate::logging::book(&book.id),
+                    chapter,
+                    "A highlight's text is no longer in its chapter"
+                ),
+            }
+            let (start, end) = place.unwrap_or((highlight.start as usize, highlight.end as usize));
+            views.push(HighlightView {
+                id: highlight.id,
+                chapter,
+                chapter_title: book
+                    .chapters
+                    .get(chapter)
+                    .map(|c| c.title.clone())
+                    .unwrap_or_default(),
+                start,
+                end,
+                text: highlight.text,
+                note: highlight.note,
+                detached: place.is_none(),
+            });
+        }
+        views.sort_by_key(|h| (h.chapter, h.start, h.id));
+        Ok(views)
     }
 
     /// Highlights characters `start..end` of chapter `chapter` of `book`, joined with the
@@ -69,15 +144,13 @@ impl Highlights {
         if start >= end || end > length {
             return Err("that passage is not in the chapter".into());
         }
-        let joined: Vec<Highlight> = self
-            .stored(&book.id)?
+        let joined: Vec<HighlightView> = self
+            .list(book)?
             .into_iter()
-            .filter(|h| {
-                h.chapter as usize == chapter && h.start as usize <= end && h.end as usize >= start
-            })
+            .filter(|h| !h.detached && h.chapter == chapter && h.start <= end && h.end >= start)
             .collect();
-        let start = joined.iter().map(|h| h.start as usize).fold(start, usize::min);
-        let end = joined.iter().map(|h| h.end as usize).fold(end, usize::max);
+        let start = joined.iter().map(|h| h.start).fold(start, usize::min);
+        let end = joined.iter().map(|h| h.end).fold(end, usize::max);
         let chars = end - start;
         if chars > MAX_CHARS {
             return Err(format!(
@@ -228,5 +301,51 @@ mod tests {
             .add(&long, 0, 0, MAX_CHARS, From::Selection)
             .is_ok());
         assert_eq!(passages(&highlights).len(), 1);
+    }
+
+    #[test]
+    fn a_highlight_stays_on_its_text_when_the_chapter_changes_under_it() {
+        let highlights = Highlights::new(library_with(&["b"]));
+        let was = book();
+        for words in ["Gulls argued", "lit the lamp", "until morning"] {
+            let chapter = usize::from(!words.starts_with("Gulls"));
+            let (start, end) = range_of(&was, chapter, words);
+            highlights
+                .add(&was, chapter, start, end, From::Selection)
+                .unwrap();
+        }
+        // Fetched again: the lamp is lit later in the chapter, the morning is gone.
+        let chapter = |title: &str, body: &str| {
+            format!(
+                r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>{title}</h1><p>{body}</p></body></html>"#
+            )
+        };
+        let now = BookModel::parse(
+            "b",
+            &super::super::tests::epub_with(
+                chapter("The Quay", "Gulls argued over the nets. The tide came in slowly."),
+                chapter("The Lamp", "At last someone lit the lamp at dusk. It burned all night."),
+            ),
+            &Default::default(),
+        )
+        .unwrap();
+        let listed = highlights.list(&now).unwrap();
+        let seen: Vec<(&str, bool)> = listed
+            .iter()
+            .map(|h| (h.text.as_str(), h.detached))
+            .collect();
+        assert_eq!(
+            seen,
+            [("Gulls argued", false), ("lit the lamp", false), ("until morning", true)]
+        );
+        assert_eq!(listed[1].chapter_title, "The Lamp");
+        let moved = range_of(&now, 1, "lit the lamp");
+        assert_eq!((listed[1].start, listed[1].end), moved);
+        // Written back: the stored range is the new one.
+        let stored = highlights.stored("b").unwrap();
+        let lamp = stored.iter().find(|h| h.text == "lit the lamp").unwrap();
+        assert_eq!((lamp.start as usize, lamp.end as usize), moved);
+        // Unchanged where nothing moved.
+        assert_eq!((listed[0].start, listed[0].end), range_of(&was, 0, "Gulls argued"));
     }
 }
