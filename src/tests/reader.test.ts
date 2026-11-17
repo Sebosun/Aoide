@@ -617,6 +617,9 @@ it("opens a book read silently at its saved place, and picking a chapter only sh
   await wrapper.get("button.sheet__next").trigger("click");
   await flushPromises();
   expect(useReaderStore().currentChapter).toBe(2);
+  await wrapper.get("button.sheet__next").trigger("click");
+  await flushPromises();
+  expect(useReaderStore().currentChapter).toBe(3);
   expect(wrapper.find("button.sheet__next").exists()).toBe(false);
   expect(play).not.toHaveBeenCalled();
   wrapper.unmount();

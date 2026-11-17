@@ -85,6 +85,10 @@ const BOOKS: [Book; 4] = [
                 "The next morning, a stranger asked for directions. Ren folded the map and offered to walk beside her.",
                 "They took the long way. There was plenty of time.",
             ],
+            &[
+                "About the author",
+                "Ellis Reed walks a different street every morning and writes down what was quiet there.",
+            ],
         ],
         notes: true,
         footnote: None,
@@ -1048,6 +1052,57 @@ async fn scenarios_for_the_ui_mock() {
             &[&book("mode"), &book("shape")],
         );
     }
+    scenarios.push(s.done());
+
+    let mut s = Scenario::new("chapters are left out of the narration", "");
+    let narrated = [
+        "chapters.0.leftOut",
+        "chapters.3.leftOut",
+        "chapters.3.suggested",
+        "chaptersLeftOut",
+        "narratedWordCount",
+        "wordCount",
+    ];
+    s.step(
+        "bookOverview",
+        json!({"bookId": second}),
+        &core.book_overview(&second),
+        &narrated,
+    );
+    s.step(
+        "setLeftOut",
+        json!({"bookId": second, "chapters": [3, 3, 9]}),
+        &core.set_left_out(&second, vec![3, 3, 9]).await,
+        &narrated,
+    );
+    s.step(
+        "bookOverview",
+        json!({"bookId": second}),
+        &core.book_overview(&second),
+        &narrated,
+    );
+    let older = super::BookSettings {
+        left_out: vec![],
+        ..core.book_settings(&second)
+    };
+    s.step(
+        "saveBookSettings",
+        json!({"bookId": second, "settings": older}),
+        &core.save_book_settings(&second, older.clone()).await,
+        &[],
+    );
+    s.step(
+        "bookSettings",
+        json!({"bookId": second}),
+        &Ok::<_, String>(core.book_settings(&second)),
+        &["leftOut"],
+    );
+    s.step(
+        "setLeftOut",
+        json!({"bookId": second, "chapters": []}),
+        &core.set_left_out(&second, vec![]).await,
+        &narrated,
+    );
     scenarios.push(s.done());
 
     let mut s = Scenario::new("a sentence the speech engine says can be said again", "");

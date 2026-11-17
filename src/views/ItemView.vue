@@ -470,11 +470,15 @@ const collectionItems = computed<MenuEntry[]>(() => {
         <template v-else>
           <BookNarration :book-id="bookId" />
         </template>
+        <small v-if="overview.chaptersLeftOut" class="item-page__left-out"
+          >{{ overview.chaptersLeftOut }} {{ overview.chaptersLeftOut === 1 ? "chapter" : "chapters" }} left out of the
+          narration</small
+        >
         <BookListening
           v-if="listening.length"
           class="item-page__listening"
           :days="listening"
-          :word-count="overview!.wordCount"
+          :word-count="overview!.narratedWordCount"
           :duration-ms="summary?.durationMs ?? null"
           :fraction="progress?.fraction ?? 0"
           :speed="player.state.speed"
@@ -493,6 +497,7 @@ const collectionItems = computed<MenuEntry[]>(() => {
         :current="progress?.chapter ?? null"
         :audiobook="audiobook"
         :recorded="recorded"
+        @changed="overview = $event"
       />
     </UiCard>
 
@@ -640,6 +645,10 @@ const collectionItems = computed<MenuEntry[]>(() => {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+}
+.item-page__left-out {
+  font-size: 12.5px;
+  color: var(--dim);
 }
 .item-page__problem {
   margin: 0;

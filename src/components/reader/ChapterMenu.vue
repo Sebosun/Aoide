@@ -8,7 +8,7 @@ import type { MenuEntry } from "@/components/ui/types";
 /** `link`: "Chapter 4 of 24 ▾" (Sheet margin); `pill`: a "Chapters" button (library hero);
  *  `chip`: "Chapter 4 · Title ▾" (Lines mode); `title`: "Book · Chapter 4, Title ▾" (reader
  *  header, with `bookTitle`). With `prepare`, the list ends in "Prepare this
- *  chapter" for the current chapter. */
+ *  chapter" for the current chapter. A chapter left out of the narration says so. */
 const props = withDefaults(
   defineProps<{
     chapters: ChapterSummary[];
@@ -25,7 +25,7 @@ const items = computed<MenuEntry[]>(() => {
   const list: MenuEntry[] = props.chapters.map((chapter, i) => ({
     id: chapter.index,
     label: chapter.title,
-    ariaLabel: `Chapter ${i + 1}: ${chapter.title}`,
+    ariaLabel: `Chapter ${i + 1}: ${chapter.title}${chapter.leftOut ? ", not narrated" : ""}`,
     current: chapter.index === props.current,
     action: () => emit("pick", chapter.index),
   }));
@@ -36,6 +36,8 @@ const items = computed<MenuEntry[]>(() => {
     );
   return list;
 });
+/** The chapter this menu row is for is left out of the narration. */
+const leftOut = (item: MenuEntry) => "id" in item && props.chapters.some((c) => c.index === item.id && c.leftOut);
 const position = () =>
   `Chapter ${props.chapters.findIndex((c) => c.index === props.current) + 1} of ${props.chapters.length}`;
 </script>
@@ -102,7 +104,10 @@ const position = () =>
       >
       <template v-else
         ><span class="chapter-menu__number">{{ index + 1 }}</span
-        ><span class="chapter-menu__title">{{ item.label }}</span
+        ><span class="chapter-menu__title" :class="{ 'chapter-menu__title--left-out': leftOut(item) }">{{
+          item.label
+        }}</span
+        ><span v-if="leftOut(item)" class="chapter-menu__not-narrated">Not narrated</span
         ><AudioLines v-if="item.id === playing" :size="15" class="chapter-menu__playing" aria-hidden="true"
       /></template>
     </template>
@@ -178,6 +183,15 @@ const position = () =>
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.chapter-menu__title--left-out {
+  color: var(--faint);
+}
+.chapter-menu__not-narrated {
+  flex: none;
+  color: var(--faint);
+  font-size: 11.5px;
+  font-weight: 600;
 }
 .chapter-menu__playing {
   color: var(--accent);

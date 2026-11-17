@@ -85,12 +85,12 @@ it("moves between tabs with the arrow keys and closes from the backdrop", async 
 it("opens the extraction notes in Details from the warning in the margin", async () => {
   const wrapper = await reader("book-1");
   const warning = wrapper.get('[aria-label="About this book"] .book-margin__warning');
-  expect(warning.text()).toContain("2 extraction notes");
+  expect(warning.text()).toContain("3 extraction notes");
   await warning.trigger("click");
   await flushPromises();
   const sheet = wrapper.get('[role="dialog"]');
   expect(sheet.get('[role="tab"][aria-selected="true"]').text()).toBe("Details");
-  expect(sheet.text()).toContain("1 warning, 1 section left out");
+  expect(sheet.text()).toContain("2 warnings, 1 section left out");
   expect(sheet.text()).toContain("Copyright");
   expect(sheet.text()).toContain("An empty section was skipped");
   wrapper.unmount();

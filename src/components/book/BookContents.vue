@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { AudioLines, Check, Sparkles } from "@lucide/vue";
+import { AudioLines, Check, ListChecks, Sparkles } from "@lucide/vue";
 import { api } from "@/api";
-import type { ChapterAudioView, ChapterSummary } from "@/api/types";
+import type { BookView, ChapterAudioView, ChapterSummary } from "@/api/types";
+import UiButton from "@/components/ui/UiButton.vue";
 import { formatClock } from "@/estimate";
 import { prepareChapter, preparationStatus } from "@/preparation";
 import { useLibraryStore } from "@/stores/library";
@@ -11,7 +12,9 @@ import { useReaderStore } from "@/stores/reader";
 
 /** An item's contents: its chapters (or an audiobook's parts), each opening where it starts, with
  *  where the reader is and, for a narrated book, whether each chapter's audio is made, being
- *  made, or can be prepared on its own. */
+ *  made, or can be prepared on its own. A book's chapters can be left out of the narration
+ *  (core/leaving_out.rs): "Choose what is narrated" shows a box for each, and offers to leave out
+ *  the front and back matter the core suggests. Left-out chapters are dimmed and say so. */
 const props = defineProps<{
   bookId: string;
   chapters: ChapterSummary[];
@@ -22,9 +25,39 @@ const props = defineProps<{
   /** Played from a recording: no audio is made. */
   recorded: boolean;
 }>();
+const emit = defineEmits<{ changed: [view: BookView] }>();
 const library = useLibraryStore(),
   player = usePlayerStore(),
   reader = useReaderStore();
+
+/** Choosing what is narrated: each chapter has a box. */
+const choosing = ref(false);
+/** What the last "Leave out front and back matter" left out, said once. */
+const leftOutNow = ref("");
+const failed = ref("");
+const leftOut = computed(() => props.chapters.filter((c) => c.leftOut).map((c) => c.index));
+/** Suggested by the core and still narrated. */
+const suggested = computed(() => props.chapters.filter((c) => c.suggested && !c.leftOut));
+async function leaveOut(chapters: number[]) {
+  failed.value = "";
+  try {
+    const view = await api.setLeftOut({ bookId: props.bookId, chapters });
+    if (reader.book?.id === props.bookId) reader.book = view;
+    emit("changed", view);
+  } catch (e) {
+    failed.value = String(e);
+  }
+}
+function narrate(index: number, narrated: boolean) {
+  leftOutNow.value = "";
+  const others = leftOut.value.filter((c) => c !== index);
+  void leaveOut(narrated ? others : [...others, index]);
+}
+async function leaveOutMatter() {
+  const titles = suggested.value.map((c) => c.title);
+  await leaveOut([...leftOut.value, ...suggested.value.map((c) => c.index)]);
+  if (!failed.value) leftOutNow.value = `Left out: ${titles.join(", ")}.`;
+}
 const prepare = computed(() => library.books.find((b) => b.id === props.bookId)?.prepare ?? null);
 
 /** Each chapter's audio, refreshed while the book is being prepared (at most every 2 s). */
@@ -74,8 +107,51 @@ async function open(index: number) {
 </script>
 
 <template>
+  <div v-if="!audiobook" class="book-contents__choose">
+    <UiButton
+      size="sm"
+      :aria-label="choosing ? 'Done choosing what is narrated' : 'Choose what is narrated'"
+      :aria-pressed="choosing"
+      @click="
+        choosing = !choosing;
+        leftOutNow = '';
+      "
+    >
+      <ListChecks :size="15" aria-hidden="true" /> {{ choosing ? "Done" : "Choose what is narrated" }}
+    </UiButton>
+    <template v-if="choosing">
+      <UiButton
+        v-if="suggested.length"
+        size="sm"
+        aria-label="Leave out front and back matter"
+        :title="`Leaves out ${suggested.map((c) => c.title).join(', ')}`"
+        @click="leaveOutMatter"
+      >
+        Leave out front and back matter
+      </UiButton>
+      <small class="book-contents__hint">
+        <template v-if="suggested.length">Suggested: {{ suggested.map((c) => c.title).join(", ") }}. </template>Chapters
+        left out are not heard, prepared or exported; they are still there to read.
+      </small>
+    </template>
+    <p v-if="leftOutNow" class="book-contents__done" role="status">{{ leftOutNow }}</p>
+    <p v-if="failed" class="book-contents__failed" role="alert">{{ failed }}</p>
+  </div>
   <ol class="book-contents" aria-label="Contents">
-    <li v-for="(c, i) in chapters" :key="c.index" class="book-contents__item">
+    <li
+      v-for="(c, i) in chapters"
+      :key="c.index"
+      class="book-contents__item"
+      :class="{ 'book-contents__item--left-out': c.leftOut }"
+    >
+      <input
+        v-if="choosing && !audiobook"
+        type="checkbox"
+        class="book-contents__narrated"
+        :checked="!c.leftOut"
+        :aria-label="`Narrate chapter ${i + 1}: ${c.title}`"
+        @change="narrate(c.index, ($event.target as HTMLInputElement).checked)"
+      />
       <button
         type="button"
         class="book-contents__chapter"
@@ -84,6 +160,7 @@ async function open(index: number) {
         @click="open(c.index)"
       >
         <span class="book-contents__number">{{ i + 1 }}</span><span class="book-contents__title">{{ c.title }}</span
+        ><span v-if="c.leftOut" class="book-contents__not-narrated">Not narrated</span
         ><AudioLines v-if="current === c.index" :size="15" class="book-contents__here" aria-hidden="true" />
       </button>
       <span v-if="c.durationMs !== null" class="book-contents__audio">{{ formatClock(c.durationMs) }}</span>
@@ -117,6 +194,49 @@ async function open(index: number) {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+.book-contents__choose {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.book-contents__hint {
+  flex-basis: 100%;
+  color: var(--dim);
+  font-size: 12.5px;
+}
+.book-contents__done,
+.book-contents__failed {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 13px;
+}
+.book-contents__failed {
+  color: var(--warn);
+}
+.book-contents__narrated {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.book-contents__item--left-out .book-contents__number,
+.book-contents__item--left-out .book-contents__title {
+  color: var(--faint);
+}
+.book-contents__item--left-out .book-contents__title {
+  flex: 0 1 auto;
+}
+.book-contents__not-narrated {
+  flex: none;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--wash);
+  color: var(--dim);
+  font-size: 11.5px;
+  font-weight: 600;
 }
 .book-contents__item {
   display: flex;

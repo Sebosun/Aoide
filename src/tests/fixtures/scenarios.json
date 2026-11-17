@@ -100,12 +100,12 @@
         "args": {
           "bookId": "book-1",
           "chapter": 1,
-          "segmentId": "1:1:1"
+          "segmentId": "1:2:0"
         },
         "call": "setReadingPlace",
         "error": null,
         "expect": {
-          "fraction": 0.4545454545454546
+          "fraction": 0.4615384615384616
         }
       },
       {
@@ -129,13 +129,13 @@
       {
         "args": {
           "bookId": "book-1",
-          "chapter": 2,
-          "segmentId": "2:2:0"
+          "chapter": 3,
+          "segmentId": "3:1:0"
         },
         "call": "setReadingPlace",
         "error": null,
         "expect": {
-          "fraction": 0.9090909090909092
+          "fraction": 0.9230769230769232
         }
       },
       {
@@ -251,6 +251,108 @@
         "expect": {
           "[id=book-1].mode": "read",
           "[id=book-1].shape": "read"
+        }
+      }
+    ]
+  },
+  {
+    "name": "chapters are left out of the narration",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "bookOverview",
+        "error": null,
+        "expect": {
+          "chapters.0.leftOut": false,
+          "chapters.3.leftOut": false,
+          "chapters.3.suggested": true,
+          "chaptersLeftOut": 0,
+          "narratedWordCount": 144,
+          "wordCount": 144
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapters": [
+            3,
+            3,
+            9
+          ]
+        },
+        "call": "setLeftOut",
+        "error": null,
+        "expect": {
+          "chapters.0.leftOut": false,
+          "chapters.3.leftOut": true,
+          "chapters.3.suggested": true,
+          "chaptersLeftOut": 1,
+          "narratedWordCount": 126,
+          "wordCount": 144
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "bookOverview",
+        "error": null,
+        "expect": {
+          "chapters.0.leftOut": false,
+          "chapters.3.leftOut": true,
+          "chapters.3.suggested": true,
+          "chaptersLeftOut": 1,
+          "narratedWordCount": 126,
+          "wordCount": 144
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "settings": {
+            "language": null,
+            "leftOut": [],
+            "mode": "read",
+            "narration": null,
+            "params": {},
+            "readNotes": false,
+            "speakMissing": false,
+            "voiceId": null
+          }
+        },
+        "call": "saveBookSettings",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "bookSettings",
+        "error": null,
+        "expect": {
+          "leftOut": [
+            3
+          ]
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1",
+          "chapters": []
+        },
+        "call": "setLeftOut",
+        "error": null,
+        "expect": {
+          "chapters.0.leftOut": false,
+          "chapters.3.leftOut": false,
+          "chapters.3.suggested": true,
+          "chaptersLeftOut": 0,
+          "narratedWordCount": 144,
+          "wordCount": 144
         }
       }
     ]

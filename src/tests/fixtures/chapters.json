@@ -533,6 +533,61 @@
         }
       ],
       "notNarrated": null
+    },
+    {
+      "index": 3,
+      "title": "About the author",
+      "blocks": [
+        {
+          "kind": "heading",
+          "level": 2,
+          "segments": [
+            {
+              "id": "3:0:0",
+              "words": [
+                "About",
+                "the",
+                "author"
+              ],
+              "speakable": true,
+              "canSayAgain": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "level": null,
+          "segments": [
+            {
+              "id": "3:1:0",
+              "words": [
+                "Ellis",
+                "Reed",
+                "walks",
+                "a",
+                "different",
+                "street",
+                "every",
+                "morning",
+                "and",
+                "writes",
+                "down",
+                "what",
+                "was",
+                "quiet",
+                "there."
+              ],
+              "speakable": true,
+              "canSayAgain": true,
+              "note": false,
+              "notes": []
+            }
+          ]
+        }
+      ],
+      "notNarrated": null
     }
   ],
   [

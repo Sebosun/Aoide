@@ -44,7 +44,7 @@ it("opens an unread book on its page, without playing", async () => {
   expect(about.get("h1").text()).toBe("A Map of Quiet Places");
   expect(about.get(".item-page__kind").text()).toBe("Book · unread");
   expect(about.text()).toContain("Ellis Reed");
-  expect(about.text()).toContain("2 extraction notes");
+  expect(about.text()).toContain("3 extraction notes");
   expect(about.text()).not.toContain("Start listening");
   expect(about.text()).not.toContain("Listening time");
   expect(play).not.toHaveBeenCalled();

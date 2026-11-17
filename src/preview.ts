@@ -11,6 +11,7 @@ import { useRecordingsStore } from "@/stores/recordings";
  *  elements in turn once the screen is up (to show an open menu or dialog). `zoom=1.25` sets the
  *  interface size and `delay=800` slows every request (see api/mock and api/index).
  *  `prepare=book-1,book-0` queues those books for whole-book preparation, in that order.
+ *  `leftout=0,3` leaves those chapters of `book` out of the narration.
  *  `recording=syncing|ready|review|missing|model|mismatch|failed` gives book-0 a recording in that
  *  stage (see api/mock); `pair=~/a.m4b,~/b.aax` opens the pairing dialog on those paths and
  *  `report=book-0` that book's sync report; `audiobook=1` adds the preview's audiobook on its own
@@ -33,6 +34,12 @@ export async function applyPreviewParams(search = location.search) {
     await api.savePronunciation({ bookId: null, written: "SQL", spoken: "sequel", matchCase: true });
     await api.savePronunciation({ bookId: null, written: "Dr. Xu", spoken: "doctor shoe", matchCase: false });
   }
+  const leftOut = query.get("leftout");
+  if (leftOut !== null)
+    await api.setLeftOut({
+      bookId: query.get("book") ?? "book-0",
+      chapters: leftOut.split(",").filter(Boolean).map(Number),
+    });
   if (settings) useNavigationStore().openSettings(settings);
   if (query.has("shortcuts")) useNavigationStore().openShortcuts();
   for (const id of query.get("prepare")?.split(",").filter(Boolean) ?? []) await api.prepareBook({ bookId: id });

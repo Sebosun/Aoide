@@ -347,6 +347,16 @@ uncertain content.
 carries the actions that apply (review A3); add the count of left-out chapters for the item
 page's Audio card ("3 chapters left out").
 
+As built: `ChapterSummary` also carries its `word_count`, and `BookView` a
+`narrated_word_count` (words in the chapters not left out) for the listening estimate, so the
+mock sums what the core lists rather than counting words itself. `save_book_settings` keeps
+`left_out` as stored: it changes only through `set_left_out`, so the voice form, which holds
+older settings, cannot undo it. `skip_chapter` steps over left-out chapters (arriving from the
+chapter before). Taking a chapter back in leaves a prepared book unprepared
+(`PlanEvent::ChaptersTakenBack`), since its audio may not be made. Playing with no place saved
+starts at the first chapter narrated; a place asked for or saved admits its chapter. The
+preview's second book gained an "About the author" chapter so the suggestion shows.
+
 **IPC.** `set_left_out(book_id, chapters: Vec<usize>) -> BookView`, which saves the field
 through the same path as the other book settings.
 

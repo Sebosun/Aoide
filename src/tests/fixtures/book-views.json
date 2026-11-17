@@ -64,6 +64,14 @@
         "suggested": false,
         "title": "A place to begin",
         "wordCount": 32
+      },
+      {
+        "durationMs": null,
+        "index": 3,
+        "leftOut": false,
+        "suggested": true,
+        "title": "About the author",
+        "wordCount": 18
       }
     ],
     "chaptersLeftOut": 0,
@@ -78,15 +86,16 @@
     "language": "en",
     "languageWarning": null,
     "mode": "read",
-    "narratedWordCount": 126,
+    "narratedWordCount": 144,
     "progress": null,
     "shape": "read",
     "title": "A Map of Quiet Places",
     "voiceWarning": null,
     "warnings": [
+      "“About the author” looks like front matter but is not marked as such; it is kept.",
       "An empty section was skipped (OPS/blank.xhtml)."
     ],
-    "wordCount": 126
+    "wordCount": 144
   },
   "book-3": {
     "authors": [
