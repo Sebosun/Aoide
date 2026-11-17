@@ -7,6 +7,7 @@ import BookVoice from "@/components/book/BookVoice.vue";
 import RecordingPanel from "@/components/recording/RecordingPanel.vue";
 import { useRecordingsStore } from "@/stores/recordings";
 import { useReaderStore } from "@/stores/reader";
+import { formatDuration } from "@/estimate";
 
 /** Who reads the book: its paired recording (synced, or while it syncs) or a speech engine, with each one's
  *  settings. Switching restarts playback at the current sentence. */
@@ -14,6 +15,7 @@ const props = defineProps<{ bookId: string }>();
 const recordings = useRecordingsStore(),
   reader = useReaderStore();
 const speakMissing = ref(false),
+  shorten = ref(false),
   error = ref("");
 const recording = computed(() => recordings.byBook[props.bookId] ?? null);
 const ready = computed(() => Boolean(recording.value?.listenable));
@@ -21,7 +23,10 @@ const ready = computed(() => Boolean(recording.value?.listenable));
 const playing = computed<Narration>(() => (recording.value?.narrates ? "recording" : "speech"));
 onMounted(async () => {
   try {
-    speakMissing.value = (await api.bookSettings({ bookId: props.bookId })).speakMissing;
+    const [own, app] = await Promise.all([api.bookSettings({ bookId: props.bookId }), api.appSettings()]);
+    speakMissing.value = own.speakMissing;
+    // The book's own choice, else the app's.
+    shorten.value = own.shortenSilences ?? app.shortenSilences;
   } catch (e) {
     error.value = String(e);
   }
@@ -34,6 +39,17 @@ async function setSpeakMissing(on: boolean) {
     speakMissing.value = on;
     // Chapters show which sentences play: read them again.
     await reader.refreshBook(props.bookId);
+  } catch (e) {
+    error.value = String(e);
+  }
+}
+/** The book's own choice from now on (playing on from where it is). */
+async function setShorten(on: boolean) {
+  error.value = "";
+  try {
+    const settings = await api.bookSettings({ bookId: props.bookId });
+    await api.saveBookSettings({ bookId: props.bookId, settings: { ...settings, shortenSilences: on } });
+    shorten.value = on;
   } catch (e) {
     error.value = String(e);
   }
@@ -96,6 +112,22 @@ async function choose(next: Narration) {
             >Speak what the recording lacks with the speech engine<small
               >Chapters and passages the narrator skipped are read in this book's speech-engine voice instead of being
               passed over.</small
+            ></span
+          ></label
+        >
+        <label class="book-narration__check"
+          ><input
+            type="checkbox"
+            :checked="shorten"
+            aria-label="Shorten long silences in the recording"
+            @change="setShorten(($event.target as HTMLInputElement).checked)"
+          />
+          <span
+            >Shorten long silences<small
+              >Pauses longer than half a second are cut to half a second as it plays; the highlighted word and your
+              place stay where they were.<template v-if="recording?.silenceSavedMs">
+                Shortened silences saved {{ formatDuration(recording.silenceSavedMs) }}.</template
+              ></small
             ></span
           ></label
         >

@@ -163,8 +163,13 @@ const audiobookLength = computed(
 );
 const audiobookFacts = computed(() => {
   const parts = overview.value?.chapters.length ?? 0,
-    files = recordingFiles.value.length;
-  return [`${parts} ${parts === 1 ? "part" : "parts"}`, files ? `${files} ${files === 1 ? "file" : "files"}` : null]
+    files = recordingFiles.value.length,
+    saved = recordings.byBook[props.bookId]?.silenceSavedMs ?? 0;
+  return [
+    `${parts} ${parts === 1 ? "part" : "parts"}`,
+    files ? `${files} ${files === 1 ? "file" : "files"}` : null,
+    saved ? `Shortened silences saved ${formatDuration(saved)}` : null,
+  ]
     .filter(Boolean)
     .join(" · ");
 });

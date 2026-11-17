@@ -247,6 +247,20 @@ async function chooseInbox() {
         >After ten seconds or more, playback starts again from the start of the sentence; after five minutes, a sentence
         earlier; after an hour, two. An audiobook without text goes back 3, 10 or 20 seconds.</SettingsNote
       >
+      <label v-if="settings" class="library-settings__check"
+        ><input
+          :checked="settings.shortenSilences"
+          type="checkbox"
+          aria-label="Shorten long silences in recordings"
+          @change="save({ shortenSilences: ($event.target as HTMLInputElement).checked })"
+        />
+        Shorten long silences in audiobooks</label
+      >
+      <SettingsNote
+        >Pauses longer than half a second are cut to half a second as they play, in audiobooks on their own and those
+        paired with a book (unless the book says otherwise under Narration in its tools). The highlighted word, your
+        place and bookmarks stay where they were. Applies the next time one starts playing.</SettingsNote
+      >
     </SettingsSection>
     <SettingsSection title="Preparing audio">
       <label v-if="settings" class="library-settings__check"

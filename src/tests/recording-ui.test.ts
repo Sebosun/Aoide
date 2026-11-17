@@ -112,6 +112,22 @@ it("lets the speech engine speak what the recording lacks, only when asked", asy
   ).toBe(false);
 });
 
+it("shortens a recording's long silences as the app does unless the book says otherwise, and says what it saved", async () => {
+  await useLibraryStore().start();
+  await mock.updateAppSettings({ patch: { shortenSilences: true } });
+  mock.setRecordingForTest("book-0", "ready", "recording", { silenceSavedMs: 14 * 60_000 });
+  const wrapper = mount(BookNarration, { props: { bookId: "book-0" }, attachTo: document.body });
+  await flushPromises();
+  const toggle = () => wrapper.get('[aria-label="Shorten long silences in the recording"]');
+  expect((toggle().element as HTMLInputElement).checked, "as the app does").toBe(true);
+  expect(wrapper.text()).toContain("Shortened silences saved 14 min");
+  await toggle().setValue(false);
+  await flushPromises();
+  expect((await mock.bookSettings({ bookId: "book-0" })).shortenSilences).toBe(false);
+  expect((toggle().element as HTMLInputElement).checked).toBe(false);
+  wrapper.unmount();
+});
+
 it("lists recordings being synced in the queue with their pause button", async () => {
   mount(App, { attachTo: document.body });
   await flushPromises();
