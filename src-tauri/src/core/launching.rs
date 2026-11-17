@@ -39,8 +39,10 @@ pub struct SavedLink {
 
 /// Any web page can send a page to save, so saves are let through one a second at most…
 pub const SAVE_EVERY: Duration = Duration::from_secs(1);
-/// …and no more than this many are held while the window starts.
+/// …and no more than this many are held while the window starts, saved or not.
 pub const HELD_SAVES: usize = 20;
+/// What the user is told when a page sent from the browser could not be saved.
+const SAVE_FAILED: &str = "Could not save the page";
 
 /// Why a page sent from the browser was not saved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -334,7 +336,7 @@ impl Launching {
                     "Could not save a page sent from the browser"
                 );
                 let failure = Failure {
-                    doing: "Could not save the page".into(),
+                    doing: SAVE_FAILED.into(),
                     error,
                 };
                 if let Deliver::Tell(failure) = self.apply(Event::Failed(failure)) {
@@ -347,7 +349,9 @@ impl Launching {
     /// Lets a save at `now` through, or says why not.
     fn admit(&self, now: Instant) -> Result<(), Dropped> {
         let held = match &*lock(&self.window) {
-            Window::Waiting { saved, .. } => saved.len(),
+            Window::Waiting { saved, failed, .. } => {
+                saved.len() + failed.iter().filter(|f| f.doing == SAVE_FAILED).count()
+            }
             Window::Ready => 0,
         };
         let mut last = lock(&self.last_save);
@@ -764,6 +768,41 @@ mod tests {
         send(23, 22_500);
         send(24, 23_500);
         assert_eq!(told()[held.len()..], paths(&[22, 24]));
+    }
+
+    /// Fails every page it is sent, and counts them.
+    #[derive(Default)]
+    struct FailsSaves(Mutex<usize>);
+
+    impl LaunchHost for FailsSaves {
+        fn import(&self, path: &Path) -> ImportResult {
+            Imports(Vec::new()).import(path)
+        }
+
+        fn save_link(&self, _url: &Url) -> Result<SavedLink, String> {
+            *lock(&self.0) += 1;
+            Err("the library is busy".into())
+        }
+    }
+
+    #[test]
+    fn pages_that_could_not_be_saved_count_among_the_twenty_held_before_the_window_listens() {
+        use std::time::{Duration, Instant};
+        let library = Arc::new(Mutex::new(Library::open_in_memory().unwrap()));
+        let events = Arc::new(Recorder::default());
+        let launching = Launching::new(library, events.clone(), Reporter::new(events.clone()));
+        let host = FailsSaves::default();
+        let start = Instant::now();
+        for n in 0..25u64 {
+            let url = Url::parse(&format!("https://quay.example/{n}")).unwrap();
+            let at = start + Duration::from_secs(n);
+            launching.act_at(vec![Request::SaveLink(url)], &host, at);
+        }
+
+        assert_eq!(*lock(&host.0), HELD_SAVES);
+        launching.take_open_requests();
+        // Told once the window listens (the reporter folds the repeats).
+        assert_eq!(events.count(CoreEvent::PROBLEM), 1);
     }
 
     #[test]
