@@ -32,6 +32,9 @@ pub enum Fate {
     Unrecorded,
     /// In the part of the recording the sync has not safely reached yet.
     AwaitingSync,
+    /// In a chapter left out of the narration (see `core/leaving_out.rs`): nothing plays, not
+    /// even its pause, and no speech is made for it. Holds what it would otherwise be.
+    LeftOut(Box<Fate>),
 }
 
 /// What can happen to an entry.
@@ -46,11 +49,19 @@ pub enum Event {
     Retaken(SynthesisRequest),
     /// The recording's sync went further; this is how the entry is narrated now.
     Resynced(Fate),
+    /// Playback was sent into its left-out chapter: an explicit request wins, for the rest of
+    /// the session.
+    Admitted,
 }
 
 /// The whole state machine. Events that do not apply leave the fate as it is.
 pub fn next(fate: Fate, event: Event) -> Fate {
     match (fate, event) {
+        (Fate::LeftOut(fate), Event::Admitted) => *fate,
+        (Fate::LeftOut(_), Event::Resynced(fate)) => fate,
+        // Admitted already: it stays admitted (both plans leave out the same chapters).
+        (_, Event::Resynced(Fate::LeftOut(fate))) => *fate,
+        (Fate::LeftOut(fate), event) => Fate::LeftOut(Box::new(next(*fate, event))),
         (Fate::Speech { request, .. }, Event::Made) => Fate::Speech {
             request,
             made: true,
@@ -203,8 +214,14 @@ impl NarrationPlan {
                     .segment(index)
                     .map(|s| s.id.clone())
                     .unwrap_or_default(),
-                speakable: !matches!(entry.fate, Fate::Silent | Fate::Unrecorded),
-                pause_after_ms: entry.pause_after_ms,
+                speakable: !matches!(
+                    entry.fate,
+                    Fate::Silent | Fate::Unrecorded | Fate::LeftOut(_)
+                ),
+                pause_after_ms: match entry.fate {
+                    Fate::LeftOut(_) => 0,
+                    _ => entry.pause_after_ms,
+                },
             })
             .collect()
     }
@@ -218,12 +235,16 @@ impl NarrationPlan {
 
     /// The entries as the speech engine's planner sees them: what it does not say counts as
     /// made, so it is never asked for but its length still counts towards what lies ahead.
+    /// What is left out does not play at all.
     pub fn speech_items(&self) -> Vec<PlanItem> {
         self.entries
             .iter()
             .map(|entry| PlanItem {
                 key: entry.key.clone(),
-                speakable: !matches!(entry.fate, Fate::Silent | Fate::Unrecorded),
+                speakable: !matches!(
+                    entry.fate,
+                    Fate::Silent | Fate::Unrecorded | Fate::LeftOut(_)
+                ),
                 cached: !matches!(entry.fate, Fate::Speech { made: false, .. } | Fate::Silent),
                 duration_ms: entry.duration_ms,
             })
@@ -303,7 +324,7 @@ impl NarrationPlan {
         for (_, entry) in self.within(range) {
             match entry.fate {
                 Fate::AwaitingSync => return None,
-                Fate::Unrecorded => {}
+                Fate::Unrecorded | Fate::LeftOut(_) => {}
                 Fate::Silent => total += u64::from(entry.pause_after_ms),
                 Fate::Clip | Fate::Speech { .. } => {
                     total += u64::from(entry.duration_ms) + u64::from(entry.pause_after_ms);
@@ -640,5 +661,64 @@ mod tests {
             next(Fate::AwaitingSync, Event::Resynced(Fate::Unrecorded)),
             Fate::Unrecorded
         );
+    }
+
+    #[test]
+    fn a_left_out_entry_is_passed_over_until_admitted_and_stays_admitted() {
+        let request = SynthesisRequest {
+            text: "t".into(),
+            voice_id: "v".into(),
+            language: None,
+            params: Default::default(),
+            take: 0,
+        };
+        let speech = |made: bool| Fate::Speech {
+            request: request.clone(),
+            made,
+        };
+        let out = |fate: Fate| Fate::LeftOut(Box::new(fate));
+        let take = SynthesisRequest {
+            take: 1,
+            ..request.clone()
+        };
+        let retaken = Fate::Speech {
+            request: take.clone(),
+            made: false,
+        };
+        let table = [
+            // Seeking into it: what it would otherwise be.
+            (out(speech(true)), Event::Admitted, speech(true)),
+            (out(Fate::Clip), Event::Admitted, Fate::Clip),
+            (out(Fate::Silent), Event::Admitted, Fate::Silent),
+            (out(Fate::AwaitingSync), Event::Admitted, Fate::AwaitingSync),
+            // Only a left-out entry is admitted.
+            (speech(false), Event::Admitted, speech(false)),
+            (Fate::Unrecorded, Event::Admitted, Fate::Unrecorded),
+            // Its speech is still followed while it is left out.
+            (out(speech(false)), Event::Made, out(speech(true))),
+            (out(speech(true)), Event::Lost, out(speech(false))),
+            (out(speech(true)), Event::Retaken(take), out(retaken)),
+            (out(Fate::Clip), Event::Made, out(Fate::Clip)),
+            // The sync going further: left out still, or admitted still.
+            (
+                out(Fate::AwaitingSync),
+                Event::Resynced(out(Fate::Clip)),
+                out(Fate::Clip),
+            ),
+            (
+                Fate::AwaitingSync,
+                Event::Resynced(out(Fate::Clip)),
+                Fate::Clip,
+            ),
+            (
+                Fate::Clip,
+                Event::Resynced(out(Fate::Unrecorded)),
+                Fate::Unrecorded,
+            ),
+        ];
+        for (fate, event, expected) in table {
+            let case = format!("{fate:?} on {event:?}");
+            assert_eq!(next(fate, event), expected, "{case}");
+        }
     }
 }
