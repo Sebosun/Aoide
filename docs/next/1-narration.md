@@ -491,6 +491,8 @@ None new (a settings change is already logged), but one reported failure:
 
 **Size:** L. Build 1.1 to 1.4 first; this one changes how books are segmented.
 
+**Built:** 2026-11-17 (4d16c4f..2742b0e)
+
 ### Outcome
 
 In Book tools › Voice, choose a second voice for speech in quotation marks. The narrator reads
@@ -575,3 +577,24 @@ in by hand.
 
 - Inner thoughts in italics get no third role (plan's default).
 - The short-span threshold is a constant, not a setting (plan's default).
+
+### As built
+
+- `aoide_text::quoted_spans(chars)` takes no language: the quote pairs are the same for every
+  language listed. A speech over several paragraphs is found paragraph by paragraph (each opens
+  with a quote mark, and an open quote runs to its paragraph's end), so nothing is carried
+  across blocks. `dialogue::pieces` cuts a sentence at quote boundaries; a piece without a
+  letter (`,” ` leftovers) joins the one before; `SHORT_SPAN` is 25.
+- `Segment.role`; `group` never merges across roles. `Layout` asks for `split_dialogue` when
+  the book has a dialogue voice and is not narrated by its recording.
+- `Voicing::request_as(text, take, role)` replaced `request`. `dialogue_voice_id` is used only
+  when the engine offers it; otherwise everything is read in the narrator's voice.
+- Ids move, so the place and bookmarks are now found by character offset first: `book_overview`
+  gives the progress's sentence as it is now, `Core::bookmarks` rewrites each bookmark's
+  `segment_id`, and a bookmark of the saved place uses `index_at` before the stored id.
+- Saving a change of dialogue voice re-indexes the book's text (3.5) and logs
+  `voicing.dialogue`.
+- `EngineDescriptor.cheap_voice_switch` (serde default true; not in cache keys): false only for
+  the OpenAI-compatible adapter.
+- `preview_dialogue(bookId, …)` picks the first quote of at least `SHORT_SPAN` characters and
+  the narration of its sentence (or the narration sentence before it).

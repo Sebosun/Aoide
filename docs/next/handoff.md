@@ -9,10 +9,10 @@ Delete this file when the remaining work is done.
 
 Built, independently reviewed (all checks green) and pushed, through `a91e619`:
 6.4, 1.1, 1.4, 2.1, 2.2, 2.7, 6.2, 1.2, 1.3, 3.3, 3.1, 3.2, 6.1, 5.2, 4.7, 4.3, 2.3, 2.4, 2.5,
-3.7; 5.3, 5.5, 4.1, 4.2, 6.3, 4.8, 5.1, 3.5 and 2.6 built here, not pushed or reviewed. Each plan section has a `**Built:** 2026-11-17 (<first>..<last>)` line.
+3.7; 5.3, 5.5, 4.1, 4.2, 6.3, 4.8, 5.1, 3.5, 2.6 and 1.5 built here, not pushed or reviewed. Each plan section has a `**Built:** 2026-11-17 (<first>..<last>)` line.
 
 **Not started**, in the order planned:
-1.5, 3.6, 4.5 (every format the section lists).
+3.6, 4.5 (every format the section lists).
 
 ## How the work was run
 
@@ -58,6 +58,8 @@ a review that is not green. Its rules worth keeping by hand too:
 - 2.6: a slow narrator with the setting on: pauses shorter, no clicks at the cuts, the word
   highlight on the word; a bookmark made with it on lands on the same words with it off; the
   saved time on the book's page after a chapter.
+- 1.5: a chapter of real fiction with a second voice: switches at the right places, no clicks
+  at the cuts; Preview both voices; turning it off uses the old cached audio again.
 
 ## Open decisions for the user
 
