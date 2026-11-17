@@ -359,14 +359,17 @@ it("opens Add with a link pasted outside a text field", async () => {
   wrapper.unmount();
 });
 
-it("imports dropped PDFs as it does EPUBs", async () => {
+it("imports dropped PDFs and saved emails as it does EPUBs", async () => {
   const imported = vi.spyOn(mock, "importFiles");
   const wrapper = mount(App, { attachTo: document.body });
   await flushPromises();
   await wrapper.get(".app").trigger("drop", {
-    dataTransfer: { types: ["Files"], files: [{ name: "Quay Lights.PDF" }, { name: "notes.txt" }] },
+    dataTransfer: {
+      types: ["Files"],
+      files: [{ name: "Quay Lights.PDF" }, { name: "notes.txt" }, { name: "Tides this week.eml" }],
+    },
   });
   await flushPromises();
-  expect(imported).toHaveBeenCalledWith({ paths: ["Quay Lights.PDF"] });
+  expect(imported).toHaveBeenCalledWith({ paths: ["Quay Lights.PDF", "Tides this week.eml"] });
   wrapper.unmount();
 });

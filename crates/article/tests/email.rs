@@ -119,3 +119,50 @@ fn something_that_is_not_an_email_is_none() {
     assert!(from_email(b"%PDF-1.4 not a mail at all").is_none());
     assert!(from_email(b"<html><body><p>A page.</p></body></html>").is_none());
 }
+
+#[test]
+fn the_page_made_from_an_email_reads_with_its_subject_sender_and_date() {
+    use aoide_article::{extract, ExtractOptions};
+    let page = from_email(&crlf(ALTERNATIVE)).unwrap();
+    let url = url::Url::parse("email:issue-41@harbour.example").unwrap();
+    let email = ExtractOptions {
+        email: true,
+        ..ExtractOptions::default()
+    };
+    let read = extract(&page.page(), &url, &email);
+    assert_eq!(read.meta.title.as_deref(), Some("Tides – a weekly note"));
+    assert_eq!(read.meta.byline.as_deref(), Some("Harbour Weekly"));
+    assert_eq!(read.meta.site_name.as_deref(), Some("Harbour Weekly"));
+    assert_eq!(
+        read.meta.published.and_then(|p| p.at_ms),
+        Some(1_794_295_800_000)
+    );
+    let text = &read.document.chapters[0].text;
+    assert!(
+        text.contains("The spring tides come early this year"),
+        "{text}"
+    );
+}
+
+#[test]
+fn a_short_email_is_whole_and_an_empty_one_is_not() {
+    use aoide_article::{extract, Completeness, ExtractOptions};
+    let email = ExtractOptions {
+        email: true,
+        ..ExtractOptions::default()
+    };
+    let url = url::Url::parse("email:short@quay.example").unwrap();
+    let short = from_email(&crlf(
+        "From: a@quay.example\nSubject: Ferry\n\nNo ferry today.\n",
+    ))
+    .unwrap();
+    assert_eq!(
+        extract(&short.page(), &url, &email).completeness,
+        Completeness::Complete
+    );
+    let empty = from_email(&crlf("From: a@quay.example\nSubject: Ferry\n\n\n")).unwrap();
+    assert_eq!(
+        extract(&empty.page(), &url, &email).completeness,
+        Completeness::Empty
+    );
+}

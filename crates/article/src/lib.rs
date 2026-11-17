@@ -30,6 +30,9 @@ pub struct ExtractOptions {
     pub max_blocks: usize,
     /// Bytes of text kept across all blocks.
     pub max_text_bytes: usize,
+    /// The page is a saved email made by [`EmailPage::page`]: its subject is the title, and
+    /// a newsletter's mailing parts are left out.
+    pub email: bool,
 }
 
 impl Default for ExtractOptions {
@@ -39,6 +42,7 @@ impl Default for ExtractOptions {
             max_elements: 200_000,
             max_blocks: 20_000,
             max_text_bytes: 4 * 1024 * 1024,
+            email: false,
         }
     }
 }
@@ -102,6 +106,10 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
     let mut blocks = body.blocks;
     let mut warnings = body.warnings;
     let mut meta = read.meta;
+    // An email's subject is its title, whatever its headings say.
+    if options.email {
+        meta.title = scan::title(html).or(meta.title);
+    }
     let declared = read.declared;
     // A page whose markup falls short of the text its metadata carries (as a capture is judged
     // cut short): read the metadata's. A body a little longer (captions, a credit line) is the
@@ -123,8 +131,14 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
     meta.declared_words = declared
         .word_count
         .or_else(|| declared.body.as_deref().map(words));
-    let completeness =
-        completeness::judge(meta.word_count, meta.declared_words, declared.free, &signs);
+    // An email is the whole text in hand: there is no wall to be behind.
+    let completeness = match (options.email, meta.word_count) {
+        (true, 0) => Completeness::Empty,
+        (true, _) => Completeness::Complete,
+        (false, _) => {
+            completeness::judge(meta.word_count, meta.declared_words, declared.free, &signs)
+        }
+    };
     let texts: Vec<&str> = blocks.iter().map(|b| b.text.as_str()).collect();
     let chapter = Chapter {
         title: meta
@@ -221,9 +235,10 @@ struct Found {
 }
 
 fn readable(html: &str, url: &Url, options: &ExtractOptions) -> Found {
-    let Ok(mut reader) =
-        dom_smoothie::Readability::new(html, Some(url.as_str()), Some(config(options)))
-    else {
+    // An address that is not a web page's (a saved email's `email:`) cannot resolve links:
+    // the content finder is given none rather than refusing the page.
+    let base = (!url.cannot_be_a_base()).then(|| url.as_str());
+    let Ok(mut reader) = dom_smoothie::Readability::new(html, base, Some(config(options))) else {
         return Found::default();
     };
     let title = Some(blocks::collapse(&reader.get_article_title())).filter(|t| !t.is_empty());

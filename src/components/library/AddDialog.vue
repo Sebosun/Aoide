@@ -80,7 +80,7 @@ async function choose(feed: DiscoveredFeed) {
     saving.value = false;
   }
 }
-/** EPUBs and PDFs join the library; Library opens to show them (and anything that could not be read). */
+/** EPUBs, PDFs and saved emails join the library; Library opens to show them (and anything that could not be read). */
 async function chooseBooks() {
   const paths = await api.chooseBooks().catch((e) => {
     library.error = String(e);
@@ -205,8 +205,8 @@ function rescan() {
         <div class="add-dialog__drop">
           <b class="add-dialog__drop-title">Drop books or audiobooks anywhere on this window</b>
           <p class="add-dialog__hint">
-            EPUB or PDF for text. M4B, MP3, FLAC or Ogg for audio: an audiobook is paired with its book, or added on its
-            own.
+            EPUB or PDF for text, or a saved email (.eml) to read as an article. M4B, MP3, FLAC or Ogg for audio: an
+            audiobook is paired with its book, or added on its own.
           </p>
           <div class="add-dialog__buttons">
             <UiButton

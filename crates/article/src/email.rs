@@ -23,6 +23,58 @@ pub struct EmailPage {
     pub attachments: usize,
 }
 
+impl EmailPage {
+    /// The page an article keeps: the email's HTML under a head naming its subject, sender and
+    /// date, which extraction reads back each time the article is opened.
+    pub fn page(&self) -> String {
+        let attribute = |text: &str| html_escape::encode_double_quoted_attribute(text).into_owned();
+        let mut head = String::from("<meta charset=\"utf-8\">");
+        let mut json = serde_json::Map::new();
+        json.insert("@context".into(), "https://schema.org".into());
+        json.insert("@type".into(), "Article".into());
+        if let Some(subject) = &self.subject {
+            head.push_str(&format!(
+                "<title>{}</title><meta property=\"og:title\" content=\"{}\">",
+                html_escape::encode_text(subject),
+                attribute(subject)
+            ));
+            json.insert("headline".into(), subject.as_str().into());
+        }
+        if let Some(from) = &self.from {
+            head.push_str(&format!(
+                "<meta name=\"author\" content=\"{0}\"><meta property=\"og:site_name\" content=\"{0}\">",
+                attribute(from)
+            ));
+            json.insert(
+                "author".into(),
+                serde_json::json!({ "@type": "Person", "name": from }),
+            );
+            json.insert(
+                "publisher".into(),
+                serde_json::json!({ "@type": "Organization", "name": from }),
+            );
+        }
+        if let Some(date) = &self.date {
+            head.push_str(&format!(
+                "<meta property=\"article:published_time\" content=\"{}\">",
+                attribute(&date.text)
+            ));
+            json.insert("datePublished".into(), date.text.as_str().into());
+        }
+        // A `</script>` in a subject cannot end the block early.
+        let json = serde_json::Value::Object(json)
+            .to_string()
+            .replace("</", "<\\/");
+        head.push_str(&format!(
+            "<script type=\"application/ld+json\">{json}</script>"
+        ));
+        format!(
+            "<!doctype html><html><head>{head}</head><body>{}</body></html>",
+            self.html
+        )
+    }
+}
+
 /// Reads `bytes` as an email; `None` when they are not one (no sender, subject or id).
 pub fn from_email(bytes: &[u8]) -> Option<EmailPage> {
     let message = MessageParser::default().parse(bytes)?;
@@ -56,7 +108,7 @@ pub fn from_email(bytes: &[u8]) -> Option<EmailPage> {
     Some(EmailPage {
         view_online: view_online(&html),
         date: message.date().map(|date| Published {
-            text: date.to_rfc822(),
+            text: date.to_rfc3339(),
             at_ms: Some(date.to_timestamp() * 1000),
         }),
         html,

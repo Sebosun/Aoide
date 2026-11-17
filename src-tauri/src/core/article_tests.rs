@@ -674,3 +674,92 @@ async fn a_finished_article_is_offered_for_the_archive_or_archived_by_the_settin
     assert!(archived(&core));
     assert_eq!(events.count("item://finished"), 1);
 }
+
+/// A newsletter as a mail client saves it: no "view online" link.
+pub(super) const NEWSLETTER: &str = "From: \"Harbour Weekly\" <letters@harbour.example>\r\n\
+Subject: Tides this week\r\n\
+Date: Tue, 10 Nov 2026 07:30:00 +0000\r\n\
+Message-ID: <issue-41@harbour.example>\r\n\
+Content-Type: text/html; charset=utf-8\r\n\r\n\
+<html><body><h1>Tides this week</h1>\
+<p>The spring tides come early this year, and the harbour master has moved the moorings \
+to the inner basin until the end of the month.</p>\
+<p>Boats on the outer pontoon should expect a strong set on the ebb.</p></body></html>\r\n";
+
+#[tokio::test]
+async fn a_saved_email_becomes_an_article_without_a_request() {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let pages = Pages::with(&[]);
+    let (core, _) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+    let mail = dir.path().join("Tides.eml");
+    std::fs::write(&mail, NEWSLETTER).unwrap();
+    let path = mail.to_string_lossy().into_owned();
+
+    let results = core.import_files(vec![path.clone()]);
+    assert_eq!(results[0].error, None);
+    let id = results[0].book_id.clone().unwrap();
+    assert_eq!(stage(&core, &id), Some(Stage::Ready), "read at once");
+    let books = core.list_books().unwrap();
+    let item = books.iter().find(|b| b.id == id).unwrap();
+    assert_eq!(item.kind, ItemKind::Article);
+    assert_eq!(item.title, "Tides this week");
+    assert_eq!(item.authors, ["Harbour Weekly"]);
+    assert_eq!(
+        item.article.as_ref().unwrap().site_name.as_deref(),
+        Some("Harbour Weekly")
+    );
+    let view = core.article(&id).unwrap();
+    assert_eq!(view.via, Some(ArticleSource::Email));
+    assert_eq!(view.canonical_url, "email:issue-41@harbour.example");
+    assert!(view.published_at.is_some());
+    let chapter = core.chapter(&id, 0).unwrap();
+    let text: String = chapter
+        .blocks
+        .iter()
+        .flat_map(|b| &b.segments)
+        .flat_map(|s| &s.words)
+        .map(|w| format!("{w} "))
+        .collect();
+    assert!(text.contains("The spring tides come early"), "{text}");
+
+    // The same email again is the same item; the file is not copied into the library.
+    assert_eq!(core.import_files(vec![path]).remove(0).book_id, Some(id));
+    let articles = core
+        .list_books()
+        .unwrap()
+        .into_iter()
+        .filter(|b| b.kind == ItemKind::Article)
+        .count();
+    assert_eq!(articles, 1);
+    assert!(!dir.path().join("Books/Tides.eml").exists());
+    assert_eq!(pages.asks(), 0, "nothing is fetched");
+}
+
+#[tokio::test]
+async fn an_email_with_a_web_copy_is_kept_under_its_address_and_a_non_email_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let pages = Pages::with(&[]);
+    let (core, _) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+    let online = NEWSLETTER.replace(
+        "<h1>",
+        "<p><a href=\"https://harbour.example/issues/41\">View in browser</a></p><h1>",
+    );
+    let mail = dir.path().join("Tides.eml");
+    std::fs::write(&mail, online).unwrap();
+    let not_mail = dir.path().join("notes.eml");
+    std::fs::write(&not_mail, "just some words, no headers").unwrap();
+    let results = core.import_files(vec![
+        mail.to_string_lossy().into_owned(),
+        not_mail.to_string_lossy().into_owned(),
+    ]);
+    let id = results[0].book_id.clone().unwrap();
+    assert_eq!(
+        core.article(&id).unwrap().canonical_url,
+        "https://harbour.example/issues/41"
+    );
+    assert_eq!(results[1].book_id, None);
+    assert_eq!(results[1].error.as_deref(), Some("not an email"));
+    assert_eq!(pages.asks(), 0);
+}

@@ -147,6 +147,15 @@ impl Shelf {
         }
     }
 
+    /// Keeps item `id` out once removed, as a removed book is: a saved email in the inbox is
+    /// not added again.
+    pub fn keep_out(&self, id: &str) {
+        let mut ignored = self.ignored();
+        if ignored.insert(id.into()) {
+            self.set_ignored(&ignored);
+        }
+    }
+
     /// Takes books back that were removed (they are being added again).
     pub fn restore<'a>(&self, ids: impl IntoIterator<Item = &'a str>) {
         let mut ignored = self.ignored();
@@ -834,8 +843,49 @@ impl super::Core {
         self.shelf.rescan()
     }
 
+    /// Adds files to the library: books are copied into its folder, saved emails (`.eml`)
+    /// become articles. Results are in the order of `paths`.
     pub fn import_files(&self, paths: Vec<String>) -> Vec<ImportResult> {
-        self.shelf.import_files(paths)
+        let is_email = |path: &String| super::articles::is_email_file(std::path::Path::new(path));
+        let books: Vec<String> = paths.iter().filter(|p| !is_email(p)).cloned().collect();
+        // An email alone does not rescan the library folder.
+        let mut books = match books.is_empty() {
+            true => Vec::new().into_iter(),
+            false => self.shelf.import_files(books).into_iter(),
+        };
+        let mut emailed = false;
+        let results = paths
+            .into_iter()
+            .map(|path| {
+                if !is_email(&path) {
+                    return books.next().expect("one result per book");
+                }
+                let made = self
+                    .articles
+                    .import_email(std::path::Path::new(&path), super::now_ms());
+                if let Ok(id) = &made {
+                    // Added by hand, a removed email comes back.
+                    self.shelf.restore([id.as_str()]);
+                    emailed = true;
+                }
+                match made {
+                    Ok(id) => ImportResult {
+                        path,
+                        book_id: Some(id),
+                        error: None,
+                    },
+                    Err(error) => ImportResult {
+                        path,
+                        book_id: None,
+                        error: Some(error),
+                    },
+                }
+            })
+            .collect();
+        if emailed {
+            self.emit(super::CoreEvent::LibraryChanged);
+        }
+        results
     }
 
     pub fn list_books(&self) -> Result<Vec<BookSummary>, String> {
@@ -1010,7 +1060,14 @@ impl super::Core {
         }
         self.plan(super::PlanEvent::BookForgotten(id.into()));
         self.forget_recording(id);
+        let emailed = self
+            .articles
+            .view(id)
+            .is_ok_and(|view| view.via == Some(super::ArticleSource::Email));
         let files = self.shelf.remove(id)?;
+        if emailed {
+            self.shelf.keep_out(id);
+        }
         self.articles.forget(id);
         self.storage.delete_audio(id, files);
         self.emit(CoreEvent::LibraryChanged);

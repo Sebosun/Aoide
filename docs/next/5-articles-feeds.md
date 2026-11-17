@@ -545,7 +545,7 @@ coming, the README explains how to get them as a feed.
 
 ### Logging
 
-`article.from_email` (`book`, `parts`, `outcome`).
+`article.from_email` (`book`, `attachments`, `outcome`: `ok`, `not_an_email`).
 
 ### Done when
 

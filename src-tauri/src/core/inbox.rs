@@ -22,6 +22,12 @@ pub(super) trait InboxHost {
     fn in_library(&self, id: &str) -> bool;
     /// The books the user removed: their files are not added again from the inbox.
     fn removed(&self) -> HashSet<String>;
+    /// The item the file at `path` (holding `bytes`) is or would be; `None` when it cannot be
+    /// one. A book is its content's hash.
+    fn item_id(&self, path: &Path, bytes: &[u8]) -> Option<String> {
+        let _ = path;
+        Some(aoide_library::content_hash(bytes).0)
+    }
 }
 
 /// A book the inbox added to the library: what the window tells.
@@ -467,7 +473,13 @@ fn take(path: &Path, host: &dyn InboxHost) -> Option<InboxBook> {
         tracing::info!(event = "inbox.skipped", %file, why, error, "Passed over a file in the inbox");
     };
     let id = match std::fs::read(path) {
-        Ok(bytes) => aoide_library::content_hash(&bytes).0,
+        Ok(bytes) => match host.item_id(path, &bytes) {
+            Some(id) => id,
+            None => {
+                skipped("unreadable", "");
+                return None;
+            }
+        },
         Err(error) => {
             skipped("unreadable", &error.to_string());
             return None;
@@ -524,6 +536,14 @@ impl InboxHost for super::Core {
     fn removed(&self) -> HashSet<String> {
         self.shelf.ignored()
     }
+
+    /// A saved email is the article it becomes.
+    fn item_id(&self, path: &Path, bytes: &[u8]) -> Option<String> {
+        if super::articles::is_email_file(path) {
+            return super::articles::email_item_id(bytes);
+        }
+        Some(aoide_library::content_hash(bytes).0)
+    }
 }
 
 impl super::Core {
@@ -554,7 +574,8 @@ fn listed(dir: &Path) -> std::io::Result<Vec<(PathBuf, Stamp)>> {
         let hidden = path
             .file_name()
             .is_some_and(|name| name.to_string_lossy().starts_with('.'));
-        if hidden || !aoide_library::is_book_file(&path) {
+        let takes = aoide_library::is_book_file(&path) || super::articles::is_email_file(&path);
+        if hidden || !takes {
             continue;
         }
         let Ok(meta) = std::fs::metadata(&path) else {
@@ -745,6 +766,35 @@ mod tests {
         assert!(!world.shelf.in_library(&id));
         assert!(world.shelf.ignored().contains(&id), "still removed");
         assert_eq!(world.added().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_saved_email_is_taken_once_and_not_again_once_removed() {
+        use super::super::article_tests::{Pages, NEWSLETTER};
+        use super::super::tests::{library_folder, start_fetching};
+        let dir = tempfile::tempdir().unwrap();
+        library_folder(dir.path(), "");
+        let (core, _) = start_fetching(
+            dir.path(),
+            &aoide_tts::testing::FakeEngine::new(),
+            Pages::with(&[]),
+        );
+        let downloads = dir.path().join("Downloads");
+        std::fs::create_dir_all(&downloads).unwrap();
+        let mail = downloads.join("Tides.eml");
+        std::fs::write(&mail, NEWSLETTER).unwrap();
+        assert_eq!(listed(&downloads).unwrap().len(), 1, "an email is listed");
+
+        let book = take(&mail, &*core).expect("taken");
+        assert_eq!(book.title, "Tides this week");
+        assert!(take(&mail, &*core).is_none(), "already in the library");
+
+        core.remove_book(&book.id).unwrap();
+        assert!(take(&mail, &*core).is_none(), "removed by the user");
+        // Added by hand, it comes back.
+        let again = core.import_files(vec![mail.to_string_lossy().into_owned()]);
+        assert_eq!(again[0].book_id.as_deref(), Some(book.id.as_str()));
+        assert!(take(&mail, &*core).is_none());
     }
 
     /// Waits until `done` holds, or fails the test after a while.

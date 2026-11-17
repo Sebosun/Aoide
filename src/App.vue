@@ -43,10 +43,10 @@ const library = useLibraryStore(),
 const recordings = useRecordingsStore(),
   reader = useReaderStore(),
   signIn = useSignInStore();
-/** Dropped EPUBs and PDFs join the library; dropped audio (files or a folder) is paired with the book whose
+/** Dropped EPUBs, PDFs and saved emails (as articles) join the library; dropped audio (files or a folder) is paired with the book whose
  *  page or reader is open, else added on its own unless its name comes close to a book's. */
 function dropped(paths: string[]) {
-  const books = paths.filter((path) => /\.(epub|pdf)$/i.test(path)),
+  const books = paths.filter((path) => /\.(epub|pdf|eml)$/i.test(path)),
     audio = paths.filter(isAudioPath);
   if (audio.length) {
     const open =

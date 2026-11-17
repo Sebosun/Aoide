@@ -114,6 +114,8 @@ pub enum ArticleSource {
     Feed,
     /// The page rendered in the browser.
     Browser,
+    /// A saved email (`.eml`), read as the page; fetching it again fetches its web copy.
+    Email,
 }
 
 impl ArticleSource {
@@ -123,6 +125,7 @@ impl ArticleSource {
             ArticleSource::Archive => "archive",
             ArticleSource::Feed => "feed",
             ArticleSource::Browser => "browser",
+            ArticleSource::Email => "email",
         }
     }
 
@@ -140,6 +143,7 @@ impl ArticleSource {
             "archive" => Some(ArticleSource::Archive),
             "feed" => Some(ArticleSource::Feed),
             "browser" => Some(ArticleSource::Browser),
+            "email" => Some(ArticleSource::Email),
             _ => None,
         }
     }
@@ -358,13 +362,15 @@ impl Articles {
         Ok(id)
     }
 
-    /// Stores article `url` (given as `link`) on `shelf` from the whole text a feed carried:
-    /// `html` is read as the page, nothing is fetched. Returns its id.
-    pub fn create_from_feed(
+    /// Stores article `url` (given as `link`) on `shelf` from a page in hand (the whole text a
+    /// feed carried, a saved email): `html` is read as the page, nothing is fetched. Returns
+    /// its id.
+    pub fn create_from_html(
         &self,
         url: &Url,
         link: &str,
         html: String,
+        source: ArticleSource,
         shelf: ItemShelf,
         now: i64,
     ) -> Result<String, String> {
@@ -382,9 +388,9 @@ impl Articles {
             fetched_at_ms: now,
             via: Via::Http,
         };
-        let extracted = extract(&snapshot.html, url);
+        let extracted = read(&snapshot.html, url, Some(source.name()));
         let path = self.snapshot_path(&id);
-        self.keep(&id, &row, &snapshot, &extracted, &path, ArticleSource::Feed)?;
+        self.keep(&id, &row, &snapshot, &extracted, &path, source)?;
         // Got at once: it goes through fetching as a fetch would.
         let queued = Stage::from_stored(&row.stage, row.reason.as_deref());
         let to = next(
@@ -392,6 +398,42 @@ impl Articles {
             Event::Got(extracted.completeness),
         );
         self.store_stage(&book, &row.stage, to, None);
+        Ok(id)
+    }
+
+    /// Makes the saved email at `path` an article in the library, read at once, nothing
+    /// fetched; returns its id. Kept under its web copy's address when it links one, else
+    /// `email:<message id>`. The same email again is the same item.
+    pub fn import_email(&self, path: &Path, now: i64) -> Result<String, String> {
+        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+        let Some(email) = aoide_article::from_email(&bytes) else {
+            tracing::info!(
+                event = "article.from_email",
+                outcome = "not_an_email",
+                "A file was not an email"
+            );
+            return Err("not an email".into());
+        };
+        let url = email_address(&email, &bytes)?;
+        let id = aoide_article::canonical_id(&url);
+        if self.exists(&id) {
+            return Ok(id);
+        }
+        let id = self.create_from_html(
+            &url,
+            url.as_str(),
+            email.page(),
+            ArticleSource::Email,
+            ItemShelf::Library,
+            now,
+        )?;
+        tracing::info!(
+            event = "article.from_email",
+            book = crate::logging::book(&id),
+            attachments = email.attachments,
+            outcome = "ok",
+            "Made an article from an email"
+        );
         Ok(id)
     }
 
@@ -507,7 +549,7 @@ impl Articles {
             Err(_) => return Err(row.error.unwrap_or_else(|| "Not fetched yet.".into())),
         };
         let url = Url::parse(&row.canonical_url).map_err(|e| e.to_string())?;
-        let extracted = extract(&html, &url);
+        let extracted = read(&html, &url, row.via.as_deref());
         self.keep_feeds(id, &extracted);
         Ok(extracted.document)
     }
@@ -584,7 +626,9 @@ impl Articles {
         let stored = std::fs::read_to_string(&path).ok();
         let (to, error, written) = match Url::parse(&row.canonical_url) {
             Ok(url) => {
-                let old = stored.as_deref().map(|html| extract(html, &url));
+                let old = stored
+                    .as_deref()
+                    .map(|html| read(html, &url, row.via.as_deref()));
                 let (best, failures) = match getting {
                     Getting::Routes(source) => self.walk(&url, source, old.as_ref(), host).await,
                     Getting::Given(snapshot) => {
@@ -632,7 +676,8 @@ impl Articles {
         let routes = match source {
             ArticleSource::Archive => vec![Route::Archive],
             ArticleSource::Browser => vec![Route::Browser],
-            ArticleSource::Http | ArticleSource::Feed => {
+            // An email's web copy is fetched as any page is.
+            ArticleSource::Http | ArticleSource::Feed | ArticleSource::Email => {
                 plan_fetch(use_, rule.as_ref(), old.map(|o| o.completeness))
             }
         };
@@ -877,6 +922,44 @@ pub(super) fn web_address(text: &str) -> Result<Url, String> {
 
 pub(super) fn extract(html: &str, url: &Url) -> Extracted {
     aoide_article::extract(html, url, &ExtractOptions::default())
+}
+
+/// Whether `path` names a saved email, by its extension.
+pub(super) fn is_email_file(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("eml"))
+}
+
+/// The address a saved email is kept under: its web copy's, else `email:<message id>` (the
+/// file's SHA-256 when it has none).
+fn email_address(email: &aoide_article::EmailPage, bytes: &[u8]) -> Result<Url, String> {
+    if let Some(url) = &email.view_online {
+        return Ok(url.clone());
+    }
+    let id = email.message_id.clone().unwrap_or_else(|| {
+        use sha2::Digest;
+        sha2::Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect()
+    });
+    Url::parse(&format!("email:{id}")).map_err(|e| e.to_string())
+}
+
+/// The item a saved email becomes, without making it; `None` when `bytes` are no email.
+pub(super) fn email_item_id(bytes: &[u8]) -> Option<String> {
+    let email = aoide_article::from_email(bytes)?;
+    let url = email_address(&email, bytes).ok()?;
+    Some(aoide_article::canonical_id(&url))
+}
+
+/// A stored copy read as what it was got from (`via`): a saved email as an email.
+fn read(html: &str, url: &Url, via: Option<&str>) -> Extracted {
+    let options = ExtractOptions {
+        email: via == Some(ArticleSource::Email.name()),
+        ..ExtractOptions::default()
+    };
+    aoide_article::extract(html, url, &options)
 }
 
 impl ArticlesHost for super::Core {

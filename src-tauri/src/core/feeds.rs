@@ -1254,8 +1254,14 @@ impl super::Core {
             match full_text(&entry) {
                 Some(html) => {
                     let page = entry_document(&entry, feed.title.as_deref(), html);
-                    self.articles
-                        .create_from_feed(&url, &link, page, shelf, now)?;
+                    self.articles.create_from_html(
+                        &url,
+                        &link,
+                        page,
+                        super::articles::ArticleSource::Feed,
+                        shelf,
+                        now,
+                    )?;
                 }
                 None => {
                     self.articles.save(&link, shelf, now)?;

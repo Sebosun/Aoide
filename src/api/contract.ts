@@ -881,7 +881,7 @@ export type FetchReason = "signIn" | "paywall" | "check" | "cutShort" | "empty";
 
 export type FetchStage = { "kind": "queued" } | { "kind": "fetching" } | { "kind": "ready" } | { "kind": "needsYou", "reason": FetchReason } | { "kind": "failed" };
 
-export type ArticleSource = "http" | "archive" | "feed" | "browser";
+export type ArticleSource = "http" | "archive" | "feed" | "browser" | "email";
 
 export type DiscoveredFeed = { url: string, title: string | null, subscribed: boolean, };
 
@@ -1434,7 +1434,10 @@ export type Commands = {
   "fetch_discovered_details": { args: { ids: string[] }; result: void };
   /** `pairAudiobook` pairs the audiobook found beside a book once it is imported. */
   "import_discovered": { args: { choices: ImportChoice[] }; result: ImportResult[] };
-  /** The system's file chooser for books (EPUBs and PDFs) to add; null when cancelled. */
+  /**
+   * The system's file chooser for books (EPUBs and PDFs) and saved emails to add; null when
+   * cancelled.
+   */
   "choose_books": { args: Record<string, never>; result: string[] | null };
   /** The system's folder chooser, titled `title` (what the folder is for); null when cancelled. */
   "choose_folder": { args: { title: string }; result: string | null };
@@ -1825,7 +1828,10 @@ export interface CommandApi {
   fetchDiscoveredDetails(args: { ids: string[] }): Promise<void>;
   /** `pairAudiobook` pairs the audiobook found beside a book once it is imported. */
   importDiscovered(args: { choices: ImportChoice[] }): Promise<ImportResult[]>;
-  /** The system's file chooser for books (EPUBs and PDFs) to add; null when cancelled. */
+  /**
+   * The system's file chooser for books (EPUBs and PDFs) and saved emails to add; null when
+   * cancelled.
+   */
   chooseBooks(): Promise<string[] | null>;
   /** The system's folder chooser, titled `title` (what the folder is for); null when cancelled. */
   chooseFolder(args: { title: string }): Promise<string | null>;

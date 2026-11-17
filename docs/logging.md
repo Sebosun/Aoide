@@ -105,7 +105,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `library.import` | info, warn | `ok`, `failed`; per failure `file`, `error` | `core.rs` `import_files` |
 | `library.watch` | warn | `error` | `core.rs`, the library folder watcher |
 | `inbox.imported` | info | `book`, `file` (name only) | `core/inbox.rs` `take`, a book file in the inbox folder copied into the library; the window is told what one look added (`inbox://added`) |
-| `inbox.skipped` | info | `file` (name only), `why` (`in_library`: its content is there already, `removed`: the user removed that book, `unreadable`, `failed`: it could not be added), `error` | `core/inbox.rs` `take`; a file passed over is not looked at again until it changes |
+| `inbox.skipped` | info | `file` (name only), `why` (`in_library`: its content is there already, `removed`: the user removed that book or saved email, `unreadable` (or not an email), `failed`: it could not be added), `error` | `core/inbox.rs` `take`; a file passed over is not looked at again until it changes |
 | `inbox.unavailable` | warn | `error` | `core/inbox.rs` `Inbox::lost`: the inbox folder cannot be listed or watched (gone, or on a drive taken out); it is looked for every 30 s. Never its path |
 | `inbox.stage` | info | `from`, `to` (`off`, `idle`, `settling`, `importing`, `unavailable`) | `core/inbox.rs` `Inbox::apply`, where the inbox's `next` is applied |
 | `discovery.scan` | info, warn | `roots`, `epubs`, `read`, `took_ms`, `outcome`, `error` | `core/discovery.rs` |
@@ -115,6 +115,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `library.merge` | info | `book`, `from` (the audiobook), `outcome` (`ok`, `failed`), `error` | `core/audiobook.rs` `merge_audiobook` |
 | `progress.pending` | info / warn | `book`, `outcome` (`settled` into progress once the sync reached it, `dropped` when read or played first), `error` | `core/audiobook.rs` |
 | `article.save` | info | `book`, `outcome` (`ok`) | `core/articles.rs` `save` |
+| `article.from_email` | info | `book`, `attachments` (left out), `outcome` (`ok`, `not_an_email`) | `core/articles.rs` `import_email`: a saved email (`.eml`) dropped, added or found in the inbox |
 | `article.stage` | info | `book`, `from`, `to`, `reason` (when it needs the user) | `core/articles.rs`, where the fetch stage's `next` is applied |
 | `article.fetch` | info | `book`, `outcome` (`ok`, `failed`), `took_ms` | `core/articles.rs` `fetch` |
 | `article.forget` | warn | `book`, `error` (its folder could not be deleted) | `core/articles.rs` `forget` |
