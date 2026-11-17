@@ -286,6 +286,20 @@ const MIGRATIONS: &[Step] = &[
                 );
                 CREATE UNIQUE INDEX pronunciations_all_books ON pronunciations(written)
                     WHERE book_id IS NULL;"),
+    // Version 19.
+    // Highlights: passages the user marked, with a note. No foreign key: like a book's
+    // settings they stay when the book is removed and come back when it is added again.
+    Step::Sql("CREATE TABLE highlights (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    book_id TEXT NOT NULL,
+                    chapter INTEGER NOT NULL CHECK(chapter >= 0),
+                    start INTEGER NOT NULL CHECK(start >= 0),
+                    end INTEGER NOT NULL CHECK(end > start),
+                    text TEXT NOT NULL,
+                    note TEXT NOT NULL DEFAULT '',
+                    created_at INTEGER NOT NULL
+                );
+                CREATE INDEX highlights_book ON highlights(book_id, chapter, start);"),
 ];
 
 fn add_column_if_missing(

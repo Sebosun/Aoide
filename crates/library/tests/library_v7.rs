@@ -31,7 +31,7 @@ fn a_version_6_library_keeps_every_stored_value_readable_through_its_key() {
     }
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch(
-        r#"DROP TABLE IF EXISTS sites; DROP TABLE IF EXISTS feed_entries; DROP TABLE IF EXISTS feeds; ALTER TABLE books DROP COLUMN shelf; DROP TABLE IF EXISTS articles; ALTER TABLE books DROP COLUMN kind; ALTER TABLE progress DROP COLUMN position_ms; ALTER TABLE bookmarks DROP COLUMN position_ms; DROP TABLE IF EXISTS reading; ALTER TABLE books DROP COLUMN finished_at; ALTER TABLE books DROP COLUMN word_count; DROP TABLE book_values; DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS segment_takes; DROP TABLE IF EXISTS pronunciations; PRAGMA user_version = 6;
+        r#"DROP TABLE IF EXISTS sites; DROP TABLE IF EXISTS feed_entries; DROP TABLE IF EXISTS feeds; ALTER TABLE books DROP COLUMN shelf; DROP TABLE IF EXISTS articles; ALTER TABLE books DROP COLUMN kind; ALTER TABLE progress DROP COLUMN position_ms; ALTER TABLE bookmarks DROP COLUMN position_ms; DROP TABLE IF EXISTS reading; ALTER TABLE books DROP COLUMN finished_at; ALTER TABLE books DROP COLUMN word_count; DROP TABLE book_values; DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS segment_takes; DROP TABLE IF EXISTS pronunciations; DROP TABLE IF EXISTS highlights; PRAGMA user_version = 6;
         INSERT INTO settings (key, value) VALUES
             ('book.a.settings', '{"voice":"Wren"}'),
             ('progress.fraction.a', '0.25'),

@@ -7,7 +7,7 @@ fn a_version_15_library_opens_with_no_tags_and_takes_them() {
     let path = dir.path().join("library.sqlite");
     drop(Library::open(&path).unwrap());
     let conn = rusqlite::Connection::open(&path).unwrap();
-    conn.execute_batch("DROP TABLE book_tags; DROP TABLE tags; DROP TABLE IF EXISTS segment_takes; DROP TABLE IF EXISTS pronunciations; PRAGMA user_version = 15;")
+    conn.execute_batch("DROP TABLE book_tags; DROP TABLE tags; DROP TABLE IF EXISTS segment_takes; DROP TABLE IF EXISTS pronunciations; DROP TABLE IF EXISTS highlights; PRAGMA user_version = 15;")
         .unwrap();
     drop(conn);
 
@@ -35,5 +35,5 @@ fn a_version_15_library_opens_with_no_tags_and_takes_them() {
         .unwrap()
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 18);
+    assert_eq!(version, 19);
 }

@@ -90,7 +90,7 @@ fn a_version_17_library_opens_with_empty_lists() {
     let path = dir.path().join("library.sqlite");
     drop(Library::open(&path).unwrap());
     let conn = rusqlite::Connection::open(&path).unwrap();
-    conn.execute_batch("DROP TABLE pronunciations; PRAGMA user_version = 17;")
+    conn.execute_batch("DROP TABLE pronunciations; DROP TABLE IF EXISTS highlights; PRAGMA user_version = 17;")
         .unwrap();
     drop(conn);
 
@@ -102,5 +102,5 @@ fn a_version_17_library_opens_with_empty_lists() {
         .unwrap()
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 18);
+    assert_eq!(version, 19);
 }

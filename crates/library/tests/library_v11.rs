@@ -47,7 +47,7 @@ fn a_version_10_library_keeps_every_item_on_the_library_shelf() {
     let conn = rusqlite::Connection::open(&path).unwrap();
     conn.execute_batch(
         "DROP TABLE IF EXISTS sites; DROP TABLE feed_entries; DROP TABLE feeds; ALTER TABLE books DROP COLUMN shelf;
-         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS segment_takes; DROP TABLE IF EXISTS pronunciations; PRAGMA user_version = 10;",
+         DROP TABLE IF EXISTS book_tags; DROP TABLE IF EXISTS tags; DROP TABLE IF EXISTS segment_takes; DROP TABLE IF EXISTS pronunciations; DROP TABLE IF EXISTS highlights; PRAGMA user_version = 10;",
     )
     .unwrap();
     drop(conn);

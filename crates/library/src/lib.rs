@@ -14,6 +14,7 @@ mod bookmarks;
 mod collections;
 mod discovered;
 mod feeds;
+mod highlights;
 mod listening;
 mod merge;
 mod pronunciations;
@@ -31,6 +32,7 @@ pub use bookmarks::Bookmark;
 pub use collections::Collection;
 pub use discovered::DiscoveredFile;
 pub use feeds::{EntryListing, EntryRow, FeedRow, NewEntry};
+pub use highlights::{Highlight, NewHighlight};
 pub use listening::{BookListening, DayListening, ListeningStats};
 pub use pronunciations::Pronunciation;
 pub use recordings::{RecordingRow, StoredSyncMap, TranscriptBlock};
@@ -339,6 +341,7 @@ impl Library {
     }
 
     /// Deletes the book, its progress, segment index rows, bookmarks, listening rows and details.
+    /// Its highlights stay, like its settings: they are the user's writing.
     /// Returns the cache-relative files of the removed segments so the caller can delete them.
     pub fn remove_book(&self, id: &BookId) -> Result<Vec<PathBuf>> {
         let tx = self.conn.unchecked_transaction()?;
