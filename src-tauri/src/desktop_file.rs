@@ -33,12 +33,12 @@ pub fn entry(exe: &Path) -> String {
          Type=Application\n\
          Name=Aoide\n\
          GenericName=Audiobook player\n\
-         Comment=Read and listen to EPUBs, PDFs and articles\n\
+         Comment=Read and listen to books and articles\n\
          Exec={} %U\n\
          Icon=aoide\n\
          Terminal=false\n\
          Categories=AudioVideo;Audio;Player;\n\
-         MimeType=x-scheme-handler/aoide;application/epub+zip;application/pdf;\n",
+         MimeType=x-scheme-handler/aoide;application/epub+zip;application/pdf;application/x-fictionbook+xml;application/vnd.openxmlformats-officedocument.wordprocessingml.document;\n",
         quoted(&exe.to_string_lossy())
     )
 }
@@ -130,7 +130,7 @@ mod tests {
             "Icon=aoide",
             "Terminal=false",
             "Exec=\"/home/mira/Aoide build/target/release/aoide\" %U",
-            "MimeType=x-scheme-handler/aoide;application/epub+zip;application/pdf;",
+            "MimeType=x-scheme-handler/aoide;application/epub+zip;application/pdf;application/x-fictionbook+xml;application/vnd.openxmlformats-officedocument.wordprocessingml.document;",
         ] {
             assert!(lines.contains(&line), "{line} missing from:\n{text}");
         }
