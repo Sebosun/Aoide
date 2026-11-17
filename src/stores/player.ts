@@ -79,6 +79,11 @@ export const usePlayerStore = defineStore("player", () => {
     state.value = { ...state.value, speed }; // Ahead of the next state event, so quick key presses add up.
     return action(() => api.setSpeed({ speed }));
   }
+  /** Gives the book playing its own speed (`on`: the speed it plays at), or takes it away. */
+  function setBookSpeed(on: boolean) {
+    const id = state.value.bookId;
+    return id ? action(() => api.setBookSpeed({ bookId: id, on })) : Promise.resolve();
+  }
   /** Rises each time the sleep timer's menu is asked for (the T key); the player's sleep pill
    *  opens on it. */
   const sleepMenu = ref(0);
@@ -108,6 +113,7 @@ export const usePlayerStore = defineStore("player", () => {
     resume: () => action(() => api.resume()),
     stop: () => action(() => api.stop()),
     setSpeed,
+    setBookSpeed,
     setVolume,
     toggleMute,
     sleepMenu,

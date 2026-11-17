@@ -107,7 +107,7 @@ it("has the full transport, and switches back to the page", async () => {
   // Bookmarks and the book tools are at the top of the reader, once.
   for (const label of ["Add bookmark", "Book tools"])
     expect(transport.find(`[aria-label="${label}"]`).exists(), label).toBe(false);
-  expect(transport.find('[aria-label="Playback speed"][aria-haspopup="listbox"]').exists()).toBe(true);
+  expect(transport.find('[aria-label="Playback speed"][aria-haspopup="dialog"]').exists()).toBe(true);
   expect(transport.find('[aria-label="Sleep timer"][aria-haspopup="listbox"]').exists()).toBe(true);
   expect(transport.find('button[aria-label="Volume"]').exists()).toBe(true);
   expect(transport.find('[role="slider"]').exists()).toBe(true);

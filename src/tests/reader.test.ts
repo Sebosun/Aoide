@@ -41,6 +41,14 @@ async function openReader(options: { attach?: boolean; book?: string } = {}) {
   await flushPromises();
   return wrapper;
 }
+/** Picks `speed` (as the pill shows it, "1.25×") from the speed pill in `root`. */
+async function pickSpeed(root: { get(selector: string): { trigger(event: string): Promise<void> } }, speed: string) {
+  await root.get('[aria-label="Playback speed"][aria-haspopup="dialog"]').trigger("click");
+  await flushPromises();
+  const panel = document.body.querySelector('[role="dialog"][aria-label="Playback speed"]')!;
+  [...panel.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.trim() === speed)!.click();
+  await flushPromises();
+}
 const playing = (extra: Partial<ReturnType<typeof initialPlayer>> = {}) => ({
   ...initialPlayer(),
   bookId: "book-0",
@@ -326,7 +334,7 @@ it("plays from the saved position, pauses, resumes, changes speed, skips chapter
   await dock().get('[aria-label="Play"]').trigger("click");
   await flushPromises();
   expect(usePlayerStore().state.status).toBe("playing");
-  await choose(dock(), "Playback speed", "1.25×");
+  await pickSpeed(dock(), "1.25×");
   await flushPromises();
   expect(usePlayerStore().state.speed).toBe(1.25);
   expect(dock().text()).toContain("1.25×");
@@ -506,6 +514,34 @@ it("sets the volume from the dock, and mutes and unmutes to the same level", asy
   expect(volume().value).toBe("0");
   await press("Unmute");
   expect(usePlayerStore().state.volume).toBe(0.4);
+  wrapper.unmount();
+});
+
+it("keeps a speed for the book playing from the speed pill, marked with a dot", async () => {
+  const wrapper = await openReader();
+  const dock = () => wrapper.get('[aria-label="Player"]');
+  const own = () => document.body.querySelector<HTMLInputElement>('input[aria-label="Only for this book"]')!;
+  const setBookSpeed = vi.spyOn(mock, "setBookSpeed");
+  await dock().get('[aria-label="Play"]').trigger("click");
+  await flushPromises();
+  expect(dock().find(".speed-pill__dot").exists()).toBe(false);
+
+  await pickSpeed(dock(), "1.5×");
+  expect(usePlayerStore().state.speed).toBe(1.5);
+  await dock().get('[aria-label="Playback speed"]').trigger("click");
+  expect(own().checked).toBe(false);
+  own().click();
+  await flushPromises();
+  expect(setBookSpeed).toHaveBeenCalledWith({ bookId: "book-0", on: true });
+  expect(usePlayerStore().state.speedScope).toBe("book");
+  expect(own().checked).toBe(true);
+  expect(dock().find(".speed-pill__dot").exists()).toBe(true);
+  expect(dock().get('[aria-label="Playback speed"]').attributes("title")).toContain("this book");
+
+  own().click();
+  await flushPromises();
+  expect(setBookSpeed).toHaveBeenLastCalledWith({ bookId: "book-0", on: false });
+  expect(dock().find(".speed-pill__dot").exists()).toBe(false);
   wrapper.unmount();
 });
 

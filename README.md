@@ -25,7 +25,7 @@ Aoide reads your EPUB books aloud with a text-to-speech engine that runs on your
 - **Read along.** The current sentence and word are highlighted as they're spoken. Click any sentence to listen from there. Switch between a full *Page* view and a calm *Lines* view that shows one passage at a time. Set the page as you like to read it: text size, font (a serif, a sans, Atkinson Hyperlegible or your desktop's own), line spacing, column width, justified or ragged, and hyphenation in the book's language.
 - **Starts in seconds, not hours.** Aoide makes audio just ahead of where you're listening, so you can press play on a new book right away. If you want a book ready for later or offline, ask it to prepare the whole thing.
 - **Your voice, your engine.** Works with [Chatterbox TTS Server](https://github.com/devnen/Chatterbox-TTS-Server), [Kokoro-FastAPI](https://github.com/remsky/Kokoro-FastAPI) and any other server that speaks the OpenAI speech API. Pick a different voice for each book and preview it first.
-- **A real player.** Gapless playback, 0.5× to 3× speed without the chipmunk effect, sleep timer, bookmarks and highlights with notes (exported as Markdown), chapter skipping, media keys and your desktop's now-playing controls. It remembers where you stopped. The time left is at your speed, in the chapter or in the whole book (click it to switch), and its tooltip says when that runs out by the clock.
+- **A real player.** Gapless playback, 0.5× to 3× speed without the chipmunk effect (a book can keep its own: turn on *Only for this book* under the speed, and a dot on the speed says so), sleep timer, bookmarks and highlights with notes (exported as Markdown), chapter skipping, media keys and your desktop's now-playing controls. It remembers where you stopped. The time left is at your speed, in the chapter or in the whole book (click it to switch), and its tooltip says when that runs out by the clock.
 - **Footnotes done right.** Notes are left out of the narration and shown beside the text. You can have them read aloud after their paragraph instead.
 - **A tidy library.** Drop EPUBs on the window, or let Aoide find the ones already scattered around your computer. Covers, progress, collections and per-book details from Open Library if you want them.
 - **Articles too.** Paste a link to an article and Aoide fetches the page once, keeps its readable text, and reads or narrates it like a book. If a site shows only part of it (a sign-in, a paywall), Aoide says so instead of pretending it is complete.
@@ -295,7 +295,7 @@ Books are recognised by their content, not their file name, so renaming or movin
 <details>
 <summary>Editing settings by hand, and custom colour themes</summary>
 
-`settings.toml` holds appearance, playback speed, app settings and the speech engine. Edit it while Aoide is running and the changes apply as soon as you save.
+`settings.toml` holds appearance, the usual playback speed, app settings and the speech engine. A book's own speed is kept with the book in the library, not here. Edit it while Aoide is running and the changes apply as soon as you save.
 
 Aoide comes with one built-in theme, **Default**, in a light and a dark version. **Settings → Appearance** picks the theme and whether to use light, dark, or follow your system.
 

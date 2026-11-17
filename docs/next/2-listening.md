@@ -274,11 +274,16 @@ everything else follows the usual speed.
 - `PlayerStateView` gains `speed_scope: SpeedScope { Usual, Book }` so the pill can show it.
 - `set_book_speed(book_id, on: bool)`: turning it on copies the current speed into the book;
   off removes it and returns to the usual speed.
-- Speeds are kept to two decimals in the core, so 2.7's ±0.1 steps do not drift (1.4000001).
+- Speeds are kept to two decimals in the core, so 2.7's ±0.1 steps do not drift (1.4000001);
+  `[player].speed` is written to two decimals too (an `f32` reached the file as
+  `1.100000023841858`).
+- `save_book_settings` keeps the stored `playback_speed`, as it keeps `left_out`: a settings
+  form holding older settings cannot undo the book's speed.
+- Stopping returns the player to the usual speed (nothing plays, so nothing has its own).
 
 **Interface.** `SpeedPill.vue` becomes a small popover (`usePopover`, as `VolumeControl.vue`
-does) with the speeds and a switch "Only for this book" under them, and a small dot on the
-pill when the book has its own.
+does) with the speeds (a grid of buttons, `aria-pressed`) and a switch "Only for this book"
+under them, and a small dot on the pill when the book has its own.
 
 ### Slices
 
