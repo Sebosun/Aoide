@@ -239,7 +239,8 @@ A bookmark in your browser's toolbar saves the page you are on to Aoide.
 - `Core::save_article` saves a link as an article and only that. `Core::add_link` (what Add
   uses) subscribes when the address is a feed, so a save from the browser must call
   `save_article`, not `add_link`.
-- Toasts (`src/stores/ui.ts`) are text and a tone; they have no action button.
+- Toasts (`src/stores/ui.ts`) already take an optional action (`ToastAction`, the Undo of
+  3.2's highlights), shown as a button by `ToastStack.vue`.
 - `remove_book` (`core/shelf.rs`) returns an item a feed still lists to the feed shelf
   instead of deleting it.
 - Settings › Sites is `SiteSettings.vue`.
@@ -275,9 +276,12 @@ if the bookmarklet proves popular.
 ### Slices
 
 1. `aoide://save?url=…` parsed and validated (in 6.1's pure `requests` function): bad schemes,
-   missing address, an address inside the address.
+   missing address, an address inside the address. Built with 6.1 (`launch.rs`
+   `bad_save_addresses_are_ignored`).
 2. A save request saves an article and the event says whether it was new; a feed address is
-   saved as an article page, not subscribed.
+   saved as an article page, not subscribed. The event is `CoreEvent::LinkSaved`
+   (`article://saved`, a `SavedLink`: `id`, `title`, `newToLibrary`), held with the window's
+   other requests until it listens (`take_open_requests`).
 3. The rate limit.
 4. The toast's action and **Undo**; Settings › Sites: the bookmarklet.
 

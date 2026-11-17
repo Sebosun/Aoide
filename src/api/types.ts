@@ -18,6 +18,7 @@ import type {
   SiteFetch,
   SiteView,
   SignInView,
+  SavedLink,
   ArticleView,
   AddedLink,
   EntryFilter,
@@ -153,4 +154,6 @@ export interface AoideApi extends Omit<CommandApi, "listBooks" | "scanForBooks" 
   onProblem(handler: (problem: ProblemView) => void): Promise<() => void>;
   /** Asks for an item's page (a desktop notification about it was clicked). */
   onOpenItem(handler: (id: string) => void): Promise<() => void>;
+  /** A page sent from the browser (`aoide://save?url=…`) was saved. */
+  onLinkSaved(handler: (saved: SavedLink) => void): Promise<() => void>;
 }

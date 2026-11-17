@@ -75,6 +75,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `app.signal` | info, warn | `signal` (`interrupt`, `terminate`), `outcome` | `lib.rs` `exit_on_signals`: Ctrl+C or SIGTERM quits through `app.exit`, so the servers Aoide started are stopped |
 | `launch.desktop_file` | info, warn | `step` (`desktop_file`, `icon`, `update-desktop-database`, `xdg-mime`), `outcome` (`ok`, `failed`), `file` (name only), `error` | `desktop_file.rs` `install`, one line per step of `aoide --install-desktop-file`; a tool that cannot be run is reported and the rest carries on |
 | `launch.request` | info | `kind` (`flag`, `link`, `save`, `file`, `missing`, `unsupported`), `outcome` (`ignored`; for a book file `present`: opened from the library, nothing copied, or `imported`), `file` (a file's name only; never an address), `book` | `launch.rs` `requests`, an argument of a start (or of a second start, handed to the running copy) that asks for nothing; `core/launching.rs` `Launching::act`, a request acted on |
+| `launch.save_link` | info, warn | `outcome` (`saved`, `failed`), `new` (it was not in the library before), `book`, `why` (`error`), `error` | `core/launching.rs` `Launching::save_link`, a page sent from the browser (`aoide://save?url=…`); never its address (the article's own events carry the book) |
 | `launch.second_instance` | info, warn | `arguments` (how many), `outcome` (`early`: it came before the core had started, and was dropped) | `lib.rs` `second_start`: another start of Aoide handed its arguments to this one, whose window comes to the front |
 | `launch.window` | info | `from`, `to` (`waiting`, `ready`) | `core/launching.rs` `Launching::apply`: the window took what was held for it (`take_open_requests`) and is sent items to open from then on |
 | `app.panic` | error | `location`, `error` | `logging.rs` panic hook |
@@ -216,7 +217,7 @@ from it:
 
 | Event | What failed | Where |
 |---|---|---|
-| `launch.open` | adding a book file opened from the file manager or the command line (the message names the file); one that fails while the window starts is told when it listens | `core/launching.rs` `Launching::act`, `take_open_requests` |
+| `launch.open` | adding a book file opened from the file manager or the command line (the message names the file), or saving a page sent from the browser; one that fails while the window starts is told when it listens | `core/launching.rs` `Launching::act`, `take_open_requests` |
 | `progress.save` | saving the listening position | `core.rs` `save_progress` |
 | `library.save` | saving the books left out, or when a book was opened | `core.rs` |
 | `listening.save` | saving listening time | `core/listening.rs` |

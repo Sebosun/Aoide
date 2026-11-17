@@ -1,10 +1,13 @@
 //! Acting on what a start of Aoide asks for (`crate::launch`): a book file opened from the file
-//! manager or the command line is shown on its page, added to the library first when it is new.
+//! manager or the command line is shown on its page, added to the library first when it is new;
+//! a page sent from the browser (`aoide://save?url=…`) is saved as an article and told.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use aoide_library::{BookId, BookStatus, Library};
+use serde::Serialize;
+use url::Url;
 
 use super::error::Reporter;
 use super::{lock, CoreEvent, Events, ImportResult};
@@ -14,18 +17,36 @@ use crate::launch::Request;
 pub(super) trait LaunchHost {
     /// Adds the book file at `path` to the library, as a dropped file is.
     fn import(&self, path: &Path) -> ImportResult;
+    /// Saves the page at `url` as an article, and nothing else: a feed's address is not
+    /// subscribed to.
+    fn save_link(&self, url: &Url) -> Result<SavedLink, String>;
+}
+
+/// A page sent from the browser, saved: what the window tells.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct SavedLink {
+    /// The item it is.
+    pub id: String,
+    /// Its title, or its site until it is fetched.
+    pub title: String,
+    /// Whether it was not in the library before: only then does Undo (removing it) undo the
+    /// save. An item a feed lists goes back to the feed shelf.
+    pub new_to_library: bool,
 }
 
 /// Whether the window can be asked to open an item yet.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Window {
-    /// Starting: what it is to open, and the files that could not be opened, are held, oldest
-    /// first. Nothing listens yet, so a problem told now would be lost.
+    /// Starting: what it is to open, the files that could not be opened and the pages saved
+    /// are held, oldest first. Nothing listens yet, so a problem told now would be lost.
     Waiting {
         items: Vec<String>,
         failed: Vec<Failure>,
+        saved: Vec<SavedLink>,
     },
-    /// Listening: items are sent, and failures told, as they come.
+    /// Listening: items are sent, and failures and saves told, as they come.
     Ready,
 }
 
@@ -41,8 +62,10 @@ struct Failure {
 enum Event {
     /// An item is to be opened.
     Opened(String),
-    /// A book file could not be opened.
+    /// A book file could not be opened, or a page could not be saved.
     Failed(Failure),
+    /// A page sent from the browser was saved.
+    Saved(SavedLink),
     /// The window asked for what was held.
     WindowReady,
 }
@@ -55,33 +78,96 @@ enum Deliver {
     Send(String),
     /// Tell the user now.
     Tell(Failure),
-    /// Tell these failures, and hand these items to the window, which asked.
+    /// Tell the window this page was saved.
+    Announce(SavedLink),
+    /// Tell these failures and saves, and hand these items to the window, which asked.
     Hand {
         items: Vec<String>,
         failed: Vec<Failure>,
+        saved: Vec<SavedLink>,
     },
 }
 
 fn next(window: Window, event: Event) -> (Window, Deliver) {
     match (window, event) {
-        (Window::Waiting { mut items, failed }, Event::Opened(id)) => {
+        (
+            Window::Waiting {
+                mut items,
+                failed,
+                saved,
+            },
+            Event::Opened(id),
+        ) => {
             items.push(id);
-            (Window::Waiting { items, failed }, Deliver::Nothing)
+            (
+                Window::Waiting {
+                    items,
+                    failed,
+                    saved,
+                },
+                Deliver::Nothing,
+            )
         }
-        (Window::Waiting { items, mut failed }, Event::Failed(failure)) => {
+        (
+            Window::Waiting {
+                items,
+                mut failed,
+                saved,
+            },
+            Event::Failed(failure),
+        ) => {
             failed.push(failure);
-            (Window::Waiting { items, failed }, Deliver::Nothing)
+            (
+                Window::Waiting {
+                    items,
+                    failed,
+                    saved,
+                },
+                Deliver::Nothing,
+            )
         }
-        (Window::Waiting { items, failed }, Event::WindowReady) => {
-            (Window::Ready, Deliver::Hand { items, failed })
+        (
+            Window::Waiting {
+                items,
+                failed,
+                mut saved,
+            },
+            Event::Saved(link),
+        ) => {
+            saved.push(link);
+            (
+                Window::Waiting {
+                    items,
+                    failed,
+                    saved,
+                },
+                Deliver::Nothing,
+            )
         }
+        (
+            Window::Waiting {
+                items,
+                failed,
+                saved,
+            },
+            Event::WindowReady,
+        ) => (
+            Window::Ready,
+            Deliver::Hand {
+                items,
+                failed,
+                saved,
+            },
+        ),
         (Window::Ready, Event::Opened(id)) => (Window::Ready, Deliver::Send(id)),
         (Window::Ready, Event::Failed(failure)) => (Window::Ready, Deliver::Tell(failure)),
+        (Window::Ready, Event::Saved(link)) => (Window::Ready, Deliver::Announce(link)),
         (Window::Ready, Event::WindowReady) => (
             Window::Ready,
             Deliver::Hand {
                 items: Vec::new(),
                 failed: Vec::new(),
+                saved: Vec::new(),
             },
         ),
     }
@@ -112,11 +198,13 @@ impl Launching {
             window: Mutex::new(Window::Waiting {
                 items: Vec::new(),
                 failed: Vec::new(),
+                saved: Vec::new(),
             }),
         }
     }
 
-    /// Acts on `requests`: every file is opened, and the first one's page shown.
+    /// Acts on `requests`: every file is opened, and the first one's page shown; every page
+    /// sent from the browser is saved.
     pub fn act(&self, requests: Vec<Request>, host: &dyn LaunchHost) {
         let mut first = None;
         for request in requests {
@@ -126,15 +214,7 @@ impl Launching {
                         first.get_or_insert(id);
                     }
                 }
-                Request::SaveLink(_) => {
-                    // Saving a page sent from the browser is not built yet.
-                    tracing::info!(
-                        event = "launch.request",
-                        kind = "link",
-                        outcome = "ignored",
-                        "A link to save was ignored"
-                    );
-                }
+                Request::SaveLink(url) => self.save_link(&url, host),
                 Request::Show => {}
             }
         }
@@ -176,6 +256,40 @@ impl Launching {
         Some(id)
     }
 
+    /// Saves the page at `url`, and tells the window, once it listens.
+    fn save_link(&self, url: &Url, host: &dyn LaunchHost) {
+        match host.save_link(url) {
+            Ok(saved) => {
+                tracing::info!(
+                    event = "launch.save_link",
+                    outcome = "saved",
+                    new = saved.new_to_library,
+                    book = crate::logging::book(&saved.id),
+                    "Saved a page sent from the browser"
+                );
+                if let Deliver::Announce(saved) = self.apply(Event::Saved(saved)) {
+                    self.emit(CoreEvent::LinkSaved(saved));
+                }
+            }
+            Err(error) => {
+                tracing::warn!(
+                    event = "launch.save_link",
+                    outcome = "failed",
+                    why = "error",
+                    %error,
+                    "Could not save a page sent from the browser"
+                );
+                let failure = Failure {
+                    doing: "Could not save the page".into(),
+                    error,
+                };
+                if let Deliver::Tell(failure) = self.apply(Event::Failed(failure)) {
+                    self.tell(failure);
+                }
+            }
+        }
+    }
+
     /// Whether book `id` is in the library with its file present.
     fn present(&self, id: &BookId) -> bool {
         lock(&self.library)
@@ -195,12 +309,20 @@ impl Launching {
     }
 
     /// The items asked to be opened before the window was ready, which it opens now; the files
-    /// that could not be opened meanwhile are told now. From now on both are sent as they come.
+    /// that could not be opened and the pages saved meanwhile are told now. From now on all are
+    /// sent as they come.
     pub fn take_open_requests(&self) -> Vec<String> {
         match self.apply(Event::WindowReady) {
-            Deliver::Hand { items, failed } => {
+            Deliver::Hand {
+                items,
+                failed,
+                saved,
+            } => {
                 for failure in failed {
                     self.tell(failure);
+                }
+                for link in saved {
+                    self.emit(CoreEvent::LinkSaved(link));
                 }
                 items
             }
@@ -249,6 +371,23 @@ impl LaunchHost for super::Core {
             error: Some("it was not added".into()),
         })
     }
+
+    fn save_link(&self, url: &Url) -> Result<SavedLink, String> {
+        let id = aoide_article::canonical_id(url);
+        let new_to_library = self.feeds.shelf_of(&id) != Some(super::feeds::ItemShelf::Library);
+        let id = self.save_article(url.as_str())?;
+        let title = lock(&self.library)
+            .book(&BookId(id.clone()))
+            .ok()
+            .flatten()
+            .and_then(|record| record.title)
+            .unwrap_or_else(|| url.host_str().unwrap_or_default().to_owned());
+        Ok(SavedLink {
+            id,
+            title,
+            new_to_library,
+        })
+    }
 }
 
 impl super::Core {
@@ -284,6 +423,10 @@ mod tests {
         fn import(&self, path: &Path) -> ImportResult {
             self.import_files(vec![path.to_string_lossy().into_owned()])
                 .remove(0)
+        }
+
+        fn save_link(&self, _url: &Url) -> Result<SavedLink, String> {
+            Err("No articles in this test.".into())
         }
     }
 
@@ -484,6 +627,18 @@ mod tests {
                 error: None,
             }
         }
+
+        fn save_link(&self, url: &Url) -> Result<SavedLink, String> {
+            Ok(saved(url.path()))
+        }
+    }
+
+    fn saved(id: &str) -> SavedLink {
+        SavedLink {
+            id: id.into(),
+            title: id.into(),
+            new_to_library: true,
+        }
     }
 
     #[test]
@@ -498,6 +653,7 @@ mod tests {
         let held = |items: &[&str], failed: Vec<Failure>| Waiting {
             items: ids(items),
             failed,
+            saved: vec![],
         };
         let cases = [
             (
@@ -525,10 +681,41 @@ mod tests {
                 Deliver::Hand {
                     items: ids(&["a", "b"]),
                     failed: vec![failure()],
+                    saved: vec![],
+                },
+            ),
+            (
+                held(&["a"], vec![]),
+                Saved(saved("s")),
+                Waiting {
+                    items: ids(&["a"]),
+                    failed: vec![],
+                    saved: vec![saved("s")],
+                },
+                Deliver::Nothing,
+            ),
+            (
+                Waiting {
+                    items: vec![],
+                    failed: vec![],
+                    saved: vec![saved("s"), saved("t")],
+                },
+                WindowReady,
+                Ready,
+                Deliver::Hand {
+                    items: vec![],
+                    failed: vec![],
+                    saved: vec![saved("s"), saved("t")],
                 },
             ),
             (Ready, Opened("c".into()), Ready, Deliver::Send("c".into())),
             (Ready, Failed(failure()), Ready, Deliver::Tell(failure())),
+            (
+                Ready,
+                Saved(saved("s")),
+                Ready,
+                Deliver::Announce(saved("s")),
+            ),
             (
                 Ready,
                 WindowReady,
@@ -536,6 +723,7 @@ mod tests {
                 Deliver::Hand {
                     items: vec![],
                     failed: vec![],
+                    saved: vec![],
                 },
             ),
         ];
@@ -546,5 +734,81 @@ mod tests {
                 "{from:?} on {event:?}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod through_core {
+    use aoide_tts::testing::FakeEngine;
+    use url::Url;
+
+    use super::super::article_tests::{Pages, LIGHTS, LIGHTS_URL};
+    use super::super::fetching::Stage;
+    use super::super::tests::{library_folder, start_fetching, until};
+    use super::super::{Core, CoreEvent};
+    use crate::launch::Request;
+
+    fn listed(core: &Core, id: &str) -> bool {
+        core.list_books().unwrap().iter().any(|b| b.id == id)
+    }
+
+    #[tokio::test]
+    async fn a_page_sent_from_the_browser_is_saved_and_told_once_the_window_listens() {
+        let dir = tempfile::tempdir().unwrap();
+        library_folder(dir.path(), "");
+        let pages = Pages::with(&[(LIGHTS_URL, LIGHTS)]);
+        let (core, events) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+        let lights = Url::parse(LIGHTS_URL).unwrap();
+        let id = aoide_article::canonical_id(&lights);
+
+        core.launch(vec![Request::SaveLink(lights.clone())]);
+
+        assert!(listed(&core, &id));
+        // Nothing listens yet: told now, it would be lost.
+        assert_eq!(events.count(CoreEvent::LINK_SAVED), 0);
+        // A saved page is told, not opened.
+        assert_eq!(core.take_open_requests(), [] as [String; 0]);
+        assert_eq!(
+            events.payloads(CoreEvent::LINK_SAVED),
+            [serde_json::json!({ "id": id, "title": "quay.example", "newToLibrary": true })]
+        );
+        until("the page is fetched", || {
+            core.article(&id).is_ok_and(|a| a.stage == Stage::Ready)
+        })
+        .await;
+
+        // Sent again, it is the same item, already in the library: nothing to undo.
+        core.launch(vec![Request::SaveLink(lights)]);
+        assert_eq!(
+            events.payloads(CoreEvent::LINK_SAVED)[1],
+            serde_json::json!({ "id": id, "title": "The Quay Lights", "newToLibrary": false })
+        );
+        assert_eq!(pages.asks(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_feed_sent_from_the_browser_is_saved_as_a_page_and_not_subscribed() {
+        let dir = tempfile::tempdir().unwrap();
+        library_folder(dir.path(), "");
+        let feed = "https://harbour.example/feed.xml";
+        let pages = Pages::with(&[]);
+        pages.feed(
+            feed,
+            "<?xml version=\"1.0\"?><rss version=\"2.0\"><channel><title>Harbour Notes</title>\
+             <link>https://harbour.example/</link></channel></rss>",
+            "v1",
+        );
+        let (core, events) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+        let url = Url::parse(feed).unwrap();
+        let id = aoide_article::canonical_id(&url);
+        core.take_open_requests();
+
+        core.launch(vec![Request::SaveLink(url)]);
+
+        assert!(listed(&core, &id));
+        assert!(core.article(&id).is_ok(), "an article");
+        assert!(core.feeds().unwrap().is_empty(), "not subscribed");
+        assert_eq!(pages.feed_asks(feed), 0);
+        assert_eq!(events.count(CoreEvent::LINK_SAVED), 1);
     }
 }

@@ -21,6 +21,7 @@ import type {
   BrowserStatusView,
   SiteView,
   SignInView,
+  SavedLink,
   SyncReportView,
   SyncAction,
   RecordingAction,
@@ -2385,6 +2386,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     onProblem: (h) => subscribe(problemHandlers, h),
     // The browser preview has no desktop notifications to click.
     onOpenItem: (h) => subscribe(new Set<(id: string) => void>(), h),
+    // Nor a browser to send it pages.
+    onLinkSaved: (h) => subscribe(new Set<(saved: SavedLink) => void>(), h),
   };
   /** Test hooks: put a book at a share of its length, or give it generated audio. */
   const setProgressForTest = (id: string, fraction: number) => {

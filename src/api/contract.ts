@@ -1202,6 +1202,21 @@ staySignedIn: boolean,
  */
 result: FetchStage | null, };
 
+export type SavedLink = { 
+/**
+ * The item it is.
+ */
+id: string, 
+/**
+ * Its title, or its site until it is fetched.
+ */
+title: string, 
+/**
+ * Whether it was not in the library before: only then does Undo (removing it) undo the
+ * save. An item a feed lists goes back to the feed shelf.
+ */
+newToLibrary: boolean, };
+
 /** Every event Core emits, by name, with its payload. */
 export type CoreEvents = {
   "library://changed": null,
@@ -1212,6 +1227,7 @@ export type CoreEvents = {
   "discovery://progress": ScanProgress,
   "discovery://details": string,
   "item://open": string,
+  "article://saved": SavedLink,
   "discovery://import": DiscoveryImportProgress,
   "export://progress": ExportProgress,
   "sync://state": RecordingView,

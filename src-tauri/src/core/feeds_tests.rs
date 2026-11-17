@@ -651,6 +651,28 @@ mod through_core {
     }
 
     #[tokio::test]
+    async fn a_page_sent_from_the_browser_that_a_feed_lists_is_new_to_the_library_until_undone() {
+        let pages = Pages::with(&[]);
+        let (_dir, core) = subscribed(&pages).await;
+        let id = core
+            .open_feed_entry(entry(&core, "The night ferry").id)
+            .unwrap();
+        core.take_open_requests();
+
+        let ferry = url::Url::parse("https://harbour.example/ferry").unwrap();
+        let saved = super::super::launching::LaunchHost::save_link(&*core, &ferry).unwrap();
+        assert_eq!(saved.id, id);
+        assert!(saved.new_to_library, "it was on the feed shelf");
+        assert!(in_library(&core, &id));
+
+        // Undo is removing it, which puts it back on the feed shelf.
+        core.remove_book(&id).unwrap();
+        assert!(!in_library(&core, &id));
+        assert!(core.article(&id).is_ok());
+        assert!(!entry(&core, "The night ferry").in_library);
+    }
+
+    #[tokio::test]
     async fn the_reader_saves_an_item_opened_from_a_feed() {
         let pages = Pages::with(&[]);
         let (_dir, core) = subscribed(&pages).await;

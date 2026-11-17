@@ -273,6 +273,8 @@ pub enum CoreEvent {
     SignInState(super::signin::SignInView),
     /// Open this item's page (a desktop notification about it was clicked).
     OpenItem(String),
+    /// A page sent from the browser was saved.
+    LinkSaved(super::launching::SavedLink),
 }
 
 impl CoreEvent {
@@ -295,6 +297,7 @@ impl CoreEvent {
     pub const BROWSER_DOWNLOAD: &'static str = "browser://download";
     pub const SIGN_IN_STATE: &'static str = "signin://state";
     pub const OPEN_ITEM: &'static str = "item://open";
+    pub const LINK_SAVED: &'static str = "article://saved";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -317,6 +320,7 @@ impl CoreEvent {
             Self::BrowserDownload(_) => Self::BROWSER_DOWNLOAD,
             Self::SignInState(_) => Self::SIGN_IN_STATE,
             Self::OpenItem(_) => Self::OPEN_ITEM,
+            Self::LinkSaved(_) => Self::LINK_SAVED,
         }
     }
 
@@ -341,6 +345,7 @@ impl CoreEvent {
             Self::BrowserDownload(p) => serde_json::to_value(p),
             Self::SignInState(p) => serde_json::to_value(p),
             Self::OpenItem(p) => serde_json::to_value(p),
+            Self::LinkSaved(p) => serde_json::to_value(p),
         }
     }
 }

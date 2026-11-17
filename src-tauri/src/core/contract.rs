@@ -192,6 +192,7 @@ fn contract() -> String {
         super::sites::SiteView,
         super::signin::SignInStage,
         super::signin::SignInView,
+        super::launching::SavedLink,
     );
     // Type aliases the commands use.
     names.insert("Params".into(), name::<aoide_tts::Params>(&config));
@@ -220,6 +221,10 @@ fn contract() -> String {
         ),
         (CoreEvent::DISCOVERY_DETAILS, name::<String>(&config)),
         (CoreEvent::OPEN_ITEM, name::<String>(&config)),
+        (
+            CoreEvent::LINK_SAVED,
+            name::<super::launching::SavedLink>(&config),
+        ),
         (
             CoreEvent::DISCOVERY_IMPORT,
             name::<super::discovery::ImportProgress>(&config),
