@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { ArrowRight, LocateFixed } from "@lucide/vue";
 import ChapterText from "@/components/reader/ChapterText.vue";
+import ReaderSelection from "@/components/reader/ReaderSelection.vue";
 import BookMargin from "@/components/reader/BookMargin.vue";
 import PlayerDock from "@/components/player/PlayerDock.vue";
 import SleepPill from "@/components/player/SleepPill.vue";
@@ -36,6 +37,8 @@ const reader = useReaderStore(),
 const { player } = usePlayerControls();
 const wide = useMediaQuery("(min-width: 1000px)");
 const scroller = ref<HTMLElement>();
+const text = ref<InstanceType<typeof ChapterText>>();
+const textRoot = computed(() => text.value?.$el as HTMLElement | undefined);
 const { article, openOriginal } = useOpenArticle();
 const articles = useArticlesStore();
 /** Keeps the open article, opened from a feed, in the library. */
@@ -162,6 +165,7 @@ const next = computed(() => {
         <p v-if="reader.error" class="sheet__error" role="alert">{{ reader.error }}</p>
         <ChapterText
           v-if="reader.chapter"
+          ref="text"
           class="sheet__text"
           :class="{ 'sheet__text--margins': wide }"
           :chapter="reader.chapter"
@@ -214,6 +218,7 @@ const next = computed(() => {
     >
       <LocateFixed :size="16" /> Back to playhead
     </button>
+    <ReaderSelection :root="textRoot" :chapter="reader.chapter" />
     <PlayerDock v-if="along" />
     <footer v-else class="sheet__foot">
       <div

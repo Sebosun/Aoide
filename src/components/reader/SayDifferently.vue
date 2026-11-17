@@ -5,45 +5,40 @@ import type { Pronunciation } from "@/api/types";
 import UiButton from "@/components/ui/UiButton.vue";
 import UiDialog from "@/components/ui/UiDialog.vue";
 import PronunciationForm from "@/components/settings/PronunciationForm.vue";
+import { fewWords } from "@/components/reader/selection";
+import { useNavigationStore } from "@/stores/navigation";
 import { useReaderStore } from "@/stores/reader";
 import { useUiStore } from "@/stores/ui";
 
 /** "Say this differently…" while a word or a few are selected in the chapter text: a small
- *  dialog with the words filled in, to add them to the open book's pronunciation list. */
+ *  dialog with the words filled in, to add them to the open book's pronunciation list. The menu
+ *  on selected text opens the same dialog (`navigation.sayDifferently`). */
 const reader = useReaderStore(),
+  navigation = useNavigationStore(),
   ui = useUiStore();
-const selected = ref(""),
-  open = ref(false),
-  written = ref("");
-const MAX_WORDS = 4;
+const selected = ref("");
 
-/** The selection's words, without the punctuation around them, when they are in the chapter
- *  text and few enough to be a name or a term. */
+/** The selection's words, when they are in the chapter text and few enough to be a name or a
+ *  term. */
 function words(): string {
   const selection = document.getSelection();
   if (!selection || selection.isCollapsed || !selection.rangeCount) return "";
   const node = selection.getRangeAt(0).commonAncestorContainer;
   const element = node instanceof Element ? node : node.parentElement;
   if (!element?.closest(".chapter-text")) return "";
-  const text = selection
-    .toString()
-    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}.]+$/gu, "")
-    .split(/\s+/)
-    .filter(Boolean);
-  return text.length && text.length <= MAX_WORDS ? text.join(" ") : "";
+  return fewWords(selection.toString());
 }
 const follow = () => {
-  if (!open.value) selected.value = words();
+  if (navigation.sayingDifferently === null) selected.value = words();
 };
 onMounted(() => document.addEventListener("selectionchange", follow));
-onUnmounted(() => document.removeEventListener("selectionchange", follow));
+onUnmounted(() => {
+  document.removeEventListener("selectionchange", follow);
+  navigation.closeSayDifferently();
+});
 
-function ask() {
-  written.value = selected.value;
-  open.value = true;
-}
 function saved(entry: Pronunciation) {
-  open.value = false;
+  navigation.closeSayDifferently();
   selected.value = "";
   ui.toast(`“${entry.written}” is said as “${entry.spoken}” in this book now.`);
 }
@@ -59,25 +54,32 @@ function saved(entry: Pronunciation) {
     aria-label="Say this differently…"
     :title="`Say “${selected}” differently…`"
     @mousedown.prevent
-    @click="ask"
+    @click="navigation.sayDifferently(selected)"
   >
     <SpellCheck :size="18" aria-hidden="true" />
   </UiButton>
   <UiDialog
-    v-if="open && reader.book"
+    v-if="navigation.sayingDifferently !== null && reader.book"
     label="Say this differently"
     initial-focus="input[aria-label='Said as']"
-    @close="open = false"
+    @close="navigation.closeSayDifferently()"
   >
     <div class="say-differently">
       <header class="say-differently__head">
         <h2 class="say-differently__title">Say this differently</h2>
-        <UiButton variant="glass" size="sm" icon aria-label="Close" @click="open = false"><X :size="17" /></UiButton>
+        <UiButton variant="glass" size="sm" icon aria-label="Close" @click="navigation.closeSayDifferently()"
+          ><X :size="17"
+        /></UiButton>
       </header>
       <p class="say-differently__hint">
         The page keeps the book's spelling; the voice says it as you write it here, in every sentence of this book.
       </p>
-      <PronunciationForm :book-id="reader.book.id" :written="written" save-label="Save for this book" @saved="saved" />
+      <PronunciationForm
+        :book-id="reader.book.id"
+        :written="navigation.sayingDifferently"
+        save-label="Save for this book"
+        @saved="saved"
+      />
     </div>
   </UiDialog>
 </template>

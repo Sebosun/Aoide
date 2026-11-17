@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import UiButton from "@/components/ui/UiButton.vue";
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { api } from "@/api";
 import type { SearchHit } from "@/api/types";
 import { usePlayerStore } from "@/stores/player";
+import { useNavigationStore } from "@/stores/navigation";
 /** Searches the book's text; a picked result plays from there, and the search says it was
- *  picked (`picked`) so whatever holds it can close. */
+ *  picked (`picked`) so whatever holds it can close. Words asked for with the field (Search the
+ *  book on selected text) are filled in and searched. */
 const props = defineProps<{ bookId: string }>();
 const emit = defineEmits<{ picked: [] }>();
-const player = usePlayerStore();
+const player = usePlayerStore(),
+  navigation = useNavigationStore();
 const query = ref(""),
   hits = ref<SearchHit[] | null>(null),
   error = ref(""),
@@ -36,6 +39,15 @@ async function search() {
     if (id === request) searching.value = false;
   }
 }
+watch(
+  () => navigation.findRequest,
+  (request) => {
+    if (!request || !navigation.findQuery) return;
+    query.value = navigation.findQuery;
+    void search();
+  },
+  { immediate: true },
+);
 function parts(hit: SearchHit) {
   const chars = Array.from(hit.snippet);
   return [

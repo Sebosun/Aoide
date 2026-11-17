@@ -41,8 +41,8 @@ to 3.4, which is not planned for now.)
 
 ### What exists
 
-- Nothing handles selection or `contextmenu` in `src/`: no `getSelection`, `selectionchange`
-  or `contextmenu` anywhere.
+- Nothing handles `contextmenu` in `src/`. 1.2 added `SayDifferently.vue`, a button at the top
+  of the reader that follows `selectionchange` while a few words are selected.
 - A click on a sentence plays it: `ChapterSegment.vue` binds `@click`, Enter and Space to
   `emit('play')` when `clickable`. A drag that selects inside one sentence ends with a click on
   that span, so the handler must not play when the selection is not collapsed.
@@ -98,7 +98,13 @@ elsewhere. Actions are props, so features add theirs without editing the menu: e
 an id, a label, and "applies to" (a selection, a few words, a sentence).
 
 **What applies** comes from the core where it is a rule (`can_say_again` from 1.1) and from the
-selection's shape otherwise (Say this differently applies to one to three words).
+selection's shape otherwise (Say this differently applies to one to four words, `fewWords` in
+`selection.ts`, as the button 1.2 put at the top of the reader does; both open the same dialog,
+`navigation.sayDifferently`).
+
+As built: `ReaderSelection.vue` watches the selection beside `ChapterText` and in Lines and opens
+`ReaderSelectionMenu.vue`; the entries are `TextAction`s (`textActions.ts`: id, label,
+`applies`, an optional `available` rule, `run`), and `useTextActions()` gives the reader's.
 
 **Search the book.** `findInBook(query?)` carries the selection to `BookSearch.vue`, which
 fills in the field and runs the search.

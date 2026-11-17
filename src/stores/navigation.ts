@@ -63,10 +63,12 @@ export const useNavigationStore = defineStore("navigation", () => {
   function closeSettings() {
     settingsOpen.value = false;
   }
-  /** Book tools is a sheet over the reader. `findRequest` rises each time Ctrl F asks for the
-   *  search field, and is 0 when the sheet was opened any other way. */
+  /** Book tools is a sheet over the reader. `findRequest` rises each time Ctrl F (or Search the
+   *  book on selected text) asks for the search field, and is 0 when the sheet was opened any
+   *  other way; `findQuery` is what to search for then ("" for an empty field). */
   const tools = ref<ToolsTab | null>(null),
-    findRequest = ref(0);
+    findRequest = ref(0),
+    findQuery = ref("");
   let finds = 0;
   function openTools(tab: ToolsTab = "bookmarks") {
     findRequest.value = 0;
@@ -76,10 +78,15 @@ export const useNavigationStore = defineStore("navigation", () => {
     findRequest.value = 0;
     tools.value = null;
   }
-  function findInBook() {
+  function findInBook(query = "") {
     tools.value = "search";
+    findQuery.value = query;
     findRequest.value = ++finds;
   }
+  /** The words "Say this differently…" was asked for, its dialog open over the reader. */
+  const sayingDifferently = ref<string | null>(null);
+  const sayDifferently = (words: string) => (sayingDifferently.value = words);
+  const closeSayDifferently = () => (sayingDifferently.value = null);
   /** Who reads the open book (its recording or a voice) is a dialog of its own over the reader. */
   const narrationOpen = ref(false);
   function openNarration() {
@@ -109,9 +116,13 @@ export const useNavigationStore = defineStore("navigation", () => {
     closeSettings,
     tools,
     findRequest,
+    findQuery,
     openTools,
     closeTools,
     findInBook,
+    sayingDifferently,
+    sayDifferently,
+    closeSayDifferently,
     narrationOpen,
     openNarration,
     closeNarration,

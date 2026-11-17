@@ -10,6 +10,7 @@ import { useReaderStore } from "@/stores/reader";
 import { useNavigationStore } from "@/stores/navigation";
 import { prepareChapter } from "@/preparation";
 import { selecting } from "@/components/reader/selection";
+import ReaderSelection from "@/components/reader/ReaderSelection.vue";
 
 /** Lines mode, for listening from across the room: the spoken sentence large, filling word by
  *  word, with the sentences around it at reading size. */
@@ -126,6 +127,7 @@ const play = (segment: SegmentView) => {
         </p>
       </TransitionGroup>
     </div>
+    <ReaderSelection :root="stage" :chapter="reader.chapter" />
     <PlayerTransport class="reader-lines__transport" />
   </section>
 </template>

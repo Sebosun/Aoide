@@ -162,3 +162,15 @@ export function selecting(): boolean {
   const selection = document.getSelection();
   return Boolean(selection && !selection.isCollapsed);
 }
+
+/** Most words a selection may have to be said differently: a name or a term. */
+const FEW_WORDS = 4;
+/** The words of `text` without the punctuation around them, when they are few enough to be a
+ *  name or a term (to say differently); else "". */
+export function fewWords(text: string): string {
+  const words = text
+    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}.]+$/gu, "")
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.length && words.length <= FEW_WORDS ? words.join(" ") : "";
+}
