@@ -4,7 +4,7 @@ import { useReaderStore } from "@/stores/reader";
 import { useLibraryStore, type LibraryFilter } from "@/stores/library";
 import { api } from "@/api";
 import { useRecordingsStore } from "@/stores/recordings";
-import { showInboxAdded, showSavedLink } from "@/opening";
+import { showFinished, showInboxAdded, showSavedLink } from "@/opening";
 import fixtureArticle from "@/tests/fixtures/article.json";
 
 /** Browser preview only: `?view=home|library|feeds|activity|item|reader|find|audiobooks&book=book-0&play=1500&theme=dark&mode=lines&zoom=1.25` opens a
@@ -34,7 +34,8 @@ import fixtureArticle from "@/tests/fixtures/article.json";
  *  Undo, or one the library had);
  *  `added=one|several` shows the toast for books the inbox folder added; `inbox=unavailable`
  *  chooses an inbox folder that is gone (`settings=library` shows it);
- *  `archived=book-1,book-3` archives those items (`filter=archive` shows the library's Archive). */
+ *  `archived=book-1,book-3` archives those items (`filter=archive` shows the library's Archive);
+ *  `finished=1` shows the toast for an article just finished, offering Archive. */
 export async function applyPreviewParams(search = location.search) {
   const query = new URLSearchParams(search);
   const view = query.get("view") as View | null,
@@ -75,6 +76,7 @@ export async function applyPreviewParams(search = location.search) {
       title: saved === "new" ? new URL(fixtureArticle.article.canonicalUrl).hostname : fixtureArticle.summary.title,
       newToLibrary: saved === "new",
     });
+  if (query.has("finished")) showFinished(api, { id: fixtureArticle.view.id, title: fixtureArticle.summary.title });
   const added = query.get("added");
   if (added)
     showInboxAdded(

@@ -1856,6 +1856,62 @@ async fn scenarios_for_the_ui_mock() {
     );
     scenarios.push(s.done());
 
+    let mut s = Scenario::new(
+        "a finished article is offered for the archive, or archived by the setting",
+        "?article=ready",
+    );
+    let archived = format!("[id={article}].archived");
+    // What the window was told last that was finished.
+    let finished = || {
+        fetching
+            .events
+            .payloads(super::CoreEvent::FINISHED)
+            .pop()
+            .unwrap_or(Value::Null)
+    };
+    s.step(
+        "markFinished",
+        json!({"bookId": article}),
+        &fetching.core.mark_finished(&article),
+        &[],
+    );
+    s.then("onFinished", &finished(), &["id", "title"]);
+    s.step(
+        "listBooks",
+        json!({}),
+        &fetching.core.list_books(),
+        &[&archived],
+    );
+    s.step(
+        "markUnread",
+        json!({"bookId": article}),
+        &fetching.core.mark_unread(&article),
+        &[],
+    );
+    let setting = super::AppSettingsPatch {
+        archive_finished_articles: Some(true),
+        ..Default::default()
+    };
+    s.step(
+        "updateAppSettings",
+        json!({"patch": {"archiveFinishedArticles": true}}),
+        &fetching.core.update_app_settings(setting),
+        &["archiveFinishedArticles"],
+    );
+    s.step(
+        "markFinished",
+        json!({"bookId": article}),
+        &fetching.core.mark_finished(&article),
+        &[],
+    );
+    s.step(
+        "listBooks",
+        json!({}),
+        &fetching.core.list_books(),
+        &[&archived],
+    );
+    scenarios.push(s.done());
+
     // ---- a site that cut an article short, signed in to
     use super::signin::SignInStage;
     let (web, id) = super::browser_tests::needing_sign_in().await;

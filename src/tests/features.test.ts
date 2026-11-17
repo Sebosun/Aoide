@@ -126,6 +126,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     stepBackOnResume: true,
     notices: true,
     inbox: null,
+    archiveFinishedArticles: false,
   });
   wrapper.unmount();
 });
@@ -338,6 +339,18 @@ it("turns off stepping back after a break from Library", async () => {
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith({ patch: { stepBackOnResume: false } });
   expect(await mock.appSettings()).toEqual(expect.objectContaining({ stepBackOnResume: false }));
+  wrapper.unmount();
+});
+
+it("archives articles once they are finished, when turned on in Library", async () => {
+  const save = vi.spyOn(mock, "updateAppSettings");
+  const wrapper = await settings("Library");
+  const box = wrapper.get<HTMLInputElement>('[aria-label="Archive articles when I finish them"]');
+  expect(box.element.checked).toBe(false);
+  await box.setValue(true);
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ patch: { archiveFinishedArticles: true } });
+  expect(await mock.appSettings()).toEqual(expect.objectContaining({ archiveFinishedArticles: true }));
   wrapper.unmount();
 });
 

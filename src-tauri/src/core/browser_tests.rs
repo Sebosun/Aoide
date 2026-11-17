@@ -19,6 +19,8 @@ pub(super) struct Setup {
     pub(super) core: Arc<Core>,
     pub(super) pages: Arc<Pages>,
     pub(super) browser: Arc<ScriptedBrowser>,
+    /// What the window was told.
+    pub(super) events: Arc<super::tests::Recorder>,
 }
 
 /// A core with the browser used as `use_`, and `rules` in site-rules.toml.
@@ -30,7 +32,7 @@ pub(super) fn setup(use_: BrowserUse, rules: &str) -> Setup {
     std::fs::write(config.join(aoide_config::SITE_RULES_FILE), rules).unwrap();
     let program = fake_program(dir.path());
     let (pages, browser) = (Pages::with(&[]), Arc::new(ScriptedBrowser::default()));
-    let (core, _) = start_browsing(
+    let (core, events) = start_browsing(
         dir.path(),
         &FakeEngine::new(),
         pages.clone(),
@@ -50,6 +52,7 @@ pub(super) fn setup(use_: BrowserUse, rules: &str) -> Setup {
         core,
         pages,
         browser,
+        events,
     }
 }
 

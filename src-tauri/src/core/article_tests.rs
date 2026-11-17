@@ -639,3 +639,38 @@ async fn open_original_opens_the_articles_page_and_nothing_else() {
         Err("Not an article.".to_string())
     );
 }
+
+#[tokio::test]
+async fn a_finished_article_is_offered_for_the_archive_or_archived_by_the_setting() {
+    let pages = Pages::with(&[(LIGHTS_URL, LIGHTS)]);
+    let dir = tempfile::tempdir().unwrap();
+    library_folder(dir.path(), "");
+    let (core, events) = start_fetching(dir.path(), &FakeEngine::new(), pages.clone());
+    let id = core.save_article(LIGHTS_URL).unwrap();
+    assert_eq!(settled(&core, &id).await, Stage::Ready);
+    let archived = |core: &Core| {
+        let books = core.list_books().unwrap();
+        books.iter().find(|b| b.id == id).unwrap().archived
+    };
+
+    core.mark_finished(&id).unwrap();
+    assert!(!archived(&core));
+    let offered = events.payloads("item://finished");
+    assert_eq!(
+        offered,
+        [serde_json::json!({"id": id, "title": "The Quay Lights"})]
+    );
+    // Finishing it again, or a book, offers nothing.
+    core.mark_finished(&id).unwrap();
+    assert_eq!(events.count("item://finished"), 1);
+
+    core.mark_unread(&id).unwrap();
+    core.update_app_settings(super::settings::AppSettingsPatch {
+        archive_finished_articles: Some(true),
+        ..Default::default()
+    })
+    .unwrap();
+    core.mark_finished(&id).unwrap();
+    assert!(archived(&core));
+    assert_eq!(events.count("item://finished"), 1);
+}

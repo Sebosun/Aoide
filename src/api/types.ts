@@ -21,6 +21,7 @@ import type {
   SavedLink,
   InboxBook,
   InboxView,
+  FinishedItem,
   ArticleView,
   AddedLink,
   EntryFilter,
@@ -162,4 +163,6 @@ export interface AoideApi extends Omit<CommandApi, "listBooks" | "scanForBooks" 
   onInboxAdded(handler: (books: InboxBook[]) => void): Promise<() => void>;
   /** The inbox folder was chosen, went or came back. */
   onInboxState(handler: (inbox: InboxView) => void): Promise<() => void>;
+  /** An article was just finished: the window offers to archive it. */
+  onFinished(handler: (item: FinishedItem) => void): Promise<() => void>;
 }

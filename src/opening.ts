@@ -1,4 +1,4 @@
-import type { AoideApi, InboxBook, SavedLink } from "@/api/types";
+import type { AoideApi, FinishedItem, InboxBook, SavedLink } from "@/api/types";
 import { listenForProblems } from "@/problems";
 import { useNavigationStore } from "@/stores/navigation";
 import { useUiStore } from "@/stores/ui";
@@ -42,6 +42,21 @@ export function showSavedLink(api: AoideApi, saved: SavedLink) {
   });
 }
 
+/** Names an article the core says was just finished; its Archive archives it. */
+export function showFinished(api: AoideApi, item: FinishedItem) {
+  const ui = useUiStore();
+  ui.toast(`Finished “${item.title}”`, "info", undefined, {
+    label: "Archive",
+    run: async () => {
+      try {
+        await api.archive({ bookId: item.id, on: true });
+      } catch (e) {
+        ui.toast(String(e), "error");
+      }
+    },
+  });
+}
+
 /** Names the books the core added from the inbox folder in one look; nothing opens. */
 export function showInboxAdded(books: InboxBook[]) {
   const quoted = books.map((book) => `“${book.title}”`);
@@ -51,18 +66,20 @@ export function showInboxAdded(books: InboxBook[]) {
   ui.toast(`Added ${quoted.length} books from the inbox folder${names}`);
 }
 
-/** Listens for the core's problems and the pages it saved, then for items to open: taking what
- *  the core held while the window started also tells the books it could not open and the pages
- *  it saved meanwhile. */
+/** Listens for the core's problems, the pages it saved, the books the inbox added and the
+ *  articles finished, then for items to open: taking what the core held while the window
+ *  started also tells the books it could not open and the pages it saved meanwhile. */
 export async function listenToCore(api: AoideApi) {
   const offProblems = await listenForProblems(api);
   const offSaved = await api.onLinkSaved((saved) => showSavedLink(api, saved));
   const offInbox = await api.onInboxAdded(showInboxAdded);
+  const offFinished = await api.onFinished((item) => showFinished(api, item));
   const offOpening = await listenForOpenItems(api);
   return () => {
     offProblems();
     offSaved();
     offInbox();
+    offFinished();
     offOpening();
   };
 }

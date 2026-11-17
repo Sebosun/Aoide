@@ -265,8 +265,10 @@ collections.
 - `archive(book_id, on: bool)`.
 - Finishing an article: in `Core::read_event`, when an article goes to `Finished`, either the
   setting "Archive articles when I finish them" (`AppSettings`, off by default) archives it, or
-  the core emits `CoreEvent::Finished { book_id }` and the window shows a toast with an
-  **Archive** action. Toasts gain an optional action for this.
+  the core emits `CoreEvent::Finished(FinishedItem { id, title })` (`item://finished`) and the
+  window shows a toast with an **Archive** action (toasts already take an action, since 5.2's
+  Undo). The rule is `reading::after_finishing`: only an article in the library (not one only on
+  the feed shelf) and not archived already.
 - 2.5 (decided 2026-11-16): a queued feed article that finishes playing is marked read and
   archived through the same `archive`, with `from` = `queue`. The column is on `books`, so an
   item still on the feed shelf can carry it too.

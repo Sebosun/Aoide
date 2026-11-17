@@ -23,6 +23,7 @@ import type {
   SignInView,
   SavedLink,
   InboxBook,
+  FinishedItem,
   InboxView,
   SyncReportView,
   SyncAction,
@@ -328,6 +329,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     stepBackOnResume: true,
     notices: true,
     inbox: null,
+    archiveFinishedArticles: false,
   };
   /** The inbox as the core shows it: watched once chosen; `?inbox=unavailable` chooses one that is gone. */
   if (new URLSearchParams(search).get("inbox") === "unavailable") appSettings.inbox = "/media/reader/Stick/Books";
@@ -1059,6 +1061,16 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       set.delete(handler);
     };
   };
+  const finishedHandlers = new Set<(item: FinishedItem) => void>();
+  /** Finishes item `b`, as the core does (core/reading.rs `after_finishing`): an article in the
+   *  library just finished is archived when the setting says so, else offered for the archive. */
+  const finish = (b: BookSummary) => {
+    if (b.readState === "finished") return;
+    b.readState = "finished";
+    if (!isArticle(b.id) || feedShelf.has(b.id) || b.archived) return;
+    if (appSettings.archiveFinishedArticles) b.archived = true;
+    else finishedHandlers.forEach((h) => h({ id: b.id, title: b.title }));
+  };
   const api: AoideApi = {
     async logUi() {},
     async appInfo() {
@@ -1249,7 +1261,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       return getChapter(id, chapter);
     },
     async markFinished({ bookId: id }) {
-      getBook(id).readState = "finished";
+      finish(getBook(id));
       changed();
     },
     async markUnread({ bookId: id }) {
@@ -1268,7 +1280,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       const index = all.indexOf(`${chapter}/${segmentId}`);
       if (index < 0) throw refused("that place is not in the book");
       b.progress = { chapter, segmentId, fraction: all.length ? index / all.length : 0, positionMs: null };
-      if (index === all.length - 1) b.readState = "finished";
+      if (index === all.length - 1) finish(b);
       else if (b.readState === "unread") b.readState = "inProgress";
       changed();
       return structuredClone(b.progress);
@@ -2415,6 +2427,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     onLinkSaved: (h) => subscribe(new Set<(saved: SavedLink) => void>(), h),
     // Nor a folder it watches.
     onInboxAdded: (h) => subscribe(new Set<(books: InboxBook[]) => void>(), h),
+    onFinished: (h) => subscribe(finishedHandlers, h),
   };
   /** Test hooks: put a book at a share of its length, or give it generated audio. */
   const setProgressForTest = (id: string, fraction: number) => {

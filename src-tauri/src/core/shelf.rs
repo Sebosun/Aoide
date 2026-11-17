@@ -42,12 +42,15 @@ pub(super) trait ShelfHost {
 pub enum ArchivedBy {
     /// The user, from a menu or a toast.
     User,
+    /// The setting that archives an article once it is finished.
+    Finished,
 }
 
 impl ArchivedBy {
     fn name(self) -> &'static str {
         match self {
             Self::User => "user",
+            Self::Finished => "finished",
         }
     }
 }

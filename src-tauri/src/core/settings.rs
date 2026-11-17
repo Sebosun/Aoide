@@ -46,6 +46,8 @@ pub struct AppSettings {
     /// A folder (Downloads, or one a sync tool fills) whose books are added to the library as
     /// they appear; never the library folder or one inside it.
     pub inbox: Option<PathBuf>,
+    /// Archive an article once it is finished; else finishing one offers to.
+    pub archive_finished_articles: bool,
 }
 
 /// The silences narration leaves, in milliseconds (each within [`PAUSE_MS`]). The largest that
@@ -137,6 +139,8 @@ pub struct AppSettingsPatch {
     #[serde(deserialize_with = "present")]
     #[cfg_attr(test, ts(optional))]
     pub inbox: Option<Option<PathBuf>>,
+    #[cfg_attr(test, ts(optional))]
+    pub archive_finished_articles: Option<bool>,
 }
 
 /// A field that is present, even as `null` (which a plain `Option<Option<_>>` reads as absent).
@@ -174,6 +178,10 @@ impl AppSettingsPatch {
         set(&mut settings.step_back_on_resume, self.step_back_on_resume);
         set(&mut settings.notices, self.notices);
         set(&mut settings.inbox, self.inbox);
+        set(
+            &mut settings.archive_finished_articles,
+            self.archive_finished_articles,
+        );
         settings
     }
 }
@@ -200,6 +208,7 @@ impl From<AppSettings> for AppSettingsPatch {
             step_back_on_resume,
             notices,
             inbox,
+            archive_finished_articles,
         } = settings;
         Self {
             metadata_lookup: Some(metadata_lookup),
@@ -220,6 +229,7 @@ impl From<AppSettings> for AppSettingsPatch {
             step_back_on_resume: Some(step_back_on_resume),
             notices: Some(notices),
             inbox: Some(inbox),
+            archive_finished_articles: Some(archive_finished_articles),
         }
     }
 }
@@ -269,6 +279,7 @@ impl Default for AppSettings {
             step_back_on_resume: true,
             notices: true,
             inbox: None,
+            archive_finished_articles: false,
         }
     }
 }

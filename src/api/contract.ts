@@ -696,9 +696,13 @@ notices: boolean,
  * A folder (Downloads, or one a sync tool fills) whose books are added to the library as
  * they appear; never the library folder or one inside it.
  */
-inbox: string | null, };
+inbox: string | null, 
+/**
+ * Archive an article once it is finished; else finishing one offers to.
+ */
+archiveFinishedArticles: boolean, };
 
-export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, };
+export type AppSettingsPatch = { metadataLookup?: boolean, cacheLimitBytes?: number | null, aligner?: AlignerSettings | null, librarySort?: LibrarySort, libraryTags?: TagFilter, tagging?: TaggingSettings, scan?: ScanSettings, resumePrepare?: boolean, recognition?: RecognitionSettings, audiobooks?: AudiobookSearchSettings, verifyAudiobooks?: boolean, readingWpm?: number, feeds?: FeedSettings, browser?: BrowserSettings, pauses?: PauseSettings, stepBackOnResume?: boolean, notices?: boolean, inbox?: string | null, archiveFinishedArticles?: boolean, };
 
 export type BookStorage = { bookId: string, bytes: number, segments: number, 
 /**
@@ -1249,6 +1253,8 @@ folder: string | null,
  */
 state: InboxState, };
 
+export type FinishedItem = { id: string, title: string, };
+
 /** Every event Core emits, by name, with its payload. */
 export type CoreEvents = {
   "library://changed": null,
@@ -1262,6 +1268,7 @@ export type CoreEvents = {
   "article://saved": SavedLink,
   "inbox://added": Array<InboxBook>,
   "inbox://state": InboxView,
+  "item://finished": FinishedItem,
   "discovery://import": DiscoveryImportProgress,
   "export://progress": ExportProgress,
   "sync://state": RecordingView,

@@ -194,6 +194,21 @@ async function chooseInbox() {
         preferred. A tag you remove stays removed.</SettingsNote
       >
     </SettingsSection>
+    <SettingsSection title="Archive">
+      <label v-if="settings" class="library-settings__check"
+        ><input
+          :checked="settings.archiveFinishedArticles"
+          type="checkbox"
+          aria-label="Archive articles when I finish them"
+          @change="save({ archiveFinishedArticles: ($event.target as HTMLInputElement).checked })"
+        />
+        Archive articles when I finish them</label
+      >
+      <SettingsNote
+        >Otherwise a finished article offers <b>Archive</b> for a few seconds. Archived items leave Home and the
+        library's lists and wait under Archive; nothing of them is deleted.</SettingsNote
+      >
+    </SettingsSection>
     <SettingsSection title="Listening">
       <label v-if="settings" class="library-settings__check"
         ><input

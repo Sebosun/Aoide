@@ -114,3 +114,14 @@ it("books the inbox folder added are named in one toast, and nothing opens", asy
   expect(navigation.view).toBe(view);
   off();
 });
+
+it("a finished article is named in a toast whose Archive archives it", async () => {
+  const off = await listenToCore(tauriApi);
+  tauri.handlers.get("item://finished")!({ payload: { id: "article-1", title: "The Quay Lights" } });
+  const ui = useUiStore();
+  expect(ui.toasts.map((t) => [t.text, t.action?.label])).toEqual([["Finished “The Quay Lights”", "Archive"]]);
+  await ui.toasts[0].action!.run();
+  expect(tauri.calls.at(-1)).toBe("archive");
+  expect(tauri.args.at(-1)).toEqual({ bookId: "article-1", on: true });
+  off();
+});

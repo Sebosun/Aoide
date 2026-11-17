@@ -142,6 +142,43 @@ pub fn next_read(state: ReadState, event: ReadEvent) -> ReadState {
     }
 }
 
+/// What follows an item's being finished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AfterFinishing {
+    Nothing,
+    /// The setting archives a finished article.
+    Archive,
+    /// The window offers to archive it (a toast with Archive).
+    OfferArchive,
+}
+
+/// A finished article in the library is archived when the user asked for that
+/// (`archive_finished_articles`), else offered for the archive. Nothing follows for any other
+/// item, one archived already, or an entry only on the feed shelf (its feed lists it).
+pub fn after_finishing(
+    kind: aoide_library::ItemKind,
+    in_library: bool,
+    archived: bool,
+    archive_finished_articles: bool,
+) -> AfterFinishing {
+    match (kind, in_library, archived) {
+        (aoide_library::ItemKind::Article, true, false) if archive_finished_articles => {
+            AfterFinishing::Archive
+        }
+        (aoide_library::ItemKind::Article, true, false) => AfterFinishing::OfferArchive,
+        _ => AfterFinishing::Nothing,
+    }
+}
+
+/// An item just finished, for the window to offer archiving it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct FinishedItem {
+    pub id: String,
+    pub title: String,
+}
+
 /// Time read since the previous report is credited up to this much: a longer gap means the
 /// reader stepped away.
 const CAP: TimeDelta = TimeDelta::seconds(30);
@@ -321,13 +358,49 @@ impl super::Core {
         self.book_overview(id)
     }
 
-    /// Applies `event` to item `id`'s read state; tells the window when the state changed.
+    /// Applies `event` to item `id`'s read state; tells the window when the state changed. An
+    /// article that has just been finished is archived, or offered for the archive
+    /// ([`after_finishing`]).
     pub(super) fn read_event(&self, id: &str, event: ReadEvent) -> Result<ReadState, String> {
         let (from, to) = self.reading.apply(id, event)?;
+        if from != to && to == ReadState::Finished {
+            self.finished(id);
+        }
         if from != to {
             self.emit(CoreEvent::LibraryChanged);
         }
         Ok(to)
+    }
+
+    /// Item `id` has just been finished: archives it, or asks the window to offer that.
+    fn finished(&self, id: &str) {
+        let record = match lock(&self.library).book(&BookId(id.into())) {
+            Ok(Some(record)) => record,
+            _ => return,
+        };
+        let setting = self.app_settings().archive_finished_articles;
+        let in_library = record.shelf == "library";
+        match after_finishing(
+            record.kind,
+            in_library,
+            record.archived_at.is_some(),
+            setting,
+        ) {
+            AfterFinishing::Nothing => {}
+            AfterFinishing::Archive => {
+                if let Err(error) = self
+                    .shelf
+                    .archive(id, true, super::shelf::ArchivedBy::Finished)
+                {
+                    self.reporter
+                        .report("item.archived", "Could not archive the article", error);
+                }
+            }
+            AfterFinishing::OfferArchive => self.emit(CoreEvent::Finished(FinishedItem {
+                id: id.to_owned(),
+                title: record.title.unwrap_or_else(|| "Untitled".into()),
+            })),
+        }
     }
 
     pub fn mark_finished(&self, id: &str) -> Result<(), String> {
@@ -377,6 +450,32 @@ impl super::Core {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_finished_article_is_archived_or_offered_for_the_archive() {
+        use aoide_library::ItemKind::*;
+        use AfterFinishing::*;
+        // (kind, in the library (not only on the feed shelf), archived already, the setting)
+        // → what follows.
+        let cases = [
+            (Article, true, false, false, OfferArchive),
+            (Article, true, false, true, Archive),
+            (Article, true, true, false, Nothing),
+            (Article, true, true, true, Nothing),
+            (Article, false, false, false, Nothing),
+            (Article, false, false, true, Nothing),
+            (Book, true, false, false, Nothing),
+            (Book, true, false, true, Nothing),
+            (Audiobook, true, false, true, Nothing),
+        ];
+        for (kind, in_library, archived, setting, expected) in cases {
+            assert_eq!(
+                after_finishing(kind, in_library, archived, setting),
+                expected,
+                "{kind:?} in_library={in_library} archived={archived} setting={setting}"
+            );
+        }
+    }
 
     #[test]
     fn mode_follows_the_last_choice() {

@@ -1592,6 +1592,71 @@
     ]
   },
   {
+    "name": "a finished article is offered for the archive, or archived by the setting",
+    "start": "?article=ready",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-6"
+        },
+        "call": "markFinished",
+        "error": null,
+        "event": {
+          "expect": {
+            "id": "book-6",
+            "title": "The Quay Lights"
+          },
+          "name": "onFinished"
+        },
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-6].archived": false
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-6"
+        },
+        "call": "markUnread",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {
+          "patch": {
+            "archiveFinishedArticles": true
+          }
+        },
+        "call": "updateAppSettings",
+        "error": null,
+        "expect": {
+          "archiveFinishedArticles": true
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-6"
+        },
+        "call": "markFinished",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-6].archived": true
+        }
+      }
+    ]
+  },
+  {
     "name": "a site that cut an article short is signed in to",
     "start": "?article=needsyou-cutshort&browser=ready",
     "steps": [

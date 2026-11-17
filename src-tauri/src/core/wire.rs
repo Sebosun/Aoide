@@ -282,6 +282,8 @@ pub enum CoreEvent {
     InboxAdded(Vec<super::inbox::InboxBook>),
     /// The inbox folder was chosen, went or came back.
     InboxState(super::inbox::InboxView),
+    /// An article was finished: the window offers to archive it.
+    Finished(super::reading::FinishedItem),
 }
 
 impl CoreEvent {
@@ -307,6 +309,7 @@ impl CoreEvent {
     pub const LINK_SAVED: &'static str = "article://saved";
     pub const INBOX_ADDED: &'static str = "inbox://added";
     pub const INBOX_STATE: &'static str = "inbox://state";
+    pub const FINISHED: &'static str = "item://finished";
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -332,6 +335,7 @@ impl CoreEvent {
             Self::LinkSaved(_) => Self::LINK_SAVED,
             Self::InboxAdded(_) => Self::INBOX_ADDED,
             Self::InboxState(_) => Self::INBOX_STATE,
+            Self::Finished(_) => Self::FINISHED,
         }
     }
 
@@ -359,6 +363,7 @@ impl CoreEvent {
             Self::LinkSaved(p) => serde_json::to_value(p),
             Self::InboxAdded(p) => serde_json::to_value(p),
             Self::InboxState(p) => serde_json::to_value(p),
+            Self::Finished(p) => serde_json::to_value(p),
         }
     }
 }

@@ -196,6 +196,7 @@ fn contract() -> String {
         super::inbox::InboxBook,
         super::inbox::InboxState,
         super::inbox::InboxView,
+        super::reading::FinishedItem,
     );
     // Type aliases the commands use.
     names.insert("Params".into(), name::<aoide_tts::Params>(&config));
@@ -235,6 +236,10 @@ fn contract() -> String {
         (
             CoreEvent::INBOX_STATE,
             name::<super::inbox::InboxView>(&config),
+        ),
+        (
+            CoreEvent::FINISHED,
+            name::<super::reading::FinishedItem>(&config),
         ),
         (
             CoreEvent::DISCOVERY_IMPORT,
