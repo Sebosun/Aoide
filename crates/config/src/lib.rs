@@ -221,7 +221,7 @@ pub enum ReaderFont {
     Sans,
     /// Atkinson Hyperlegible.
     Legible,
-    /// The system's own serif or sans.
+    /// The desktop's own interface font (`system-ui`).
     System,
 }
 

@@ -29,8 +29,14 @@
   --screen: linear-gradient(180deg, var(--cover-tint), var(--ground) 70%);
   --font-ui: "Manrope", system-ui, sans-serif;
   --font-read: "Newsreader", Georgia, serif;
-  /* Reading text size; the reader's Aa control scales it. */
+  /* The reader's typography (theme.ts applyAppearance sets them from the settings): text
+     size, line height, column width, font, justification and hyphenation. */
   --read-scale: 1;
+  --read-line: 1.68;
+  --read-width: 640px;
+  --read-font: var(--font-read);
+  --read-align: start;
+  --read-hyphens: manual;
   /* Motion: menus and small state changes use --dur-1, views and dialogs --dur-2, sentences
      gliding in Lines mode --dur-3. */
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);

@@ -146,7 +146,7 @@ const runs = computed(() => {
   box-shadow:
     0 14px 34px -12px var(--shadow),
     0 0 0 1px var(--line);
-  font: 400 14.5px/1.5 var(--font-read);
+  font: 400 14.5px/1.5 var(--read-font);
   text-align: left;
   white-space: normal;
   cursor: auto;

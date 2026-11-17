@@ -22,7 +22,7 @@ import { useSignInStore } from "@/stores/signin";
 import { api } from "@/api";
 import { prepareChapter } from "@/preparation";
 
-/** Page mode: a full-width sheet with the text in a 640px column, the book in the left
+/** Page mode: a full-width sheet with the text in a column as wide as the reader's text width, the book in the left
  *  margin and footnotes and tools in the right margin. Listening (`readAlong`) docks the
  *  transport underneath and follows the playhead; reading silently (`read`) shows the progress
  *  through the book there instead, and the text is only read. While another book plays, the
@@ -165,6 +165,7 @@ const next = computed(() => {
           class="sheet__text"
           :class="{ 'sheet__text--margins': wide }"
           :chapter="reader.chapter"
+          :lang="reader.book.language ?? undefined"
           :current-segment="onPage ? player.state.segmentId : null"
           :current-word="onPage ? player.state.wordIndex : null"
           :margin-notes="wide"
@@ -267,7 +268,7 @@ const next = computed(() => {
 }
 .sheet__grid {
   display: grid;
-  grid-template-columns: minmax(150px, 204px) minmax(0, 640px) minmax(150px, 204px);
+  grid-template-columns: minmax(150px, 204px) minmax(0, var(--read-width)) minmax(150px, 204px);
   column-gap: clamp(var(--space-12), 3.4vw, var(--space-24));
   justify-content: center;
   padding: var(--space-16) 0 16vh;
@@ -375,7 +376,7 @@ const next = computed(() => {
 }
 @media (max-width: 999px) {
   .sheet__grid {
-    grid-template-columns: minmax(0, 640px);
+    grid-template-columns: minmax(0, var(--read-width));
     padding: var(--space-9) var(--space-10) 16vh;
     row-gap: var(--space-11);
   }

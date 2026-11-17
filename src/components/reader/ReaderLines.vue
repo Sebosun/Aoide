@@ -194,7 +194,8 @@ const play = (segment: SegmentView) => {
 }
 .reader-lines__line {
   width: min(100%, 660px);
-  font: 400 calc(21px * var(--read-scale)) / 1.45 var(--font-read);
+  /* The reader's font and spacing; its width and justification are the page's only. */
+  font: 400 calc(21px * var(--read-scale)) / calc(1.45 * var(--read-line) / 1.68) var(--read-font);
   color: var(--dim);
   cursor: pointer;
   border-radius: var(--radius-sm);
@@ -232,7 +233,7 @@ const play = (segment: SegmentView) => {
   }
 }
 .reader-lines__line--now {
-  font: 500 calc(35px * var(--read-scale)) / 1.24 var(--font-read);
+  font: 500 calc(35px * var(--read-scale)) / calc(1.24 * var(--read-line) / 1.68) var(--read-font);
   letter-spacing: -0.012em;
   color: var(--ink);
   cursor: default;

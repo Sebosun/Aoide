@@ -62,6 +62,13 @@ it("sets the chapter as a page with the book in the margin", async () => {
   wrapper.unmount();
 });
 
+// Hyphenation follows the text's language.
+it("sets the chapter text in the book's language", async () => {
+  const wrapper = await openReader();
+  expect(wrapper.get('[aria-label="Chapter text"]').attributes("lang")).toBe("en");
+  wrapper.unmount();
+});
+
 it("plays the clicked sentence", async () => {
   const play = vi.spyOn(mock, "play");
   const wrapper = await openReader();

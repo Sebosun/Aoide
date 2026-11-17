@@ -97,8 +97,11 @@ const chapterMissing = computed(
 .chapter-text {
   display: grid;
   row-gap: var(--space-9);
-  font: 400 calc(20.5px * var(--read-scale)) / 1.68 var(--font-read);
+  font: 400 calc(20.5px * var(--read-scale)) / var(--read-line) var(--read-font);
   color: var(--reading);
+  text-align: var(--read-align);
+  hyphens: var(--read-hyphens);
+  -webkit-hyphens: var(--read-hyphens);
 }
 .chapter-text__row {
   min-width: 0;
@@ -107,7 +110,10 @@ const chapterMissing = computed(
   margin: 0;
 }
 .chapter-text__block--heading {
-  font: 600 calc(34px * var(--read-scale)) / 1.15 var(--font-read);
+  font: 600 calc(34px * var(--read-scale)) / 1.15 var(--read-font);
+  text-align: start;
+  hyphens: manual;
+  -webkit-hyphens: manual;
   color: var(--ink);
   letter-spacing: -0.012em;
   padding-bottom: var(--space-3);
@@ -143,8 +149,9 @@ h3.chapter-text__block--heading {
 }
 .chapter-text__margin-note {
   padding-top: var(--space-3);
-  font: 400 14.5px/1.5 var(--font-read);
+  font: 400 14.5px/1.5 var(--read-font);
   color: var(--dim);
+  text-align: start;
 }
 .chapter-text__margin-note:focus {
   outline: none;

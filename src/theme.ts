@@ -1,4 +1,4 @@
-import type { Appearance, Theme } from "@/api/types";
+import type { Appearance, ReaderFont, Theme } from "@/api/types";
 import { applyZoom } from "@/zoom";
 
 /** Colour tokens a theme file may override; mirrors aoide_config::TOKENS and theme.css. */
@@ -23,6 +23,24 @@ export const TOKENS = [
 
 /** Reading-text scale for each text-size step (2 is the designed size). */
 export const TEXT_SCALES = [0.84, 0.92, 1, 1.1, 1.22] as const;
+/** Reading line height for each line-spacing step (2 is the designed spacing). */
+export const LINE_HEIGHTS = [1.45, 1.56, 1.68, 1.82, 1.98] as const;
+/** Reading column width in px for each text-width step (2 is the designed width). */
+export const TEXT_WIDTHS = [520, 580, 640, 720, 800] as const;
+/** The font stack of each reader font (fonts.css, theme.css). */
+export const READER_FONTS: Record<ReaderFont, string> = {
+  serif: "var(--font-read)",
+  sans: "var(--font-ui)",
+  legible: '"Atkinson Hyperlegible", var(--font-ui)',
+  system: "system-ui, sans-serif",
+};
+
+/** The entry of `steps` for `step`, rounded and kept in range; the designed one (2) for a
+ *  value that is not a number. */
+function stepOf<T>(steps: readonly T[], step: number): T {
+  const at = Number.isFinite(step) ? Math.round(step) : 2;
+  return steps[Math.min(steps.length - 1, Math.max(0, at))];
+}
 
 const declarations = (tokens: Record<string, string>) =>
   Object.entries(tokens)
@@ -45,12 +63,16 @@ export function themeCss(theme: Theme | undefined): string {
     .join("\n");
 }
 
-/** Applies mode, text size, interface zoom and the chosen theme to the document. */
+/** Applies mode, the reader's typography, interface zoom and the chosen theme to the document. */
 export function applyAppearance(appearance: Appearance, themes: Theme[], root: HTMLElement = document.documentElement) {
   if (appearance.mode === "auto") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", appearance.mode);
-  const step = Math.min(TEXT_SCALES.length - 1, Math.max(0, Math.round(appearance.textSize)));
-  root.style.setProperty("--read-scale", String(TEXT_SCALES[step]));
+  root.style.setProperty("--read-scale", String(stepOf(TEXT_SCALES, appearance.textSize)));
+  root.style.setProperty("--read-line", String(stepOf(LINE_HEIGHTS, appearance.lineSpacing)));
+  root.style.setProperty("--read-width", `${stepOf(TEXT_WIDTHS, appearance.textWidth)}px`);
+  root.style.setProperty("--read-font", READER_FONTS[appearance.readerFont] ?? READER_FONTS.serif);
+  root.style.setProperty("--read-align", appearance.justify ? "justify" : "start");
+  root.style.setProperty("--read-hyphens", appearance.hyphenate ? "auto" : "manual");
   applyZoom(appearance.zoom, root);
   let style = document.getElementById("aoide-user-theme");
   if (!style) {

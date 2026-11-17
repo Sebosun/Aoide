@@ -4,7 +4,8 @@ import rustConfig from "../../crates/config/src/lib.rs?raw";
 import { createPinia, setActivePinia } from "pinia";
 import { mount, flushPromises } from "@vue/test-utils";
 import { createMockApi } from "@/api/mock";
-import { TOKENS, themeCss } from "@/theme";
+import { LINE_HEIGHTS, TEXT_WIDTHS, TOKENS, applyAppearance, themeCss } from "@/theme";
+import type { Appearance } from "@/api/types";
 import { usePreferencesStore } from "@/stores/preferences";
 import { useLibraryStore } from "@/stores/library";
 import SettingsDialog from "@/components/settings/SettingsDialog.vue";
@@ -25,7 +26,15 @@ beforeEach(() => {
 afterEach(() => {
   mock.dispose();
   document.documentElement.removeAttribute("data-theme");
-  document.documentElement.style.removeProperty("--read-scale");
+  for (const property of [
+    "--read-scale",
+    "--read-line",
+    "--read-width",
+    "--read-font",
+    "--read-align",
+    "--read-hyphens",
+  ])
+    document.documentElement.style.removeProperty(property);
   document.getElementById("aoide-user-theme")?.remove();
 });
 
@@ -78,6 +87,51 @@ it("applies the saved mode, text size and theme to the document and follows live
   expect(root.style.getPropertyValue("--read-scale")).toBe("1");
   expect(document.getElementById("aoide-user-theme")?.textContent ?? "").toBe("");
   expect(preferences.appearance.readerMode).toBe("lines");
+});
+
+const designed: Appearance = {
+  mode: "auto",
+  theme: "default",
+  textSize: 2,
+  readerMode: "page",
+  zoom: 1,
+  timeLeft: "chapter",
+  readerFont: "serif",
+  lineSpacing: 2,
+  textWidth: 2,
+  justify: false,
+  hyphenate: false,
+};
+
+it("gives the reading text today's look at the designed steps", () => {
+  const root = document.documentElement;
+  applyAppearance(designed, []);
+  expect(root.style.getPropertyValue("--read-line")).toBe("1.68");
+  expect(root.style.getPropertyValue("--read-width")).toBe("640px");
+  expect(root.style.getPropertyValue("--read-font")).toBe("var(--font-read)");
+  expect(root.style.getPropertyValue("--read-align")).toBe("start");
+  expect(root.style.getPropertyValue("--read-hyphens")).toBe("manual");
+});
+
+it("sets the reader's font, spacing, width, justification and hyphenation, keeping steps in range", () => {
+  const root = document.documentElement;
+  applyAppearance(
+    { ...designed, readerFont: "legible", lineSpacing: 9, textWidth: -3, justify: true, hyphenate: true },
+    [],
+  );
+  expect(root.style.getPropertyValue("--read-line")).toBe(String(LINE_HEIGHTS[LINE_HEIGHTS.length - 1]));
+  expect(root.style.getPropertyValue("--read-width")).toBe(`${TEXT_WIDTHS[0]}px`);
+  expect(root.style.getPropertyValue("--read-font")).toContain("Atkinson Hyperlegible");
+  expect(root.style.getPropertyValue("--read-align")).toBe("justify");
+  expect(root.style.getPropertyValue("--read-hyphens")).toBe("auto");
+
+  // Spacing and width grow step by step.
+  expect([...LINE_HEIGHTS]).toEqual([...LINE_HEIGHTS].sort((a, b) => a - b));
+  expect([...TEXT_WIDTHS]).toEqual([...TEXT_WIDTHS].sort((a, b) => a - b));
+  applyAppearance({ ...designed, readerFont: "sans" }, []);
+  expect(root.style.getPropertyValue("--read-font")).toBe("var(--font-ui)");
+  applyAppearance({ ...designed, readerFont: "system" }, []);
+  expect(root.style.getPropertyValue("--read-font")).toContain("system-ui");
 });
 
 it("changes appearance from Settings and saves it to the config file", async () => {
