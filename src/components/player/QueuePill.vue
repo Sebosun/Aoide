@@ -32,6 +32,8 @@ function outside(event: PointerEvent) {
 watch(open, async (value) => {
   document.removeEventListener("pointerdown", outside, true);
   if (!value) return;
+  // Why an item is passed over can change without the queue changing (a voice chosen).
+  void queue.refresh().catch((e) => ui.toast(String(e), "error"));
   document.addEventListener("pointerdown", outside, true);
   await nextTick();
   panel.value?.focus();

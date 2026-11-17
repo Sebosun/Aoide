@@ -109,3 +109,23 @@ it("queues a feed entry without marking it read", async () => {
   expect((await mock.queue()).items).toHaveLength(1);
   wrapper.unmount();
 });
+
+it("shows a queued article's reason gone once it has been fetched", async () => {
+  vi.useFakeTimers();
+  try {
+    const { library, dock } = await libraryAndDock();
+    const id = await mock.saveArticle({ url: "https://quay.example/tides" });
+    await mock.queueAdd({ bookId: id, place: "last" });
+    await dock.get('[aria-label="Queue"]').trigger("click");
+    await flushPromises();
+    expect(panel()?.querySelector(".queue-pill__why")?.textContent).toContain("Still being fetched");
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    await flushPromises();
+    expect(panel()?.querySelector(".queue-pill__why")).toBeNull();
+    library.unmount();
+    dock.unmount();
+  } finally {
+    vi.useRealTimers();
+  }
+});

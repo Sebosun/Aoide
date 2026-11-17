@@ -15,13 +15,18 @@ export const WHY_NOT: Record<WhyNot, string> = {
 export const useQueueStore = defineStore("queue", () => {
   const items = ref<QueueItemView[]>([]);
   let startup: Promise<void> | undefined;
-  let unlisten: (() => void) | undefined;
+  let unlisten: (() => void)[] = [];
   async function refresh() {
     items.value = (await api.queue()).items;
   }
   function start() {
     return (startup ??= (async () => {
-      unlisten = await api.onQueueChanged(() => void refresh());
+      // Why an item cannot be listened to changes with the library too: an article fetched, a
+      // file found again.
+      unlisten = await Promise.all([
+        api.onQueueChanged(() => void refresh()),
+        api.onLibraryChanged(() => void refresh()),
+      ]);
       await refresh();
     })());
   }
@@ -41,8 +46,8 @@ export const useQueueStore = defineStore("queue", () => {
   }
   const clear = () => api.queueClear();
   function dispose() {
-    unlisten?.();
-    unlisten = undefined;
+    unlisten.forEach((stop) => stop());
+    unlisten = [];
     startup = undefined;
   }
   return { items, start, refresh, add, addEntry, remove, move, clear, dispose };
