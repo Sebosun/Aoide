@@ -11,6 +11,7 @@ import { useNavigationStore } from "@/stores/navigation";
 import { prepareChapter } from "@/preparation";
 import { clickToPlay } from "@/components/reader/selection";
 import ReaderSelection from "@/components/reader/ReaderSelection.vue";
+import HighlightCard from "@/components/reader/HighlightCard.vue";
 import { NO_MARKS, pieces, sentenceMarks } from "@/components/reader/highlights";
 
 /** Lines mode, for listening from across the room: the spoken sentence large, filling word by
@@ -129,21 +130,27 @@ const play = (segment: SegmentView) => {
             ><template v-for="(word, i) in segment.words" :key="i"
               ><span class="reader-lines__word" :class="`reader-lines__word--${wordState(i)}`"
                 ><template v-for="(piece, p) in pieces(word, wordAt(segment, i), marksOf(segment))" :key="p"
-                  ><mark v-if="piece.id !== null" class="reader-lines__mark">{{ piece.text }}</mark
+                  ><mark v-if="piece.id !== null" class="reader-lines__mark" :data-highlight-id="piece.id">{{
+                    piece.text
+                  }}</mark
                   ><template v-else>{{ piece.text }}</template></template
                 ></span
               ><template v-if="i < segment.words.length - 1"
                 ><template
                   v-for="(piece, p) in pieces(' ', wordAt(segment, i) + word.length, marksOf(segment))"
                   :key="p"
-                  ><mark v-if="piece.id !== null" class="reader-lines__mark">{{ piece.text }}</mark
+                  ><mark v-if="piece.id !== null" class="reader-lines__mark" :data-highlight-id="piece.id">{{
+                    piece.text
+                  }}</mark
                   ><template v-else>{{ piece.text }}</template></template
                 ></template
               ></template
             ></template
           ><template v-else
             ><template v-for="(piece, p) in pieces(segment.words.join(' '), 0, marksOf(segment))" :key="p"
-              ><mark v-if="piece.id !== null" class="reader-lines__mark">{{ piece.text }}</mark
+              ><mark v-if="piece.id !== null" class="reader-lines__mark" :data-highlight-id="piece.id">{{
+                piece.text
+              }}</mark
               ><template v-else>{{ piece.text }}</template></template
             ></template
           >
@@ -151,6 +158,7 @@ const play = (segment: SegmentView) => {
       </TransitionGroup>
     </div>
     <ReaderSelection :root="stage" :chapter="reader.chapter" />
+    <HighlightCard :root="stage" />
     <PlayerTransport class="reader-lines__transport" />
   </section>
 </template>

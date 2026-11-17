@@ -174,3 +174,36 @@ it("highlights the sentence just spoken, and Undo in its toast takes it away", a
   toasts.unmount();
   wrapper.unmount();
 });
+
+it("opens a card on a highlight that is clicked, to write its note, copy it or remove it, without playing", async () => {
+  const play = vi.spyOn(mock, "play");
+  const writeText = vi.fn(async () => {});
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  const wrapper = mount(ReaderView, { attachTo: document.body });
+  await useLibraryStore().start();
+  await useReaderStore().open("book-0");
+  await usePlayerStore().start();
+  await flushPromises();
+  const reader = useReaderStore();
+  const target = sentence("0:1:0");
+  await reader.addHighlight(0, span(target, 0, 1).start, span(target, 0, 1).end);
+  await flushPromises();
+  (document.querySelector('[data-segment-id="0:1:0"] mark') as HTMLElement).click();
+  await flushPromises();
+  expect(play).not.toHaveBeenCalled();
+  const card = () => document.querySelector<HTMLElement>('[role="dialog"][aria-label="Highlight"]');
+  expect(card()?.textContent).toContain("Every evening,");
+  const note = card()!.querySelector("textarea")!;
+  note.value = "Where it starts";
+  note.dispatchEvent(new Event("change"));
+  await flushPromises();
+  expect(reader.highlights[0].note).toBe("Where it starts");
+  [...card()!.querySelectorAll("button")].find((b) => b.textContent?.includes("Copy"))!.click();
+  await flushPromises();
+  expect(writeText).toHaveBeenCalledWith("Every evening,");
+  [...card()!.querySelectorAll("button")].find((b) => b.textContent?.includes("Remove"))!.click();
+  await flushPromises();
+  expect(reader.highlights).toEqual([]);
+  expect(card()).toBeNull();
+  wrapper.unmount();
+});

@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { ArrowRight, LocateFixed } from "@lucide/vue";
 import ChapterText from "@/components/reader/ChapterText.vue";
 import ReaderSelection from "@/components/reader/ReaderSelection.vue";
+import HighlightCard from "@/components/reader/HighlightCard.vue";
 import BookMargin from "@/components/reader/BookMargin.vue";
 import PlayerDock from "@/components/player/PlayerDock.vue";
 import SleepPill from "@/components/player/SleepPill.vue";
@@ -220,6 +221,7 @@ const next = computed(() => {
       <LocateFixed :size="16" /> Back to playhead
     </button>
     <ReaderSelection :root="textRoot" :chapter="reader.chapter" />
+    <HighlightCard :root="textRoot" />
     <PlayerDock v-if="along" />
     <footer v-else class="sheet__foot">
       <div
