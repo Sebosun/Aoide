@@ -13,6 +13,16 @@ pub async fn home(core: CoreState<'_>) -> Result<HomeView, CoreError> {
     blocking(move || core.home()).await
 }
 
+/// The series an item is in, with the library's books in it; `null` when it is in none.
+#[tauri::command]
+pub async fn series(
+    core: CoreState<'_>,
+    book_id: String,
+) -> Result<Option<SeriesShelfView>, CoreError> {
+    let core = Arc::clone(&core);
+    blocking(move || core.series(&book_id)).await
+}
+
 /// Adds an audiobook with no EPUB (an M4B, audio files or a folder of them); the same files again
 /// are the same item. Refusals (DRM, unreadable) come back as the error.
 #[tauri::command]

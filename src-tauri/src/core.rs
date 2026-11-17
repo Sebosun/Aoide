@@ -45,7 +45,7 @@ pub use browsing::BrowserStatusView;
 #[cfg(any(test, debug_assertions))]
 pub use browsing::BrowserUse;
 pub use details::DetailsPatch;
-pub use facets::HomeView;
+pub use facets::{HomeView, SeriesShelfView};
 pub use feeds::{
     AddedLink, EntryFilter, EntryQuery, EntryView, FeedView, OpmlImport, SubscribeResult,
 };

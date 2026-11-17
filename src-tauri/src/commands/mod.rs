@@ -25,7 +25,7 @@ mod prelude {
     pub(crate) use crate::core::{
         AppInfo, AppSettings, AppSettingsPatch, BookProgressView, BookSettings, BookSummary,
         BookView, CoreError, EngineOptions, EngineStatusView, HomeView, ImportResult,
-        PreferencesView, ReadingMode,
+        PreferencesView, ReadingMode, SeriesShelfView,
     };
     pub(crate) use crate::logging;
     pub(crate) use std::sync::Arc;

@@ -110,6 +110,18 @@ upNextIds: Array<string>,
  */
 recentIds: Array<string>, };
 
+export type SeriesShelfView = { 
+/**
+ * The series' name as the asked item gives it.
+ */
+name: string, 
+/**
+ * By place in the series (those without one last), then by title.
+ */
+items: Array<SeriesItemView>, };
+
+export type SeriesItemView = { bookId: string, position: number | null, state: ReadState, };
+
 export type ImportResult = { path: string, bookId: string | null, error: string | null, };
 
 export type AppInfo = { libraryFolder: string, };
@@ -1522,6 +1534,8 @@ export type Commands = {
   "list_books": { args: Record<string, never>; result: BookSummary[] };
   /** Home's lists, as ids of library items. */
   "home": { args: Record<string, never>; result: HomeView };
+  /** The series an item is in, with the library's books in it; `null` when it is in none. */
+  "series": { args: { bookId: string }; result: SeriesShelfView | null };
   /**
    * Adds an audiobook with no EPUB (an M4B, audio files or a folder of them); the same files again
    * are the same item. Refusals (DRM, unreadable) come back as the error.
@@ -1923,6 +1937,8 @@ export interface CommandApi {
   listBooks(): Promise<BookSummary[]>;
   /** Home's lists, as ids of library items. */
   home(): Promise<HomeView>;
+  /** The series an item is in, with the library's books in it; `null` when it is in none. */
+  series(args: { bookId: string }): Promise<SeriesShelfView | null>;
   /**
    * Adds an audiobook with no EPUB (an M4B, audio files or a folder of them); the same files again
    * are the same item. Refusals (DRM, unreadable) come back as the error.
@@ -2230,6 +2246,7 @@ export const COMMANDS = {
   exportOpml: "export_opml",
   listBooks: "list_books",
   home: "home",
+  series: "series",
   addAudiobook: "add_audiobook",
   importFiles: "import_files",
   rescanLibrary: "rescan_library",

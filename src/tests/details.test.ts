@@ -448,3 +448,23 @@ it("puts an item in a series by hand, and goes back to the file's", async () => 
   expect(useLibraryStore().books.find((b) => b.id === "book-2")?.series).toBeNull();
   again.wrapper.unmount();
 });
+
+it("shows an item's place in its series with the others, and opens one", async () => {
+  useNavigationStore().openItem("book-3");
+  const wrapper = await app();
+  const strip = () => wrapper.get('.item-page [aria-label="Series: The Coast Books"]');
+  expect(strip().text()).toContain("Book 2 of The Coast Books");
+  const entries = strip().findAll(".series-strip__item");
+  expect(entries.map((e) => e.text())).toEqual(["1The Lantern Keeper", "2An Unfinished Atlas"]);
+  expect(entries[1].attributes("aria-current")).toBe("page");
+  await entries[0].trigger("click");
+  await flushPromises();
+  expect(useNavigationStore().bookId).toBe("book-0");
+  expect(strip().text()).toContain("Book 1 of The Coast Books");
+  wrapper.unmount();
+
+  useNavigationStore().openItem("book-1");
+  const plain = await app();
+  expect(plain.find('.item-page [aria-label^="Series:"]').exists()).toBe(false);
+  plain.unmount();
+});

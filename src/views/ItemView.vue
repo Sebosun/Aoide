@@ -24,6 +24,7 @@ import {
 } from "@lucide/vue";
 import TagsDialog from "@/components/library/TagsDialog.vue";
 import DetailsDialog from "@/components/library/DetailsDialog.vue";
+import SeriesStrip from "@/components/library/SeriesStrip.vue";
 import { api } from "@/api";
 import type { BookDetails, BookSettings, BookView, DayListening } from "@/api/types";
 import CoverArt from "@/components/CoverArt.vue";
@@ -357,6 +358,7 @@ async function pair() {
             {{ expanded ? "Less" : "More" }}
           </button>
         </div>
+        <SeriesStrip v-if="summary" :book-id="summary.id" />
         <!-- Its tags (its subjects, looked-up ones among them, and the user's), to edit here. -->
         <div v-if="summary" class="item-page__tags">
           <ul v-if="summary.tags.length" class="item-page__subjects" aria-label="Tags">

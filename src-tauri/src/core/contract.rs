@@ -43,6 +43,8 @@ fn contract() -> String {
         super::ReadState,
         super::BookSummary,
         super::facets::HomeView,
+        super::facets::SeriesShelfView,
+        super::facets::SeriesItemView,
         super::ImportResult,
         super::AppInfo,
         // Errors

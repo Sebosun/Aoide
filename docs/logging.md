@@ -154,7 +154,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `media.update` | warn | `error` | `media/mpris.rs`, telling the desktop what plays |
 | `metadata.lookup` | warn | `book`, `outcome`, `error` | `core/discovery.rs` |
 | `metadata.apply` | warn | `book`, `error` | `core/discovery.rs` |
-| `details.edited` | info | `book`, `fields` (names: `title`, `authors`, `published`, `cover`; never the values) | `core/details.rs` `edit_details` |
+| `details.edited` | info | `book`, `fields` (names: `title`, `authors`, `published`, `series`, `series_position`, `cover`; never the values) | `core/details.rs` `edit_details` |
 | `http` | debug, warn | `service`, `op`, `found`, `took_ms`, `outcome`, `error` | `core/metadata.rs` (Open Library) |
 | **Audiobooks** | | | |
 | `audiobooks.scan` | info | `roots`, `only_added`, `dirs`, `files`, `audio`, `audiobooks`, `doubtful`, `dropped` (finds heard: kept as audiobooks, kept as doubtful, dropped as music or clips), `matches`, `unmatched` (whole searches), `took_ms`, `outcome` | `core/audiobooks.rs` |

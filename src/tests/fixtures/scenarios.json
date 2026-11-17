@@ -1,5 +1,99 @@
 [
   {
+    "name": "a series lists its books, and its next book comes first once one is finished",
+    "start": "",
+    "steps": [
+      {
+        "args": {
+          "bookId": "book-0"
+        },
+        "call": "series",
+        "error": null,
+        "expect": {
+          "items.0.bookId": "book-0",
+          "items.0.position": 1.0,
+          "items.1.bookId": "book-3",
+          "items.1.position": 2.0,
+          "items.1.state": "unread",
+          "items.length": 2,
+          "name": "The Coast Books"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-1"
+        },
+        "call": "series",
+        "error": null,
+        "expect": {
+          "items.0.bookId": null,
+          "items.0.position": null,
+          "items.1.bookId": null,
+          "items.1.position": null,
+          "items.1.state": null,
+          "items.length": null,
+          "name": null
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-0"
+        },
+        "call": "markFinished",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-0].readState": "finished"
+        }
+      },
+      {
+        "args": {},
+        "call": "home",
+        "error": null,
+        "expect": {
+          "upNextIds.0": "book-3"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-3"
+        },
+        "call": "series",
+        "error": null,
+        "expect": {
+          "items.0.bookId": "book-0",
+          "items.0.position": 1.0,
+          "items.1.bookId": "book-3",
+          "items.1.position": 2.0,
+          "items.1.state": "unread",
+          "items.length": 2,
+          "name": "The Coast Books"
+        }
+      },
+      {
+        "args": {
+          "bookId": "book-0"
+        },
+        "call": "markUnread",
+        "error": null,
+        "expect": {}
+      },
+      {
+        "args": {},
+        "call": "listBooks",
+        "error": null,
+        "expect": {
+          "[id=book-0].finishedAt": null
+        }
+      }
+    ]
+  },
+  {
     "name": "a book is finished, read again and read in places",
     "start": "library",
     "steps": [

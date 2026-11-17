@@ -135,10 +135,76 @@ fn next_in_series<'a>(books: &[BookSummary], items: &[&'a BookSummary]) -> Optio
         })
 }
 
+/// The books of one series, for an item's page.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct SeriesShelfView {
+    /// The series' name as the asked item gives it.
+    pub name: String,
+    /// By place in the series (those without one last), then by title.
+    pub items: Vec<SeriesItemView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct SeriesItemView {
+    pub book_id: String,
+    pub position: Option<f32>,
+    pub state: super::ReadState,
+}
+
+/// The series item `id` is in, with every library item in it; `None` when it is in none.
+pub fn series_shelf(books: &[BookSummary], id: &str) -> Option<SeriesShelfView> {
+    let name = books
+        .iter()
+        .find(|b| b.id == id)?
+        .series
+        .as_ref()?
+        .name
+        .clone();
+    let key = series_key(&name);
+    let mut members: Vec<&BookSummary> = books
+        .iter()
+        .filter(|b| {
+            b.series
+                .as_ref()
+                .is_some_and(|s| series_key(&s.name) == key)
+        })
+        .collect();
+    let place = |b: &BookSummary| b.series.as_ref().and_then(|s| s.position);
+    members.sort_by(|a, b| {
+        let (pa, pb) = (place(a), place(b));
+        match (pa, pb) {
+            (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal),
+            // Those without a place last.
+            _ => pa.is_none().cmp(&pb.is_none()),
+        }
+        .then_with(|| a.title.to_lowercase().cmp(&b.title.to_lowercase()))
+    });
+    Some(SeriesShelfView {
+        name,
+        items: members
+            .into_iter()
+            .map(|b| SeriesItemView {
+                book_id: b.id.clone(),
+                position: place(b),
+                state: b.read_state,
+            })
+            .collect(),
+    })
+}
+
 impl super::Core {
     /// Home's lists, from the library as it is now.
     pub fn home(&self) -> Result<HomeView, String> {
         Ok(home(&self.list_books()?))
+    }
+
+    /// The series item `id` is in, with its library's books in it.
+    pub fn series(&self, id: &str) -> Result<Option<SeriesShelfView>, String> {
+        Ok(series_shelf(&self.list_books()?, id))
     }
 }
 
@@ -253,6 +319,40 @@ mod tests {
             });
         }
         item
+    }
+
+    #[test]
+    fn a_series_shelf_lists_its_books_by_place_with_their_state() {
+        let mut other_case = in_series("half", 5, 2.5, None, true);
+        other_case.series.as_mut().unwrap().name = " harbour LIGHTS ".into();
+        let mut unplaced = in_series("unplaced", 6, 0.0, None, false);
+        unplaced.series.as_mut().unwrap().position = None;
+        let books = vec![
+            in_series("three", 4, 3.0, None, false),
+            in_series("one", 1, 1.0, Some(100), false),
+            other_case,
+            unplaced,
+            book("alone", 9, None, None),
+        ];
+        let shelf = series_shelf(&books, "three").unwrap();
+        assert_eq!(shelf.name, "Harbour Lights");
+        let listed: Vec<(&str, Option<f32>, crate::core::ReadState)> = shelf
+            .items
+            .iter()
+            .map(|i| (i.book_id.as_str(), i.position, i.state))
+            .collect();
+        use crate::core::ReadState::*;
+        assert_eq!(
+            listed,
+            [
+                ("one", Some(1.0), Finished),
+                ("half", Some(2.5), InProgress),
+                ("three", Some(3.0), Unread),
+                ("unplaced", None, Unread),
+            ]
+        );
+        assert_eq!(series_shelf(&books, "alone"), None);
+        assert_eq!(series_shelf(&books, "missing"), None);
     }
 
     #[test]

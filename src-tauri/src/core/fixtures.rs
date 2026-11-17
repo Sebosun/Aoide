@@ -1057,6 +1057,62 @@ async fn scenarios_for_the_ui_mock() {
     let books = |core: &Core| core.list_books();
 
     let mut s = Scenario::new(
+        "a series lists its books, and its next book comes first once one is finished",
+        "",
+    );
+    // Before any other scenario changes the books, so it starts where the mock does; the books'
+    // states are left out (the mock's first book starts read in part).
+    let shelf = [
+        "name",
+        "items.length",
+        "items.0.bookId",
+        "items.0.position",
+        "items.1.bookId",
+        "items.1.position",
+        "items.1.state",
+    ];
+    s.step(
+        "series",
+        json!({"bookId": first}),
+        &core.series(&first),
+        &shelf,
+    );
+    s.step(
+        "series",
+        json!({"bookId": second}),
+        &core.series(&second),
+        &shelf,
+    );
+    let finished = core.mark_finished(&first);
+    s.step("markFinished", json!({"bookId": first}), &finished, &[]);
+    s.step(
+        "listBooks",
+        json!({}),
+        &books(&core),
+        &[&format!("[id={first}].readState")],
+    );
+    s.step("home", json!({}), &core.home(), &["upNextIds.0"]);
+    s.step(
+        "series",
+        json!({"bookId": fourth}),
+        &core.series(&fourth),
+        &shelf,
+    );
+    s.step(
+        "markUnread",
+        json!({"bookId": first}),
+        &core.mark_unread(&first),
+        &[],
+    );
+    s.step(
+        "listBooks",
+        json!({}),
+        &books(&core),
+        &[&format!("[id={first}].finishedAt")],
+    );
+    scenarios.push(s.done());
+
+    let mut s = Scenario::new(
         "a book is finished, read again and read in places",
         "library",
     );

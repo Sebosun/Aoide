@@ -174,6 +174,23 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   /** Home as the core made it for these books; `setHome` replaces it (an empty library). */
   /** Home for another library, set by a test; else Home is worked out from the books. */
   let homeOverride: HomeView | null = null;
+  /** A series' name as the core matches it (core/facets.rs `series_key`). */
+  const seriesKey = (name: string) => name.trim().toLowerCase();
+  /** The book after the most recently finished item in its series, among `among` (core/facets.rs
+   *  `next_in_series`). */
+  const nextInSeries = (items: BookSummary[], among: BookSummary[]) => {
+    const last = items
+      .filter((b) => b.finishedAt !== null)
+      .reduce<BookSummary | null>((m, b) => (!m || b.finishedAt! > m.finishedAt! ? b : m), null);
+    const after = last?.series?.position;
+    if (!last?.series || after == null) return null;
+    const key = seriesKey(last.series.name);
+    return (
+      among
+        .filter((b) => b.series && seriesKey(b.series.name) === key && (b.series.position ?? -Infinity) > after)
+        .sort((a, b) => a.series!.position! - b.series!.position!)[0] ?? null
+    );
+  };
   /** Home's lists from the library's items, as the core makes them (core/facets.rs `home`):
    *  started and unfinished by last opened, never started and every other item by newest added;
    *  archived items in none. */
@@ -188,10 +205,11 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       3,
     );
     const newest = [...usable].sort((a, b) => b.addedAt - a.addedAt);
-    const upNextIds = ids(
-      newest.filter((b) => !started(b)),
-      5,
-    );
+    const unstarted = newest.filter((b) => !started(b));
+    // The next book of the series just finished goes first, if it is not started.
+    const next = nextInSeries(items, usable);
+    if (next && !started(next)) (unstarted.splice(unstarted.indexOf(next), 1), unstarted.unshift(next));
+    const upNextIds = ids(unstarted, 5);
     const recentIds = ids(
       newest.filter((b) => !continueIds.includes(b.id) && !upNextIds.includes(b.id)),
       8,
@@ -1052,7 +1070,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       total = parts.at(-1)?.end ?? 0;
     const chapter = partAt(parts, at);
     b.progress = { chapter, segmentId: null, fraction: total ? at / total : 0, positionMs: at };
-    b.readState = at + 1000 >= total ? "finished" : "inProgress";
+    if (at + 1000 >= total) finish(b);
+    else b.readState = "inProgress";
     changed();
   };
   const TIMELINE_STEP = 250;
@@ -1128,6 +1147,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const finish = (b: BookSummary) => {
     if (b.readState === "finished") return;
     b.readState = "finished";
+    b.finishedAt = Date.now();
     if (!isArticle(b.id) || feedShelf.has(b.id) || b.archived) return;
     if (appSettings.archiveFinishedArticles) b.archived = true;
     else finishedHandlers.forEach((h) => h({ id: b.id, title: b.title }));
@@ -1258,6 +1278,31 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       fullscreenHandlers.forEach((h) => h(on));
     },
     onFullscreen: (h) => subscribe(fullscreenHandlers, h),
+    /** The series an item is in (core/facets.rs `series_shelf`). */
+    async series({ bookId: id }) {
+      const items = await api.listBooks();
+      const name = items.find((b) => b.id === id)?.series?.name;
+      if (name === undefined) return null;
+      const place = (b: BookSummary) => b.series?.position ?? null;
+      return {
+        name,
+        items: items
+          .filter((b) => b.series && seriesKey(b.series.name) === seriesKey(name))
+          .sort((a, b) => {
+            const [pa, pb] = [place(a), place(b)];
+            const byPlace = pa !== null && pb !== null ? pa - pb : Number(pa === null) - Number(pb === null);
+            return (
+              byPlace ||
+              (a.title.toLowerCase() < b.title.toLowerCase()
+                ? -1
+                : a.title.toLowerCase() > b.title.toLowerCase()
+                  ? 1
+                  : 0)
+            );
+          })
+          .map((b) => ({ bookId: b.id, position: place(b), state: b.readState })),
+      };
+    },
     async home() {
       return homeOverride ? structuredClone(homeOverride) : homeOf(await api.listBooks());
     },
@@ -1449,6 +1494,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     async markUnread({ bookId: id }) {
       const b = getBook(id);
       b.readState = "unread";
+      b.finishedAt = null;
       b.progress = null;
       changed();
     },

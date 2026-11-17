@@ -108,6 +108,7 @@ pub fn run() {
             commands::app::set_fullscreen,
             commands::library::list_books,
             commands::library::home,
+            commands::library::series,
             commands::library::add_audiobook,
             commands::library::import_files,
             commands::library::rescan_library,
