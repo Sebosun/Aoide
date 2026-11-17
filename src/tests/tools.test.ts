@@ -139,6 +139,7 @@ it("flags a book voice the engine does not offer and opens Narration from the ma
       speakMissing: false,
       mode: null,
       leftOut: [],
+      playbackSpeed: null,
     },
   });
   const wrapper = await reader("book-0");

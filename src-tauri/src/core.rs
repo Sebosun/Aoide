@@ -563,6 +563,8 @@ impl Core {
         let start = away
             .and_then(|away| playback::step_back_in(&target, start, away, "saved"))
             .unwrap_or(start);
+        self.playback
+            .use_own_speed(self.book_settings(book_id).playback_speed);
         self.follow_through(self.playback.start(target, start))
     }
 
@@ -641,6 +643,7 @@ impl Core {
             let playing = self.playback.is_playing();
             let paused_since = self.playback.paused_since();
             drop(self.playback.stop());
+            self.playback.use_own_speed(settings.playback_speed);
             self.follow_through(self.playback.start(target, index))?;
             if !playing {
                 drop(self.playback.pause_since(paused_since));

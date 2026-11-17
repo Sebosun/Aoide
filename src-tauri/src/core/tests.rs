@@ -1506,3 +1506,48 @@ async fn an_archived_item_leaves_home_and_comes_back_when_taken_out() {
     assert_eq!(core.home().unwrap().up_next_ids, [id.as_str()]);
     assert!(core.archive("no-such-item", true).is_err());
 }
+
+/// A second book in the library folder of [`library_folder`]; returns its id.
+fn second_book(root: &Path) -> String {
+    let bytes = epub_of_chapters(&[("The Ferry", "The ferry left at noon. Nobody waved.")]);
+    std::fs::write(root.join("Books/ferry.epub"), &bytes).unwrap();
+    aoide_library::content_hash(&bytes).0
+}
+
+/// A core holding the test book and [`second_book`], at `[player]` `speed`; returns their ids.
+async fn two_books(
+    root: &Path,
+    engine: &Arc<FakeEngine>,
+    speed: f32,
+) -> (Arc<Core>, String, String) {
+    let id = library_folder(root, &format!("[player]\nspeed = {speed}\n"));
+    let other = second_book(root);
+    let (core, _events) = start(root, engine);
+    until("the library scan", || {
+        core.list_books().is_ok_and(|b| b.len() == 2)
+    })
+    .await;
+    (core, id, other)
+}
+
+#[tokio::test]
+async fn a_book_with_its_own_speed_starts_at_it_and_the_next_book_at_the_usual_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = FakeEngine::new();
+    let (core, id, other) = two_books(dir.path(), &engine, 1.25).await;
+    let own = BookSettings {
+        playback_speed: Some(1.5),
+        ..Default::default()
+    };
+    core.shelf.save_settings(&id, &own).unwrap();
+    let speed = |core: &Core| core.player_state().speed;
+
+    core.play(&id, Some(0), None).await.unwrap();
+    assert_eq!(speed(&core), 1.5, "the book's own speed");
+    core.play(&other, Some(0), None).await.unwrap();
+    assert_eq!(speed(&core), 1.25, "the usual speed");
+    core.play(&id, Some(0), None).await.unwrap();
+    assert_eq!(speed(&core), 1.5);
+    core.stop();
+    assert_eq!(speed(&core), 1.25, "nothing playing: the usual speed");
+}

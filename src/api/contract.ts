@@ -475,7 +475,13 @@ mode: ReadingMode | null,
 /**
  * The chapters left out of the narration, by index, in order (see `core/leaving_out.rs`).
  */
-leftOut: Array<number>, };
+leftOut: Array<number>, 
+/**
+ * The book's own playback speed, kept apart from the usual one (`[player].speed`); `None`
+ * when it plays at the usual speed. Not Chatterbox's `speed_factor` in `params`, which is
+ * how fast the engine speaks.
+ */
+playbackSpeed: number | null, };
 
 export type Bookmark = { id: number, bookId: BookId, chapter: number, charOffset: number, segmentId: string | null, 
 /**

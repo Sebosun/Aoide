@@ -466,6 +466,7 @@
             "mode": "read",
             "narration": null,
             "params": {},
+            "playbackSpeed": null,
             "readNotes": false,
             "speakMissing": false,
             "voiceId": null

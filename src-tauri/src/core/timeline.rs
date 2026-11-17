@@ -305,6 +305,8 @@ impl Core {
                         .unwrap_or(at)
                 }),
         };
+        self.playback
+            .use_own_speed(self.book_settings(id).playback_speed);
         self.follow_through(self.playback.start_timeline(Arc::new(timeline), at))
     }
 
@@ -633,6 +635,28 @@ mod tests {
         check: impl Fn(&super::super::PlayerStateView) -> bool,
     ) {
         until(what, || check(&core.player_state())).await;
+    }
+
+    #[tokio::test]
+    async fn an_audiobook_with_its_own_speed_plays_at_it_and_the_book_after_it_at_the_usual_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = core(dir.path()).await;
+        let book = core.list_books().unwrap()[0].id.clone();
+        let folder = three_parts(dir.path());
+        let id = core
+            .add_audiobook(vec![folder.to_string_lossy().into()])
+            .book_id
+            .unwrap();
+        let own = super::super::BookSettings {
+            playback_speed: Some(0.9),
+            ..Default::default()
+        };
+        core.shelf.save_settings(&id, &own).unwrap();
+
+        core.play(&id, None, None).await.unwrap();
+        assert_eq!(core.player_state().speed, 0.9);
+        core.play(&book, Some(0), None).await.unwrap();
+        assert_eq!(core.player_state().speed, 1.0);
     }
 
     #[tokio::test]

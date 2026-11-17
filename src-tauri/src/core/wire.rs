@@ -233,6 +233,10 @@ pub struct BookSettings {
     pub mode: Option<super::ReadingMode>,
     /// The chapters left out of the narration, by index, in order (see `core/leaving_out.rs`).
     pub left_out: Vec<usize>,
+    /// The book's own playback speed, kept apart from the usual one (`[player].speed`); `None`
+    /// when it plays at the usual speed. Not Chatterbox's `speed_factor` in `params`, which is
+    /// how fast the engine speaks.
+    pub playback_speed: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize)]

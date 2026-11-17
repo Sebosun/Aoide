@@ -192,9 +192,28 @@ enum Playing {
     Timeline(TimelineSession),
 }
 
+/// The speeds playback chooses from: the usual one (`[player].speed`) and the playing book's
+/// own, when it has one.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Speeds {
+    usual: f32,
+    own: Option<f32>,
+}
+
+/// A playback speed as the core keeps it: 0.5–3.0, to two decimals (so steps of 0.1 do not
+/// drift to 1.4000001); 1.0 for a value that is not a number.
+pub fn kept_speed(speed: f32) -> f32 {
+    if !speed.is_finite() {
+        return 1.0;
+    }
+    (speed.clamp(0.5, 3.0) * 100.0).round() / 100.0
+}
+
 pub struct Playback {
     /// Shared with the audio output, which renders from it.
     player: Arc<Mutex<PlayerCore>>,
+    /// Locked before `player` when both are.
+    speeds: Mutex<Speeds>,
     playing: Mutex<Option<Playing>>,
     error: Mutex<Option<String>>,
     /// The audio output's latency: the word shown is the word heard.
@@ -207,9 +226,12 @@ pub struct Playback {
 }
 
 impl Playback {
+    /// Playback by `player`, whose speed is the usual one.
     pub fn new(player: PlayerCore) -> Self {
+        let usual = kept_speed(player.speed());
         Self {
             player: Arc::new(Mutex::new(player)),
+            speeds: Mutex::new(Speeds { usual, own: None }),
             playing: Mutex::new(None),
             error: Mutex::new(None),
             latency_ms: Mutex::new(0),
@@ -400,8 +422,26 @@ impl Playback {
         lock(&self.player).volume()
     }
 
+    /// Plays at `speed`: the playing book's own speed when it has one, else the usual speed.
     pub fn set_speed(&self, speed: f32) {
+        let speed = kept_speed(speed);
+        let mut speeds = lock(&self.speeds);
+        match speeds.own.as_mut() {
+            Some(own) => *own = speed,
+            None => speeds.usual = speed,
+        }
         lock(&self.player).set_speed(speed);
+        drop(speeds);
+        self.stir();
+    }
+
+    /// Plays at `own`, the speed of the item about to play, or at the usual speed when it has
+    /// none of its own.
+    pub fn use_own_speed(&self, own: Option<f32>) {
+        let mut speeds = lock(&self.speeds);
+        speeds.own = own.map(kept_speed);
+        lock(&self.player).set_speed(speeds.own.unwrap_or(speeds.usual));
+        drop(speeds);
         self.stir();
     }
 
@@ -466,6 +506,8 @@ impl Playback {
     pub fn stop(&self) -> Moved {
         let place = self.place_to_save(true);
         lock(&self.player).load(Vec::new(), 0);
+        // With nothing playing, the usual speed applies.
+        self.use_own_speed(None);
         *lock(&self.paused_at) = None;
         *lock(&self.playing) = None;
         self.stir();

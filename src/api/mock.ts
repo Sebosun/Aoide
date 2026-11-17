@@ -270,6 +270,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       speakMissing: false,
       mode: null,
       leftOut: [],
+      playbackSpeed: null,
     };
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
