@@ -7,8 +7,10 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use aoide_library::{BookId, Library};
+use serde::Serialize;
 
 use super::browsing::Pending;
+use super::fetching::Stage as FetchStage;
 use super::lock;
 
 /// How long after an item ends the next one starts.
@@ -86,10 +88,46 @@ pub enum QueuePlace {
     Last,
 }
 
+/// Why a queued item cannot be listened to now. It stays queued, and is passed over when its
+/// turn comes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub enum WhyNot {
+    /// An article still being fetched.
+    Fetching,
+    /// An article whose fetch got nothing.
+    NotFetched,
+    /// Its file is missing or cannot be read, or it is not in the library.
+    Missing,
+    /// It is read by the speech engine, which has no voice.
+    NoVoice,
+}
+
+/// An item in the queue.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct QueueItemView {
+    pub book_id: String,
+    /// Why it cannot be listened to now; `None` when it can.
+    pub why_not: Option<WhyNot>,
+}
+
+/// The queue, first to play first.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct QueueView {
+    pub items: Vec<QueueItemView>,
+}
+
 /// What the queue asks of the rest of the app.
 pub(super) trait QueueHost: Sync {
     /// Plays item `id` from its saved place, in place of what plays.
     fn play<'a>(&'a self, id: &'a str) -> Pending<'a, Result<(), String>>;
+    /// Whether item `id` can be listened to now.
+    fn can_listen(&self, id: &str) -> Result<(), WhyNot>;
 }
 
 /// The queue: its order in the library, and the hand-over.
@@ -166,11 +204,33 @@ impl Queue {
         action
     }
 
-    /// Plays the first queued item, in place of `from`, and takes it off the queue. Returns
-    /// the item played.
+    /// The queue, each item with why it cannot be listened to now, if it cannot.
+    pub fn view(&self, host: &impl QueueHost) -> Result<QueueView, String> {
+        let items = self
+            .ids()?
+            .into_iter()
+            .map(|id| QueueItemView {
+                why_not: host.can_listen(&id).err(),
+                book_id: id,
+            })
+            .collect();
+        Ok(QueueView { items })
+    }
+
+    /// Plays the first queued item that can be listened to, in place of `from`, and takes it
+    /// off the queue; those that cannot are passed over and stay. Returns the item played.
     pub async fn hand_over(&self, host: &impl QueueHost, from: &str) -> Option<String> {
         let ids = self.ids().unwrap_or_default();
         for id in ids {
+            if let Err(why) = host.can_listen(&id) {
+                tracing::info!(
+                    event = "queue.passed_over",
+                    book = crate::logging::book(&id),
+                    why = crate::logging::name(why),
+                    "Passed over a queued item that cannot be listened to now"
+                );
+                continue;
+            }
             match host.play(&id).await {
                 Ok(()) => {
                     self.started(&id);
@@ -198,6 +258,30 @@ impl QueueHost for super::Core {
     fn play<'a>(&'a self, id: &'a str) -> Pending<'a, Result<(), String>> {
         Box::pin(super::Core::play(self, id, None, None))
     }
+
+    fn can_listen(&self, id: &str) -> Result<(), WhyNot> {
+        let record = lock(&self.library)
+            .book(&BookId(id.into()))
+            .ok()
+            .flatten()
+            .ok_or(WhyNot::Missing)?;
+        if record.status != aoide_library::BookStatus::Present {
+            return Err(WhyNot::Missing);
+        }
+        if record.kind == aoide_library::ItemKind::Article {
+            match self.articles.summary(id).map(|a| a.stage) {
+                Some(FetchStage::Queued | FetchStage::Fetching) => return Err(WhyNot::Fetching),
+                Some(FetchStage::Failed) => return Err(WhyNot::NotFetched),
+                _ => {}
+            }
+        }
+        let recorded = record.kind == aoide_library::ItemKind::Audiobook
+            || self.plays_recording(id, &self.book_settings(id));
+        if !recorded && self.engine.default_voice().is_none() {
+            return Err(WhyNot::NoVoice);
+        }
+        Ok(())
+    }
 }
 
 impl super::Core {
@@ -209,6 +293,12 @@ impl super::Core {
             QueuePlace::Last => usize::MAX,
         };
         self.queue.put(id, at)
+    }
+
+    /// The queue, each item with why it cannot be listened to now, if it cannot.
+    #[allow(dead_code)] // Asked for from the window.
+    pub fn queue(&self) -> Result<QueueView, String> {
+        self.queue.view(self)
     }
 
     /// Tells the queue of a tick of the player (`ended`: the item that just played to its
@@ -332,16 +422,25 @@ mod component_tests {
     use super::super::tests::library_with;
     use super::*;
 
-    /// Plays what it is asked to, and remembers it.
+    /// Plays what it is asked to, and remembers it; the items in `cannot` cannot be listened
+    /// to.
     #[derive(Default)]
     struct Host {
         played: Mutex<Vec<String>>,
+        cannot: Vec<(&'static str, WhyNot)>,
     }
 
     impl QueueHost for Host {
         fn play<'a>(&'a self, id: &'a str) -> Pending<'a, Result<(), String>> {
             lock(&self.played).push(id.into());
             Box::pin(async { Ok(()) })
+        }
+
+        fn can_listen(&self, id: &str) -> Result<(), WhyNot> {
+            match self.cannot.iter().find(|(c, _)| *c == id) {
+                Some((_, why)) => Err(*why),
+                None => Ok(()),
+            }
         }
     }
 
@@ -395,5 +494,38 @@ mod component_tests {
         assert!(queue.started("c"));
         assert!(!queue.started("a"));
         assert_eq!(queue.ids().unwrap(), ["b"]);
+    }
+
+    #[tokio::test]
+    async fn items_that_cannot_be_listened_to_are_passed_over_and_stay_queued_with_why() {
+        let queue = queue(&["a", "b", "c"]);
+        let host = Host {
+            cannot: vec![("a", WhyNot::Fetching), ("b", WhyNot::NoVoice)],
+            ..Host::default()
+        };
+        assert_eq!(queue.hand_over(&host, "x").await.as_deref(), Some("c"));
+        assert_eq!(*lock(&host.played), ["c"]);
+        let view = queue.view(&host).unwrap();
+        let items: Vec<_> = view
+            .items
+            .iter()
+            .map(|i| (i.book_id.as_str(), i.why_not))
+            .collect();
+        assert_eq!(
+            items,
+            [("a", Some(WhyNot::Fetching)), ("b", Some(WhyNot::NoVoice))]
+        );
+    }
+
+    #[tokio::test]
+    async fn with_nothing_that_can_be_listened_to_nothing_plays() {
+        let queue = queue(&["a"]);
+        let host = Host {
+            cannot: vec![("a", WhyNot::Missing)],
+            ..Host::default()
+        };
+        assert_eq!(queue.hand_over(&host, "x").await, None);
+        assert!(lock(&host.played).is_empty());
+        assert_eq!(queue.ids().unwrap(), ["a"]);
     }
 }

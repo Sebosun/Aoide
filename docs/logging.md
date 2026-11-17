@@ -211,6 +211,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `sleep.extended` | info | `minutes`, `end_of_chapter` | `core/controls.rs` `Controls::sleep`, playing within 3 minutes of a ring started the same timer again |
 | `queue.changed` | info | `size` | `core/queue.rs` `Queue`, an item added to, moved in or taken off the queue (one taken off as it starts too) |
 | `queue.handover` | info, warn | `from`, `to`, `outcome` (`waiting`: the item ended, the next plays after the gap; `cancelled`: the listener did something in the gap; `played`; `failed`, with `error`: that item could not play, the next is tried; `nothing_to_play`) | `core/queue.rs`, where `next` is applied and `Queue::hand_over` |
+| `queue.passed_over` | info | `book`, `why` (`fetching`, `notFetched`, `missing`, `noVoice`) | `core/queue.rs` `Queue::hand_over`, a queued item that cannot be listened to now stays queued and the next is tried |
 | `feeder.read` | warn | `error` | `core/feeder.rs` |
 | `cache.evict` | info | `segments`, `books` | `core/storage.rs` `enforce_cache_limit` |
 | `export.done` | info, warn | `kind`, `book`, `file`, `took_ms`, `outcome`, `error` | `core/export.rs` (`Exports`) |

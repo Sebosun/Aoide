@@ -84,3 +84,26 @@ async fn an_item_that_ends_where_the_sleep_timer_waits_for_the_chapter_end_hands
     assert_eq!(core.queue.ids().unwrap(), [second]);
     core.stop();
 }
+
+#[tokio::test]
+async fn a_queued_article_whose_fetch_got_nothing_is_marked_and_passed_over() {
+    use super::queue::WhyNot;
+    let dir = tempfile::tempdir().unwrap();
+    let (core, first, second) = two_items(dir.path()).await;
+    let article = core.save_article("https://quay.example/tides").unwrap();
+    core.queue_add(&article, QueuePlace::Last).unwrap();
+    core.queue_add(&second, QueuePlace::Last).unwrap();
+    until("the fetch to fail", || {
+        core.queue().unwrap().items[0].why_not == Some(WhyNot::NotFetched)
+    })
+    .await;
+    assert_eq!(core.queue().unwrap().items[1].why_not, None);
+
+    core.play(&first, Some(1), None).await.unwrap();
+    until("the queued book to play", || {
+        playing(&core).as_deref() == Some(second.as_str())
+    })
+    .await;
+    assert_eq!(core.queue.ids().unwrap(), [article]);
+    core.stop();
+}
