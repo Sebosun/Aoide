@@ -175,3 +175,33 @@ export function fewWords(text: string): string {
     .filter(Boolean);
   return words.length && words.length <= FEW_WORDS ? words.join(" ") : "";
 }
+
+/** The DOM point `at` characters into a sentence drawn as its words joined by single spaces
+ *  (footnote markers, `data-not-text`, not counted). */
+function pointIn(element: Element, at: number): [Node, number] {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let left = at,
+    last: [Node, number] = [element, 0];
+  for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+    if (node.parentElement?.closest("[data-not-text]")) continue;
+    const chars = Array.from(node.data);
+    if (left <= chars.length) return [node, chars.slice(0, left).join("").length];
+    left -= chars.length;
+    last = [node, node.length];
+  }
+  return last;
+}
+
+/** Selects in a sentence drawn in `element`, as Shift and an arrow key start a selection on it:
+ *  its first word (`"first"`), its last word, selected backwards so that the keys extend it
+ *  further back (`"last"`), or all of it (`"all"`, backwards when `backwards`). */
+export function selectInSentence(element: Element, words: string[], part: "first" | "last" | "all", backwards = false) {
+  const selection = document.getSelection();
+  if (!selection || !words.length) return;
+  const start = (index: number) => words.slice(0, index).reduce((sum, word) => sum + length(word) + 1, 0);
+  const end = start(words.length - 1) + length(words[words.length - 1]);
+  const [from, to] =
+    part === "first" ? [0, length(words[0])] : part === "last" ? [end, start(words.length - 1)] : [0, end];
+  const [anchor, focus] = (part === "all" && backwards ? [to, from] : [from, to]).map((at) => pointIn(element, at));
+  selection.setBaseAndExtent(anchor[0], anchor[1], focus[0], focus[1]);
+}

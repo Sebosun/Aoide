@@ -12,6 +12,8 @@ import { usePreferencesStore } from "@/stores/preferences";
 import { useNavigationStore } from "@/stores/navigation";
 import { useUiStore } from "@/stores/ui";
 import { pickMenuItem } from "@/tests/helpers";
+import { defineComponent } from "vue";
+import { useShortcuts } from "@/composables/useShortcuts";
 
 const backend = vi.hoisted(() => ({ api: null as unknown }));
 vi.mock("@/api", () => ({
@@ -270,4 +272,87 @@ it("does not play the sentence a right click opened the menu on, when WebKit fol
   sentence.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
   await flushPromises();
   expect(play, "the next click plays").toHaveBeenCalledWith({ bookId: "book-0", chapter: 0, segmentId: "0:2:0" });
+});
+
+/** The app's keys (App mounts them), beside the reader. */
+const Keys = defineComponent({
+  setup() {
+    useShortcuts();
+    return () => null;
+  },
+});
+/** Presses a key on the focused element. */
+function press(key: string, init: KeyboardEventInit = {}) {
+  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+  (document.activeElement ?? document.body).dispatchEvent(event);
+  return event;
+}
+/** Focuses sentence `id` with the keyboard (as Tab does). */
+function tabTo(id: string) {
+  press("Tab");
+  document.querySelector<HTMLElement>(`[data-segment-id="${id}"]`)!.focus();
+}
+
+it("starts a selection with Shift and an arrow on a sentence reached with the keyboard, and the menu key opens the menu in it", async () => {
+  mount(Keys, { attachTo: document.body });
+  const skip = vi.spyOn(mock, "skipChapter");
+  await openReader();
+  await mock.play({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
+  await mock.pause();
+  await flushPromises();
+  tabTo("0:1:1");
+  expect(press("ArrowRight", { shiftKey: true }).defaultPrevented).toBe(true);
+  expect(document.getSelection()!.toString()).toBe("The");
+  expect(skip).not.toHaveBeenCalled();
+  // Further on, WebKit extends the selection itself; the key is not a chapter skip.
+  expect(press("ArrowRight", { shiftKey: true }).defaultPrevented).toBe(false);
+  expect(skip).not.toHaveBeenCalled();
+
+  document.dispatchEvent(new Event("selectionchange"));
+  await settle(350);
+  expect(entries(), "the selection settled").toContain("Copy");
+  expect(document.activeElement?.getAttribute("data-segment-id")).toBe("0:1:1");
+  press("ContextMenu");
+  await flushPromises();
+  expect(document.activeElement?.textContent?.trim()).toBe("Copy");
+  press("ArrowDown");
+  expect(document.activeElement?.textContent?.trim()).toBe("Search the book");
+  press("Escape");
+  await flushPromises();
+  expect(menu()).toBeNull();
+  expect(document.activeElement?.getAttribute("data-segment-id"), "back on the sentence").toBe("0:1:1");
+
+  tabTo("0:2:0");
+  press("ArrowLeft", { shiftKey: true });
+  expect(document.getSelection()!.toString(), "backwards from its end").toBe("steps.");
+  press("F10", { shiftKey: true });
+  await flushPromises();
+  (document.activeElement as HTMLElement).click();
+  await flushPromises();
+  expect(clipboard.writeText).toHaveBeenCalledWith("steps.");
+});
+
+it("opens the menu of the sentence reached with the keyboard when nothing is selected", async () => {
+  await openReader();
+  tabTo("0:2:0");
+  press("ContextMenu");
+  await flushPromises();
+  expect(sentenceMenu()).not.toBeNull();
+  expect(document.activeElement?.textContent?.trim()).toBe("Listen from here");
+});
+
+it("keeps Shift and the arrows for chapters and volume on a sentence that was clicked", async () => {
+  mount(Keys, { attachTo: document.body });
+  const skip = vi.spyOn(mock, "skipChapter");
+  await openReader();
+  await mock.play({ bookId: "book-0", chapter: 0, segmentId: "0:1:0" });
+  await mock.pause();
+  await flushPromises();
+  const sentence = document.querySelector<HTMLElement>('[data-segment-id="0:1:1"]')!;
+  sentence.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
+  sentence.focus();
+  press("ArrowRight", { shiftKey: true });
+  await flushPromises();
+  expect(document.getSelection()!.isCollapsed || !document.getSelection()!.rangeCount).toBe(true);
+  expect(skip).toHaveBeenCalledWith({ delta: 1 });
 });

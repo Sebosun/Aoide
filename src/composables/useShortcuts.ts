@@ -40,6 +40,8 @@ const volumeLabel = (volume: number) => (volume > 0 ? `Volume ${Math.round(volum
  *    (↑ and ↓ alone keep scrolling); M mutes. Each says the new value in a toast.
  *  - B bookmarks the playing (or open) book's place; T opens the player's sleep timer menu.
  *  - Escape leaves the reader for the screen it was opened from, when nothing is open over it.
+ *  - The menu key (or Shift F10) is the reader's text menu's (ReaderSelection), which also has
+ *    Shift ← / → and ↑ / ↓ while text is selected or a sentence was reached with the keyboard.
  *  - ? shows the list of shortcuts.
  *  - Ctrl F searches the open book (in the reader) or the library; Ctrl , opens Settings;
  *    Ctrl N opens Add.
@@ -140,6 +142,9 @@ export function useShortcuts() {
       if (navigation.view !== "reader" || document.querySelector(OVERLAYS)) return false;
       navigation.leaveReader();
     },
+    // The reader's text opens it (components/reader/ReaderSelection), and the key reaches it
+    // first: here it is only listed.
+    textMenu: () => false,
     help: () => navigation.openShortcuts(),
   };
   function onKeydown(event: KeyboardEvent) {

@@ -55,9 +55,12 @@ to 3.4, which is not planned for now.)
   segment. `navigation.findInBook()` (`src/stores/navigation.ts:75`) opens Book tools on Search
   with no query.
 - `player.play(bookId, chapter, segmentId)` (`src/stores/player.ts`) exists.
-- `useShortcuts.ts` ignores its plain keys while Shift is held, so Shift+arrows are free.
-  WebKit extends an existing selection with Shift+arrows but cannot start one on a page that is
-  not editable (no caret browsing).
+- `useShortcuts.ts` ignores its plain keys while Shift is held, but 2.7 gave Shift ← / → to
+  chapters and Shift ↑ / ↓ to the volume. So Shift+arrows are the selection's only on a
+  sentence reached with the keyboard, or while text is selected in the chapter (the reader's
+  listener stops them reaching the player's); a sentence that was clicked keeps them for the
+  player. WebKit extends an existing selection with Shift+arrows but cannot start one on a
+  page that is not editable (no caret browsing).
 - **Bookmark here** has no command yet: `add_bookmark(book_id, note)` bookmarks the playhead or
   the saved place (`Core::add_bookmark`, `core/bookmarks.rs`), never a chosen sentence.
 
@@ -134,8 +137,9 @@ is short-lived, which is acceptable.
 3. A selection does not start playback; a plain click still does.
 4. The menu with Copy, Search the book and Listen from here (`usePopover` takes a rectangle).
 5. The right-click menu on a sentence; `add_bookmark` with a `segment_id`.
-6. Keyboard: Shift+arrows from the focused sentence start a selection there (set in script),
-   then extend it as WebKit does; the menu key opens the menu; actions reachable by keyboard.
+6. Keyboard: Shift+arrows from the focused sentence start a selection there (set in script:
+   → its first word, ← its last word, ↓ ↑ all of it), then extend it as WebKit does; the menu
+   key (or Shift F10, listed with the shortcuts) opens the menu; actions reachable by keyboard.
 
 ### Logging
 

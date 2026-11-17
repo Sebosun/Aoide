@@ -254,9 +254,10 @@ Then turn on **Settings → Word highlighting → Exact word timing** with the a
 | <kbd>Ctrl</kbd> <kbd>−</kbd> | Smaller interface |
 | <kbd>Ctrl</kbd> <kbd>0</kbd> | Interface at 100% |
 | <kbd>Esc</kbd> | Close a dialog or menu, or leave the reader |
+| <kbd>Menu</kbd> / <kbd>Shift</kbd> <kbd>F10</kbd> | The menu on the selected text, or on the sentence in focus |
 | <kbd>?</kbd> | Show this list |
 
-<kbd>Ctrl</kbd> + mouse wheel changes the interface size too. While you type in a field, only the <kbd>Ctrl</kbd> shortcuts for search, Add, Settings and size work (<kbd>Ctrl</kbd> <kbd>←</kbd> / <kbd>→</kbd> move by word as usual), and the player's keys wait while a dialog is open. ↑ and ↓ alone keep scrolling. <kbd>T</kbd> opens the sleep timer's menu in the player, over the card at the foot of the sidebar, or at the foot of a book you read while another plays.
+<kbd>Ctrl</kbd> + mouse wheel changes the interface size too. While you type in a field, only the <kbd>Ctrl</kbd> shortcuts for search, Add, Settings and size work (<kbd>Ctrl</kbd> <kbd>←</kbd> / <kbd>→</kbd> move by word as usual), and the player's keys wait while a dialog is open. ↑ and ↓ alone keep scrolling. On a sentence reached with <kbd>Tab</kbd>, <kbd>Shift</kbd> with an arrow selects text instead (its first or last word, or the whole sentence with ↑ ↓), and further presses extend the selection; while text is selected, those keys stay with it. <kbd>T</kbd> opens the sleep timer's menu in the player, over the card at the foot of the sidebar, or at the foot of a book you read while another plays.
 
 The same list is in **Settings → About**, and <kbd>?</kbd> shows it anywhere.
 
