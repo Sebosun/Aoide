@@ -328,6 +328,23 @@ const MIGRATIONS: &[Step] = &[
         add_column_if_missing(tx, "books", "series", "TEXT")?;
         add_column_if_missing(tx, "books", "series_position", "REAL")
     }),
+    // Version 25.
+    // Links imported from another app, and which items each import made (in its order), so a
+    // restart carries on an import's fetches in the background.
+    Step::Sql(
+        "CREATE TABLE IF NOT EXISTS link_imports (
+            id INTEGER PRIMARY KEY,
+            source TEXT NOT NULL,
+            started_at INTEGER NOT NULL,
+            paused INTEGER NOT NULL DEFAULT 0,
+            finished_at INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS link_import_items (
+            import_id INTEGER NOT NULL REFERENCES link_imports(id) ON DELETE CASCADE,
+            book_id TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+            PRIMARY KEY (import_id, book_id)
+        );",
+    ),
 ];
 
 fn add_column_if_missing(

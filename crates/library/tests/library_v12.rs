@@ -26,7 +26,7 @@ fn a_version_11_library_gains_an_empty_sites_table() {
     let version: i64 = conn
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();
-    assert_eq!(version, 24);
+    assert_eq!(version, 25);
 }
 
 #[test]
