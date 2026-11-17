@@ -472,13 +472,14 @@ async fn saving_a_pronunciation_while_listening_asks_again_for_the_sentence_with
 #[tokio::test]
 async fn a_pronunciation_for_all_books_unprepares_a_prepared_book_it_changes_and_not_one_it_does_not(
 ) {
-    let (_dir, _engine, core, _events, id) = ready(&["A.wav"]).await;
+    let (_dir, _engine, core, events, id) = ready(&["A.wav"]).await;
     core.prepare_book(&id).await.unwrap();
     until("the book to be prepared", || {
         stage(&core, &id) == Some(PrepareStage::Done)
     })
     .await;
 
+    let told = events.count(CoreEvent::LIBRARY_CHANGED);
     core.save_pronunciation(None, "harbour", "harbor", false)
         .await
         .unwrap();
@@ -487,12 +488,18 @@ async fn a_pronunciation_for_all_books_unprepares_a_prepared_book_it_changes_and
         Some(PrepareStage::Done),
         "not in the book"
     );
+    assert_eq!(events.count(CoreEvent::LIBRARY_CHANGED), told);
 
     let lamp = core
         .save_pronunciation(None, "lamp", "lantern", false)
         .await
         .unwrap();
     assert_eq!(stage(&core, &id), None, "no longer prepared");
+    assert_eq!(
+        events.count(CoreEvent::LIBRARY_CHANGED),
+        told + 1,
+        "the library shows the book is no longer prepared"
+    );
     assert_eq!(core.pronunciations(None).unwrap().len(), 2);
     core.delete_pronunciation(lamp.id).await.unwrap();
     assert_eq!(core.pronunciations(None).unwrap().len(), 1);

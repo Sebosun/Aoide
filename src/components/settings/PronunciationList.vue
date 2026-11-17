@@ -6,12 +6,10 @@ import type { Pronunciation } from "@/api/types";
 import UiButton from "@/components/ui/UiButton.vue";
 import PronunciationForm from "@/components/settings/PronunciationForm.vue";
 import { useSample } from "@/composables/useVoicePreview";
-import { useLibraryStore } from "@/stores/library";
 
 /** A pronunciation list: book `bookId`'s, or with null the one for all books. Each word can be
  *  heard as it is said, changed (it fills the form) and removed; the form adds one. */
 const props = defineProps<{ bookId: string | null }>();
-const library = useLibraryStore();
 const entries = ref<Pronunciation[] | null>(null),
   error = ref(""),
   message = ref("");
@@ -38,7 +36,6 @@ async function saved(entry: Pronunciation) {
   message.value = `Saved. Sentences with “${entry.written}” are made again when they are next needed.`;
   restart(null);
   await load();
-  if (props.bookId) void library.refresh(); // A prepared book it changes is prepared no longer.
 }
 async function remove(entry: Pronunciation) {
   error.value = "";
@@ -47,7 +44,6 @@ async function remove(entry: Pronunciation) {
     await api.deletePronunciation({ id: entry.id });
     if (changing.value?.id === entry.id) restart(null);
     await load();
-    if (props.bookId) void library.refresh();
   } catch (e) {
     error.value = String(e);
   }

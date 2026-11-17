@@ -350,10 +350,15 @@ impl super::Core {
         {
             self.restart_session().await?;
         }
+        let any = !changed.is_empty();
         self.plan(PlanEvent::PronunciationsChanged {
             book: book.map(Into::into),
             changed,
         });
+        // A prepared book it changes shows as prepared no longer.
+        if any {
+            self.emit(super::CoreEvent::LibraryChanged);
+        }
         Ok(())
     }
 }

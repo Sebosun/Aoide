@@ -6,13 +6,11 @@ import UiButton from "@/components/ui/UiButton.vue";
 import UiDialog from "@/components/ui/UiDialog.vue";
 import PronunciationForm from "@/components/settings/PronunciationForm.vue";
 import { useReaderStore } from "@/stores/reader";
-import { useLibraryStore } from "@/stores/library";
 import { useUiStore } from "@/stores/ui";
 
 /** "Say this differently…" while a word or a few are selected in the chapter text: a small
  *  dialog with the words filled in, to add them to the open book's pronunciation list. */
 const reader = useReaderStore(),
-  library = useLibraryStore(),
   ui = useUiStore();
 const selected = ref(""),
   open = ref(false),
@@ -48,7 +46,6 @@ function saved(entry: Pronunciation) {
   open.value = false;
   selected.value = "";
   ui.toast(`“${entry.written}” is said as “${entry.spoken}” in this book now.`);
-  void library.refresh(); // A prepared book it changes is prepared no longer.
 }
 </script>
 
