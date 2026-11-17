@@ -62,12 +62,19 @@ impl Shown {
     }
 }
 
-/// `org.mpris.MediaPlayer2`: who the player is.
-struct Root;
+/// `org.mpris.MediaPlayer2`: who the player is. Raise brings the window back, also from the
+/// background, so the desktop's media controls can always reach Aoide.
+struct Root {
+    core: Weak<Core>,
+}
 
 #[interface(name = "org.mpris.MediaPlayer2")]
 impl Root {
-    fn raise(&self) {}
+    fn raise(&self) {
+        if let Some(core) = self.core.upgrade() {
+            core.raise_window();
+        }
+    }
     fn quit(&self) {}
     #[zbus(property)]
     fn can_quit(&self) -> bool {
@@ -75,7 +82,7 @@ impl Root {
     }
     #[zbus(property)]
     fn can_raise(&self) -> bool {
-        false
+        true
     }
     #[zbus(property)]
     fn has_track_list(&self) -> bool {
@@ -194,13 +201,14 @@ pub fn spawn(core: Weak<Core>) -> Option<Sender<MediaUpdate>> {
         "org.mpris.MediaPlayer2.aoide.instance{}",
         std::process::id()
     );
+    let root = Root { core: core.clone() };
     let player = Player {
         core,
         shown: Arc::clone(&shown),
     };
     let connection = connection::Builder::session()
         .and_then(|b| b.name(name))
-        .and_then(|b| b.serve_at(PATH, Root))
+        .and_then(|b| b.serve_at(PATH, root))
         .and_then(|b| b.serve_at(PATH, player))
         .and_then(|b| b.build());
     let connection = match connection {

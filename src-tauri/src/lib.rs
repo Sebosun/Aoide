@@ -1,3 +1,4 @@
+mod background;
 mod book;
 mod commands;
 mod core;
@@ -87,8 +88,22 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let core = start(app)?;
+            let shown = app.handle().clone();
+            core.on_raise(Arc::new(move || show_window(&shown)));
+            let tray = background::start_tray(app.handle(), &core);
             app.manage(core);
+            if let Some(pokes) = app
+                .try_state::<Pokes>()
+                .and_then(|p| p.0.lock().ok()?.take())
+            {
+                background::check_work(app.handle().clone(), pokes, move |core| {
+                    if let Some(tray) = &tray {
+                        tray.refresh(core);
+                    }
+                });
+            }
             watch_fullscreen(app.handle());
+            background::watch_window(app.handle());
             exit_on_signals(app.handle().clone());
             let argv: Vec<String> = std::env::args_os()
                 .map(|arg| arg.to_string_lossy().into_owned())
@@ -108,6 +123,7 @@ pub fn run() {
             commands::app::set_fullscreen,
             commands::library::list_books,
             commands::library::home,
+            commands::app::choose_close,
             commands::library::series,
             commands::library::add_audiobook,
             commands::library::import_files,
@@ -320,12 +336,13 @@ fn hand_over(app: &AppHandle, requests: Vec<launch::Request>) {
 }
 
 /// Shows, unminimises and focuses the window.
+/// Brings the window back to the front, from the background too.
 pub(crate) fn show_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
+    let action = match app.try_state::<Arc<Core>>() {
+        Some(core) => core.reopened(),
+        None => core::WindowAction::ShowWindow,
+    };
+    background::act(app, action);
 }
 
 /// Tells the core whenever the window goes fullscreen or back, whoever asked: F11, Esc, or the
@@ -397,6 +414,9 @@ fn exit_on_signals(app: tauri::AppHandle) {
     drop(app);
 }
 
+/// The pokes of events that may end a job, until something watches them.
+struct Pokes(std::sync::Mutex<Option<std::sync::mpsc::Receiver<()>>>);
+
 /// Starts logging and the core, against the user's folders or, in a debug smoke run, a
 /// throwaway one.
 fn start(app: &mut tauri::App) -> Result<Arc<Core>, Box<dyn std::error::Error>> {
@@ -428,8 +448,10 @@ fn start(app: &mut tauri::App) -> Result<Arc<Core>, Box<dyn std::error::Error>> 
         }
         None => migrate_from_folio(app, &paths)?,
     }
-    #[allow(unused_mut)]
     let mut environment = crate::core::Environment::desktop(app.handle().clone());
+    // The events that may end a job also look whether Quit when done can quit.
+    let (events, pokes) = background::watched(environment.events.clone());
+    environment.events = events;
     // Debug smoke runs (and AOIDE_MUTE) play into a silent, real-time-paced sink.
     #[cfg(debug_assertions)]
     if std::env::var_os("AOIDE_SMOKE_SECONDS").is_some() || std::env::var_os("AOIDE_MUTE").is_some()
@@ -437,6 +459,8 @@ fn start(app: &mut tauri::App) -> Result<Arc<Core>, Box<dyn std::error::Error>> 
         environment.audio = crate::core::Environment::silent_audio();
     }
     let core = tauri::async_runtime::block_on(async move { Core::start(environment, paths) })?;
+    // Watched once the tray is made.
+    app.manage(Pokes(std::sync::Mutex::new(Some(pokes))));
     #[cfg(debug_assertions)]
     if let Ok(seconds) = std::env::var("AOIDE_SMOKE_SECONDS") {
         smoke::spawn(

@@ -127,6 +127,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     notices: true,
     inbox: null,
     archiveFinishedArticles: false,
+    close: "ask",
   });
   wrapper.unmount();
 });
@@ -363,6 +364,18 @@ it("turns off continuing preparation at startup from Library, keeping other sett
   await flushPromises();
   expect(save).toHaveBeenLastCalledWith({ patch: { resumePrepare: false } });
   expect(await mock.appSettings()).toEqual(expect.objectContaining({ resumePrepare: false, metadataLookup: true }));
+  wrapper.unmount();
+});
+
+it("chooses what closing the window while working does, from Library", async () => {
+  const save = vi.spyOn(mock, "updateAppSettings");
+  const wrapper = await settings("Library");
+  const option = (label: string) => wrapper.get<HTMLInputElement>(`[aria-label="${label}"]`);
+  expect(option("Ask each time").element.checked).toBe(true);
+  await option("Keep working in the background").setValue(true);
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({ patch: { close: "keepWhileWorking" } });
+  expect(await mock.appSettings()).toEqual(expect.objectContaining({ close: "keepWhileWorking" }));
   wrapper.unmount();
 });
 

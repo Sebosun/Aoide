@@ -69,3 +69,17 @@ pub fn set_fullscreen(window: tauri::WebviewWindow, on: bool) -> Result<(), Core
         CoreError::from(error.to_string())
     })
 }
+
+/// The answer to "Keep working in the background?" (`window://close-asked`); `remember` keeps
+/// it for next time. The window then hides, minimises or quits as the core says.
+#[tauri::command]
+pub fn choose_close(
+    app: tauri::AppHandle,
+    core: CoreState<'_>,
+    keep: bool,
+    remember: bool,
+) -> Result<(), CoreError> {
+    let action = core.choose_close(keep, remember)?;
+    crate::background::act(&app, action);
+    Ok(())
+}

@@ -83,6 +83,9 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `app.log` | warn | `error` | `logging.rs`, the file cannot be written |
 | `app.emit` | error | `name`, `error` | `core.rs`, an event the window did not get |
 | `window.fullscreen` | info | `from`, `to` (`true`: fullscreen) | `core/fullscreen.rs` `Fullscreen::seen`, the window went fullscreen or back (F11, Esc or the window manager's own shortcut) |
+| `presence.changed` | info | `from`, `to` (`Window`, `Background`, `QuittingWhenDone`), `why` (`close`, `answered`, `reopened`, `raised`, `quit`, `quit_when_done`, `work_ended`) | `core/presence.rs` `Presences::step`: Aoide went to the background, came back, or will quit when done |
+| `presence.tray` | info | `outcome` (`shown`, `no_library`: no appindicator library, `no_watcher`: nothing on the session bus shows tray icons, `failed`), `error` | `background.rs` `start_tray`, once at start; without a tray, keeping on working minimises the window |
+| `presence.watch` | warn | `error` | `background.rs` `check_work`: the thread that looks for work ending could not start (Quit when done would not quit) |
 | `window.set_fullscreen` | warn | `on`, `outcome` (`failed`), `error` | `commands/app.rs` `set_fullscreen`, the window could not be asked to change |
 | `app.poisoned` | error | `error` (reported) | `core.rs` `lock`, the first lock a panic poisoned |
 | `config.saved` | info | `section`, `changed` (setting names) | `core/config.rs` `Settings::update_app`, a change from the Settings window |

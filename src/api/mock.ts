@@ -353,6 +353,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     notices: true,
     inbox: null,
     archiveFinishedArticles: false,
+    close: "ask",
   };
   /** The inbox as the core shows it: watched once chosen; `?inbox=unavailable` chooses one that is gone. */
   if (new URLSearchParams(search).get("inbox") === "unavailable") appSettings.inbox = "/media/reader/Stick/Books";
@@ -1141,6 +1142,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   /** The window, which says when it goes fullscreen or back (as lib.rs `watch_fullscreen`). */
   let fullscreen = false;
   const fullscreenHandlers = new Set<(on: boolean) => void>();
+  /** The window's question on closing while working; the preview has no window to close. */
+  const closeAskedHandlers = new Set<() => void>();
   const finishedHandlers = new Set<(item: FinishedItem) => void>();
   /** Finishes item `b`, as the core does (core/reading.rs `after_finishing`): an article in the
    *  library just finished is archived when the setting says so, else offered for the archive. */
@@ -1278,6 +1281,12 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       fullscreenHandlers.forEach((h) => h(on));
     },
     onFullscreen: (h) => subscribe(fullscreenHandlers, h),
+    onCloseAsked: (h) => subscribe(closeAskedHandlers, h),
+    /** Keeping or quitting is the window's; a remembered answer becomes the setting, as in the
+     *  core (core/presence.rs `choose_close`). */
+    async chooseClose({ keep, remember }) {
+      if (remember) appSettings.close = keep ? "keepWhileWorking" : "quit";
+    },
     /** The series an item is in (core/facets.rs `series_shelf`). */
     async series({ bookId: id }) {
       const items = await api.listBooks();
@@ -2855,6 +2864,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       clearInterval(syncTimer);
     },
     emitPlayer: sendPlayer,
+    /** The core asks whether to keep working (the window was closed while working). */
+    emitCloseAsked: () => closeAskedHandlers.forEach((h) => h()),
     emitGeneration,
     emitConfig,
     emitProblem: (p: ProblemView) => problemHandlers.forEach((h) => h({ ...p })),

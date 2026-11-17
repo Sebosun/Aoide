@@ -16,6 +16,7 @@ import UiHost from "@/components/ui/UiHost.vue";
 import SignInDialog from "@/components/article/SignInDialog.vue";
 import { useSignInStore } from "@/stores/signin";
 import SettingsDialog from "@/components/settings/SettingsDialog.vue";
+import CloseQuestion from "@/components/shell/CloseQuestion.vue";
 import AddDialog from "@/components/library/AddDialog.vue";
 import CollectionPicker from "@/components/library/CollectionPicker.vue";
 import ShortcutsDialog from "@/components/shell/ShortcutsDialog.vue";
@@ -225,6 +226,7 @@ function browserDrop(event: DragEvent) {
     <PairRecordingDialog v-if="recordings.pairing" :key="recordings.pairing.paths.join('|')" />
     <SyncReport v-if="recordings.report" :key="recordings.report" />
     <SignInDialog v-if="signIn.shown && signIn.view" />
+    <CloseQuestion />
     <UiHost />
   </div>
 </template>

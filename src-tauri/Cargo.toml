@@ -22,7 +22,7 @@ whisper-vulkan = ["whisper", "aoide-transcribe/whisper-vulkan"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["protocol-asset"] }
+tauri = { version = "2", features = ["protocol-asset", "tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["sync", "time", "rt", "macros", "fs", "io-util", "signal"] }
@@ -88,6 +88,9 @@ rustix = { version = "1.1.6", features = ["process"] }
 # Media keys: MPRIS served directly on Linux, souvlaki elsewhere.
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = "5"
+# Looks for the tray's appindicator library before a tray is made: its loader panics when the
+# library is missing.
+libloading = "0.8"
 # The window's own state: fullscreen, whoever made it so (Tauri's `is_fullscreen` there repeats
 # what was last asked for).
 gtk = "0.18"

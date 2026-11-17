@@ -4,6 +4,7 @@ import { computed, onMounted, onUnmounted, ref } from "vue";
 import { FileDown, FolderOpen, FolderSearch, FolderX, Inbox, Library, Sparkles } from "@lucide/vue";
 import { api } from "@/api";
 import type { InboxView, TaggingSettings } from "@/api/types";
+import type { CloseBehaviour } from "@/api/contract";
 import SettingsSection from "@/components/settings/SettingsSection.vue";
 import SettingsField from "@/components/settings/SettingsField.vue";
 import SettingsNote from "@/components/settings/SettingsNote.vue";
@@ -20,6 +21,13 @@ onMounted(() => {
 });
 const tagging = computed(() => settings.value?.tagging ?? null);
 /** Saves a change to the tagging model's settings. */
+/** What closing the window while working does (core/presence.rs). */
+const CLOSING: { value: CloseBehaviour; label: string }[] = [
+  { value: "ask", label: "Ask each time" },
+  { value: "keepWhileWorking", label: "Keep working in the background" },
+  { value: "keepAlways", label: "Always stay in the background" },
+  { value: "quit", label: "Quit" },
+];
 const saveTagging = (change: Partial<TaggingSettings>) =>
   tagging.value && save({ tagging: { ...tagging.value, ...change } });
 const tagRun = ref(""),
@@ -239,6 +247,27 @@ async function chooseInbox() {
         another book.</SettingsNote
       >
     </SettingsSection>
+    <SettingsSection title="Closing the window">
+      <fieldset v-if="settings" class="library-settings__choices">
+        <legend class="visually-hidden">When the window is closed while Aoide is working</legend>
+        <label v-for="choice in CLOSING" :key="choice.value" class="library-settings__check"
+          ><input
+            type="radio"
+            name="close"
+            :value="choice.value"
+            :checked="settings.close === choice.value"
+            :aria-label="choice.label"
+            @change="save({ close: choice.value })"
+          />
+          {{ choice.label }}</label
+        >
+      </fieldset>
+      <SettingsNote
+        >While a book is being prepared, an audiobook synced or something plays, Aoide can carry on with the window
+        closed. Its icon (where the desktop shows one) plays and pauses, and has <em>Quit when done</em>. Without an
+        icon the window is minimised instead.</SettingsNote
+      >
+    </SettingsSection>
     <SettingsSection title="Notifications">
       <label v-if="settings" class="library-settings__check"
         ><input
@@ -270,6 +299,13 @@ async function chooseInbox() {
   background: var(--ground);
   font-size: 12.5px;
   overflow-wrap: anywhere;
+}
+.library-settings__choices {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .library-settings__check {
   display: flex;

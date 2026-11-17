@@ -111,6 +111,8 @@ sudo pacman -S --needed webkit2gtk-4.1 openssl curl wget file libappindicator-gt
 
 </details>
 
+The appindicator library is only needed at run time, for the tray icon; Aoide starts and closes normally without it. On GNOME, tray icons also need the AppIndicator extension.
+
 Then:
 
 ```sh
@@ -238,6 +240,8 @@ Open a book and read, or press **Listen**.
 **Articles.** A saved article shows in the library as a tile with its site and first lines while it is fetched. Read it, or press **Listen** to have it narrated; its headings are in the reader's header, where a book has its chapters. If the page gave only part of the article, it is marked **Needs you** and the reader explains why after the text: **Fetch again**, **Try an archived copy**, or **Open original** to read it on the site. A copy is replaced only by a fuller one. Pairing an audiobook and looking up details online are for books only.
 
 **Feeds.** **Feeds** in the sidebar shows how many entries are new. Its screen lists **All new**, **Saved for later** and each subscription; new entries are grouped by day with their feed, age and reading time, or *summary only* when the feed carries just a summary (the page is then fetched when you open it). Opening an entry marks it read and shows it in the reader, where **Save to library** keeps it; the bookmark button beside each entry does the same, and pressed again takes it out. A feed that stops answering says since when, and is asked less often until it answers again. **Check now** checks every feed; **Mark all read** clears the dots of the list shown. A subscription's **⋯** menu unsubscribes, copies the feed's address or opens its site, and under **Save entries into** chooses a collection that the entries you save from it go on. Entries you did not save are deleted after a while: read ones after 30 days, unread ones after 90 (change both, and how often feeds are checked, in **Settings → Feeds**). An article whose site has a feed you don't follow offers **Subscribe** under its byline.
+
+**Closing the window while it works.** Close the window while a book is being prepared, an audiobook synced or something plays, and Aoide asks whether to keep working in the background (tick *Remember my choice* to stop asking; change it under **Settings → Library → Closing the window**). In the background its icon in the system tray plays and pauses, shows what it is working on, and has **Open Aoide**, **Quit when done** and **Quit**; starting Aoide again, or your desktop's media controls, also bring the window back. Where the desktop shows no tray icons (GNOME without the AppIndicator extension), the window is minimised instead of hidden.
 
 **Notifications.** When a long job ends while Aoide is not in front, the desktop tells you: a book prepared, an audiobook synced, an export written or found books imported, once they took more than a minute. A preparation that stalls because the speech engine failed, a sync that needs a look or failed, and a failed export are told at once. Click one to bring Aoide to the front on that book's page. Feeds never notify. Turn them off under **Settings → Library → Notifications**. On Linux they go to your desktop's notification service; nothing is sent elsewhere yet.
 

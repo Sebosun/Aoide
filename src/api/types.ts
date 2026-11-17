@@ -169,4 +169,6 @@ export interface AoideApi extends Omit<CommandApi, "listBooks" | "scanForBooks" 
   onQueueChanged(handler: () => void): Promise<() => void>;
   /** The window now fills the screen, or no longer does (F11, Esc or the window manager). */
   onFullscreen(handler: (on: boolean) => void): Promise<() => void>;
+  /** The window was closed while working: ask whether to keep working (`chooseClose`). */
+  onCloseAsked(handler: () => void): Promise<() => void>;
 }
