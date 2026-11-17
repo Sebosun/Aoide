@@ -61,6 +61,7 @@ pub use discovery::CandidateStatus;
 pub use discovery::{Candidate, ImportChoice};
 pub use storage::{CleanResult, StorageReport};
 mod bookmarks;
+mod highlights;
 mod export;
 mod feeder;
 mod leaving_out;
@@ -193,6 +194,7 @@ pub struct Core {
     shelf: Arc<shelf::Shelf>,
     discovery: Arc<discovery::Discovery>,
     bookmarks: bookmarks::Bookmarks,
+    highlights: highlights::Highlights,
     pronunciations: pronunciation::Pronunciations,
     listening: listening::Listening,
     reading: reading::Reading,
@@ -319,6 +321,7 @@ impl Core {
             Arc::clone(&events),
         );
         let bookmarks = bookmarks::Bookmarks::new(Arc::clone(&library));
+        let highlights = highlights::Highlights::new(Arc::clone(&library));
         let pronunciations = pronunciation::Pronunciations::new(Arc::clone(&library));
         let listening = listening::Listening::new(Arc::clone(&library), reporter.clone());
         let reading = reading::Reading::new(Arc::clone(&library), reporter.clone());
@@ -379,6 +382,7 @@ impl Core {
             shelf: Arc::new(shelf),
             discovery,
             bookmarks,
+            highlights,
             pronunciations,
             listening,
             reading,

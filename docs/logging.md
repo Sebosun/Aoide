@@ -168,6 +168,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `speech.say_again` | info, warn | `book`, `segment`, `take`, `took_ms`, `outcome` (`ok`, `failed`), `error` | `core/takes.rs` `say_again`, one sentence's audio thrown away to be made again |
 | `pronunciation.saved` | info | `book` or `scope` (`all`), `affected` | `core/pronunciation.rs` `save_pronunciation`; `affected` is the sentences said differently now (in the book, or for all books in the book being listened to and the prepared ones). Never the words |
 | `pronunciation.removed` | info | `book` or `scope` (`all`), `affected` | `core/pronunciation.rs` `delete_pronunciation`, as `pronunciation.saved` |
+| `highlight.added` | info | `book`, `chapter`, `chars`, `from` (`selection` or `spoken`) | `core/highlights.rs` `add`; `chars` is the passage's length after joining the highlights it overlaps or touches. Never the text or the note |
 | `gen.failed` | warn | `key`, `error` (the whole error; the player shows a short message, and Settings › Speech engine › Problems lists both) | `core.rs` |
 | `engine.state` | info | `engine`, `from`, `to`, `detail` | `core/engine.rs` `publish` |
 | `engine.server.stage` | info (warn into `failed`, `waiting`) | `program` (`engine`, `aligner`), `from`, `to`, `cause` (the event), `attempt`, `failure` (kind) | `core/engine_process.rs` `step`, where `next` is applied |
