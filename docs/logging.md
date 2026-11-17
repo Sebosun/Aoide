@@ -86,6 +86,9 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `presence.changed` | info | `from`, `to` (`Window`, `Background`, `QuittingWhenDone`), `why` (`close`, `answered`, `reopened`, `raised`, `quit`, `quit_when_done`, `work_ended`) | `core/presence.rs` `Presences::step`: Aoide went to the background, came back, or will quit when done |
 | `presence.tray` | info | `outcome` (`shown`, `no_library`: no appindicator library, `no_watcher`: nothing on the session bus shows tray icons, `failed`), `error` | `background.rs` `start_tray`, once at start; without a tray, keeping on working minimises the window |
 | `presence.watch` | warn | `error` | `background.rs` `check_work`: the thread that looks for work ending could not start (Quit when done would not quit) |
+| `backup.written` | info, warn | `bytes`, `books_included`, `automatic`, `took_ms`, `outcome`, `error` | `core/backup.rs` `Backups::back_up`: a backup was written (by hand, on the schedule, or before a restore), or failed; a failing automatic-backup folder is also reported to the user once |
+| `backup.restored` | info, error | `outcome` (`staged`: checked and set up, restarting; `ok`; `failed`; `rollback_failed`, with `item`), `from_version` (the Aoide that wrote it), `took_ms`, `error` | `commands/app.rs` `restore_backup`, `lib.rs` `restore_staged` at start, `core/backup.rs` `roll_back` |
+| `backup.pruned` | info | `removed` | `core/backup.rs` `prune`: the oldest automatic backups beyond the number kept were removed |
 | `window.set_fullscreen` | warn | `on`, `outcome` (`failed`), `error` | `commands/app.rs` `set_fullscreen`, the window could not be asked to change |
 | `app.poisoned` | error | `error` (reported) | `core.rs` `lock`, the first lock a panic poisoned |
 | `config.saved` | info | `section`, `changed` (setting names) | `core/config.rs` `Settings::update_app`, a change from the Settings window |

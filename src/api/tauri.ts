@@ -105,4 +105,5 @@ export const tauriApi: AoideApi = {
   onQueueChanged: (h) => on("queue://changed", () => h()),
   onFullscreen: (h) => on("window://fullscreen", h),
   onCloseAsked: (h) => on("window://close-asked", () => h()),
+  onBackupProgress: (h) => on("backup://progress", h),
 };

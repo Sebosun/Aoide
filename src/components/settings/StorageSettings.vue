@@ -8,6 +8,7 @@ import SettingsSection from "@/components/settings/SettingsSection.vue";
 import SettingsField from "@/components/settings/SettingsField.vue";
 import SettingsNote from "@/components/settings/SettingsNote.vue";
 import SettingsActions from "@/components/settings/SettingsActions.vue";
+import BackupSettings from "@/components/settings/BackupSettings.vue";
 import { formatBytes } from "@/bytes";
 import { useAppSettings } from "@/composables/useAppSettings";
 import { useLibraryStore } from "@/stores/library";
@@ -257,6 +258,7 @@ function submit() {
         <SettingsActions label="Save limit" :message="message" :error="error" />
       </SettingsSection>
     </form>
+    <BackupSettings />
   </div>
 </template>
 

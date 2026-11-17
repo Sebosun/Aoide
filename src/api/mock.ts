@@ -57,7 +57,7 @@ import type {
   HomeView,
 } from "@/api/types";
 import type * as Wire from "@/api/contract";
-import type { DetailField, QueueView, WhyNot } from "@/api/contract";
+import type { BackupProgressView, DetailField, QueueView, WhyNot } from "@/api/contract";
 import fixtureLibrary from "@/tests/fixtures/library.json";
 import fixtureViews from "@/tests/fixtures/book-views.json";
 import fixturePlayer from "@/tests/fixtures/player.json";
@@ -354,6 +354,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     inbox: null,
     archiveFinishedArticles: false,
     close: "ask",
+    backup: { folder: null, everyDays: 7, keep: 5, books: false },
   };
   /** The inbox as the core shows it: watched once chosen; `?inbox=unavailable` chooses one that is gone. */
   if (new URLSearchParams(search).get("inbox") === "unavailable") appSettings.inbox = "/media/reader/Stick/Books";
@@ -1144,6 +1145,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
   const fullscreenHandlers = new Set<(on: boolean) => void>();
   /** The window's question on closing while working; the preview has no window to close. */
   const closeAskedHandlers = new Set<() => void>();
+  const backupHandlers = new Set<(progress: BackupProgressView) => void>();
   const finishedHandlers = new Set<(item: FinishedItem) => void>();
   /** Finishes item `b`, as the core does (core/reading.rs `after_finishing`): an article in the
    *  library just finished is archived when the setting says so, else offered for the archive. */
@@ -1282,6 +1284,34 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     onFullscreen: (h) => subscribe(fullscreenHandlers, h),
     onCloseAsked: (h) => subscribe(closeAskedHandlers, h),
+    onBackupProgress: (h) => subscribe(backupHandlers, h),
+    async chooseBackupTarget() {
+      return "~/Aoide backup.aoide-backup";
+    },
+    async chooseBackupFile() {
+      return "~/Aoide backup.aoide-backup";
+    },
+    /** The preview has no library files: it says how far it got, as the core does. */
+    async backUp({ path }) {
+      const of = 12;
+      for (let done = 0; done <= of; done += 4)
+        backupHandlers.forEach((h) => h({ done, of, path, automatic: false, finished: false }));
+      backupHandlers.forEach((h) => h({ done: of, of, path, automatic: false, finished: true }));
+      return { path, bytes: 4_200_000 };
+    },
+    async inspectBackup({ path }) {
+      return {
+        createdAt: Date.UTC(2026, 10, 1, 9, 30),
+        aoideVersion: "0.1.0",
+        booksIncluded: false,
+        bytes: 4_200_000,
+        refused: /newer/.test(path)
+          ? "This backup was made by a newer version of Aoide. Update Aoide to restore it."
+          : null,
+      };
+    },
+    /** Aoide restarts to restore; the preview has nothing to restart. */
+    async restoreBackup() {},
     /** Keeping or quitting is the window's; a remembered answer becomes the setting, as in the
      *  core (core/presence.rs `choose_close`). */
     async chooseClose({ keep, remember }) {

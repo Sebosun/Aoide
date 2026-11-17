@@ -22,6 +22,7 @@ import type {
   InboxBook,
   InboxView,
   FinishedItem,
+  BackupProgressView,
   ArticleView,
   AddedLink,
   EntryFilter,
@@ -171,4 +172,6 @@ export interface AoideApi extends Omit<CommandApi, "listBooks" | "scanForBooks" 
   onFullscreen(handler: (on: boolean) => void): Promise<() => void>;
   /** The window was closed while working: ask whether to keep working (`chooseClose`). */
   onCloseAsked(handler: () => void): Promise<() => void>;
+  /** A backup is being written, or was. */
+  onBackupProgress(handler: (progress: BackupProgressView) => void): Promise<() => void>;
 }

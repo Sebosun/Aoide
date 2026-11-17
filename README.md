@@ -300,9 +300,18 @@ The same list is in **Settings → About**, and <kbd>?</kbd> shows it anywhere.
 | The browser's profile (sign-ins, cookies and site data for articles) | `~/.local/share/com.aoide.audiobooks/browser/profile` |
 | A browser downloaded by Aoide | `~/.local/share/com.aoide.audiobooks/browser/chrome` |
 | Per-site fetch rules | `~/.config/aoide/site-rules.toml` |
+| Backups written before a restore (when no automatic-backup folder is set) | `~/.local/share/com.aoide.audiobooks/backups` |
 | Generated audio | `~/.cache/com.aoide.audiobooks` (safe to delete; it's made again when needed) |
 
 Books are recognised by their content, not their file name, so renaming or moving a file keeps your progress. If a file disappears, the book stays in your library as *missing* and comes back when the file does.
+
+### Backing up, and moving to another computer
+
+**Settings → Storage → Backup → Back up…** writes one `.aoide-backup` file with your library: progress, bookmarks, highlights and notes, collections, settings, themes, site rules, covers and saved articles, plus the books themselves if you tick *Include the books*. It is not encrypted, so keep it somewhere private. It never holds the browser's sign-ins, generated audio, speech models or your own audiobook recordings (their places are kept).
+
+**Restore…** on this or another computer shows when the backup was made and what it replaces, saves your current library first, then restarts Aoide and puts the backup in place before the library opens. If anything goes wrong part way, the previous library stays in use. Paths are moved to the new computer's folders. Books not in the backup show as *missing* until you put their files in the library folder, under any name. A backup from a newer Aoide is refused.
+
+**Automatic backups** go to a folder you choose, every few days, keeping the newest few. Pointed at a synced folder, that is the simple way to use one library on two computers, one at a time: restore the newest backup on the other one.
 
 <details>
 <summary>Editing settings by hand, and custom colour themes</summary>

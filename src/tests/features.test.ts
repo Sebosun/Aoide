@@ -128,6 +128,7 @@ it("saves metadata lookup from Library and the audio cache limit from Storage, k
     inbox: null,
     archiveFinishedArticles: false,
     close: "ask",
+    backup: { folder: null, everyDays: 7, keep: 5, books: false },
   });
   wrapper.unmount();
 });
@@ -406,6 +407,66 @@ it("previews a book's voice in that book's language, not the open book's", async
     voiceId: null,
     params: expect.anything(),
     language: "pt",
+  });
+  wrapper.unmount();
+});
+
+it("backs up the library, with its books, to a chosen file from Storage", async () => {
+  const backUp = vi.spyOn(mock, "backUp");
+  const wrapper = await settings("Storage");
+  await wrapper.get('[aria-label="Include the books"]').setValue(true);
+  await wrapper.get('[aria-label="Back up the library"]').trigger("click");
+  await flushPromises();
+  expect(backUp).toHaveBeenCalledWith({ path: "~/Aoide backup.aoide-backup", options: { books: true } });
+  expect(wrapper.text()).toContain("Backup written");
+  wrapper.unmount();
+});
+
+it("restores a backup after naming what it replaces, and refuses one from a newer Aoide", async () => {
+  const restore = vi.spyOn(mock, "restoreBackup");
+  const wrapper = await settings("Storage"),
+    host = mount(UiHost, { attachTo: document.body });
+  await wrapper.get('[aria-label="Restore a backup"]').trigger("click");
+  await flushPromises();
+  const dialog = host.get('[role="alertdialog"]');
+  expect(dialog.text()).toContain("replaces your library, covers, saved articles and settings");
+  await dialog.get('[data-confirm="no"]').trigger("click");
+  await flushPromises();
+  expect(restore).not.toHaveBeenCalled();
+  await wrapper.get('[aria-label="Restore a backup"]').trigger("click");
+  await flushPromises();
+  await host.get('[data-confirm="yes"]').trigger("click");
+  await flushPromises();
+  expect(restore).toHaveBeenCalledWith({ path: "~/Aoide backup.aoide-backup" });
+
+  vi.spyOn(mock, "chooseBackupFile").mockResolvedValueOnce("~/newer.aoide-backup");
+  await wrapper.get('[aria-label="Restore a backup"]').trigger("click");
+  await flushPromises();
+  expect(host.find('[role="alertdialog"]').exists()).toBe(false);
+  expect(wrapper.text()).toContain("made by a newer version of Aoide");
+  wrapper.unmount();
+  host.unmount();
+});
+
+it("keeps automatic backups in a chosen folder", async () => {
+  const save = vi.spyOn(mock, "updateAppSettings");
+  vi.spyOn(mock, "chooseFolder").mockResolvedValueOnce("~/Backups");
+  const wrapper = await settings("Storage");
+  await wrapper.get('[aria-label="Choose a folder for automatic backups"]').trigger("click");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({
+    patch: { backup: { folder: "~/Backups", everyDays: 7, keep: 5, books: false } },
+  });
+  await wrapper.get('[aria-label="Days between automatic backups"]').setValue("3");
+  await wrapper.get('[aria-label="Days between automatic backups"]').trigger("change");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({
+    patch: { backup: { folder: "~/Backups", everyDays: 3, keep: 5, books: false } },
+  });
+  await wrapper.get('[aria-label="Turn automatic backups off"]').trigger("click");
+  await flushPromises();
+  expect(save).toHaveBeenLastCalledWith({
+    patch: { backup: { folder: null, everyDays: 3, keep: 5, books: false } },
   });
   wrapper.unmount();
 });
