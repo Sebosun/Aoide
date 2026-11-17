@@ -9,10 +9,10 @@ Delete this file when the remaining work is done.
 
 Built, independently reviewed (all checks green) and pushed, through `a91e619`:
 6.4, 1.1, 1.4, 2.1, 2.2, 2.7, 6.2, 1.2, 1.3, 3.3, 3.1, 3.2, 6.1, 5.2, 4.7, 4.3, 2.3, 2.4, 2.5,
-3.7; 5.3, 5.5, 4.1, 4.2, 6.3, 4.8, 5.1, 3.5, 2.6, 1.5 and 3.6 built here, not pushed or reviewed. Each plan section has a `**Built:** 2026-11-17 (<first>..<last>)` line.
+3.7; 5.3, 5.5, 4.1, 4.2, 6.3, 4.8, 5.1, 3.5, 2.6, 1.5, 3.6 and 4.5 built here, not pushed or reviewed. Each plan section has a `**Built:** 2026-11-17 (<first>..<last>)` line.
 
-**Not started**, in the order planned:
-4.5 (every format the section lists).
+**Not started:** nothing; every in-scope feature is built. What is left is review, the checks
+below, the open decisions, and pushing.
 
 ## How the work was run
 
@@ -60,6 +60,9 @@ a review that is not green. Its rules worth keeping by hand too:
   saved time on the book's page after a chapter.
 - 3.6: an illustrated EPUB (pictures where they belong, no place or recording moved); a
   book with tables under each Tables choice; Keep an article's pictures on a real article.
+- 4.5: a real Project Gutenberg .txt and a Markdown essay open, read and narrate like books
+  (chapters where the book has them, the licence under Extraction notes); a real .docx and
+  .fb2 (from a Russian-language library) import with title, author and, for FB2, series.
 - 1.5: a chapter of real fiction with a second voice: switches at the right places, no clicks
   at the cuts; Preview both voices; turning it off uses the old cached audio again.
 

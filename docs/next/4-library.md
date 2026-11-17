@@ -403,6 +403,8 @@ two numbers in Settings › Library.
 
 ## 4.5 More formats
 
+**Built:** 2026-11-17 (7030732..2ff0050)
+
 **Size:** M each. PDF support has landed (702969e, ca27eff); these follow the path it made.
 
 ### What exists
@@ -479,6 +481,40 @@ No new event. `library.import`'s per-failure lines gain `format`.
 
 - Find books keeps looking for EPUBs only, as it did when PDFs came (plan's default: text,
   Markdown and HTML files on a disk are mostly not books).
+
+### As built
+
+- `book::Format` (`Epub`, `Pdf`, `Docx`, `Fb2`, `Text`, `Markdown`, `Html`, `Kindle`),
+  `Format::of_name`, and `format_of(bytes, name)`: a PDF's header, a Kindle book's
+  `BOOKMOBI` mark, a zip with `word/document.xml`, a zip with `mimetype` or an `.opf`, a zip
+  holding an `.fb2`, `<FictionBook` in the first KB, then the name; an EPUB when neither says.
+  `parse_document_named` dispatches on it; `Shelf::describe`, `Shelf::load` and `package_of`
+  (the plan's `subjects_of`: subjects and series; FB2 and DOCX are parsed whole for them) pass
+  the file's name. A
+  `parse_document` by content alone remains for tests.
+- `BOOK_EXTENSIONS` is `epub pdf docx fb2 fb2.zip txt md markdown html htm`; `is_book_file`
+  matches whole suffixes so `.fb2.zip` works. Import refuses other files naming the list, and
+  a Kindle book (by name, before reading it) with "convert it to EPUB with Calibre".
+- `is_pdf_file` became `Format::may_hold_no_text` (PDF only): such a file that cannot be read
+  is passed over by the scan, any other is listed with its error.
+- `crates/plaintext` (`parse_text`, `parse_markdown`) has its own Markdown reader for the common
+  subset rather than `pulldown-cmark`: it was not in the local cargo cache, and the subset (ATX
+  headings, emphasis, links, images dropped, code spans and fences, indented code, lists,
+  quotes, rules as scene breaks, footnotes, front matter) is small. Setext headings
+  (underlined with `===`) and tables are read as paragraphs. Gutenberg's header is a `TitlePage`
+  exclusion and its licence a `Copyright` one; its `Title`, `Author` and `Language` fields are
+  read. New warning `GuessedEncoding`.
+- A saved page goes through `aoide_article::extract` with `file:///book.html`, its picture
+  inserts dropped (nothing is fetched), as `ItemKind::Book`.
+- `crates/fb2` and `crates/docx` as planned. DOCX reads accepted text by leaving out
+  `w:delText`; text boxes and field codes are not read; a table's row is one paragraph of its
+  cells joined by commas (not a 3.6 table insert).
+- New `ParsedBook::of`, `Chapter::of` and `Block::of` constructors in `crates/document`.
+- Departure: the inbox folder (4.7) takes only EPUB, PDF and FB2, since a downloads folder's
+  text, Markdown, HTML and Word files are mostly not books. Opening a file from outside
+  (`launch.rs`) accepts every format. `Open with → Aoide` registers FB2 and DOCX, not text,
+  Markdown or HTML.
+- Not built: any MOBI/AZW3 reading (as planned); pictures in FB2 and DOCX bodies.
 
 ---
 
