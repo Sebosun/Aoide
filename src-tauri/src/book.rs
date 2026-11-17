@@ -605,6 +605,7 @@ pub(crate) mod tests {
             identifiers: vec![],
             isbn: None,
             subjects: Vec::new(),
+            series: None,
             cover: None,
             notes: vec![],
             chapters: vec![
@@ -664,6 +665,7 @@ pub(crate) mod tests {
             identifiers: vec![],
             isbn: None,
             subjects: Vec::new(),
+            series: None,
             cover: None,
             notes: vec![aoide_epub::Note {
                 id: "a#n".into(),
@@ -713,6 +715,7 @@ pub(crate) mod tests {
             identifiers: vec![],
             isbn: None,
             subjects: Vec::new(),
+            series: None,
             cover: None,
             notes: vec![aoide_epub::Note {
                 id: "a#n".into(),
@@ -756,6 +759,7 @@ pub(crate) mod tests {
             identifiers: vec![],
             isbn: None,
             subjects: Vec::new(),
+            series: None,
             cover: None,
             notes: vec![aoide_epub::Note {
                 id: "a#n".into(),
@@ -865,6 +869,7 @@ pub(crate) mod tests {
             identifiers: vec![],
             isbn: None,
             subjects: Vec::new(),
+            series: None,
             cover: None,
             notes: vec![aoide_epub::Note {
                 id: "a#n".into(),

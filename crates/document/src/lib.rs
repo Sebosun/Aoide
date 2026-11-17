@@ -16,6 +16,8 @@ pub struct ParsedBook {
     pub isbn: Option<String>,
     /// Its subjects as the source lists them (`dc:subject`), for tags.
     pub subjects: Vec<String>,
+    /// The series it belongs to, as the source names it.
+    pub series: Option<Series>,
     pub cover: Option<Cover>,
     /// Footnote/endnote bodies detached from the narration, in document order.
     pub notes: Vec<Note>,
@@ -23,6 +25,17 @@ pub struct ParsedBook {
     pub warnings: Vec<Warning>,
     pub excluded: Vec<ExcludedSection>,
 }
+
+/// A series a book belongs to, and its place in it (which can be fractional: 2.5).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Series {
+    pub name: String,
+    /// Always finite.
+    pub position: Option<f32>,
+}
+
+// Positions are read only when finite, so equality is total.
+impl Eq for Series {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExclusionReason {

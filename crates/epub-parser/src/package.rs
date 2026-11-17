@@ -11,6 +11,7 @@ pub(crate) struct Package {
     pub identifiers: Vec<String>,
     /// `dc:subject` entries, in order.
     pub subjects: Vec<String>,
+    pub series: Option<crate::Series>,
     pub cover: Option<crate::Cover>,
     pub spine: Vec<String>,
     pub navigation: Option<Navigation>,
@@ -120,10 +121,59 @@ pub(crate) fn read(archive: &mut Archive<'_>) -> Result<Package, ParseError> {
             .filter(|d| !d.is_empty()),
         identifiers: all("identifier"),
         subjects: all("subject"),
+        series: series(&doc),
         cover,
         spine,
         navigation,
         guide,
+    })
+}
+
+/// The series the package names: an EPUB 3 collection of type `series` (with its
+/// `group-position`), else Calibre's `calibre:series` and `calibre:series_index`.
+fn series(doc: &Document<'_>) -> Option<crate::Series> {
+    let metas = || doc.descendants().filter(|n| n.has_tag_name("meta"));
+    let position = |text: Option<&str>| {
+        text.and_then(|t| t.trim().parse::<f32>().ok())
+            .filter(|p| p.is_finite())
+    };
+    let named = |name: Option<String>, position: Option<f32>| {
+        let name = collapse(&name?);
+        (!name.is_empty()).then_some(crate::Series { name, position })
+    };
+    let refining = |id: &str, property: &str| {
+        let target = format!("#{id}");
+        metas()
+            .find(|m| {
+                m.attribute("refines") == Some(target.as_str())
+                    && m.attribute("property") == Some(property)
+            })
+            .and_then(|m| m.text())
+            .map(str::trim)
+    };
+    let epub3 = metas()
+        .filter(|m| m.attribute("property") == Some("belongs-to-collection"))
+        .find_map(|m| {
+            let id = m.attribute("id")?;
+            (refining(id, "collection-type") == Some("series"))
+                .then(|| {
+                    named(
+                        m.text().map(str::to_owned),
+                        position(refining(id, "group-position")),
+                    )
+                })
+                .flatten()
+        });
+    epub3.or_else(|| {
+        let content = |name: &str| {
+            metas()
+                .find(|m| m.attribute("name") == Some(name))
+                .and_then(|m| m.attribute("content"))
+        };
+        named(
+            content("calibre:series").map(str::to_owned),
+            position(content("calibre:series_index")),
+        )
     })
 }
 

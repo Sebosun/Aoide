@@ -33,6 +33,7 @@ pub struct BookMetadata {
     pub isbn: Option<String>,
     /// Its subjects as the package lists them (`dc:subject`), for tags.
     pub subjects: Vec<String>,
+    pub series: Option<Series>,
     pub cover: Option<Cover>,
 }
 

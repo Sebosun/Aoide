@@ -176,3 +176,64 @@ fn subjects_are_read_in_order_without_blanks() {
     let quick = aoide_epub::read_metadata(&bytes, &ParseOptions::default()).unwrap();
     assert_eq!(quick.subjects, ["Fiction / Sea Stories", "Lighthouses"]);
 }
+
+#[test]
+fn a_series_is_read_from_epub3_collections_else_from_calibre() {
+    use aoide_epub::Series;
+    let series = |metadata: &str| {
+        let bytes = book(&format!("<dc:title>Book</dc:title>{metadata}"), "", &[]);
+        let quick = aoide_epub::read_metadata(&bytes, &ParseOptions::default())
+            .unwrap()
+            .series;
+        let full = parse_epub(&bytes, &ParseOptions::default()).unwrap().series;
+        assert_eq!(quick, full, "{metadata}");
+        quick
+    };
+    let named = |name: &str, position: Option<f32>| {
+        Some(Series {
+            name: name.into(),
+            position,
+        })
+    };
+    // EPUB 3: a collection of type series, with its place in it.
+    assert_eq!(
+        series(
+            r##"<meta property="belongs-to-collection" id="c1"> The Harbour Trilogy </meta>
+               <meta refines="#c1" property="collection-type">series</meta>
+               <meta refines="#c1" property="group-position">2</meta>"##
+        ),
+        named("The Harbour Trilogy", Some(2.0))
+    );
+    // A collection of another type is not a series; Calibre's pair is read instead.
+    assert_eq!(
+        series(
+            r##"<meta property="belongs-to-collection" id="c1">Sea Stories</meta>
+               <meta refines="#c1" property="collection-type">set</meta>
+               <meta name="calibre:series" content="Lamp Room"/>
+               <meta name="calibre:series_index" content="2.5"/>"##
+        ),
+        named("Lamp Room", Some(2.5))
+    );
+    // The EPUB 3 series wins over Calibre's.
+    assert_eq!(
+        series(
+            r##"<meta name="calibre:series" content="Old Name"/>
+               <meta property="belongs-to-collection" id="s">New Name</meta>
+               <meta refines="#s" property="collection-type">series</meta>"##
+        ),
+        named("New Name", None)
+    );
+    // A position that is not a number is left out; a blank name is no series.
+    assert_eq!(
+        series(
+            r#"<meta name="calibre:series" content="Quay"/>
+               <meta name="calibre:series_index" content="first"/>"#
+        ),
+        named("Quay", None)
+    );
+    assert_eq!(
+        series(r#"<meta name="calibre:series" content="  "/>"#),
+        None
+    );
+    assert_eq!(series(""), None);
+}

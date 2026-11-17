@@ -95,6 +95,7 @@ pub fn parse_pdf(bytes: &[u8]) -> Result<ParsedBook, PdfError> {
         identifiers: Vec::new(),
         isbn: None,
         subjects: meta.subjects,
+        series: None,
         cover: None,
         notes: Vec::new(),
         chapters,
