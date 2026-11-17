@@ -88,6 +88,13 @@ import { ApiError } from "@/api/errors";
 const refused = (message: string) => new ApiError({ kind: "internal", message });
 
 /** A 10 ms silent 16-bit mono WAV, for previews. */
+/** A picture for the mock's illustrated book (the core serves files from the book). */
+const MOCK_PICTURE =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360"><rect width="640" height="360" fill="#2b3a55"/><rect y="250" width="640" height="110" fill="#1d2738"/><rect x="300" y="110" width="40" height="150" fill="#e8e1d3"/><polygon points="292,110 348,110 320,80" fill="#c45a3c"/><circle cx="320" cy="96" r="9" fill="#ffd36b"/></svg>`,
+  );
+
 function silentWav(): ArrayBuffer {
   const samples = 240,
     view = new DataView(new ArrayBuffer(44 + samples * 2));
@@ -970,6 +977,18 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       result = book?.[chapter];
     if (!result) throw refused("no such chapter");
     const view = structuredClone(result);
+    // The first book is illustrated: a picture after its first chapter's second block.
+    if (id === "book-0" && chapter === 0 && view.blocks.length > 2)
+      view.inserts = [
+        {
+          type: "picture",
+          beforeBlock: 2,
+          url: MOCK_PICTURE,
+          alt: "A lighthouse at dusk",
+          captionBlock: null,
+          caption: null,
+        },
+      ];
     // A recording narrating the book lacks its last chapter, to show how that looks.
     if (recordings.get(id)?.narrates && recordings.get(id)?.stage === "ready") {
       view.notNarrated =

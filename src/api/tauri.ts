@@ -77,6 +77,10 @@ export const tauriApi: AoideApi = {
       ...book,
       coverUrl: coverPath ? convertFileSrc(coverPath) : null,
     })),
+  chapter: async (args) => {
+    const view = await commands.chapter(args);
+    return { ...view, inserts: view.inserts.map(({ path, ...insert }) => ({ ...insert, url: convertFileSrc(path) })) };
+  },
   scanForBooks: async () => candidates(await commands.scanForBooks()),
   discoveredBooks: async () => candidates(await commands.discoveredBooks()),
   onConfigChanged: (h) => on("config://changed", h),

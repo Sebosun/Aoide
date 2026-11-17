@@ -45,7 +45,6 @@ import type {
   CandidateStatus,
   ChapterAudioView,
   ChapterSummary,
-  ChapterView,
   ChoiceOption,
   Collection,
   DayListening,
@@ -124,13 +123,19 @@ export type * from "@/api/contract";
 
 /** A library book; the adapter turns the cover file path into a URL the webview can load. */
 export type BookSummary = Omit<Wire.BookSummary, "coverPath"> & { coverUrl: string | null };
+/** A picture between a chapter's blocks, its file as a URL the webview can load. */
+export type InsertView = Omit<Wire.InsertView, "path"> & { url: string };
+/** A chapter as the page draws it, its pictures given as URLs. */
+export type ChapterView = Omit<Wire.ChapterView, "inserts"> & { inserts: InsertView[] };
 /** An EPUB found on this computer, with its cover as a webview URL. */
 export type Candidate = Omit<Wire.Candidate, "coverPath"> & { coverUrl: string | null };
 
 /** Everything the UI can ask of the core. Implemented over Tauri IPC and by a browser mock. */
-export interface AoideApi extends Omit<CommandApi, "listBooks" | "scanForBooks" | "discoveredBooks"> {
-  // Every command comes from the contract (CommandApi); these give covers as URLs the window can show.
+export interface AoideApi extends Omit<CommandApi, "listBooks" | "scanForBooks" | "discoveredBooks" | "chapter"> {
+  // Every command comes from the contract (CommandApi); these give covers and pictures as URLs
+  // the window can show.
   listBooks(): Promise<BookSummary[]>;
+  chapter(args: { bookId: string; chapter: number }): Promise<ChapterView>;
   /** Fires when files in the config folder change (hand edits included). */
   onConfigChanged(handler: (preferences: Preferences) => void): Promise<() => void>;
   /** Scans the configured folders; resolves with everything found. */
