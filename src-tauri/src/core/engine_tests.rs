@@ -10,7 +10,7 @@ use aoide_tts::{
     SynthesisRequest, Voice,
 };
 
-use super::tests::{library_folder_with, paths, until, Recorder};
+use super::tests::{paths, until, Recorder};
 use super::{Core, CoreEvent, Environment, Events, PrepareStage};
 
 /// An engine whose status and voices a test sets, which can hold its voice listing until let
@@ -178,7 +178,17 @@ pub(super) async fn start(
     engines: &[&Arc<Scripted>],
     extra: &str,
 ) -> (Arc<Core>, Arc<Recorder>, String) {
-    let id = library_folder_with(root, "", "");
+    start_holding(root, engines, extra, &super::tests::epub()).await
+}
+
+/// [`start`], the library holding `bytes` as its one book.
+pub(super) async fn start_holding(
+    root: &std::path::Path,
+    engines: &[&Arc<Scripted>],
+    extra: &str,
+    bytes: &[u8],
+) -> (Arc<Core>, Arc<Recorder>, String) {
+    let id = super::tests::library_folder_holding(root, "", "", bytes);
     let kind = &engines[0].descriptor.kind;
     std::fs::write(
         root.join("config/settings.toml"),

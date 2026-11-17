@@ -198,7 +198,20 @@ export type ChapterSummary = { index: number, title: string,
 /**
  * An audiobook's part: how long it plays.
  */
-durationMs: number | null, };
+durationMs: number | null, 
+/**
+ * Left out of the narration: playback passes over it, preparation and export leave it
+ * out. It is still there to read.
+ */
+leftOut: boolean, 
+/**
+ * Its title says it is front or back matter: offered to be left out.
+ */
+suggested: boolean, 
+/**
+ * Words read aloud in it (none for an audiobook's part).
+ */
+wordCount: number, };
 
 export type ChapterView = { index: number, title: string, blocks: Array<BlockView>, 
 /**
@@ -225,9 +238,18 @@ kind: ItemKind, title: string, authors: Array<string>, language: string | null, 
  */
 voiceWarning: string | null, progress: BookProgress | null, 
 /**
- * Words read aloud in the whole book, for time estimates.
+ * Words read aloud in the whole book, for reading-time estimates.
  */
 wordCount: number, 
+/**
+ * Words read aloud in the chapters not left out of the narration, for listening-time
+ * estimates.
+ */
+narratedWordCount: number, 
+/**
+ * How many chapters are left out of the narration.
+ */
+chaptersLeftOut: number, 
 /**
  * Read silently or listened to.
  */
@@ -438,7 +460,11 @@ speakMissing: boolean,
  * Read silently or listened to; `None` until the user chooses (see
  * `reading::default_mode`).
  */
-mode: ReadingMode | null, };
+mode: ReadingMode | null, 
+/**
+ * The chapters left out of the narration, by index, in order (see `core/leaving_out.rs`).
+ */
+leftOut: Array<number>, };
 
 export type Bookmark = { id: number, bookId: BookId, chapter: number, charOffset: number, segmentId: string | null, 
 /**
@@ -1414,6 +1440,11 @@ export type Commands = {
   "engine_status": { args: Record<string, never>; result: EngineStatusView };
   "book_settings": { args: { bookId: string }; result: BookSettings };
   "save_book_settings": { args: { bookId: string; settings: BookSettings }; result: void };
+  /**
+   * Leaves these chapters of the book out of the narration (and only these): playback passes
+   * over them, preparation and export leave them out. They are still there to read.
+   */
+  "set_left_out": { args: { bookId: string; chapters: number[] }; result: BookView };
   /** What went wrong with the speech engine lately, newest first (Settings › Speech engine). */
   "speech_problems": { args: Record<string, never>; result: SpeechProblem[] };
   /** Forgets the speech engine's problems listed so far. */
@@ -1730,6 +1761,11 @@ export interface CommandApi {
   engineStatus(): Promise<EngineStatusView>;
   bookSettings(args: { bookId: string }): Promise<BookSettings>;
   saveBookSettings(args: { bookId: string; settings: BookSettings }): Promise<void>;
+  /**
+   * Leaves these chapters of the book out of the narration (and only these): playback passes
+   * over them, preparation and export leave them out. They are still there to read.
+   */
+  setLeftOut(args: { bookId: string; chapters: number[] }): Promise<BookView>;
   /** What went wrong with the speech engine lately, newest first (Settings › Speech engine). */
   speechProblems(): Promise<SpeechProblem[]>;
   /** Forgets the speech engine's problems listed so far. */
@@ -1912,6 +1948,7 @@ export const COMMANDS = {
   engineStatus: "engine_status",
   bookSettings: "book_settings",
   saveBookSettings: "save_book_settings",
+  setLeftOut: "set_left_out",
   speechProblems: "speech_problems",
   clearSpeechProblems: "clear_speech_problems",
   retrySpeechServer: "retry_speech_server",

@@ -148,6 +148,7 @@ mod tests {
             narration: None,
             speak_missing: false,
             mode: None,
+            left_out: vec![],
         };
         let voicing = Voicing::resolve(
             &descriptor(None),

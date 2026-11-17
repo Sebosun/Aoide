@@ -376,6 +376,9 @@ impl Core {
                         index,
                         title: part.title.clone(),
                         duration_ms: Some(part.end_ms - part.start_ms),
+                        left_out: false,
+                        suggested: false,
+                        word_count: 0,
                     })
                     .collect(),
                 Vec::new(),
@@ -396,6 +399,8 @@ impl Core {
             voice_warning: None,
             progress: self.shelf.progress(&BookId(id.into())),
             word_count: 0,
+            narrated_word_count: 0,
+            chapters_left_out: 0,
             mode,
             shape: super::reading::shape(false, mode),
         })

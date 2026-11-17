@@ -85,17 +85,52 @@ pub(super) fn epub_with(one: String, two: String) -> Vec<u8> {
 
 /// [`epub_with`], its package listing `subjects`.
 pub(super) fn epub_with_subjects(one: String, two: String, subjects: &[&str]) -> Vec<u8> {
+    epub_of(&[one, two], subjects)
+}
+
+/// A book of one chapter per titled text, each a heading and a paragraph.
+pub(super) fn epub_of_chapters(chapters: &[(&str, &str)]) -> Vec<u8> {
+    let documents: Vec<String> = chapters
+        .iter()
+        .map(|(title, body)| {
+            format!(
+                r#"<html xmlns="http://www.w3.org/1999/xhtml"><body><h1>{title}</h1><p>{body}</p></body></html>"#
+            )
+        })
+        .collect();
+    epub_of(&documents, &[])
+}
+
+/// The test book's package with these chapter documents, listing `subjects`.
+fn epub_of(documents: &[String], subjects: &[&str]) -> Vec<u8> {
     let subjects: String = subjects
         .iter()
         .map(|s| format!("<dc:subject>{s}</dc:subject>"))
         .collect();
-    let files = [
-        ("mimetype", "application/epub+zip".to_string()),
-        ("META-INF/container.xml", r#"<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#.into()),
-        ("OPS/book.opf", format!(r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Quay Lights</dc:title><dc:creator>Test Author</dc:creator><dc:language>en</dc:language>{subjects}</metadata><manifest><item id="one" href="one.xhtml" media-type="application/xhtml+xml"/><item id="two" href="two.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="one"/><itemref idref="two"/></spine></package>"#)),
-        ("OPS/one.xhtml", one),
-        ("OPS/two.xhtml", two),
+    // The first two named as they always were, so the two-chapter book keeps its id.
+    let names: Vec<String> = (0..documents.len())
+        .map(|i| match i {
+            0 => "one".to_string(),
+            1 => "two".to_string(),
+            i => format!("c{i}"),
+        })
+        .collect();
+    let manifest: String = names
+        .iter()
+        .map(|n| format!(r#"<item id="{n}" href="{n}.xhtml" media-type="application/xhtml+xml"/>"#))
+        .collect();
+    let spine: String = names
+        .iter()
+        .map(|n| format!(r#"<itemref idref="{n}"/>"#))
+        .collect();
+    let mut files = vec![
+        ("mimetype".to_string(), "application/epub+zip".to_string()),
+        ("META-INF/container.xml".into(), r#"<container xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>"#.into()),
+        ("OPS/book.opf".into(), format!(r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Quay Lights</dc:title><dc:creator>Test Author</dc:creator><dc:language>en</dc:language>{subjects}</metadata><manifest>{manifest}</manifest><spine>{spine}</spine></package>"#)),
     ];
+    for (name, document) in names.iter().zip(documents) {
+        files.push((format!("OPS/{name}.xhtml"), document.clone()));
+    }
     let mut zip = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
     for (name, body) in files {
         zip.start_file(name, zip::write::SimpleFileOptions::default())
@@ -111,9 +146,18 @@ pub(super) fn library_folder(root: &Path, settings: &str) -> String {
 }
 
 pub(super) fn library_folder_with(root: &Path, settings: &str, voice: &str) -> String {
-    let bytes = epub();
+    library_folder_holding(root, settings, voice, &epub())
+}
+
+/// [`library_folder_with`], the library holding `bytes` as its one book.
+pub(super) fn library_folder_holding(
+    root: &Path,
+    settings: &str,
+    voice: &str,
+    bytes: &[u8],
+) -> String {
     std::fs::create_dir_all(root.join("Books")).unwrap();
-    std::fs::write(root.join("Books/quay-lights.epub"), &bytes).unwrap();
+    std::fs::write(root.join("Books/quay-lights.epub"), bytes).unwrap();
     std::fs::create_dir_all(root.join("config")).unwrap();
     let engine = r#"
 [engine]
@@ -128,7 +172,7 @@ network = "loopback"
         format!("{settings}\n{engine}{voice}\n"),
     )
     .unwrap();
-    aoide_library::content_hash(&bytes).0
+    aoide_library::content_hash(bytes).0
 }
 
 fn start(root: &Path, engine: &Arc<FakeEngine>) -> (Arc<Core>, Arc<Recorder>) {

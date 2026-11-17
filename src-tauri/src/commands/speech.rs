@@ -20,6 +20,18 @@ pub async fn save_book_settings(
     Ok(core.save_book_settings(&book_id, settings).await?)
 }
 
+/// Leaves these chapters of the book out of the narration (and only these): playback passes
+/// over them, preparation and export leave them out. They are still there to read.
+#[tauri::command]
+pub async fn set_left_out(
+    core: CoreState<'_>,
+    book_id: String,
+    chapters: Vec<usize>,
+) -> Result<BookView, CoreError> {
+    let core = Arc::clone(&core);
+    Ok(core.set_left_out(&book_id, chapters).await?)
+}
+
 /// What went wrong with the speech engine lately, newest first (Settings › Speech engine).
 #[tauri::command]
 pub fn speech_problems(core: CoreState<'_>) -> Vec<crate::core::SpeechProblem> {

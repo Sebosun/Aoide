@@ -12,8 +12,8 @@ use aoide_library::{
 
 use super::error::Reporter;
 use super::facets::{self, AudioFacts};
-use super::reading;
 use super::syncing::Stage as SyncStage;
+use super::{leaving_out, reading};
 use super::{
     lock, now_ms, BookProgressView, BookSummary, CoreEvent, Events, ImportResult, PrepareView,
 };
@@ -841,13 +841,16 @@ impl super::Core {
         }
         let book = self.load_book(id)?;
         let mode = self.mode_of(id);
+        let left_out = self.book_settings(id).left_out;
         Ok(super::BookView {
             id: book.id.clone(),
             kind,
             title: book.title.clone(),
             authors: book.authors.clone(),
             language: book.language.clone(),
-            chapters: book.chapter_summaries(),
+            chapters: leaving_out::chapters(&book, &left_out),
+            narrated_word_count: leaving_out::narrated_words(&book, &left_out),
+            chapters_left_out: leaving_out::within(&book, &left_out).len(),
             warnings: book.warnings.clone(),
             excluded: book.excluded.clone(),
             language_warning: self.language_warning(book.language.as_deref()),
@@ -879,7 +882,22 @@ impl super::Core {
         self.shelf.settings(id)
     }
 
+    /// Saves book `id`'s settings, keeping the chapters it leaves out: those change only
+    /// through [`super::Core::set_left_out`], so a form holding older settings cannot undo them.
     pub async fn save_book_settings(
+        &self,
+        id: &str,
+        settings: super::BookSettings,
+    ) -> Result<(), String> {
+        let settings = super::BookSettings {
+            left_out: self.book_settings(id).left_out,
+            ..settings
+        };
+        self.store_book_settings(id, settings).await
+    }
+
+    /// Saves book `id`'s settings as they are, and plays and plans by them.
+    pub(super) async fn store_book_settings(
         &self,
         id: &str,
         settings: super::BookSettings,

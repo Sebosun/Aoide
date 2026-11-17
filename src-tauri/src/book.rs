@@ -74,6 +74,13 @@ pub struct ChapterSummary {
     pub title: String,
     /// An audiobook's part: how long it plays.
     pub duration_ms: Option<u64>,
+    /// Left out of the narration: playback passes over it, preparation and export leave it
+    /// out. It is still there to read.
+    pub left_out: bool,
+    /// Its title says it is front or back matter: offered to be left out.
+    pub suggested: bool,
+    /// Words read aloud in it (none for an audiobook's part).
+    pub word_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -266,12 +273,18 @@ impl BookModel {
 
     /// Words that are read aloud (silent segments such as "* * *" are left out).
     pub fn word_count(&self) -> usize {
-        self.chapters
-            .iter()
-            .flat_map(|c| &c.segments)
-            .filter(|s| !s.speech.is_empty())
-            .map(|s| s.display.split_whitespace().count())
-            .sum()
+        (0..self.chapters.len()).map(|c| self.words_in(c)).sum()
+    }
+
+    /// Words of chapter `chapter` that are read aloud.
+    pub fn words_in(&self, chapter: usize) -> usize {
+        self.chapters.get(chapter).map_or(0, |c| {
+            c.segments
+                .iter()
+                .filter(|s| !s.speech.is_empty())
+                .map(|s| s.display.split_whitespace().count())
+                .sum()
+        })
     }
 
     pub fn chapter_summaries(&self) -> Vec<ChapterSummary> {
@@ -282,6 +295,9 @@ impl BookModel {
                 index,
                 title: c.title.clone(),
                 duration_ms: None,
+                left_out: false,
+                suggested: false,
+                word_count: self.words_in(index),
             })
             .collect()
     }

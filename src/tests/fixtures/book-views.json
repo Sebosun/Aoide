@@ -7,20 +7,28 @@
       {
         "durationMs": null,
         "index": 0,
-        "title": "The small light"
+        "leftOut": false,
+        "suggested": false,
+        "title": "The small light",
+        "wordCount": 54
       },
       {
         "durationMs": null,
         "index": 1,
-        "title": "Across the water"
+        "leftOut": false,
+        "suggested": false,
+        "title": "Across the water",
+        "wordCount": 41
       }
     ],
+    "chaptersLeftOut": 0,
     "excluded": [],
     "id": "book-0",
     "kind": "book",
     "language": "en",
     "languageWarning": null,
     "mode": "listen",
+    "narratedWordCount": 95,
     "progress": null,
     "shape": "readAlong",
     "title": "The Lantern Keeper",
@@ -36,19 +44,29 @@
       {
         "durationMs": null,
         "index": 0,
-        "title": "An ordinary discovery"
+        "leftOut": false,
+        "suggested": false,
+        "title": "An ordinary discovery",
+        "wordCount": 46
       },
       {
         "durationMs": null,
         "index": 1,
-        "title": "The long way home"
+        "leftOut": false,
+        "suggested": false,
+        "title": "The long way home",
+        "wordCount": 48
       },
       {
         "durationMs": null,
         "index": 2,
-        "title": "A place to begin"
+        "leftOut": false,
+        "suggested": false,
+        "title": "A place to begin",
+        "wordCount": 32
       }
     ],
+    "chaptersLeftOut": 0,
     "excluded": [
       {
         "reason": "Copyright",
@@ -60,6 +78,7 @@
     "language": "en",
     "languageWarning": null,
     "mode": "read",
+    "narratedWordCount": 126,
     "progress": null,
     "shape": "read",
     "title": "A Map of Quiet Places",
@@ -77,15 +96,20 @@
       {
         "durationMs": null,
         "index": 0,
-        "title": "Blank pages"
+        "leftOut": false,
+        "suggested": false,
+        "title": "Blank pages",
+        "wordCount": 15
       }
     ],
+    "chaptersLeftOut": 0,
     "excluded": [],
     "id": "book-3",
     "kind": "book",
     "language": "en",
     "languageWarning": null,
     "mode": "read",
+    "narratedWordCount": 15,
     "progress": null,
     "shape": "read",
     "title": "An Unfinished Atlas",

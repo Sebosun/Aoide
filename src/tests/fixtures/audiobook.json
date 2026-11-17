@@ -65,20 +65,28 @@
       {
         "durationMs": 1020,
         "index": 0,
-        "title": "Part One"
+        "leftOut": false,
+        "suggested": false,
+        "title": "Part One",
+        "wordCount": 0
       },
       {
         "durationMs": 525,
         "index": 1,
-        "title": "Part Two"
+        "leftOut": false,
+        "suggested": false,
+        "title": "Part Two",
+        "wordCount": 0
       }
     ],
+    "chaptersLeftOut": 0,
     "excluded": [],
     "id": "book-5",
     "kind": "audiobook",
     "language": null,
     "languageWarning": null,
     "mode": "listen",
+    "narratedWordCount": 0,
     "progress": null,
     "shape": "listen",
     "title": "Winter Radio",

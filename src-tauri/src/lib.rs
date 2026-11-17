@@ -58,6 +58,7 @@ pub fn run() {
             commands::speech::show_speech_server_log,
             commands::speech::book_settings,
             commands::speech::save_book_settings,
+            commands::speech::set_left_out,
             commands::speech::engine_options,
             commands::speech::engine_voices,
             commands::library::collections,

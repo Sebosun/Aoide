@@ -235,15 +235,20 @@
       {
         "durationMs": null,
         "index": 0,
-        "title": "The Quay Lights"
+        "leftOut": false,
+        "suggested": false,
+        "title": "The Quay Lights",
+        "wordCount": 93
       }
     ],
+    "chaptersLeftOut": 0,
     "excluded": [],
     "id": "book-6",
     "kind": "article",
     "language": "en",
     "languageWarning": null,
     "mode": "read",
+    "narratedWordCount": 93,
     "progress": null,
     "shape": "read",
     "title": "The Quay Lights",

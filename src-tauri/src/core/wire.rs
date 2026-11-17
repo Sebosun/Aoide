@@ -71,8 +71,13 @@ pub struct BookView {
     /// The book's voice is not offered by the active engine, so another one reads it.
     pub voice_warning: Option<String>,
     pub progress: Option<BookProgressView>,
-    /// Words read aloud in the whole book, for time estimates.
+    /// Words read aloud in the whole book, for reading-time estimates.
     pub word_count: usize,
+    /// Words read aloud in the chapters not left out of the narration, for listening-time
+    /// estimates.
+    pub narrated_word_count: usize,
+    /// How many chapters are left out of the narration.
+    pub chapters_left_out: usize,
     /// Read silently or listened to.
     pub mode: super::ReadingMode,
     /// What the reader screen is for it.
@@ -223,6 +228,8 @@ pub struct BookSettings {
     /// Read silently or listened to; `None` until the user chooses (see
     /// `reading::default_mode`).
     pub mode: Option<super::ReadingMode>,
+    /// The chapters left out of the narration, by index, in order (see `core/leaving_out.rs`).
+    pub left_out: Vec<usize>,
 }
 
 #[derive(Debug, Clone, Serialize)]

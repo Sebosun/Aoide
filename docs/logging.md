@@ -177,6 +177,7 @@ unless they name a crate. Lines from the window carry `target` `aoide::ui`.
 | `engine.session` | warn | `error` | `core.rs` |
 | `narration.fallback` | warn | `error` | `core.rs` |
 | `narration.speak_missing` | warn | `error` | `core/recording.rs` |
+| `narration.left_out` | info | `book`, `chapters` (how many are left out now) | `core/leaving_out.rs` `set_left_out`, one line per change |
 | `align.request` | debug | `key`, `took_ms`, `outcome` | `core/align.rs` |
 | `align.offline` | info | `key` | `core/align.rs` |
 | `align.error` | warn | `key`, `error` | `core/align.rs` |

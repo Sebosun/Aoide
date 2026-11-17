@@ -263,6 +263,7 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
       narration: null,
       speakMissing: false,
       mode: null,
+      leftOut: [],
     };
   const bookmarks: Bookmark[] = [];
   let nextBookmark = 1;
@@ -1123,14 +1124,27 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
         voice && !offered.includes(voice)
           ? `${voice.replace(".wav", "")} is not one of Mock engine's voices, so Emily reads this book. Choose a voice in the book's settings.`
           : null;
+      // Chapters left out of the narration (core/leaving_out.rs): marked, and not counted
+      // in the listening estimate.
+      const leftOut = settingsOf(id).leftOut;
+      const chapters = view.chapters.map((c) => ({ ...c, leftOut: leftOut.includes(c.index) }));
       return {
         ...view,
+        chapters,
+        chaptersLeftOut: chapters.filter((c) => c.leftOut).length,
+        narratedWordCount: view.wordCount - chapters.filter((c) => c.leftOut).reduce((n, c) => n + c.wordCount, 0),
         title: b.title,
         progress: structuredClone(b.progress),
         voiceWarning,
         mode: b.mode,
         shape: b.shape,
       };
+    },
+    async setLeftOut({ bookId: id, chapters }) {
+      const count = coreView(id)?.chapters.length ?? 0;
+      const leftOut = [...new Set(chapters.filter((c) => c < count))].sort((a, b) => a - b);
+      settings.set(id, { ...settingsOf(id), leftOut });
+      return api.bookOverview({ bookId: id });
     },
     async setMode({ bookId: id, mode }) {
       const b = getBook(id);
@@ -1289,7 +1303,8 @@ export function createMockApi(search = typeof location === "undefined" ? "" : lo
     },
     async saveBookSettings({ bookId: id, settings: next }) {
       getBook(id);
-      settings.set(id, JSON.parse(JSON.stringify(next)));
+      // The chapters left out change only through setLeftOut.
+      settings.set(id, { ...JSON.parse(JSON.stringify(next)), leftOut: settingsOf(id).leftOut });
       const recording = recordings.get(id);
       if (recording) emitSync(recording); // Whether it narrates the book may have changed.
     },
