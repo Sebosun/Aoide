@@ -98,6 +98,8 @@ pub use speech_problems::SpeechProblem;
 mod tagging;
 pub use tagging::{TaggingRun, TaggingSettings};
 mod pronunciation;
+#[allow(dead_code)] // Until the tick loop drives it (the next slice).
+mod queue;
 pub use pronunciation::AffectedView;
 mod takes;
 mod timeline;
