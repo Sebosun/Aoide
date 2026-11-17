@@ -124,6 +124,21 @@ pub struct Chapter {
     /// Pictures and tables shown between blocks, outside the text (no offset moves for
     /// them), in reading order.
     pub inserts: Vec<Insert>,
+    /// Tables whose rows are blocks of the text (an EPUB's), with where each cell is.
+    pub tables: Vec<TableShape>,
+}
+
+/// A table that is part of the text: each row a block, its cells' texts joined by spaces.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TableShape {
+    /// The blocks that are its rows.
+    pub rows: std::ops::Range<usize>,
+    /// The block that is its caption.
+    pub caption_block: Option<usize>,
+    /// How many rows at the top are headings (every cell a `th`).
+    pub header_rows: usize,
+    /// Each row's cells, as character ranges in its block's text (an empty cell is empty).
+    pub cells: Vec<Vec<std::ops::Range<usize>>>,
 }
 
 /// Something shown between a chapter's blocks that takes no part of its text.

@@ -338,6 +338,7 @@ fn section(title: &str, text: String) -> ExcludedSection {
             blocks,
             note_refs: Vec::new(),
             inserts: Vec::new(),
+            tables: Vec::new(),
             sources: Vec::new(),
         },
         reason: ExclusionReason::Mailing,

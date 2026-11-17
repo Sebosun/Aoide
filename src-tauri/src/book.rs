@@ -662,6 +662,7 @@ pub(crate) mod tests {
             blocks,
             note_refs: vec![],
             inserts: Vec::new(),
+            tables: Vec::new(),
             sources: vec![SourceLocation {
                 path: "a.xhtml".into(),
                 fragment: None,

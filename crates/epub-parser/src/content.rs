@@ -19,6 +19,68 @@ pub(crate) struct Content {
     pictures: HashMap<usize, (String, String, Option<usize>)>,
     /// Where each figure's caption begins (a token), by figure.
     captions: HashMap<usize, usize>,
+    /// Empty tokens where a table's parts open and close.
+    table_marks: HashMap<usize, TableMark>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TableMark {
+    Table,
+    TableEnd,
+    Caption,
+    Row,
+    RowEnd,
+    /// A cell opens; `true` for a heading cell (`th`).
+    Cell(bool),
+    CellEnd,
+}
+
+/// A table being laid out.
+#[derive(Default)]
+struct TableBuild {
+    caption_block: Option<usize>,
+    /// Each row: its block, and its cells (start, end, a heading cell).
+    rows: Vec<(Option<usize>, Vec<(usize, usize, bool)>)>,
+    /// A cell's start: its block and offset, and whether it is a heading.
+    open_cell: Option<(usize, usize, bool)>,
+    /// Not a grid of lines (a cell over several lines, a table inside it).
+    broken: bool,
+}
+
+impl TableBuild {
+    fn shape(self, count: usize) -> Option<crate::TableShape> {
+        let rows: Vec<_> = self
+            .rows
+            .into_iter()
+            .filter(|(_, cells)| !cells.is_empty())
+            .collect();
+        let first = rows.first()?.0?;
+        let consecutive = rows
+            .iter()
+            .enumerate()
+            .all(|(i, (block, _))| *block == Some(first + i));
+        if self.broken || !consecutive || first + rows.len() > count {
+            return None;
+        }
+        let header_rows = rows
+            .iter()
+            .take_while(|(_, cells)| cells.iter().all(|(_, _, heading)| *heading))
+            .count();
+        Some(crate::TableShape {
+            rows: first..first + rows.len(),
+            caption_block: self.caption_block.filter(|&b| b + 1 == first),
+            header_rows,
+            cells: rows
+                .into_iter()
+                .map(|(_, cells)| {
+                    cells
+                        .into_iter()
+                        .map(|(start, end, _)| start..end)
+                        .collect()
+                })
+                .collect(),
+        })
+    }
 }
 
 /// A stretch of a document laid out: its blocks, and what stands at places in them.
@@ -27,6 +89,7 @@ pub(crate) struct Laid {
     pub refs: Vec<(NoteRef, String)>,
     /// Pictures: the block they stand before, `src` as written, `alt`, the caption's block.
     pub pictures: Vec<(usize, String, String, Option<usize>)>,
+    pub tables: Vec<crate::TableShape>,
 }
 
 pub(crate) struct Section {
@@ -73,6 +136,8 @@ impl Content {
         let mut pictures = Vec::new();
         // The block each caption begins in, by figure.
         let mut caption_blocks: HashMap<usize, usize> = HashMap::new();
+        let mut tables = Vec::new();
+        let mut table: Option<TableBuild> = None;
         let mut blocks = Vec::new();
         let mut refs = Vec::new();
         let mut pending = Vec::new();
@@ -131,6 +196,45 @@ impl Content {
                 pictures.push((before, src.clone(), alt.clone(), *figure));
                 continue;
             }
+            if let Some(mark) = self.table_marks.get(&index) {
+                // The line being built is block `blocks.len()`; a cell's place in it is the
+                // length of its text so far, as it will be collapsed.
+                let collapsed = line.split_whitespace().collect::<Vec<_>>().join(" ");
+                let at = collapsed.chars().count();
+                let block = blocks.len();
+                match (*mark, table.as_mut()) {
+                    (TableMark::Table, None) => table = Some(TableBuild::default()),
+                    (TableMark::Table, Some(outer)) => outer.broken = true,
+                    (TableMark::TableEnd, Some(_)) => {
+                        let built = table.take().unwrap();
+                        // Its last row is a line still being built.
+                        let count = blocks.len() + usize::from(!line.trim().is_empty());
+                        tables.extend(built.shape(count));
+                    }
+                    (TableMark::Caption, Some(t)) => t.caption_block = Some(block),
+                    (TableMark::Row, Some(t)) => t.rows.push((None, Vec::new())),
+                    (TableMark::Cell(heading), Some(t)) => {
+                        let start = at
+                            + usize::from(
+                                !collapsed.is_empty() && line.ends_with(char::is_whitespace),
+                            );
+                        t.open_cell = Some((block, start, heading));
+                    }
+                    (TableMark::CellEnd, Some(t)) => {
+                        match (t.open_cell.take(), t.rows.last_mut()) {
+                            (Some((opened, start, heading)), Some(row))
+                                if opened == block && row.0.is_none_or(|b| b == block) =>
+                            {
+                                row.0 = Some(block);
+                                row.1.push((start, at.max(start), heading));
+                            }
+                            _ => t.broken = true,
+                        }
+                    }
+                    _ => {}
+                }
+                continue;
+            }
             if let Some(figure) = self
                 .captions
                 .iter()
@@ -172,6 +276,7 @@ impl Content {
                 .collect(),
             blocks,
             refs,
+            tables,
         }
     }
 }
@@ -212,6 +317,7 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
         breaks: HashSet::new(),
         pictures: HashMap::new(),
         captions: HashMap::new(),
+        table_marks: HashMap::new(),
     };
     // Figures open around the element being read, innermost last; and how many there were.
     let mut figures: Vec<(ego_tree::NodeId, usize)> = Vec::new();
@@ -281,6 +387,18 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
                     } else if matches!(element.name(), "td" | "th") {
                         content.push(" ", &stack);
                     }
+                    let mark = match element.name() {
+                        "table" => Some(TableMark::Table),
+                        "caption" => Some(TableMark::Caption),
+                        "tr" => Some(TableMark::Row),
+                        "td" => Some(TableMark::Cell(false)),
+                        "th" => Some(TableMark::Cell(true)),
+                        _ => None,
+                    };
+                    if let Some(mark) = mark {
+                        content.table_marks.insert(content.tokens.len(), mark);
+                        content.push("", &stack);
+                    }
                     if element.name() == "figure" {
                         figures.push((node.id(), figure_count));
                         figure_count += 1;
@@ -328,6 +446,16 @@ pub(crate) fn read(source: &str, links_to_note: &dyn Fn(&str) -> bool) -> Conten
                         suppressed -= 1;
                     }
                     continue;
+                }
+                let closing = node.value().as_element().and_then(|e| match e.name() {
+                    "table" => Some(TableMark::TableEnd),
+                    "tr" => Some(TableMark::RowEnd),
+                    "td" | "th" => Some(TableMark::CellEnd),
+                    _ => None,
+                });
+                if let Some(mark) = closing {
+                    content.table_marks.insert(content.tokens.len(), mark);
+                    content.push("", &stack);
                 }
                 if figures.last().is_some_and(|(id, _)| *id == node.id()) {
                     figures.pop();

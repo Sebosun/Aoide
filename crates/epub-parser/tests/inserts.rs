@@ -1,7 +1,9 @@
 //! Pictures, tables and code: what they add to a chapter, and that its text stays as it was.
 mod support;
 
-use aoide_epub::{parse_epub, read_resource, BlockKind, Caption, Insert, InsertKind, ParseOptions};
+use aoide_epub::{
+    parse_epub, read_resource, BlockKind, Caption, Insert, InsertKind, ParseOptions, TableShape,
+};
 
 /// A chapter with a picture, a figure with its caption, a table with a caption, and code.
 pub const ILLUSTRATED: &str = r#"<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><body>
@@ -146,4 +148,57 @@ fn a_resource_is_read_from_the_book() {
         b"png bytes"
     );
     assert!(read_resource(&bytes, "OPS/images/missing.png", &options).is_err());
+}
+
+#[test]
+fn a_table_keeps_its_rows_as_text_and_records_where_each_cell_is() {
+    let book = parse_epub(&illustrated(), &ParseOptions::default()).unwrap();
+    let chapter = &book.chapters[0];
+    assert_eq!(
+        chapter.tables,
+        [TableShape {
+            rows: 6..9,
+            caption_block: Some(5),
+            header_rows: 1,
+            cells: vec![vec![0..4, 5..10], vec![0..4, 5..7], vec![0..4, 5..18]],
+        }]
+    );
+    let cell = |row: usize, n: usize| -> String {
+        let range = chapter.tables[0].cells[row][n].clone();
+        chapter.blocks[6 + row]
+            .text
+            .chars()
+            .skip(range.start)
+            .take(range.len())
+            .collect()
+    };
+    assert_eq!(
+        (cell(0, 1), cell(2, 1)),
+        ("Lamps".into(), "14 and a half".into())
+    );
+}
+
+#[test]
+fn a_table_that_is_not_a_grid_of_lines_stays_text_only() {
+    // A paragraph in a cell makes a row of several lines: no shape is recorded.
+    let book = parse_epub(
+        &support::single(
+            "<table><tr><td><p>One</p><p>Two</p></td><td>3</td></tr></table><table><tr><td></td><td>4</td></tr></table>",
+        ),
+        &ParseOptions::default(),
+    )
+    .unwrap();
+    let chapter = &book.chapters[0];
+    let texts: Vec<&str> = chapter.blocks.iter().map(|b| b.text.as_str()).collect();
+    assert_eq!(texts, ["One", "Two", "3", "4"]);
+    assert_eq!(
+        chapter.tables,
+        [TableShape {
+            rows: 3..4,
+            caption_block: None,
+            header_rows: 0,
+            cells: vec![vec![0..0, 0..1]],
+        }],
+        "an empty cell is an empty range"
+    );
 }

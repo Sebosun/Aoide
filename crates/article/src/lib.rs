@@ -159,6 +159,7 @@ pub fn extract(html: &str, url: &Url, options: &ExtractOptions) -> Extracted {
         blocks,
         note_refs: Vec::new(),
         inserts: Vec::new(),
+        tables: Vec::new(),
         sources: vec![SourceLocation {
             path: url.as_str().into(),
             fragment: None,

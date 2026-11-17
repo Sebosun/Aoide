@@ -119,7 +119,7 @@ pub(crate) fn extract(
             let laid = content.lay_out(*offset, end);
             let inserts = pictures(&laid);
             let (note_refs, targets) = references(path, laid.refs);
-            let blocks = laid.blocks;
+            let (blocks, tables) = (laid.blocks, laid.tables);
             extraction.sections.push(ReadingSection {
                 chapter: Chapter {
                     title: title.clone(),
@@ -127,6 +127,7 @@ pub(crate) fn extract(
                     blocks,
                     note_refs,
                     inserts,
+                    tables,
                     sources: vec![SourceLocation {
                         path: path.clone(),
                         fragment,
@@ -196,7 +197,12 @@ fn references(path: &str, refs: Vec<(NoteRef, String)>) -> (Vec<NoteRef>, Vec<(S
 }
 
 fn append(section: &mut ReadingSection, path: &str, laid: content::Laid, inserts: Vec<Insert>) {
-    let content::Laid { blocks, refs, .. } = laid;
+    let content::Laid {
+        blocks,
+        refs,
+        tables,
+        ..
+    } = laid;
     if blocks.is_empty() {
         return;
     }
@@ -205,6 +211,14 @@ fn append(section: &mut ReadingSection, path: &str, laid: content::Laid, inserts
     for reference in &mut refs {
         reference.block += shift;
     }
+    section
+        .chapter
+        .tables
+        .extend(tables.into_iter().map(|mut table| {
+            table.rows = table.rows.start + shift..table.rows.end + shift;
+            table.caption_block = table.caption_block.map(|b| b + shift);
+            table
+        }));
     section
         .chapter
         .inserts
