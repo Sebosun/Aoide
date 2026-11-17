@@ -265,3 +265,15 @@ it("exports every book's notes into a chosen folder from Settings › Library", 
   expect(wrapper.text()).toContain("Wrote the notes of 1 book into ~/Notes.");
   wrapper.unmount();
 });
+
+it("fetches the open book's highlights again with its chapters, so they follow text that changed", async () => {
+  const wrapper = await openReader("book-0");
+  const reader = useReaderStore();
+  const words = span(sentence("0:2:0"), 0, 2);
+  // Changed in the core while the book is open (an article fetched again moves its highlights).
+  await mock.addHighlight({ bookId: "book-0", chapter: 0, ...words });
+  expect(reader.highlights).toEqual([]);
+  await reader.refreshBook("book-0");
+  expect(reader.highlights.map((h) => [h.start, h.end])).toEqual([[words.start, words.end]]);
+  wrapper.unmount();
+});

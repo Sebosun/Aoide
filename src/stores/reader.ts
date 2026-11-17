@@ -130,10 +130,15 @@ export const useReaderStore = defineStore("reader", () => {
     if (first && book.value && currentChapter.value === index)
       await usePlayerStore().play(book.value.id, index, first.id);
   }
-  /** Fetches a book's chapters again (its narration changed what they mark). */
+  /** Fetches a book's chapters again (its narration changed what they mark, or an article was
+   *  fetched again), and its highlights, which the core moves with their text. */
   async function refreshBook(id: string) {
     cache.value = Object.fromEntries(Object.entries(cache.value).filter(([key]) => !key.startsWith(`${id}:`)));
-    if (book.value?.id === id && shape.value !== "listen") await loadChapter(currentChapter.value);
+    if (book.value?.id === id && shape.value !== "listen")
+      await Promise.all([
+        loadChapter(currentChapter.value),
+        loadHighlights().catch((e) => void (error.value = String(e))),
+      ]);
   }
   return {
     book,
